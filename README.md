@@ -16,6 +16,10 @@ Exemplo: `/suprema-line/karina`
 
 A vendedora fica atribuída à sessão e recebe o pedido no WhatsApp.
 
+## Estado atual
+
+A primeira interface funcional já está na `main`, incluindo loja, feed vertical, carrinho compartilhado, pedido mínimo, atribuição da vendedora e geração da mensagem de pedido para WhatsApp. A etapa seguinte é substituir os dados de demonstração por persistência multiempresa e painel de gestão.
+
 ## Rodar localmente
 
 ```bash
