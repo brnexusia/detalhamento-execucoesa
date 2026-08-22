@@ -27,6 +27,24 @@ npm install
 npm run dev
 ```
 
+## Deploy no Easypanel
+
+O projeto usa Dockerfile próprio em produção.
+
+No Easypanel:
+
+- Source: GitHub
+- Repository: `brnexusia/detalhamento-execucoesa`
+- Branch: `main`
+- Build method: `Dockerfile`
+- Dockerfile: `./Dockerfile`
+- Build context: `/`
+- Target/domain port: `80`
+
+Não configurar comandos manuais de install, build ou start. O Dockerfile compila o Vite em Node 22 e serve o resultado com Nginx.
+
+O Nginx possui fallback de SPA, portanto URLs como `/casa-norte/marina` abrem diretamente sem retornar 404.
+
 ## Escopo da primeira versão
 
 - vitrine responsiva;
