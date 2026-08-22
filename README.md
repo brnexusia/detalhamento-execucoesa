@@ -41,15 +41,27 @@ O cliente entra pela loja ou pelo link individual de uma vendedora, escolhe prod
 
 Exemplo: `/suprema-line/karina`.
 
-## Banco
+## Produção: uma única variável
 
-O backend usa PostgreSQL. Na inicialização ele cria automaticamente as tabelas necessárias (`users`, `stores`, `products`, `sellers`, `orders`, `events` e `sessions`).
+No Easypanel, a única variável necessária é:
 
-Configure `DATABASE_URL` no Easypanel. Sem banco, o container continua saudável e a loja demo `/casa-norte/marina` permanece disponível, mas login/cadastro e persistência real ficam bloqueados.
+```env
+DATABASE_URL=postgresql://usuario:senha@host:5432/banco
+```
 
-## Uploads
+Depois do deploy, o Atacado Shop faz sozinho:
 
-Fotos e vídeos são gravados em `/data/uploads`. Para produção, adicione um volume persistente no Easypanel montado em `/data`.
+- conexão com o PostgreSQL;
+- criação e atualização do schema necessário;
+- criação de tabelas e índices;
+- sessões de login;
+- pedidos e métricas;
+- armazenamento persistente de fotos e vídeos no próprio PostgreSQL;
+- reconexão automática se o Postgres ainda estiver iniciando quando o app subir.
+
+Não é necessário configurar `PGSSL`, `DATA_DIR`, volume de uploads, migration manual ou comando de inicialização.
+
+As mídias ficam na tabela `media_assets` e são servidas por `/media/:id`, inclusive com suporte a HTTP Range para vídeos.
 
 ## Deploy no Easypanel
 
@@ -60,15 +72,14 @@ Fotos e vídeos são gravados em `/data/uploads`. Para produção, adicione um v
 - File: `Dockerfile`
 - Build Path: `/`
 - Target Port: `80`
+- Environment: somente `DATABASE_URL`
 
 Não configure Install/Build/Start commands no Easypanel: o Dockerfile cuida de tudo.
-
-Depois adicione `DATABASE_URL` em **Environment**, monte um volume em `/data` e faça redeploy.
 
 ## Rodar localmente
 
 ```bash
 npm install
 npm run build
-DATABASE_URL=postgresql://... PORT=8080 npm start
+DATABASE_URL=postgresql://... npm start
 ```
