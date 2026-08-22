@@ -5,5 +5,4 @@ dist
 .env
 .env.*
 npm-debug.log*
-Dockerfile*
 README.md

@@ -1,59 +1,74 @@
 # Atacado Shop
 
-MVP enxuto de catálogo para atacado com dois modos de compra: loja tradicional e feed vertical. O comprador monta o carrinho e envia o pedido para a vendedora responsável pelo link da loja no WhatsApp.
+SaaS enxuto para atacado: **Catálogo + Feed + Carrinho + Vendedora**.
 
-## Princípio do produto
+O cliente entra pela loja ou pelo link individual de uma vendedora, escolhe produto, variação e quantidade, monta o carrinho e envia o pedido pronto para o WhatsApp. Não existe checkout online na V1.
 
-**Catálogo + Feed + Carrinho + Vendedora.**
+## O que já está implementado
 
-Sem checkout, gateway de pagamento ou cadastro obrigatório do comprador na V1.
+### Comprador
+- loja responsiva por URL;
+- feed vertical com foto ou vídeo;
+- busca e categorias;
+- seleção obrigatória de variações (cor, tamanho etc.);
+- quantidade antes de adicionar ao carrinho;
+- carrinho compartilhado entre loja e feed;
+- pedido mínimo com progresso;
+- registro do pedido antes de abrir o WhatsApp;
+- envio para o WhatsApp da vendedora atribuída ao link.
 
-## URL comercial
+### Lojista
+- cadastro e login;
+- painel enxuto;
+- configuração de nome, URL, WhatsApp, pedido mínimo, chamadas, logo e cor;
+- CRUD de produtos;
+- upload de foto/vídeo;
+- variações por produto;
+- produto ativo/inativo e destaque;
+- CRUD de vendedoras;
+- link individual por vendedora;
+- lista de pedidos;
+- métricas básicas de acessos, carrinhos, pedidos e valor gerado.
 
-`/{empresa}/{vendedora}`
+## URLs
 
-Exemplo: `/suprema-line/karina`
+- `/` — apresentação
+- `/entrar` — login
+- `/criar-conta` — cadastro
+- `/painel` — painel do lojista
+- `/{loja}` — link geral da loja
+- `/{loja}/{vendedora}` — link atribuído à vendedora
 
-A vendedora fica atribuída à sessão e recebe o pedido no WhatsApp.
+Exemplo: `/suprema-line/karina`.
 
-## Estado atual
+## Banco
 
-A primeira interface funcional já está na `main`, incluindo loja, feed vertical, carrinho compartilhado, pedido mínimo, atribuição da vendedora e geração da mensagem de pedido para WhatsApp. A etapa seguinte é substituir os dados de demonstração por persistência multiempresa e painel de gestão.
+O backend usa PostgreSQL. Na inicialização ele cria automaticamente as tabelas necessárias (`users`, `stores`, `products`, `sellers`, `orders`, `events` e `sessions`).
+
+Configure `DATABASE_URL` no Easypanel. Sem banco, o container continua saudável e a loja demo `/casa-norte/marina` permanece disponível, mas login/cadastro e persistência real ficam bloqueados.
+
+## Uploads
+
+Fotos e vídeos são gravados em `/data/uploads`. Para produção, adicione um volume persistente no Easypanel montado em `/data`.
+
+## Deploy no Easypanel
+
+- Source: GitHub
+- Repository: `brnexusia/detalhamento-execucoesa`
+- Branch: `main`
+- Build: `Dockerfile`
+- File: `Dockerfile`
+- Build Path: `/`
+- Target Port: `80`
+
+Não configure Install/Build/Start commands no Easypanel: o Dockerfile cuida de tudo.
+
+Depois adicione `DATABASE_URL` em **Environment**, monte um volume em `/data` e faça redeploy.
 
 ## Rodar localmente
 
 ```bash
 npm install
-npm run dev
+npm run build
+DATABASE_URL=postgresql://... PORT=8080 npm start
 ```
-
-## Deploy no Easypanel
-
-O projeto usa Dockerfile próprio em produção.
-
-No Easypanel:
-
-- Source: GitHub
-- Repository: `brnexusia/detalhamento-execucoesa`
-- Branch: `main`
-- Build method: `Dockerfile`
-- Dockerfile: `./Dockerfile`
-- Build context: `/`
-- Target/domain port: `80`
-
-Não configurar comandos manuais de install, build ou start. O Dockerfile compila o Vite em Node 22 e serve o resultado com Nginx.
-
-O Nginx possui fallback de SPA, portanto URLs como `/casa-norte/marina` abrem diretamente sem retornar 404.
-
-## Escopo da primeira versão
-
-- vitrine responsiva;
-- categorias e busca;
-- feed vertical com scroll snap;
-- carrinho compartilhado entre loja e feed;
-- pedido mínimo com progresso;
-- link rastreável por vendedora;
-- envio do resumo do carrinho para WhatsApp;
-- sem checkout online.
-
-A interface foi pensada para parecer varejo/atacado real, com linguagem visual editorial e poucos componentes, evitando aparência de dashboard genérico ou template de IA.
