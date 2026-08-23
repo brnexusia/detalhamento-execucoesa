@@ -7,6 +7,11 @@ function go(path: string) {
   window.dispatchEvent(new PopStateEvent('popstate'))
 }
 
+function requestedDestination() {
+  const next = new URLSearchParams(window.location.search).get('next') || ''
+  return next.startsWith('/') && !next.startsWith('//') ? next : '/painel'
+}
+
 export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const [showPassword, setShowPassword] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -20,9 +25,13 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     setBusy(true)
     setError('')
     try {
-      if (mode === 'login') await api.login({ email: form.email, password: form.password })
-      else await api.register(form)
-      go('/painel')
+      if (mode === 'login') {
+        await api.login({ email: form.email, password: form.password })
+        go(requestedDestination())
+      } else {
+        await api.register(form)
+        go('/painel')
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível continuar.')
     } finally {
@@ -46,7 +55,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
           <div className="auth-form__head">
             <span className="brand__mark">AS</span>
             <p>{mode === 'register' ? 'Criar conta' : 'Entrar'}</p>
-            <h2>{mode === 'register' ? 'Monte sua loja em poucos minutos.' : 'Acesse o painel da sua loja.'}</h2>
+            <h2>{mode === 'register' ? 'Monte sua loja em poucos minutos.' : 'Acesse seu painel.'}</h2>
           </div>
           {mode === 'register' && (
             <>
@@ -58,7 +67,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
           <label><span>E-mail</span><input type="email" autoComplete="email" value={form.email} onChange={(e) => update('email', e.target.value)} placeholder="voce@empresa.com.br" required /></label>
           <label><span>Senha</span><div className="password-input"><input type={showPassword ? 'text' : 'password'} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength={8} value={form.password} onChange={(e) => update('password', e.target.value)} placeholder="Mínimo 8 caracteres" required /><button type="button" onClick={() => setShowPassword((value) => !value)}>{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button></div></label>
           {error && <p className="form-error">{error}</p>}
-          <button className="primary-action" disabled={busy}>{busy ? 'Aguarde…' : mode === 'register' ? 'Criar minha loja' : 'Entrar no painel'}<ArrowRight size={18} /></button>
+          <button className="primary-action" disabled={busy}>{busy ? 'Aguarde…' : mode === 'register' ? 'Criar minha loja' : 'Entrar'}<ArrowRight size={18} /></button>
           <p className="auth-switch">{mode === 'register' ? 'Já tem uma conta?' : 'Ainda não tem conta?'} <button type="button" onClick={() => go(mode === 'register' ? '/entrar' : '/criar-conta')}>{mode === 'register' ? 'Entrar' : 'Criar conta'}</button></p>
         </form>
       </main>

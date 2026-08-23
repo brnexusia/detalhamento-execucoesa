@@ -4,6 +4,7 @@ import App from './App'
 import './styles.css'
 import './saas.css'
 import './canvas.css'
+import './platform-admin.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
