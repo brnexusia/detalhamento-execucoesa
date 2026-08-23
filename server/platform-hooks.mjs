@@ -7,6 +7,8 @@ const databaseUrl = process.env.DATABASE_URL?.trim() || ''
 const pool = databaseUrl ? new Pool({ connectionString: databaseUrl, max: 4, connectionTimeoutMillis: 5000 }) : null
 const sessionCookie = 'atacado_session'
 
+if (pool) pool.on('error', (error) => console.error('[platform-admin] pool:', error.message))
+
 const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex')
 const id = () => crypto.randomUUID()
 
@@ -83,6 +85,7 @@ function installPlatformRoutes(app) {
   app.__atacadoPlatformRoutesInstalled = true
 
   const router = express.Router()
+  router.use(express.json({ limit: '256kb' }))
 
   const requirePlatformAdmin = asyncRoute(async (req, res, next) => {
     const user = await currentPlatformAdmin(req)
@@ -156,17 +159,16 @@ function installPlatformRoutes(app) {
     const password = String(req.body?.password || '')
     if (!email) return res.status(400).json({ error: 'Informe o e-mail do administrador.' })
 
-    let user = await pool.query('SELECT id,name,email FROM users WHERE email=$1 LIMIT 1', [email])
+    const user = await pool.query('SELECT id,name,email FROM users WHERE email=$1 LIMIT 1', [email])
     let userRow = user.rows[0] || null
 
     if (!userRow) {
       if (!name || password.length < 8) {
         return res.status(400).json({ error: 'Para um novo usuário, informe nome e senha temporária de pelo menos 8 caracteres.' })
       }
-      const userId = id()
       const created = await pool.query(
         'INSERT INTO users (id,email,name,password_hash) VALUES ($1,$2,$3,$4) RETURNING id,name,email',
-        [userId, email, name, hashPassword(password)],
+        [id(), email, name, hashPassword(password)],
       )
       userRow = created.rows[0]
     }
