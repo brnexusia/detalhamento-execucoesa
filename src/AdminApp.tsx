@@ -16,6 +16,23 @@ function parseVariations(text: string): VariationGroup[] {
   return text.split('\n').map((line) => { const [name, ...rest] = line.split(':'); return { name: name?.trim() || '', options: rest.join(':').split(',').map((option) => option.trim()).filter(Boolean) } }).filter((group) => group.name && group.options.length)
 }
 function productDraft(product: AdminProduct): ProductDraft { return { id: product.id, name: product.name, sku: product.sku, description: product.description, price: String(product.price), category: product.category, pack: product.pack, mediaUrl: product.media_url, mediaType: product.media_type, variationsText: variationText(product.variations), featured: product.featured, active: product.active } }
+function phoneDigits(value: string) { return value.replace(/\D/g, '') }
+function formatWhatsapp(value: string) {
+  let raw = phoneDigits(value)
+  if (!raw) return ''
+  if (raw.startsWith('55')) raw = raw.slice(2)
+  raw = raw.slice(0, 11)
+  const ddd = raw.slice(0, 2)
+  const number = raw.slice(2)
+  let formatted = '+55'
+  if (ddd) formatted += ` (${ddd}${ddd.length === 2 ? ')' : ''}`
+  if (number) {
+    const firstBlock = number.length > 8 ? 5 : 4
+    formatted += ` ${number.slice(0, firstBlock)}`
+    if (number.length > firstBlock) formatted += `-${number.slice(firstBlock)}`
+  }
+  return formatted
+}
 
 export default function AdminApp() {
   const [section, setSection] = useState<Section>(currentSection)
@@ -27,6 +44,7 @@ export default function AdminApp() {
   const [productModal, setProductModal] = useState<ProductDraft | null>(null)
   const [sellerModal, setSellerModal] = useState<Partial<AdminSeller> | null>(null)
   const [query, setQuery] = useState('')
+  const [storeDirty, setStoreDirty] = useState(false)
 
   const load = async () => {
     setLoading(true); setError('')
@@ -37,10 +55,11 @@ export default function AdminApp() {
   useEffect(() => { load() }, [])
   useEffect(() => { const onPop = () => setSection(currentSection()); window.addEventListener('popstate', onPop); return () => window.removeEventListener('popstate', onPop) }, [])
 
-  const changeSection = (next: Section) => { setSection(next); setMenuOpen(false); window.history.pushState({}, '', next === 'inicio' ? '/painel' : `/painel/${next}`) }
+  const canLeaveStore = () => section !== 'loja' || !storeDirty || window.confirm('Você tem alterações não salvas. Deseja sair sem salvar?')
+  const changeSection = (next: Section) => { if (next !== section && !canLeaveStore()) return; setStoreDirty(false); setSection(next); setMenuOpen(false); window.history.pushState({}, '', next === 'inicio' ? '/painel' : `/painel/${next}`) }
   const flash = (message: string) => { setNotice(message); window.setTimeout(() => setNotice(''), 2200) }
   const copy = async (value: string) => { await navigator.clipboard.writeText(value); flash('Link copiado.') }
-  const logout = async () => { await api.logout().catch(() => undefined); go('/entrar') }
+  const logout = async () => { if (!canLeaveStore()) return; await api.logout().catch(() => undefined); go('/entrar') }
 
   if (loading) return <div className="panel-loading"><span className="brand__mark">AS</span><strong>Abrindo seu painel…</strong></div>
   if (!data) return <div className="panel-loading panel-loading--error"><span className="brand__mark">AS</span><strong>O painel não conseguiu iniciar.</strong><p>{error}</p><button className="primary-action" onClick={load}>Tentar novamente</button></div>
@@ -70,7 +89,7 @@ export default function AdminApp() {
         {section === 'produtos' && <Products data={data} query={query} setQuery={setQuery} onCreate={() => setProductModal({ ...blankProduct })} onEdit={(product) => setProductModal(productDraft(product))} onDelete={async (product) => { if (!window.confirm(`Excluir ${product.name}?`)) return; await api.deleteProduct(product.id); flash('Produto excluído.'); load() }} />}
         {section === 'pedidos' && <Orders data={data} />}
         {section === 'vendedoras' && <Sellers data={data} baseUrl={baseUrl} onCopy={copy} onCreate={() => setSellerModal({ name: '', phone: '', slug: '', is_active: true })} onEdit={(seller) => setSellerModal({ ...seller })} onDelete={async (seller) => { if (!window.confirm(`Excluir ${seller.name}?`)) return; await api.deleteSeller(seller.id); flash('Vendedora excluída.'); load() }} />}
-        {section === 'loja' && <StoreSettings data={data} onSaved={() => { flash('Loja atualizada.'); load() }} onCopy={copy} />}
+        {section === 'loja' && <StoreSettings data={data} onSaved={() => { flash('Loja atualizada.'); load() }} onCopy={copy} onDirtyChange={setStoreDirty} />}
       </main>
       {productModal && <ProductEditor draft={productModal} setDraft={setProductModal} onClose={() => setProductModal(null)} onSaved={() => { setProductModal(null); flash(productModal.id ? 'Produto atualizado.' : 'Produto cadastrado.'); load() }} />}
       {sellerModal && <SellerEditor draft={sellerModal} setDraft={setSellerModal} storeSlug={data.store.slug} onClose={() => setSellerModal(null)} onSaved={() => { setSellerModal(null); flash(sellerModal.id ? 'Vendedora atualizada.' : 'Vendedora cadastrada.'); load() }} />}
@@ -84,9 +103,9 @@ function NavItem({ active, icon, label, count, onClick }: { active: boolean; ico
 
 function Dashboard({ data, incomplete, storeUrl, onSection, onCopy }: { data: AdminBootstrap; incomplete: boolean; storeUrl: string; onSection: (section: Section) => void; onCopy: () => void }) {
   return <div className="panel-page">
-    {incomplete && <section className="setup-card"><div><span>Primeiros passos</span><h2>Deixe a loja pronta para receber pedidos.</h2></div><div className="setup-list"><button className={data.store.whatsapp ? 'is-done' : ''} onClick={() => onSection('loja')}><span>{data.store.whatsapp ? <Check size={16} /> : '1'}</span><div><strong>Configure a loja</strong><small>WhatsApp, pedido mínimo e endereço.</small></div><ChevronRight size={18} /></button><button className={data.products.length ? 'is-done' : ''} onClick={() => onSection('produtos')}><span>{data.products.length ? <Check size={16} /> : '2'}</span><div><strong>Cadastre produtos</strong><small>Foto ou vídeo, preço e variações.</small></div><ChevronRight size={18} /></button><button className={data.sellers.length ? 'is-done' : ''} onClick={() => onSection('vendedoras')}><span>{data.sellers.length ? <Check size={16} /> : '3'}</span><div><strong>Adicione vendedoras</strong><small>Cada uma recebe seu próprio link.</small></div><ChevronRight size={18} /></button></div></section>}
+    {incomplete && <section className="setup-card"><div><span>Primeiros passos</span><h2>Deixe a loja pronta para receber pedidos.</h2></div><div className="setup-list"><button className={data.store.whatsapp ? 'is-done' : ''} onClick={() => onSection('loja')}><span>{data.store.whatsapp ? <Check size={16} /> : '1'}</span><div><strong>Configure a loja</strong><small>WhatsApp, pedido mínimo e link da loja.</small></div><ChevronRight size={18} /></button><button className={data.products.length ? 'is-done' : ''} onClick={() => onSection('produtos')}><span>{data.products.length ? <Check size={16} /> : '2'}</span><div><strong>Cadastre produtos</strong><small>Foto ou vídeo, preço e variações.</small></div><ChevronRight size={18} /></button><button className={data.sellers.length ? 'is-done' : ''} onClick={() => onSection('vendedoras')}><span>{data.sellers.length ? <Check size={16} /> : '3'}</span><div><strong>Adicione vendedoras</strong><small>Cada uma recebe seu próprio link.</small></div><ChevronRight size={18} /></button></div></section>}
     <section className="metric-row"><div><span>Acessos</span><strong>{data.stats.views}</strong><small>na loja</small></div><div><span>Carrinhos</span><strong>{data.stats.carts}</strong><small>iniciados</small></div><div><span>Pedidos</span><strong>{data.stats.orders}</strong><small>enviados ao WhatsApp</small></div><div><span>Valor gerado</span><strong>{money.format(data.stats.value)}</strong><small>em pedidos</small></div></section>
-    <section className="panel-split"><div className="plain-card"><div className="section-head"><div><span>Seu link</span><h2>Loja publicada</h2></div><a href={storeUrl} target="_blank" rel="noreferrer"><ExternalLink size={17} /></a></div><div className="copy-line"><code>{storeUrl.replace(/^https?:\/\//, '')}</code><button onClick={onCopy}><Clipboard size={16} /> Copiar</button></div><p>Use o link geral ou compartilhe o link individual de cada vendedora.</p></div><div className="plain-card"><div className="section-head"><div><span>Últimos pedidos</span><h2>{data.orders.length ? `${data.orders.length} registrados` : 'Ainda vazio'}</h2></div><button onClick={() => onSection('pedidos')}>Ver todos</button></div><div className="mini-orders">{data.orders.slice(0, 4).map((order) => <div key={order.id}><strong>{order.code}</strong><span>{order.items.length} linhas</span><b>{money.format(order.total)}</b></div>)}{!data.orders.length && <p>Os pedidos aparecem aqui antes de abrir o WhatsApp.</p>}</div></div></section>
+    <section className="panel-split"><div className="plain-card"><div className="section-head"><div><span>Seu link</span><h2 className="store-published-title">Loja <span className="published-badge">Publicada</span></h2></div><a href={storeUrl} target="_blank" rel="noreferrer"><ExternalLink size={17} /></a></div><div className="copy-line"><code>{storeUrl.replace(/^https?:\/\//, '')}</code><button onClick={onCopy}><Clipboard size={16} /> Copiar</button></div><p>Use o link geral ou compartilhe o link individual de cada vendedora.</p></div><div className="plain-card"><div className="section-head"><div><span>Últimos pedidos</span><h2>{data.orders.length ? `${data.orders.length} registrados` : 'Ainda vazio'}</h2></div><button onClick={() => onSection('pedidos')}>Ver todos</button></div><div className="mini-orders">{data.orders.slice(0, 4).map((order) => <div key={order.id}><strong>{order.code}</strong><span>{order.items.length} linhas</span><b>{money.format(order.total)}</b></div>)}{!data.orders.length && <div className="empty-orders-action"><p>Os pedidos aparecem aqui antes de abrir o WhatsApp.</p><button onClick={() => onSection('produtos')}>Adicione produtos para começar a vender</button></div>}</div></div></section>
   </div>
 }
 
@@ -104,14 +123,49 @@ function Sellers({ data, baseUrl, onCopy, onCreate, onEdit, onDelete }: { data: 
   return <div className="panel-page"><div className="page-title"><div><span>Equipe</span><h1>Vendedoras</h1><p>Cada pessoa ganha um endereço próprio da mesma loja.</p></div><button className="primary-action" onClick={onCreate}><Plus size={18} /> Nova vendedora</button></div><div className="seller-list">{data.sellers.map((seller) => { const orders = data.orders.filter((order) => order.seller_id === seller.id); const value = orders.reduce((sum, order) => sum + order.total, 0); const link = `${baseUrl}/${data.store.slug}/${seller.slug}`; return <article key={seller.id}><div className="seller-avatar">{seller.name.slice(0, 2).toUpperCase()}</div><div className="seller-main"><small>{seller.is_active ? 'ATIVA' : 'PAUSADA'}</small><h3>{seller.name}</h3><span>{seller.phone}</span></div><div className="seller-stats"><span><b>{orders.length}</b> pedidos</span><span><b>{money.format(value)}</b> gerados</span></div><div className="seller-link"><code>/{data.store.slug}/{seller.slug}</code><button onClick={() => onCopy(link)}><Clipboard size={15} /> Copiar link</button></div><div className="seller-actions"><button onClick={() => onEdit(seller)}><Pencil size={16} /></button><button className="danger" onClick={() => onDelete(seller)}><Trash2 size={16} /></button></div></article> })}</div>{!data.sellers.length && <div className="admin-empty"><Users size={30} /><h2>Cadastre quem vende.</h2><p>O link individual garante que o carrinho volte para a vendedora certa.</p><button className="primary-action" onClick={onCreate}><Plus size={18} /> Cadastrar vendedora</button></div>}</div>
 }
 
-function StoreSettings({ data, onSaved, onCopy }: { data: AdminBootstrap; onSaved: () => void; onCopy: (value: string) => void }) {
-  const [form, setForm] = useState({ name: data.store.name, slug: data.store.slug, eyebrow: data.store.eyebrow, tagline: data.store.tagline, minimumOrder: String(data.store.minimum_order), whatsapp: data.store.whatsapp, logoUrl: data.store.logo_url, accent: data.store.accent })
+function StoreSettings({ data, onSaved, onCopy, onDirtyChange }: { data: AdminBootstrap; onSaved: () => void; onCopy: (value: string) => void; onDirtyChange: (dirty: boolean) => void }) {
+  const initialForm = { name: data.store.name, slug: data.store.slug, eyebrow: data.store.eyebrow, tagline: data.store.tagline, minimumOrder: String(data.store.minimum_order), whatsapp: formatWhatsapp(data.store.whatsapp), logoUrl: data.store.logo_url, accent: data.store.accent }
+  const [form, setForm] = useState(initialForm)
+  const [savedForm, setSavedForm] = useState(initialForm)
   const [busy, setBusy] = useState(false)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
   const [error, setError] = useState('')
+  const dirty = JSON.stringify(form) !== JSON.stringify(savedForm)
   const update = (key: keyof typeof form, value: string) => setForm((current) => ({ ...current, [key]: value }))
   const url = `${window.location.origin}/${form.slug}`
-  const save = async (event: React.FormEvent) => { event.preventDefault(); setBusy(true); setError(''); try { await api.updateStore(form); onSaved() } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível salvar.') } finally { setBusy(false) } }
-  return <div className="panel-page"><div className="page-title"><div><span>Publicação</span><h1>Minha loja</h1><p>Só o necessário para sua vitrine ficar com a sua cara.</p></div></div><form className="settings-layout" onSubmit={save}><section className="settings-card"><h2>Identidade</h2><label><span>Nome da loja</span><input value={form.name} onChange={(e) => update('name', e.target.value)} required /></label><label><span>Frase pequena</span><input value={form.eyebrow} onChange={(e) => update('eyebrow', e.target.value)} placeholder="Atacado de moda feminina" /></label><label><span>Chamada da capa</span><textarea value={form.tagline} onChange={(e) => update('tagline', e.target.value)} rows={3} /></label><label><span>Logo (URL)</span><input value={form.logoUrl} onChange={(e) => update('logoUrl', e.target.value)} placeholder="https://…" /></label><label className="color-field"><span>Cor principal</span><div><input type="color" value={form.accent} onChange={(e) => update('accent', e.target.value)} /><code>{form.accent}</code></div></label></section><section className="settings-card"><h2>Venda</h2><label><span>Pedido mínimo</span><input type="number" step="0.01" min="0" value={form.minimumOrder} onChange={(e) => update('minimumOrder', e.target.value)} /></label><label><span>WhatsApp padrão</span><input value={form.whatsapp} onChange={(e) => update('whatsapp', e.target.value)} placeholder="5511999999999" /></label><h2 className="settings-subtitle">Endereço</h2><label><span>URL da loja</span><div className="url-input"><em>{window.location.host}/</em><input value={form.slug} onChange={(e) => update('slug', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'))} /></div></label><div className="copy-line"><code>{url.replace(/^https?:\/\//, '')}</code><button type="button" onClick={() => onCopy(url)}><Clipboard size={16} /> Copiar</button></div></section><div className="settings-save">{error && <p className="form-error">{error}</p>}<button className="primary-action" disabled={busy}>{busy ? 'Salvando…' : 'Salvar alterações'}<ArrowRight size={18} /></button></div></form></div>
+
+  useEffect(() => { onDirtyChange(dirty) }, [dirty, onDirtyChange])
+  useEffect(() => () => onDirtyChange(false), [onDirtyChange])
+  useEffect(() => {
+    const beforeUnload = (event: BeforeUnloadEvent) => { if (!dirty) return; event.preventDefault(); event.returnValue = '' }
+    window.addEventListener('beforeunload', beforeUnload)
+    return () => window.removeEventListener('beforeunload', beforeUnload)
+  }, [dirty])
+
+  const uploadLogo = async (file?: File) => {
+    if (!file) return
+    if (!file.type.startsWith('image/')) { setError('A logo precisa ser uma imagem.'); return }
+    setUploadingLogo(true); setError('')
+    try { const result = await api.upload(file); update('logoUrl', result.url) }
+    catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível enviar a logo.') }
+    finally { setUploadingLogo(false) }
+  }
+
+  const save = async (event: React.FormEvent) => {
+    event.preventDefault()
+    const whatsapp = phoneDigits(form.whatsapp)
+    if (whatsapp && !/^55\d{10,11}$/.test(whatsapp)) { setError('Confira o WhatsApp. Use DDD + número completo.'); return }
+    setBusy(true); setError('')
+    try {
+      await api.updateStore({ ...form, whatsapp })
+      setSavedForm(form)
+      onDirtyChange(false)
+      onSaved()
+    } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível salvar.') }
+    finally { setBusy(false) }
+  }
+
+  return <div className="panel-page"><div className="page-title"><div><span>Publicação</span><h1>Minha loja</h1><p>Só o necessário para sua vitrine ficar com a sua cara.</p></div></div><form className="settings-layout settings-layout--ux" onSubmit={save}><section className="settings-card"><h2>Identidade</h2><label><span>Nome da loja</span><input value={form.name} onChange={(e) => update('name', e.target.value)} required /></label><label><span>Frase pequena</span><input value={form.eyebrow} onChange={(e) => update('eyebrow', e.target.value)} placeholder="Atacado de moda feminina" /></label><label><span>Chamada da capa</span><textarea value={form.tagline} onChange={(e) => update('tagline', e.target.value)} rows={3} /></label><label><span>Logo</span><div className="logo-upload-control"><div className="logo-upload-preview">{form.logoUrl ? <img src={form.logoUrl} alt="Prévia da logo" /> : <span>LOGO</span>}</div><div><label className="logo-upload-button"><Upload size={16} /> {uploadingLogo ? 'Enviando…' : form.logoUrl ? 'Trocar logo' : 'Enviar logo'}<input type="file" accept="image/*" onChange={(e) => uploadLogo(e.target.files?.[0])} disabled={uploadingLogo} /></label><p className="logo-upload-help">Escolha a imagem direto do celular ou computador.</p></div></div></label><label className="color-field"><span>Cor principal</span><div><input type="color" value={form.accent} onChange={(e) => update('accent', e.target.value)} /><code>{form.accent}</code></div></label></section><section className="settings-card"><h2>Venda</h2><label><span>Pedido mínimo</span><div className="money-input"><span>R$</span><input type="number" step="0.01" min="0" value={form.minimumOrder} onChange={(e) => update('minimumOrder', e.target.value)} /></div></label><label><span>WhatsApp padrão</span><div className="whatsapp-input"><input value={form.whatsapp} inputMode="tel" onChange={(e) => update('whatsapp', formatWhatsapp(e.target.value))} placeholder="+55 (11) 99197-2120" /></div><small className="field-help">DDD e número completo. O sistema valida antes de salvar.</small></label><h2 className="settings-subtitle">Link da loja</h2><label><span>URL da loja</span><div className="url-input"><em>{window.location.host}/</em><input value={form.slug} onChange={(e) => update('slug', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'))} /></div></label><div className="copy-line"><code>{url.replace(/^https?:\/\//, '')}</code><button type="button" onClick={() => onCopy(url)}><Clipboard size={16} /> Copiar</button></div><div className="checkout-visibility-note"><strong>Frete e forma de pagamento</strong><p>Continuam sendo combinados com o cliente no WhatsApp depois que o carrinho é enviado para a vendedora.</p></div></section><section className="settings-card store-preview-card" style={{ '--preview-accent': form.accent } as React.CSSProperties}><h2>Prévia da loja</h2><div className="store-preview-head"><div className="store-preview-logo">{form.logoUrl ? <img src={form.logoUrl} alt="" /> : <span>AS</span>}</div><strong>{form.name || 'Sua loja'}</strong></div><div className="store-preview-body"><span>{form.eyebrow || 'Atacado'}</span><p>{form.tagline || 'Sua chamada principal aparece aqui.'}</p></div></section><div className="settings-save settings-save--sticky">{dirty && <span className="unsaved-indicator">Alterações não salvas</span>}{error && <p className="form-error">{error}</p>}<button className={`primary-action ${dirty ? 'has-changes' : ''}`} disabled={busy || uploadingLogo || !dirty}>{busy ? 'Salvando…' : 'Salvar alterações'}<ArrowRight size={18} /></button></div></form></div>
 }
 
 function ProductEditor({ draft, setDraft, onClose, onSaved }: { draft: ProductDraft; setDraft: (draft: ProductDraft | null) => void; onClose: () => void; onSaved: () => void }) {
