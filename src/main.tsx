@@ -5,6 +5,7 @@ import './styles.css'
 import './saas.css'
 import './canvas.css'
 import './platform-admin.css'
+import './ux-polish.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
