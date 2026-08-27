@@ -18,6 +18,7 @@ export default function Home() {
           <h1>O cliente escolhe.<br />Sua vendedora fecha.</h1>
           <p className="home-hero__lead">Uma loja simples para mostrar produto, deixar o cliente montar o carrinho e mandar tudo pronto para o WhatsApp certo.</p>
           <div className="home-hero__actions"><button className="primary-action" onClick={() => go('/criar-conta')}>Criar minha loja <ArrowRight size={18} /></button><a href="/casa-norte/marina">Ver loja demo</a></div>
+          <p className="home-trustline"><strong>Comece hoje.</strong> 100% do fechamento continua no seu WhatsApp.</p>
         </section>
         <section className="home-strip">
           <div><Grid2X2 size={21} /><strong>Loja</strong><span>Catálogo direto e pesquisável.</span></div>
