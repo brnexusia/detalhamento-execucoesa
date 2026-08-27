@@ -1,0 +1,41 @@
+/* Ajuste pontual: mantém a indicação de rolagem fora da área de texto do produto. */
+
+/* Desliga a seta anterior, fixa no centro inferior do feed. */
+.app--feed .feed-shell::after {
+  content: none;
+  display: none;
+}
+
+/* Mostra a dica apenas no primeiro produto e usa a faixa lateral já reservada às ações. */
+.app--feed .feed-card:first-child::after {
+  content: '↓';
+  position: absolute;
+  z-index: 7;
+  right: 16px;
+  bottom: 24px;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, .75);
+  border-radius: 50%;
+  background: rgba(0, 0, 0, .3);
+  color: #fff;
+  font-size: 19px;
+  line-height: 1;
+  pointer-events: none;
+  backdrop-filter: blur(4px);
+  animation: feed-scroll-hint 1.8s ease-in-out infinite;
+}
+
+@keyframes feed-scroll-hint {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(5px); }
+}
+
+@media (max-width: 720px) {
+  .app--feed .feed-card:first-child::after {
+    right: 14px;
+    bottom: 24px;
+  }
+}
