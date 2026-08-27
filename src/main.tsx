@@ -7,6 +7,7 @@ import './canvas.css'
 import './platform-admin.css'
 import './ux-polish.css'
 import './feed-arrow-fix.css'
+import './yellow-ux-fixes.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

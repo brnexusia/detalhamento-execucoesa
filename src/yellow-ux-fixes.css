@@ -1,0 +1,9 @@
+.published-badge.is-paused {
+  border-color: #c9aaa2;
+  background: #f8efed;
+  color: #8f382b;
+}
+
+.published-badge.is-paused::before {
+  background: #a74637;
+}
