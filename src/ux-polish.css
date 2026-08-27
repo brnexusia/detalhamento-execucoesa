@@ -76,11 +76,14 @@
   background: #176b46;
 }
 
-.empty-orders-action {
+.mini-orders > .empty-orders-action {
   display: grid;
+  grid-template-columns: 1fr;
   gap: 10px;
   align-content: center;
   min-height: 130px;
+  padding: 18px 0;
+  border-bottom: 0;
 }
 
 .empty-orders-action p { margin: 0; }
