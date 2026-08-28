@@ -4,6 +4,7 @@ import express from 'express'
 import pg from 'pg'
 import { collectCatalog } from './scanner-collector.mjs'
 import { normalizeCandidates } from './scanner-normalizer.mjs'
+import { prepareReview } from './scanner-review.mjs'
 
 const { Pool } = pg
 const databaseUrl = process.env.DATABASE_URL?.trim() || ''
@@ -99,6 +100,8 @@ export async function ensureScannerSchema() {
       ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS normalized_count integer NOT NULL DEFAULT 0;
       ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS warning_count integer NOT NULL DEFAULT 0;
       ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS duplicate_count integer NOT NULL DEFAULT 0;
+      ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS selected_count integer NOT NULL DEFAULT 0;
+      ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS review_changed_count integer NOT NULL DEFAULT 0;
       CREATE INDEX IF NOT EXISTS idx_import_jobs_store_created ON import_jobs(store_id, created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_import_jobs_store_status ON import_jobs(store_id, status);
 
@@ -128,8 +131,29 @@ export async function ensureScannerSchema() {
         updated_at timestamptz NOT NULL DEFAULT now(),
         UNIQUE(job_id, fingerprint)
       );
+      ALTER TABLE import_normalized_products ADD COLUMN IF NOT EXISTS review_data jsonb;
+      ALTER TABLE import_normalized_products ADD COLUMN IF NOT EXISTS selected boolean;
+      ALTER TABLE import_normalized_products ADD COLUMN IF NOT EXISTS review_updated_at timestamptz;
+      UPDATE import_normalized_products SET selected=(jsonb_array_length(warnings)=0) WHERE selected IS NULL;
+      ALTER TABLE import_normalized_products ALTER COLUMN selected SET DEFAULT false;
+      ALTER TABLE import_normalized_products ALTER COLUMN selected SET NOT NULL;
       CREATE INDEX IF NOT EXISTS idx_import_normalized_job ON import_normalized_products(job_id, created_at ASC);
       CREATE INDEX IF NOT EXISTS idx_import_normalized_store ON import_normalized_products(store_id);
+      CREATE INDEX IF NOT EXISTS idx_import_normalized_selected ON import_normalized_products(job_id, selected);
+
+      UPDATE import_jobs j
+      SET selected_count=x.selected_count,
+          warning_count=x.warning_count,
+          review_changed_count=x.review_changed_count
+      FROM (
+        SELECT job_id,
+          count(*) FILTER (WHERE selected)::int AS selected_count,
+          count(*) FILTER (WHERE jsonb_array_length(warnings)>0)::int AS warning_count,
+          count(*) FILTER (WHERE review_data IS NOT NULL)::int AS review_changed_count
+        FROM import_normalized_products
+        GROUP BY job_id
+      ) x
+      WHERE j.id=x.job_id;
     `)
   })()
   try { await schemaPromise } finally { schemaPromise = null }
@@ -164,6 +188,8 @@ function publicJob(row) {
     normalized_count: Number(row.normalized_count || 0),
     warning_count: Number(row.warning_count || 0),
     duplicate_count: Number(row.duplicate_count || 0),
+    selected_count: Number(row.selected_count || 0),
+    review_changed_count: Number(row.review_changed_count || 0),
     platform: row.platform || '',
     pages_scanned: Number(row.pages_scanned || 0),
     error: row.error || '',
@@ -190,6 +216,47 @@ function compactCandidate(candidate) {
     currency: String(candidate?.currency || '').slice(0, 20),
     availability: String(candidate?.availability || '').slice(0, 200),
     source: String(candidate?.source || 'generic').slice(0, 80),
+  }
+}
+
+async function refreshReviewStats(client, jobId, storeId) {
+  const stats = await client.query(
+    `SELECT
+       count(*)::int AS total_count,
+       count(*) FILTER (WHERE selected)::int AS selected_count,
+       count(*) FILTER (WHERE jsonb_array_length(warnings)>0)::int AS warning_count,
+       count(*) FILTER (WHERE jsonb_array_length(warnings)=0)::int AS ready_count,
+       count(*) FILTER (WHERE review_data IS NOT NULL)::int AS review_changed_count
+     FROM import_normalized_products WHERE job_id=$1 AND store_id=$2`,
+    [jobId, storeId],
+  )
+  const row = stats.rows[0]
+  await client.query(
+    `UPDATE import_jobs SET selected_count=$1,warning_count=$2,review_changed_count=$3,updated_at=now()
+     WHERE id=$4 AND store_id=$5`,
+    [row.selected_count, row.warning_count, row.review_changed_count, jobId, storeId],
+  )
+  return {
+    total_count: Number(row.total_count || 0),
+    selected_count: Number(row.selected_count || 0),
+    warning_count: Number(row.warning_count || 0),
+    ready_count: Number(row.ready_count || 0),
+    review_changed_count: Number(row.review_changed_count || 0),
+  }
+}
+
+function publicReviewProduct(row) {
+  return {
+    id: row.id,
+    source_candidate_id: row.source_candidate_id,
+    data: row.review_data || row.normalized_data,
+    original_data: row.normalized_data,
+    warnings: Array.isArray(row.warnings) ? row.warnings : [],
+    confidence: Number(row.confidence || 0),
+    selected: Boolean(row.selected),
+    edited: Boolean(row.review_data),
+    review_updated_at: row.review_updated_at,
+    created_at: row.created_at,
   }
 }
 
@@ -239,7 +306,7 @@ export async function processImportJob(jobId, collector = collectCatalog) {
       }
       const updated = await client.query(
         `UPDATE import_jobs
-         SET status='processing',progress=100,result_count=$1,normalized_count=0,warning_count=0,duplicate_count=0,platform=$2,pages_scanned=$3,error='',updated_at=now()
+         SET status='processing',progress=100,result_count=$1,normalized_count=0,warning_count=0,duplicate_count=0,selected_count=0,review_changed_count=0,platform=$2,pages_scanned=$3,error='',updated_at=now()
          WHERE id=$4 RETURNING *`,
         [rows.length, String(result?.platform || 'generic'), Number(result?.pagesScanned || 0), job.id],
       )
@@ -277,16 +344,20 @@ export async function processNormalizationJob(jobId, normalizer = normalizeCandi
     const candidates = candidatesResult.rows.map((row) => ({ ...row.raw_data, __candidate_id: row.id }))
     const result = normalizer(candidates)
     const products = Array.isArray(result?.products) ? result.products : []
-    const rows = products.map((product) => ({
-      id: id(),
-      job_id: job.id,
-      store_id: job.store_id,
-      source_candidate_id: product.source_candidate_id || null,
-      fingerprint: hashValue(product.fingerprint),
-      normalized_data: product.normalized,
-      warnings: Array.isArray(product.warnings) ? product.warnings : [],
-      confidence: Number.isFinite(Number(product.confidence)) ? Number(product.confidence) : 0,
-    }))
+    const rows = products.map((product) => {
+      const warnings = Array.isArray(product.warnings) ? product.warnings : []
+      return {
+        id: id(),
+        job_id: job.id,
+        store_id: job.store_id,
+        source_candidate_id: product.source_candidate_id || null,
+        fingerprint: hashValue(product.fingerprint),
+        normalized_data: product.normalized,
+        warnings,
+        confidence: Number.isFinite(Number(product.confidence)) ? Number(product.confidence) : 0,
+        selected: warnings.length === 0,
+      }
+    })
 
     const client = await pool.connect()
     try {
@@ -295,21 +366,23 @@ export async function processNormalizationJob(jobId, normalizer = normalizeCandi
       if (rows.length) {
         await client.query(
           `INSERT INTO import_normalized_products
-           (id,job_id,store_id,source_candidate_id,fingerprint,normalized_data,warnings,confidence)
-           SELECT x.id,x.job_id,x.store_id,x.source_candidate_id,x.fingerprint,x.normalized_data,x.warnings,x.confidence
+           (id,job_id,store_id,source_candidate_id,fingerprint,normalized_data,warnings,confidence,selected)
+           SELECT x.id,x.job_id,x.store_id,x.source_candidate_id,x.fingerprint,x.normalized_data,x.warnings,x.confidence,x.selected
            FROM jsonb_to_recordset($1::jsonb) AS x(
-             id text,job_id text,store_id text,source_candidate_id text,fingerprint text,normalized_data jsonb,warnings jsonb,confidence numeric
+             id text,job_id text,store_id text,source_candidate_id text,fingerprint text,normalized_data jsonb,warnings jsonb,confidence numeric,selected boolean
            )
            ON CONFLICT (job_id,fingerprint) DO UPDATE
-           SET source_candidate_id=EXCLUDED.source_candidate_id,normalized_data=EXCLUDED.normalized_data,warnings=EXCLUDED.warnings,confidence=EXCLUDED.confidence,updated_at=now()`,
+           SET source_candidate_id=EXCLUDED.source_candidate_id,normalized_data=EXCLUDED.normalized_data,warnings=EXCLUDED.warnings,
+               confidence=EXCLUDED.confidence,selected=EXCLUDED.selected,review_data=NULL,review_updated_at=NULL,updated_at=now()`,
           [JSON.stringify(rows)],
         )
       }
+      const selectedCount = rows.filter((row) => row.selected).length
       const updated = await client.query(
         `UPDATE import_jobs
-         SET status='review',progress=100,normalized_count=$1,warning_count=$2,duplicate_count=$3,error='',updated_at=now()
-         WHERE id=$4 RETURNING *`,
-        [rows.length, Number(result?.warningCount || 0), Number(result?.duplicateCount || 0), job.id],
+         SET status='review',progress=100,normalized_count=$1,warning_count=$2,duplicate_count=$3,selected_count=$4,review_changed_count=0,error='',updated_at=now()
+         WHERE id=$5 RETURNING *`,
+        [rows.length, Number(result?.warningCount || 0), Number(result?.duplicateCount || 0), selectedCount, job.id],
       )
       await client.query('COMMIT')
       return publicJob(updated.rows[0])
@@ -368,6 +441,19 @@ function installScannerRoutes(app) {
     next()
   })
 
+  const reviewJob = async (req, res) => {
+    const result = await pool.query('SELECT * FROM import_jobs WHERE id=$1 AND store_id=$2 LIMIT 1', [req.params.jobId, req.scannerStore.store_id])
+    if (!result.rowCount) {
+      res.status(404).json({ error: 'Importação não encontrada.' })
+      return null
+    }
+    if (result.rows[0].status !== 'review') {
+      res.status(409).json({ error: 'Essa importação ainda não está disponível para revisão.' })
+      return null
+    }
+    return result.rows[0]
+  }
+
   router.get('/', requireStore, asyncRoute(async (req, res) => {
     const result = await pool.query(`SELECT * FROM import_jobs WHERE store_id=$1 ORDER BY created_at DESC LIMIT 10`, [req.scannerStore.store_id])
     res.json({ jobs: result.rows.map(publicJob) })
@@ -394,6 +480,117 @@ function installScannerRoutes(app) {
       [req.params.jobId, req.scannerStore.store_id, limit],
     )
     res.json({ job: publicJob(job.rows[0]), products: result.rows.map((row) => ({ ...row, confidence: Number(row.confidence) })) })
+  }))
+
+  router.get('/:jobId/review', requireStore, asyncRoute(async (req, res) => {
+    const job = await reviewJob(req, res)
+    if (!job) return
+
+    const limit = Math.max(1, Math.min(100, Number(req.query.limit || 40)))
+    const offset = Math.max(0, Math.min(100000, Number(req.query.offset || 0)))
+    const filter = ['all', 'alerts', 'selected'].includes(String(req.query.filter)) ? String(req.query.filter) : 'all'
+    const q = String(req.query.q || '').trim().slice(0, 100)
+    const params = [job.id, req.scannerStore.store_id, filter, q]
+    const where = `job_id=$1 AND store_id=$2
+      AND ($3='all' OR ($3='alerts' AND jsonb_array_length(warnings)>0) OR ($3='selected' AND selected=true))
+      AND ($4='' OR lower(COALESCE(review_data,normalized_data)->>'name') LIKE '%'||lower($4)||'%' OR lower(COALESCE(review_data,normalized_data)->>'sku') LIKE '%'||lower($4)||'%' OR lower(COALESCE(review_data,normalized_data)->>'category') LIKE '%'||lower($4)||'%')`
+
+    const [result, countResult, summary] = await Promise.all([
+      pool.query(
+        `SELECT id,source_candidate_id,normalized_data,review_data,warnings,confidence,selected,review_updated_at,created_at
+         FROM import_normalized_products WHERE ${where}
+         ORDER BY CASE WHEN jsonb_array_length(warnings)>0 THEN 0 ELSE 1 END,
+                  lower(COALESCE(review_data,normalized_data)->>'name'),created_at ASC
+         LIMIT $5 OFFSET $6`,
+        [...params, limit, offset],
+      ),
+      pool.query(`SELECT count(*)::int AS count FROM import_normalized_products WHERE ${where}`, params),
+      pool.query(
+        `SELECT count(*)::int AS total_count,
+                count(*) FILTER (WHERE selected)::int AS selected_count,
+                count(*) FILTER (WHERE jsonb_array_length(warnings)>0)::int AS warning_count,
+                count(*) FILTER (WHERE jsonb_array_length(warnings)=0)::int AS ready_count,
+                count(*) FILTER (WHERE review_data IS NOT NULL)::int AS review_changed_count
+         FROM import_normalized_products WHERE job_id=$1 AND store_id=$2`,
+        [job.id, req.scannerStore.store_id],
+      ),
+    ])
+
+    res.json({
+      job: publicJob(job),
+      products: result.rows.map(publicReviewProduct),
+      summary: Object.fromEntries(Object.entries(summary.rows[0]).map(([key, value]) => [key, Number(value || 0)])),
+      pagination: { limit, offset, total: Number(countResult.rows[0]?.count || 0) },
+    })
+  }))
+
+  router.patch('/:jobId/review/:productId', requireStore, asyncRoute(async (req, res) => {
+    const job = await reviewJob(req, res)
+    if (!job) return
+
+    const current = await pool.query(
+      `SELECT * FROM import_normalized_products WHERE id=$1 AND job_id=$2 AND store_id=$3 LIMIT 1`,
+      [req.params.productId, job.id, req.scannerStore.store_id],
+    )
+    if (!current.rowCount) return res.status(404).json({ error: 'Produto da revisão não encontrado.' })
+
+    const row = current.rows[0]
+    const baseData = row.review_data || row.normalized_data
+    const prepared = prepareReview({ ...baseData, ...(req.body?.data && typeof req.body.data === 'object' ? req.body.data : {}) })
+    const selected = typeof req.body?.selected === 'boolean' ? req.body.selected : Boolean(row.selected)
+    if (selected && !prepared.publishable) {
+      return res.status(400).json({ error: 'Para selecionar este produto, informe pelo menos nome e preço válido.' })
+    }
+
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      const updated = await client.query(
+        `UPDATE import_normalized_products
+         SET review_data=$1,warnings=$2,confidence=$3,selected=$4,review_updated_at=now(),updated_at=now()
+         WHERE id=$5 AND job_id=$6 AND store_id=$7 RETURNING *`,
+        [JSON.stringify(prepared.data), JSON.stringify(prepared.warnings), prepared.confidence, selected, row.id, job.id, req.scannerStore.store_id],
+      )
+      const summary = await refreshReviewStats(client, job.id, req.scannerStore.store_id)
+      const updatedJob = await client.query('SELECT * FROM import_jobs WHERE id=$1', [job.id])
+      await client.query('COMMIT')
+      res.json({ product: publicReviewProduct(updated.rows[0]), summary, job: publicJob(updatedJob.rows[0]) })
+    } catch (error) {
+      await client.query('ROLLBACK')
+      throw error
+    } finally {
+      client.release()
+    }
+  }))
+
+  router.patch('/:jobId/review-selection', requireStore, asyncRoute(async (req, res) => {
+    const job = await reviewJob(req, res)
+    if (!job) return
+    const action = String(req.body?.action || '')
+    if (!['ready', 'none'].includes(action)) return res.status(400).json({ error: 'Ação de seleção inválida.' })
+
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      if (action === 'none') {
+        await client.query('UPDATE import_normalized_products SET selected=false,updated_at=now() WHERE job_id=$1 AND store_id=$2', [job.id, req.scannerStore.store_id])
+      } else {
+        await client.query(
+          `UPDATE import_normalized_products SET selected=(jsonb_array_length(warnings)=0),updated_at=now()
+           WHERE job_id=$1 AND store_id=$2`,
+          [job.id, req.scannerStore.store_id],
+        )
+      }
+      const summary = await refreshReviewStats(client, job.id, req.scannerStore.store_id)
+      const updatedJob = await client.query('SELECT * FROM import_jobs WHERE id=$1', [job.id])
+      await client.query('COMMIT')
+      res.json({ summary, job: publicJob(updatedJob.rows[0]) })
+    } catch (error) {
+      await client.query('ROLLBACK')
+      throw error
+    } finally {
+      client.release()
+    }
   }))
 
   router.post('/', requireStore, asyncRoute(async (req, res) => {
