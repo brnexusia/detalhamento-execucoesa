@@ -103,14 +103,19 @@ export function reviewWarnings(data) {
   const warnings = []
   if (!data.name) warnings.push('missing_name')
   if (data.price == null) warnings.push('missing_price')
-  if (!data.images.length && !data.media_url) warnings.push('missing_image')
-  if (!data.sku) warnings.push('missing_sku')
-  if (!data.category) warnings.push('missing_category')
-  if (!data.description) warnings.push('missing_description')
   return warnings
 }
 
-export function reviewConfidence(warnings) {
+function completenessIssues(data) {
+  const issues = [...reviewWarnings(data)]
+  if (!data.images.length && !data.media_url) issues.push('missing_image')
+  if (!data.sku) issues.push('missing_sku')
+  if (!data.category) issues.push('missing_category')
+  if (!data.description) issues.push('missing_description')
+  return issues
+}
+
+export function reviewConfidence(issues) {
   const weights = {
     missing_name: 0.45,
     missing_price: 0.25,
@@ -119,7 +124,7 @@ export function reviewConfidence(warnings) {
     missing_category: 0.06,
     missing_sku: 0.05,
   }
-  const penalty = (Array.isArray(warnings) ? warnings : []).reduce((sum, warning) => sum + (weights[warning] || 0.03), 0)
+  const penalty = (Array.isArray(issues) ? issues : []).reduce((sum, issue) => sum + (weights[issue] || 0.03), 0)
   return Math.max(0, Math.min(1, Math.round((1 - penalty) * 100) / 100))
 }
 
@@ -130,5 +135,6 @@ export function reviewIsPublishable(data) {
 export function prepareReview(value) {
   const data = sanitizeReviewData(value)
   const warnings = reviewWarnings(data)
-  return { data, warnings, confidence: reviewConfidence(warnings), publishable: reviewIsPublishable(data) }
+  const issues = completenessIssues(data)
+  return { data, warnings, confidence: reviewConfidence(issues), publishable: reviewIsPublishable(data) }
 }

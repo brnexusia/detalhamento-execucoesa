@@ -51,12 +51,16 @@ assert.equal(normalized.confidence, 1)
 const incomplete = normalizeCandidate({ title: 'Produto sem dados', source_url: 'https://loja.example/p/sem-dados' })
 assert.equal(incomplete.normalized.category, 'Geral')
 assert.equal(incomplete.normalized.price, null)
-assert.ok(incomplete.warnings.includes('missing_price'))
-assert.ok(incomplete.warnings.includes('missing_image'))
-assert.ok(incomplete.warnings.includes('missing_sku'))
-assert.ok(incomplete.warnings.includes('missing_category'))
-assert.ok(incomplete.warnings.includes('missing_description'))
-assert.ok(incomplete.confidence < 1)
+assert.deepEqual(incomplete.warnings, ['missing_price'], 'somente bloqueios exigem revisão manual')
+assert.ok(incomplete.confidence < 1, 'completude ainda afeta confiança sem bloquear importação')
+
+const validButSparse = normalizeCandidate({
+  title: 'Produto simples',
+  source_url: 'https://loja.example/p/simples',
+  price: 19.9,
+})
+assert.deepEqual(validButSparse.warnings, [], 'produto com nome e preço deve seguir automaticamente')
+assert.ok(validButSparse.confidence < 1, 'dados opcionais ausentes continuam refletidos na confiança')
 
 const deduped = normalizeCandidates([
   {
