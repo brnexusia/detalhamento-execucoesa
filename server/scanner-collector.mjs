@@ -5,6 +5,7 @@ import { isIP } from 'node:net'
 import { gunzipSync } from 'node:zlib'
 import { load } from 'cheerio'
 import { detectStorefrontPlatform, extractFacilZapRuntime, facilZapProducts, parseVestiContext, vestiProducts, isZapFacilCatalogPage } from './scanner-platforms.mjs'
+import { collectDirectedSitemap, collectTrayPublic, parseVestiCompanyId, enrichVestiCandidate } from './scanner-platform-collectors.mjs'
 
 // Produção não possui teto artificial de produtos/páginas. Limites só são usados quando
 // explicitamente informados (testes, diagnóstico ou operação controlada).
@@ -591,6 +592,7 @@ async function collectFacilZap(rootResponse, request, maxProducts, sink, onProgr
 async function collectVesti(rootResponse, request, maxProducts, sink, onProgress) {
   const context = parseVestiContext(rootResponse.url, rootResponse.body)
   if (!context) throw new Error('Não foi possível identificar loja e catálogo Vesti pela URL pública.')
+  const companyId = parseVestiCompanyId(rootResponse.body)
   const pageSignatures = new Set()
   let pagesScanned = 1
 
@@ -611,12 +613,35 @@ async function collectVesti(rootResponse, request, maxProducts, sink, onProgress
     if (!response.ok) throw new Error(`A API pública do Vesti respondeu HTTP ${response.status}.`)
     let payload
     try { payload = JSON.parse(response.body) } catch { throw new Error('O Vesti retornou catálogo em formato inesperado.') }
+    const listed = Array.isArray(payload?.products) ? payload.products : []
     const products = vestiProducts(payload, context)
     if (!products.length) break
     const signature = `${products[0]?.external_id || ''}|${products.at(-1)?.external_id || ''}|${products.length}`
     if (pageSignatures.has(signature)) break
     pageSignatures.add(signature)
-    await sink.push(products)
+
+    let enriched = products
+    if (companyId) {
+      enriched = await mapLimit(products, 6, async (candidate, index) => {
+        const raw = listed[index]
+        const productId = candidate.external_id || raw?.id
+        if (!productId) return candidate
+        const detailUrl = new URL(`https://apivesti.vesti.mobi/appmarca/v1/products/company/${encodeURIComponent(companyId)}/product/${encodeURIComponent(productId)}/showcase`)
+        detailUrl.searchParams.set('cid', context.catalogId)
+        detailUrl.searchParams.set('reseller_id', 'null')
+        try {
+          const detailResponse = await request(detailUrl.toString(), { accept: 'application/json' })
+          pagesScanned += 1
+          if (!detailResponse.ok) return candidate
+          const detail = JSON.parse(detailResponse.body)
+          return enrichVestiCandidate(candidate, detail)
+        } catch {
+          return candidate
+        }
+      })
+    }
+
+    await sink.push(enriched)
     await onProgress({ progress: Math.min(90, 15 + Math.floor(Math.log2(page + 1) * 8)), pagesScanned, candidates: sink.count, platform: 'vesti' })
     if (!payload?.links?.next) break
   }
@@ -774,6 +799,36 @@ export async function collectCatalog(sourceUrl, options = {}) {
 
   if (platform === 'zapfacil' && !isZapFacilCatalogPage(rootResponse.body)) {
     throw new Error('Esta URL do ZapFácil não expõe uma vitrine pública de produtos. Informe o link público da loja/catálogo, não o site da ferramenta.')
+  }
+
+  if (platform === 'nuvemshop' || platform === 'lojaintegrada') {
+    try {
+      const result = await collectDirectedSitemap({
+        rootResponse,
+        platform,
+        request,
+        maxProducts,
+        maxPages,
+        sink,
+        onProgress,
+        extractSitemapLocations,
+        extractProductsFromHtml,
+      })
+      if (result.candidateCount) return { platform, pagesScanned: result.pagesScanned, candidateCount: sink.count, candidates: sink.candidates }
+    } catch (error) {
+      if (options.strictPlatformAdapters) throw error
+      // Sites legados sem sitemap de produto continuam pelo crawler genérico.
+    }
+  }
+
+  if (platform === 'tray') {
+    try {
+      const result = await collectTrayPublic({ rootResponse, request, maxProducts, sink, onProgress })
+      if (result.candidateCount) return { platform, pagesScanned: result.pagesScanned, candidateCount: sink.count, candidates: sink.candidates }
+    } catch (error) {
+      if (options.strictPlatformAdapters) throw error
+      // Algumas lojas Tray restringem a API pública; nesses casos há fallback genérico.
+    }
   }
 
   if (platform === 'shopify') {
