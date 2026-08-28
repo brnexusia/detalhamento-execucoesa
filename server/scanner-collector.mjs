@@ -363,7 +363,9 @@ function linksFromHtml(html, baseUrl) {
   const origin = new URL(baseUrl).origin
   const links = []
   $('a[href]').each((_index, element) => {
-    const resolved = sameOriginUrl($(element).attr('href'), origin)
+    const href = $(element).attr('href')
+    const absolute = absoluteUrl(href, baseUrl)
+    const resolved = absolute ? sameOriginUrl(absolute, origin) : null
     if (resolved) links.push(resolved)
   })
   return uniqueStrings(links)
