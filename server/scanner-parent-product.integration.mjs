@@ -97,7 +97,7 @@ assert.equal(response.status, 200)
 payload = await response.json()
 assert.equal(payload.products.length, 2, 'variações não podem ser cadastradas como produtos separados')
 
-const parent = payload.products.find((item) => item.mediaUrl === 'https://cdn.fixture.example/camiseta.jpg')
+const parent = payload.products.find((item) => item.media_url === 'https://cdn.fixture.example/camiseta.jpg')
 assert.ok(parent, 'imagem encontrada em uma das variações deve acompanhar o produto pai')
 assert.equal(parent.name, 'Camiseta Essencial')
 assert.equal(parent.sku, '', 'SKUs diferentes das variantes não devem ocupar o SKU do pai')
@@ -108,7 +108,7 @@ assert.deepEqual(parent.variations, [
 
 const premium = payload.products.find((item) => item.sku === 'PREM-1')
 assert.ok(premium, 'produto distinto com o mesmo título deve continuar separado')
-assert.equal(premium.mediaUrl, 'https://cdn.fixture.example/premium.jpg')
+assert.equal(premium.media_url, 'https://cdn.fixture.example/premium.jpg')
 
 response = await api(`/api/admin/imports/${jobId}/publish`, cookie, { method: 'POST', body: '{}' })
 assert.equal(response.status, 200)
