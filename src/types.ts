@@ -45,7 +45,13 @@ export type CartItem = {
 export type PublicPayload = {
   store: Store
   seller: Seller
+  categories?: string[]
   products: Product[]
+  page?: {
+    hasMore: boolean
+    nextCursor: string | null
+    limit: number
+  }
 }
 
 export type AdminProduct = {
