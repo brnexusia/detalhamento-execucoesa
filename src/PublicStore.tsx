@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, Check, ChevronRight, Grid2X2, Heart, Minus, Plus, Search, ShoppingBag, Sparkles, X } from 'lucide-react'
 import { api } from './api'
 import { demoPayload } from './data'
@@ -11,12 +11,14 @@ function routeParts() {
   const [storeSlug, sellerSlug] = window.location.pathname.split('/').filter(Boolean)
   return { storeSlug: storeSlug || demoPayload.store.slug, sellerSlug }
 }
+
 function cartKey(product: Product, selections: Record<string, string>) {
   return `${product.id}:${Object.entries(selections).sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => `${key}=${value}`).join('|')}`
 }
+
 function Media({ product, className = '' }: { product: Product; className?: string }) {
   if (product.mediaType === 'video') return <video className={className} src={product.mediaUrl} autoPlay loop muted playsInline preload="metadata" />
-  return <img className={className} src={product.mediaUrl} alt={product.name} />
+  return <img className={className} src={product.mediaUrl} alt={product.name} loading="lazy" />
 }
 
 export default function PublicStore() {
@@ -32,6 +34,11 @@ export default function PublicStore() {
   const [pickerSelections, setPickerSelections] = useState<Record<string, string>>({})
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
+  const [catalogError, setCatalogError] = useState('')
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [filterLoading, setFilterLoading] = useState(false)
+  const filterKeyRef = useRef('Todos|')
+  const loadMoreRef = useRef<HTMLDivElement | null>(null)
   const [cart, setCart] = useState<CartItem[]>(() => {
     try { return JSON.parse(localStorage.getItem('atacado-shop-cart-v2') || '[]') }
     catch { return [] }
@@ -39,11 +46,15 @@ export default function PublicStore() {
 
   useEffect(() => {
     let active = true
+    setCategory('Todos')
+    setQuery('')
+    filterKeyRef.current = 'Todos|'
     api.publicStore(route.storeSlug, route.sellerSlug)
       .then((data) => {
         if (!active) return
         setPayload(data)
         setDemo(false)
+        setCatalogError('')
         api.track({ storeSlug: route.storeSlug, sellerSlug: route.sellerSlug, kind: 'view' })
       })
       .catch(() => {
@@ -58,20 +69,93 @@ export default function PublicStore() {
 
   useEffect(() => { localStorage.setItem('atacado-shop-cart-v2', JSON.stringify(cart)) }, [cart])
 
+  useEffect(() => {
+    if (!payload || demo) return
+    const key = `${category}|${query.trim()}`
+    if (filterKeyRef.current === key) return
+    const timer = window.setTimeout(() => {
+      let active = true
+      setFilterLoading(true)
+      setCatalogError('')
+      api.publicStore(route.storeSlug, route.sellerSlug, {
+        q: query.trim() || undefined,
+        category: category === 'Todos' ? undefined : category,
+      }).then((data) => {
+        if (!active) return
+        filterKeyRef.current = key
+        setPayload(data)
+      }).catch((err) => {
+        if (!active) return
+        setCatalogError(err instanceof Error ? err.message : 'Não foi possível carregar os produtos.')
+      }).finally(() => {
+        if (active) setFilterLoading(false)
+      })
+      return () => { active = false }
+    }, 300)
+    return () => window.clearTimeout(timer)
+  }, [category, query, demo, payload?.store.slug, route.storeSlug, route.sellerSlug])
+
   const store = payload?.store
   const seller = payload?.seller
   const products = payload?.products || []
-  const categories = useMemo(() => ['Todos', ...Array.from(new Set(products.map((product) => product.category)))], [products])
-  const visibleProducts = products.filter((product) => {
+  const categories = useMemo(() => {
+    const source = payload?.categories?.length ? payload.categories : Array.from(new Set(products.map((product) => product.category)))
+    return ['Todos', ...source.filter((item) => item && item !== 'Todos')]
+  }, [payload?.categories, products])
+  const visibleProducts = demo ? products.filter((product) => {
     const matchesCategory = category === 'Todos' || product.category === category
     const text = `${product.name} ${product.sku} ${product.category}`.toLowerCase()
     return matchesCategory && text.includes(query.trim().toLowerCase())
-  })
+  }) : products
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0)
   const cartTotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0)
   const minimum = store?.minimumOrder || 0
   const minimumReached = cartTotal >= minimum
   const minimumProgress = minimum <= 0 ? 100 : Math.min(100, (cartTotal / minimum) * 100)
+
+  const loadMore = useCallback(async () => {
+    const cursor = payload?.page?.nextCursor
+    if (demo || loadingMore || !payload?.page?.hasMore || !cursor) return
+    setLoadingMore(true)
+    setCatalogError('')
+    try {
+      const data = await api.publicStore(route.storeSlug, route.sellerSlug, {
+        cursor,
+        q: query.trim() || undefined,
+        category: category === 'Todos' ? undefined : category,
+      })
+      setPayload((current) => {
+        if (!current) return data
+        const seen = new Set(current.products.map((item) => item.id))
+        return {
+          ...current,
+          categories: data.categories || current.categories,
+          products: [...current.products, ...data.products.filter((item) => !seen.has(item.id))],
+          page: data.page,
+        }
+      })
+    } catch (err) {
+      setCatalogError(err instanceof Error ? err.message : 'Não foi possível carregar mais produtos.')
+    } finally {
+      setLoadingMore(false)
+    }
+  }, [payload?.page, demo, loadingMore, route.storeSlug, route.sellerSlug, query, category])
+
+  useEffect(() => {
+    const target = loadMoreRef.current
+    if (!target || demo || loadingMore || !payload?.page?.hasMore) return
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) void loadMore()
+    }, { rootMargin: '700px 0px' })
+    observer.observe(target)
+    return () => observer.disconnect()
+  }, [loadMore, demo, loadingMore, payload?.page?.hasMore, view])
+
+  const goFeed = () => {
+    setCategory('Todos')
+    setQuery('')
+    setView('feed')
+  }
 
   const openPicker = (product: Product) => {
     const defaults: Record<string, string> = {}
@@ -81,6 +165,7 @@ export default function PublicStore() {
     setPickerSelections(defaults)
     setError('')
   }
+
   const confirmPicker = () => {
     if (!picker) return
     const missing = picker.variations.find((group) => !pickerSelections[group.name])
@@ -94,9 +179,11 @@ export default function PublicStore() {
     api.track({ storeSlug: route.storeSlug, sellerSlug: route.sellerSlug, kind: 'cart' })
     setPicker(null)
   }
+
   const changeQuantity = (key: string, delta: number) => {
     setCart((current) => current.map((item) => item.key === key ? { ...item, quantity: Math.max(0, item.quantity + delta) } : item).filter((item) => item.quantity > 0))
   }
+
   const sendOrder = async () => {
     if (!store || !minimumReached || !cart.length || sending) return
     setSending(true)
@@ -130,7 +217,7 @@ export default function PublicStore() {
         </button>
         <nav className="view-switch" aria-label="Modo de navegação">
           <button className={view === 'store' ? 'is-active' : ''} onClick={() => setView('store')}><Grid2X2 size={16} /> Loja</button>
-          <button className={view === 'feed' ? 'is-active' : ''} onClick={() => setView('feed')}><Sparkles size={16} /> Feed</button>
+          <button className={view === 'feed' ? 'is-active' : ''} onClick={goFeed}><Sparkles size={16} /> Feed</button>
         </nav>
         <button className="cart-trigger" onClick={() => setCartOpen(true)}><ShoppingBag size={19} /><span>Carrinho</span>{cartCount > 0 && <b>{cartCount}</b>}</button>
       </header>
@@ -140,7 +227,7 @@ export default function PublicStore() {
           <section className="store-intro"><div><p className="eyebrow">{store?.eyebrow}</p><h1>{store?.tagline}</h1></div><div className="seller-note"><span>Seu atendimento</span><strong>{seller?.name || 'Atendimento'}</strong><small>Seu carrinho vai direto para este atendimento.</small></div></section>
           <section className="catalog-toolbar"><label className="search-box"><Search size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar produto ou referência" /></label><div className="minimum-inline"><span>Pedido mínimo</span><strong>{money.format(minimum)}</strong></div></section>
           <section className="category-strip" aria-label="Categorias">{categories.map((item) => <button key={item} className={category === item ? 'is-active' : ''} onClick={() => setCategory(item)}>{item}</button>)}</section>
-          <section className="catalog-heading"><div><span>{visibleProducts.length} produtos</span><h2>{category === 'Todos' ? 'Escolha suas peças' : category}</h2></div><button className="feed-callout" onClick={() => setView('feed')}>Ver como feed <ArrowRight size={17} /></button></section>
+          <section className="catalog-heading"><div><span>{!demo && payload.page?.hasMore ? 'Mais produtos disponíveis' : `${visibleProducts.length} produtos`}</span><h2>{category === 'Todos' ? 'Escolha suas peças' : category}</h2></div><button className="feed-callout" onClick={goFeed}>Ver como feed <ArrowRight size={17} /></button></section>
           <section className="product-grid">
             {visibleProducts.map((product) => (
               <article className="product-card" key={product.id}>
@@ -149,11 +236,18 @@ export default function PublicStore() {
               </article>
             ))}
           </section>
-          {visibleProducts.length === 0 && <div className="empty-state"><h3>Nada por aqui.</h3><p>Tente outro nome, categoria ou referência.</p></div>}
+          {!demo && <div ref={loadMoreRef} aria-hidden="true" style={{ height: 1 }} />}
+          {(filterLoading || loadingMore) && <div className="empty-state"><p>Carregando produtos…</p></div>}
+          {catalogError && <div className="empty-state"><p>{catalogError}</p></div>}
+          {!filterLoading && visibleProducts.length === 0 && <div className="empty-state"><h3>Nada por aqui.</h3><p>Tente outro nome, categoria ou referência.</p></div>}
         </main>
       ) : (
         <main className="feed-shell">
-          <div className="feed-list">{products.map((product) => <article className="feed-card" key={product.id}><Media product={product} /><div className="feed-card__shade" /><div className="feed-card__top"><span>{product.category}</span><span>{product.sku}</span></div><div className="feed-card__actions"><button aria-label={`Favoritar ${product.name}`}><Heart size={22} /></button><button onClick={() => openPicker(product)} aria-label={`Escolher ${product.name}`}><Plus size={24} /></button></div><div className="feed-card__info"><span className="feed-card__seller">com {seller?.name || 'atendimento'}</span><h2>{product.name}</h2><p>{product.description}</p><div className="feed-card__buyline"><strong>{money.format(product.price)}</strong><button onClick={() => openPicker(product)}>Escolher quantidade <ChevronRight size={18} /></button></div></div></article>)}</div>
+          <div className="feed-list">
+            {products.map((product) => <article className="feed-card" key={product.id}><Media product={product} /><div className="feed-card__shade" /><div className="feed-card__top"><span>{product.category}</span><span>{product.sku}</span></div><div className="feed-card__actions"><button aria-label={`Favoritar ${product.name}`}><Heart size={22} /></button><button onClick={() => openPicker(product)} aria-label={`Escolher ${product.name}`}><Plus size={24} /></button></div><div className="feed-card__info"><span className="feed-card__seller">com {seller?.name || 'atendimento'}</span><h2>{product.name}</h2><p>{product.description}</p><div className="feed-card__buyline"><strong>{money.format(product.price)}</strong><button onClick={() => openPicker(product)}>Escolher quantidade <ChevronRight size={18} /></button></div></div></article>)}
+            {!demo && <div ref={loadMoreRef} aria-hidden="true" style={{ minHeight: 1 }} />}
+          </div>
+          {catalogError && <div className="form-error">{catalogError}</div>}
           {cartCount > 0 && <button className="feed-cart" onClick={() => setCartOpen(true)}><span><ShoppingBag size={18} /> {cartCount} {cartCount === 1 ? 'item' : 'itens'}</span><strong>{money.format(cartTotal)}</strong></button>}
         </main>
       )}
