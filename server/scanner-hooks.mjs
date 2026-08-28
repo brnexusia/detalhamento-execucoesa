@@ -284,6 +284,8 @@ export async function processImportJob(jobId, collector = collectCatalog) {
         source_url: candidate.source_url, raw_data: candidate,
       }))
       if (!rows.length) continue
+      const stillActive = await pool.query("SELECT 1 FROM import_jobs WHERE id=$1 AND store_id=$2 AND status='scanning' LIMIT 1", [job.id, job.store_id])
+      if (!stillActive.rowCount) return
       await pool.query(
         `INSERT INTO import_candidates (id,job_id,store_id,source_key,source_url,raw_data)
          SELECT x.id,x.job_id,x.store_id,x.source_key,x.source_url,x.raw_data
@@ -486,6 +488,31 @@ function installScannerRoutes(app) {
   router.get('/', requireStore, asyncRoute(async (req, res) => {
     const result = await pool.query(`SELECT * FROM import_jobs WHERE store_id=$1 ORDER BY created_at DESC LIMIT 10`, [req.scannerStore.store_id])
     res.json({ jobs: result.rows.map(publicJob) })
+  }))
+
+
+  router.delete('/:jobId', requireStore, asyncRoute(async (req, res) => {
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      const job = await client.query(
+        'SELECT id,status FROM import_jobs WHERE id=$1 AND store_id=$2 LIMIT 1 FOR UPDATE',
+        [req.params.jobId, req.scannerStore.store_id],
+      )
+      if (!job.rowCount) {
+        await client.query('ROLLBACK')
+        return res.status(404).json({ error: 'Importação não encontrada.' })
+      }
+      await client.query("UPDATE import_jobs SET status='cancelled',updated_at=now() WHERE id=$1 AND store_id=$2", [req.params.jobId, req.scannerStore.store_id])
+      await client.query('DELETE FROM import_jobs WHERE id=$1 AND store_id=$2', [req.params.jobId, req.scannerStore.store_id])
+      await client.query('COMMIT')
+      res.json({ ok: true })
+    } catch (error) {
+      try { await client.query('ROLLBACK') } catch {}
+      throw error
+    } finally {
+      client.release()
+    }
   }))
 
   router.get('/:jobId/candidates', requireStore, asyncRoute(async (req, res) => {

@@ -10,6 +10,7 @@ import {
   ChevronRight,
   Edit3,
   Search,
+  Trash2,
   X,
 } from 'lucide-react'
 import { api, type ImportJob, type ImportReviewData, type ImportReviewProduct, type ImportReviewSummary } from './api'
@@ -71,6 +72,7 @@ export default function ScannerModule1() {
   const [loadingJobs, setLoadingJobs] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [discardingId, setDiscardingId] = useState<string | null>(null)
 
   const [reviewJob, setReviewJob] = useState<ImportJob | null>(null)
   const [reviewProducts, setReviewProducts] = useState<ImportReviewProduct[]>([])
@@ -191,6 +193,26 @@ export default function ScannerModule1() {
       setError(err instanceof Error ? err.message : 'Não foi possível iniciar o scanner.')
     } finally {
       setBusy(false)
+    }
+  }
+
+  const discardImport = async (job: ImportJob) => {
+    const label = job.status === 'completed'
+      ? 'Isso apaga somente o histórico e os dados temporários da importação. Produtos já publicados continuam no catálogo.'
+      : 'Isso apaga esta importação e todos os dados temporários coletados. Essa ação não pode ser desfeita.'
+    if (!window.confirm(`Descartar importação de ${job.source_host}?\n\n${label}`)) return
+    setDiscardingId(job.id)
+    setError('')
+    setSuccess('')
+    try {
+      await api.discardImportJob(job.id)
+      if (reviewJob?.id === job.id) backToImports()
+      else await loadJobs()
+      setSuccess('Importação descartada e dados temporários removidos.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível descartar a importação.')
+    } finally {
+      setDiscardingId(null)
     }
   }
 
@@ -323,6 +345,7 @@ export default function ScannerModule1() {
               <div><strong>{job.source_host}</strong><small>{jobDetails(job)}</small>{job.status === 'failed' && job.error && <small className="scanner-job-error">{job.error}</small>}</div>
               <div className="scanner-job-actions">
                 {job.status === 'review' && <button type="button" className="scanner-review-open" onClick={() => void openReview(job)}>Revisar</button>}
+                <button type="button" className="scanner-discard" disabled={discardingId === job.id} onClick={() => void discardImport(job)} title="Apagar esta importação"><Trash2 size={14} /> {discardingId === job.id ? 'Descartando…' : 'Descartar'}</button>
                 <span data-status={job.status}>{job.status === 'scanning' || job.status === 'processing' ? `${statusLabel(job.status)} ${job.progress}%` : statusLabel(job.status)}</span>
               </div>
             </article>)}
