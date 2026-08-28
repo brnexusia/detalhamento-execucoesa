@@ -1,0 +1,163 @@
+.scanner-entry-slot { margin-left: auto; }
+
+.scanner-entry-button {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 14px;
+  border: 1px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.scanner-entry-button:hover { background: rgba(0,0,0,.04); }
+
+.scanner-modal-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.scanner-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(15, 14, 12, .62);
+  cursor: default;
+}
+
+.scanner-modal {
+  position: relative;
+  z-index: 1;
+  width: min(620px, 100%);
+  max-height: min(760px, calc(100dvh - 40px));
+  overflow: auto;
+  border: 1px solid var(--ink);
+  background: var(--surface, #f5f2eb);
+  box-shadow: 0 22px 70px rgba(0,0,0,.22);
+}
+
+.scanner-modal > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 22px;
+  border-bottom: 1px solid var(--line);
+}
+
+.scanner-modal > header span {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.scanner-modal > header h2 { margin: 0; font-size: 24px; }
+.scanner-modal > header > button { border: 0; background: transparent; cursor: pointer; padding: 4px; }
+
+.scanner-modal form {
+  display: grid;
+  gap: 14px;
+  padding: 22px;
+  border-bottom: 1px solid var(--line);
+}
+
+.scanner-modal form label { display: grid; gap: 7px; }
+.scanner-modal form label > span { font-size: 11px; font-weight: 700; }
+.scanner-modal form input {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid var(--line);
+  background: #fff;
+  padding: 0 13px;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+}
+.scanner-modal form input:focus { border-color: var(--ink); }
+
+.scanner-help {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.scanner-submit { justify-self: start; }
+.scanner-message { margin: 0; font-size: 11px; line-height: 1.45; }
+.scanner-message--error { color: #9d3026; }
+.scanner-message--success { display: flex; align-items: center; gap: 7px; color: #176b46; }
+
+.scanner-jobs { padding: 18px 22px 22px; }
+.scanner-jobs > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+.scanner-jobs > div:first-child strong { font-size: 12px; }
+.scanner-jobs > div:first-child small { color: var(--muted); font-size: 10px; }
+.scanner-jobs article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+.scanner-jobs article > div { min-width: 0; }
+.scanner-jobs article strong { display: block; font-size: 12px; }
+.scanner-jobs article small {
+  display: block;
+  margin-top: 3px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.scanner-jobs article > span {
+  padding: 5px 8px;
+  border: 1px solid #cabd9f;
+  background: #f5efe0;
+  color: #7a5b18;
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.scanner-jobs article > span[data-status="failed"] { border-color: #d7aaa5; background: #f8ecea; color: #91362c; }
+.scanner-jobs article > span[data-status="completed"],
+.scanner-jobs article > span[data-status="review"] { border-color: #9fbda9; background: #eef5ef; color: #176b46; }
+
+@media (max-width: 760px) {
+  .scanner-entry-slot { width: 100%; order: 4; }
+  .scanner-entry-button { width: 100%; }
+  .scanner-modal-layer { align-items: end; padding: 0; }
+  .scanner-modal {
+    width: 100%;
+    max-height: min(82dvh, 760px);
+    border-left: 0;
+    border-right: 0;
+    border-bottom: 0;
+  }
+  .scanner-modal > header,
+  .scanner-modal form,
+  .scanner-jobs { padding-left: max(18px, env(safe-area-inset-left)); padding-right: max(18px, env(safe-area-inset-right)); }
+  .scanner-jobs article { grid-template-columns: 1fr; gap: 8px; }
+  .scanner-jobs article > span { justify-self: start; }
+}
