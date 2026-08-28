@@ -79,7 +79,15 @@ async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
-  publicStore: (storeSlug: string, sellerSlug?: string) => request<PublicPayload>(`/api/public/store/${encodeURIComponent(storeSlug)}${sellerSlug ? `/${encodeURIComponent(sellerSlug)}` : ''}`),
+  publicStore: (storeSlug: string, sellerSlug?: string, options: { cursor?: string | null; q?: string; category?: string; limit?: number } = {}) => {
+    const params = new URLSearchParams()
+    if (options.cursor) params.set('cursor', options.cursor)
+    if (options.q) params.set('q', options.q)
+    if (options.category) params.set('category', options.category)
+    if (options.limit) params.set('limit', String(options.limit))
+    const query = params.toString()
+    return request<PublicPayload>(`/api/public/store/${encodeURIComponent(storeSlug)}${sellerSlug ? `/${encodeURIComponent(sellerSlug)}` : ''}${query ? `?${query}` : ''}`)
+  },
   track: (body: { storeSlug: string; sellerSlug?: string; kind: 'view' | 'cart' | 'whatsapp' }) => request<void>('/api/public/events', { method: 'POST', body: JSON.stringify(body) }).catch(() => undefined),
   createOrder: (body: { storeSlug: string; sellerSlug?: string; items: Array<{ productId: string; quantity: number; selections: Record<string, string> }> }) => request<{ code: string; whatsappUrl: string }>('/api/public/orders', { method: 'POST', body: JSON.stringify(body) }),
   login: (body: { email: string; password: string }) => request<{ ok: true }>('/api/auth/login', { method: 'POST', body: JSON.stringify(body) }),
