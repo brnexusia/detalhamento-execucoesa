@@ -8,49 +8,29 @@ jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: Inspect public storefronts
+      - name: Probe public pagination
         shell: bash
         run: |
           set -euo pipefail
-          curl -fsSL --max-time 20 -A 'Mozilla/5.0' 'https://facilzap.app.br/yeshuaperfumaria' -o /tmp/fz.html
-          curl -fsSL --max-time 20 -A 'Mozilla/5.0' 'https://vesti.co/barracadowillinha/catalogo/5e66ad229f3f6fe' -o /tmp/vesti.html
-          python - <<'PY'
+          for PAGE in 0 1 2 20 30; do
+            URL="https://facilzap.app.br/yeshuaperfumaria/carregar_produtos/${PAGE}/0/92993271499"
+            CODE=$(curl -sSL --max-time 20 -A 'Mozilla/5.0' -o "/tmp/fz-${PAGE}" -w '%{http_code}' "$URL")
+            echo "FZ PAGE=$PAGE HTTP=$CODE BYTES=$(wc -c < /tmp/fz-${PAGE})"
+            head -c 1200 "/tmp/fz-${PAGE}"; echo
+          done
+          for PAGE in 1 2 3; do
+            URL="https://vesti.co/barracadowillinha/catalogo/5e66ad229f3f6fe/f/page/${PAGE}"
+            CODE=$(curl -sSL --max-time 20 -A 'Mozilla/5.0' -o "/tmp/v-${PAGE}" -w '%{http_code}' "$URL")
+            echo "VESTI PAGE=$PAGE HTTP=$CODE BYTES=$(wc -c < /tmp/v-${PAGE})"
+            python - "$PAGE" <<'PY'
           from pathlib import Path
-          import re
-          fz = Path('/tmp/fz.html').read_text(errors='ignore')
-          vesti = Path('/tmp/vesti.html').read_text(errors='ignore')
-          print('--- FZ PAGINATION RUNTIME ---')
-          for term in ('FZCatalogoRuntime.listagem', 'urlCarregar', 'carregarProdutos(', 'ultimaPaginaAlcancada', 'apiBaseUri'):
-              for m in list(re.finditer(re.escape(term), fz, re.I))[:3]:
-                  print('\nTERM', term, '\n', fz[max(0,m.start()-600):m.start()+2600].replace('\n',' ')[:3200])
-          print('--- FZ URL LITERALS ---')
-          for x in sorted(set(re.findall(r'https://facilzap\.app\.br/[^"\' <>{}]+', fz))):
-              if any(k in x.lower() for k in ('api','produto','catalog')): print(x[:500])
-          print('--- VESTI DATA ---')
-          for term in ('"products"', '"produtos"', 'productList', 'catalogProducts', '/f/page/1', 'totalPages', 'pageSize'):
-              m = re.search(re.escape(term), vesti, re.I)
-              if m: print('\nTERM', term, '\n', vesti[max(0,m.start()-800):m.start()+4000].replace('\n',' ')[:4800])
-          pagejs = re.search(r'<script[^>]+src=["\']([^"\']*catalogo[^"\']*page[^"\']*\.js)', vesti, re.I)
-          if pagejs:
-              url = 'https://vesti.co' + pagejs.group(1)
-              print('VESTI_PAGE_JS', url)
+          import re,sys
+          page=sys.argv[1]
+          t=Path('/tmp/v-'+page).read_text(errors='ignore')
+          for pattern in [r'\\"products\\"', r'\\"total\\"', r'\\"last_page\\"', r'\\"current_page\\"', r'\\"name\\":\\"', r'/produto/']:
+              print(pattern, len(re.findall(pattern,t,re.I)))
+          for term in ('\\"products\\"','\\"pagination\\"','\\"meta\\"'):
+              i=t.find(term)
+              if i>=0: print(t[max(0,i-300):i+2200][:2500])
           PY
-          VESTI_JS=$(python - <<'PY'
-          import re
-          from pathlib import Path
-          t=Path('/tmp/vesti.html').read_text(errors='ignore')
-          m=re.search(r'<script[^>]+src=["\']([^"\']*catalogo[^"\']*page[^"\']*\.js)',t,re.I)
-          print(('https://vesti.co'+m.group(1)) if m else '')
-          PY
-          )
-          if [ -n "$VESTI_JS" ]; then
-            curl -fsSL --max-time 20 -A 'Mozilla/5.0' "$VESTI_JS" -o /tmp/vesti-page.js
-            python - <<'PY'
-          from pathlib import Path
-          import re
-          text=Path('/tmp/vesti-page.js').read_text(errors='ignore')
-          print('--- VESTI JS SIZE ---',len(text))
-          for x in sorted(set(re.findall(r'["\']([^"\']*(?:api|catalog|product|produto)[^"\']*)["\']',text,re.I))):
-              if len(x)<400: print(x)
-          PY
-          fi
+          done
