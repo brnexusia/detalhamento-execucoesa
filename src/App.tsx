@@ -4,6 +4,7 @@ import { AuthPage } from './Auth'
 import Home from './Home'
 import PlatformAdmin from './PlatformAdmin'
 import PublicStore from './PublicStore'
+import ScannerModule1 from './ScannerModule1'
 
 function pageFor(pathname: string) {
   if (pathname === '/' || pathname === '') return 'home'
@@ -27,6 +28,6 @@ export default function App() {
   if (page === 'login') return <AuthPage mode="login" />
   if (page === 'register') return <AuthPage mode="register" />
   if (page === 'platform') return <PlatformAdmin />
-  if (page === 'admin') return <AdminApp />
+  if (page === 'admin') return <><AdminApp /><ScannerModule1 /></>
   return <PublicStore />
 }
