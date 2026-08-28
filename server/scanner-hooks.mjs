@@ -11,6 +11,7 @@ const databaseUrl = process.env.DATABASE_URL?.trim() || ''
 const pool = databaseUrl ? new Pool({ connectionString: databaseUrl, max: 6, connectionTimeoutMillis: 5000 }) : null
 const sessionCookie = 'atacado_session'
 const workerDisabled = process.env.SCANNER_WORKER_DISABLED === '1'
+const SCANNER_DB_BATCH_SIZE = 250
 
 if (pool) pool.on('error', (error) => console.error('[scanner] pool:', error.message))
 
@@ -269,56 +270,65 @@ export async function processImportJob(jobId, collector = collectCatalog) {
   )
   if (!claimed.rowCount) return null
   const job = claimed.rows[0]
+  let persistedBatches = 0
+
+  const persistBatch = async (rawBatch) => {
+    const candidates = (Array.isArray(rawBatch) ? rawBatch : [])
+      .map(compactCandidate)
+      .filter((item) => item.title && item.source_url)
+    for (let start = 0; start < candidates.length; start += SCANNER_DB_BATCH_SIZE) {
+      const chunk = candidates.slice(start, start + SCANNER_DB_BATCH_SIZE)
+      const rows = chunk.map((candidate) => ({
+        id: id(), job_id: job.id, store_id: job.store_id,
+        source_key: hashValue(`${candidate.external_id}|${candidate.source_url}|${candidate.title.toLowerCase()}`),
+        source_url: candidate.source_url, raw_data: candidate,
+      }))
+      if (!rows.length) continue
+      await pool.query(
+        `INSERT INTO import_candidates (id,job_id,store_id,source_key,source_url,raw_data)
+         SELECT x.id,x.job_id,x.store_id,x.source_key,x.source_url,x.raw_data
+         FROM jsonb_to_recordset($1::jsonb) AS x(id text,job_id text,store_id text,source_key text,source_url text,raw_data jsonb)
+         ON CONFLICT (job_id,source_key) DO UPDATE SET source_url=EXCLUDED.source_url,raw_data=EXCLUDED.raw_data`,
+        [JSON.stringify(rows)],
+      )
+      persistedBatches += 1
+    }
+  }
 
   try {
+    await pool.query('DELETE FROM import_normalized_products WHERE job_id=$1', [job.id])
+    await pool.query('DELETE FROM import_candidates WHERE job_id=$1', [job.id])
+
     const result = await collector(job.source_url, {
+      collectInMemory: false,
+      onBatch: persistBatch,
       onProgress: async ({ progress, pagesScanned, candidates, platform }) => {
         await pool.query(
           `UPDATE import_jobs
-           SET progress=$1,pages_scanned=GREATEST(pages_scanned,$2),result_count=GREATEST(result_count,$3),platform=CASE WHEN $4<>'' THEN $4 ELSE platform END,updated_at=now()
+           SET progress=GREATEST(progress,$1),pages_scanned=GREATEST(pages_scanned,$2),result_count=GREATEST(result_count,$3),platform=CASE WHEN $4<>'' THEN $4 ELSE platform END,updated_at=now()
            WHERE id=$5 AND status='scanning'`,
           [Math.max(1, Math.min(95, Number(progress || 1))), Number(pagesScanned || 0), Number(candidates || 0), String(platform || ''), job.id],
         )
       },
     })
 
-    const rawCandidates = Array.isArray(result?.candidates) ? result.candidates : []
-    const candidates = rawCandidates.map(compactCandidate).filter((item) => item.title && item.source_url)
-    const rows = candidates.map((candidate) => ({
-      id: id(), job_id: job.id, store_id: job.store_id,
-      source_key: hashValue(`${candidate.external_id}|${candidate.source_url}|${candidate.title.toLowerCase()}`),
-      source_url: candidate.source_url, raw_data: candidate,
-    }))
+    // Compatibilidade com coletores de testes/integrações que ainda retornam array.
+    if (!persistedBatches && Array.isArray(result?.candidates) && result.candidates.length) await persistBatch(result.candidates)
 
-    const client = await pool.connect()
-    try {
-      await client.query('BEGIN')
-      await client.query('DELETE FROM import_normalized_products WHERE job_id=$1', [job.id])
-      await client.query('DELETE FROM import_candidates WHERE job_id=$1', [job.id])
-      if (rows.length) {
-        await client.query(
-          `INSERT INTO import_candidates (id,job_id,store_id,source_key,source_url,raw_data)
-           SELECT x.id,x.job_id,x.store_id,x.source_key,x.source_url,x.raw_data
-           FROM jsonb_to_recordset($1::jsonb) AS x(id text,job_id text,store_id text,source_key text,source_url text,raw_data jsonb)
-           ON CONFLICT (job_id,source_key) DO UPDATE SET source_url=EXCLUDED.source_url,raw_data=EXCLUDED.raw_data`,
-          [JSON.stringify(rows)],
-        )
-      }
-      const updated = await client.query(
-        `UPDATE import_jobs
-         SET status='processing',progress=100,result_count=$1,normalized_count=0,warning_count=0,duplicate_count=0,selected_count=0,review_changed_count=0,platform=$2,pages_scanned=$3,error='',updated_at=now()
-         WHERE id=$4 RETURNING *`,
-        [rows.length, String(result?.platform || 'generic'), Number(result?.pagesScanned || 0), job.id],
-      )
-      await client.query('COMMIT')
-      return publicJob(updated.rows[0])
-    } catch (error) {
-      await client.query('ROLLBACK')
-      throw error
-    } finally {
-      client.release()
-    }
+    const countResult = await pool.query('SELECT count(*)::int AS count FROM import_candidates WHERE job_id=$1 AND store_id=$2', [job.id, job.store_id])
+    const persistedCount = Number(countResult.rows[0]?.count || 0)
+    const updated = await pool.query(
+      `UPDATE import_jobs
+       SET status='processing',progress=100,result_count=$1,normalized_count=0,warning_count=0,duplicate_count=0,selected_count=0,review_changed_count=0,platform=$2,pages_scanned=$3,error='',updated_at=now()
+       WHERE id=$4 RETURNING *`,
+      [persistedCount, String(result?.platform || 'generic'), Number(result?.pagesScanned || 0), job.id],
+    )
+    return publicJob(updated.rows[0])
   } catch (error) {
+    try {
+      await pool.query('DELETE FROM import_normalized_products WHERE job_id=$1', [job.id])
+      await pool.query('DELETE FROM import_candidates WHERE job_id=$1', [job.id])
+    } catch {}
     const message = error instanceof Error ? error.message : String(error)
     const failed = await pool.query(`UPDATE import_jobs SET status='failed',error=$1,updated_at=now() WHERE id=$2 RETURNING *`, [message.slice(0, 2000), job.id])
     console.error('[scanner] job failed:', job.id, message)
@@ -337,34 +347,41 @@ export async function processNormalizationJob(jobId, normalizer = normalizeCandi
   const job = claimed.rows[0]
 
   try {
-    const candidatesResult = await pool.query(
-      `SELECT id,raw_data FROM import_candidates WHERE job_id=$1 AND store_id=$2 ORDER BY created_at ASC`,
-      [job.id, job.store_id],
-    )
-    const candidates = candidatesResult.rows.map((row) => ({ ...row.raw_data, __candidate_id: row.id }))
-    const result = normalizer(candidates)
-    const products = Array.isArray(result?.products) ? result.products : []
-    const rows = products.map((product) => {
-      const warnings = Array.isArray(product.warnings) ? product.warnings : []
-      return {
-        id: id(),
-        job_id: job.id,
-        store_id: job.store_id,
-        source_candidate_id: product.source_candidate_id || null,
-        fingerprint: hashValue(product.fingerprint),
-        normalized_data: product.normalized,
-        warnings,
-        confidence: Number.isFinite(Number(product.confidence)) ? Number(product.confidence) : 0,
-        selected: warnings.length === 0,
-      }
-    })
+    await pool.query('DELETE FROM import_normalized_products WHERE job_id=$1', [job.id])
+    let cursorCreatedAt = null
+    let cursorId = ''
 
-    const client = await pool.connect()
-    try {
-      await client.query('BEGIN')
-      await client.query('DELETE FROM import_normalized_products WHERE job_id=$1', [job.id])
+    while (true) {
+      const candidatesResult = await pool.query(
+        `SELECT id,raw_data,created_at::text AS cursor_created_at
+         FROM import_candidates
+         WHERE job_id=$1 AND store_id=$2
+           AND ($3::timestamptz IS NULL OR created_at>$3::timestamptz OR (created_at=$3::timestamptz AND id>$4))
+         ORDER BY created_at ASC,id ASC
+         LIMIT $5`,
+        [job.id, job.store_id, cursorCreatedAt, cursorId, SCANNER_DB_BATCH_SIZE],
+      )
+      if (!candidatesResult.rowCount) break
+
+      const candidates = candidatesResult.rows.map((row) => ({ ...row.raw_data, __candidate_id: row.id }))
+      const result = await normalizer(candidates)
+      const products = Array.isArray(result?.products) ? result.products : []
+      const rows = products.map((product) => {
+        const warnings = Array.isArray(product.warnings) ? product.warnings : []
+        return {
+          id: id(),
+          job_id: job.id,
+          store_id: job.store_id,
+          source_candidate_id: product.source_candidate_id || null,
+          fingerprint: hashValue(product.fingerprint),
+          normalized_data: product.normalized,
+          warnings,
+          confidence: Number.isFinite(Number(product.confidence)) ? Number(product.confidence) : 0,
+          selected: warnings.length === 0,
+        }
+      })
       if (rows.length) {
-        await client.query(
+        await pool.query(
           `INSERT INTO import_normalized_products
            (id,job_id,store_id,source_candidate_id,fingerprint,normalized_data,warnings,confidence,selected)
            SELECT x.id,x.job_id,x.store_id,x.source_candidate_id,x.fingerprint,x.normalized_data,x.warnings,x.confidence,x.selected
@@ -373,25 +390,37 @@ export async function processNormalizationJob(jobId, normalizer = normalizeCandi
            )
            ON CONFLICT (job_id,fingerprint) DO UPDATE
            SET source_candidate_id=EXCLUDED.source_candidate_id,normalized_data=EXCLUDED.normalized_data,warnings=EXCLUDED.warnings,
-               confidence=EXCLUDED.confidence,selected=EXCLUDED.selected,review_data=NULL,review_updated_at=NULL,updated_at=now()`,
+               confidence=EXCLUDED.confidence,selected=EXCLUDED.selected,review_data=NULL,review_updated_at=NULL,updated_at=now()
+           WHERE EXCLUDED.confidence >= import_normalized_products.confidence`,
           [JSON.stringify(rows)],
         )
       }
-      const selectedCount = rows.filter((row) => row.selected).length
-      const updated = await client.query(
-        `UPDATE import_jobs
-         SET status='review',progress=100,normalized_count=$1,warning_count=$2,duplicate_count=$3,selected_count=$4,review_changed_count=0,error='',updated_at=now()
-         WHERE id=$5 RETURNING *`,
-        [rows.length, Number(result?.warningCount || 0), Number(result?.duplicateCount || 0), selectedCount, job.id],
-      )
-      await client.query('COMMIT')
-      return publicJob(updated.rows[0])
-    } catch (error) {
-      await client.query('ROLLBACK')
-      throw error
-    } finally {
-      client.release()
+
+      const last = candidatesResult.rows.at(-1)
+      cursorCreatedAt = last.cursor_created_at
+      cursorId = last.id
     }
+
+    const stats = await pool.query(
+      `SELECT
+         (SELECT count(*)::int FROM import_candidates WHERE job_id=$1 AND store_id=$2) AS candidate_count,
+         count(*)::int AS normalized_count,
+         count(*) FILTER (WHERE jsonb_array_length(warnings)>0)::int AS warning_count,
+         count(*) FILTER (WHERE selected)::int AS selected_count
+       FROM import_normalized_products WHERE job_id=$1 AND store_id=$2`,
+      [job.id, job.store_id],
+    )
+    const row = stats.rows[0]
+    const candidateCount = Number(row.candidate_count || 0)
+    const normalizedCount = Number(row.normalized_count || 0)
+    const duplicateCount = Math.max(0, candidateCount - normalizedCount)
+    const updated = await pool.query(
+      `UPDATE import_jobs
+       SET status='review',progress=100,normalized_count=$1,warning_count=$2,duplicate_count=$3,selected_count=$4,review_changed_count=0,error='',updated_at=now()
+       WHERE id=$5 RETURNING *`,
+      [normalizedCount, Number(row.warning_count || 0), duplicateCount, Number(row.selected_count || 0), job.id],
+    )
+    return publicJob(updated.rows[0])
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     const failed = await pool.query(`UPDATE import_jobs SET status='failed',error=$1,updated_at=now() WHERE id=$2 RETURNING *`, [message.slice(0, 2000), job.id])
@@ -487,7 +516,7 @@ function installScannerRoutes(app) {
     if (!job) return
 
     const limit = Math.max(1, Math.min(100, Number(req.query.limit || 40)))
-    const offset = Math.max(0, Math.min(100000, Number(req.query.offset || 0)))
+    const offset = Math.max(0, Number.isFinite(Number(req.query.offset)) ? Math.floor(Number(req.query.offset)) : 0)
     const filter = ['all', 'alerts', 'selected'].includes(String(req.query.filter)) ? String(req.query.filter) : 'all'
     const q = String(req.query.q || '').trim().slice(0, 100)
     const params = [job.id, req.scannerStore.store_id, filter, q]

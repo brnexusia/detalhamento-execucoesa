@@ -87,4 +87,34 @@ assert.equal(shopify.candidates.length, 1)
 assert.equal(shopify.candidates[0].sku, 'CL-P')
 assert.equal(shopify.candidates[0].properties[0].values[2], 'G')
 
+let streamed50k = 0
+let maxBatch50k = 0
+const shopify50kRequest = async (input) => {
+  const url = new URL(String(input))
+  if (url.pathname === '/') return { status: 200, ok: true, url: url.toString(), contentType: 'text/html', headers: {}, body: shopifyRoot }
+  if (url.pathname !== '/products.json') return { status: 404, ok: false, url: url.toString(), contentType: 'text/plain', headers: {}, body: '' }
+  const page = Number(url.searchParams.get('page') || 1)
+  if (page > 200) return { status: 200, ok: true, url: url.toString(), contentType: 'application/json', headers: {}, body: JSON.stringify({ products: [] }) }
+  const start = (page - 1) * 250
+  const products = Array.from({ length: 250 }, (_, offset) => {
+    const id = start + offset + 1
+    return { id, title: `Produto ${id}`, handle: `produto-${id}`, body_html: '', product_type: 'Teste', vendor: '', options: [], images: [], variants: [{ id, title: 'Default', sku: `SKU-${id}`, price: '10.00', available: true }] }
+  })
+  return { status: 200, ok: true, url: url.toString(), contentType: 'application/json', headers: {}, body: JSON.stringify({ products }) }
+}
+const shopify50k = await collectCatalog('https://shop50k.example/', {
+  request: shopify50kRequest,
+  collectInMemory: false,
+  onBatch: async (batch) => {
+    streamed50k += batch.length
+    maxBatch50k = Math.max(maxBatch50k, batch.length)
+  },
+})
+assert.equal(shopify50k.platform, 'shopify')
+assert.equal(shopify50k.candidateCount, 50_000, 'Shopify não pode parar em 5 mil/qualquer teto artificial')
+assert.equal(streamed50k, 50_000)
+assert.equal(shopify50k.candidates.length, 0, 'modo streaming não deve reter 50 mil objetos na memória')
+assert.ok(maxBatch50k <= 250)
+assert.ok(shopify50k.pagesScanned >= 201)
+
 console.log('[scanner module 2] collector tests: ok')

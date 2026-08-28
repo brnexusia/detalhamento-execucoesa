@@ -2,12 +2,13 @@ import dns from 'node:dns/promises'
 import http from 'node:http'
 import https from 'node:https'
 import { isIP } from 'node:net'
+import { gunzipSync } from 'node:zlib'
 import { load } from 'cheerio'
 
-const DEFAULT_MAX_PRODUCTS = 2000
-const DEFAULT_MAX_PAGES = 2500
-const MAX_SITEMAPS = 40
+// Produção não possui teto artificial de produtos/páginas. Limites só são usados quando
+// explicitamente informados (testes, diagnóstico ou operação controlada).
 const MAX_RESPONSE_BYTES = 5 * 1024 * 1024
+const SITEMAP_MAX_RESPONSE_BYTES = 64 * 1024 * 1024
 const REQUEST_TIMEOUT_MS = 12000
 const USER_AGENT = 'AtacadoShop-Migration/1.0 (+catalog migration requested by store owner)'
 
@@ -98,7 +99,17 @@ export async function safeRequest(input, options = {}) {
         chunks.push(chunk)
       })
       response.on('end', () => {
-        const body = Buffer.concat(chunks).toString('utf8')
+        let buffer = Buffer.concat(chunks)
+        const gzip = String(response.headers['content-encoding'] || '').toLowerCase().includes('gzip') || url.pathname.toLowerCase().endsWith('.gz')
+        if (gzip) {
+          try {
+            buffer = gunzipSync(buffer, { maxOutputLength: Number(options.maxOutputBytes || Math.max(maxBytes, SITEMAP_MAX_RESPONSE_BYTES)) })
+          } catch {
+            reject(new Error('Não foi possível descompactar o sitemap da loja.'))
+            return
+          }
+        }
+        const body = buffer.toString('utf8')
         resolve({
           status,
           ok: status >= 200 && status < 300,
@@ -338,6 +349,10 @@ function sameOriginUrl(input, origin) {
     const url = new URL(input, origin)
     if (!['http:', 'https:'].includes(url.protocol) || url.origin !== origin) return null
     url.hash = ''
+    for (const key of [...url.searchParams.keys()]) {
+      if (/^(utm_|fbclid$|gclid$|msclkid$|ref$|referrer$)/i.test(key)) url.searchParams.delete(key)
+    }
+    url.searchParams.sort()
     return url.toString()
   } catch {
     return null
@@ -371,11 +386,87 @@ function linksFromHtml(html, baseUrl) {
   return uniqueStrings(links)
 }
 
-async function collectShopify(rootUrl, request, maxProducts) {
-  const origin = new URL(rootUrl).origin
+function configuredLimit(value) {
+  if (value == null || value === '') return Number.POSITIVE_INFINITY
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : Number.POSITIVE_INFINITY
+}
+
+function candidateKey(product) {
+  return `${product?.source_url || ''}|${product?.external_id || ''}|${product?.title || ''}`.toLowerCase()
+}
+
+function createCandidateSink(options, maxProducts) {
+  const collectInMemory = options.collectInMemory !== false
+  const onBatch = typeof options.onBatch === 'function' ? options.onBatch : null
   const candidates = []
+  const seen = new Set()
+  let count = 0
+  let chain = Promise.resolve()
+
+  const push = (items) => {
+    chain = chain.then(async () => {
+      const accepted = []
+      for (const product of Array.isArray(items) ? items : []) {
+        if (count >= maxProducts) break
+        const key = candidateKey(product)
+        if (!product?.title || seen.has(key)) continue
+        seen.add(key)
+        count += 1
+        accepted.push(product)
+      }
+      if (!accepted.length) return
+      if (collectInMemory) candidates.push(...accepted)
+      if (onBatch) await onBatch(accepted, { candidateCount: count })
+    })
+    return chain
+  }
+
+  return {
+    push,
+    flush: () => chain,
+    get count() { return count },
+    get candidates() { return candidates },
+  }
+}
+
+function shopifyProduct(origin, product) {
+  const options = asArray(product.options).map((option) => ({ name: String(option.name || ''), values: uniqueStrings(option.values || []) }))
+  const variants = asArray(product.variants).map((variant) => ({
+    external_id: String(variant.id || ''),
+    title: String(variant.title || ''),
+    sku: String(variant.sku || ''),
+    price: Number(variant.price),
+    option1: String(variant.option1 || ''),
+    option2: String(variant.option2 || ''),
+    option3: String(variant.option3 || ''),
+    available: variant.available !== false,
+  }))
+  return {
+    source_url: `${origin}/products/${product.handle}`,
+    external_id: String(product.id || ''),
+    title: String(product.title || ''),
+    description: String(product.body_html || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim(),
+    sku: String(variants[0]?.sku || ''),
+    category: String(product.product_type || ''),
+    brand: String(product.vendor || ''),
+    images: uniqueStrings(asArray(product.images).map((image) => image?.src || '')),
+    variants,
+    properties: options,
+    price: Number.isFinite(variants[0]?.price) ? variants[0].price : null,
+    price_text: variants[0]?.price != null ? String(variants[0].price) : '',
+    currency: '',
+    availability: '',
+    source: 'shopify-products-json',
+  }
+}
+
+async function collectShopify(rootUrl, request, maxProducts, sink, onProgress) {
+  const origin = new URL(rootUrl).origin
+  const pageSignatures = new Set()
   let pagesScanned = 0
-  for (let page = 1; page <= 20 && candidates.length < maxProducts; page += 1) {
+
+  for (let page = 1; sink.count < maxProducts; page += 1) {
     const url = `${origin}/products.json?limit=250&page=${page}`
     const response = await request(url, { accept: 'application/json' })
     pagesScanned += 1
@@ -384,47 +475,51 @@ async function collectShopify(rootUrl, request, maxProducts) {
     try { payload = JSON.parse(response.body) } catch { break }
     const products = Array.isArray(payload?.products) ? payload.products : []
     if (!products.length) break
-    for (const product of products) {
-      const options = asArray(product.options).map((option) => ({ name: String(option.name || ''), values: uniqueStrings(option.values || []) }))
-      const variants = asArray(product.variants).map((variant) => ({
-        external_id: String(variant.id || ''),
-        title: String(variant.title || ''),
-        sku: String(variant.sku || ''),
-        price: Number(variant.price),
-        option1: String(variant.option1 || ''),
-        option2: String(variant.option2 || ''),
-        option3: String(variant.option3 || ''),
-        available: variant.available !== false,
-      }))
-      candidates.push({
-        source_url: `${origin}/products/${product.handle}`,
-        external_id: String(product.id || ''),
-        title: String(product.title || ''),
-        description: String(product.body_html || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim(),
-        sku: String(variants[0]?.sku || ''),
-        category: String(product.product_type || ''),
-        brand: String(product.vendor || ''),
-        images: uniqueStrings(asArray(product.images).map((image) => image?.src || '')),
-        variants,
-        properties: options,
-        price: Number.isFinite(variants[0]?.price) ? variants[0].price : null,
-        price_text: variants[0]?.price != null ? String(variants[0].price) : '',
-        currency: '',
-        availability: '',
-        source: 'shopify-products-json',
-      })
-      if (candidates.length >= maxProducts) break
+
+    const signature = `${products[0]?.id || products[0]?.handle || ''}|${products.at(-1)?.id || products.at(-1)?.handle || ''}|${products.length}`
+    if (pageSignatures.has(signature)) break
+    pageSignatures.add(signature)
+
+    await sink.push(products.map((product) => shopifyProduct(origin, product)))
+    if (page % 5 === 0 || products.length < 250 || sink.count >= maxProducts) {
+      await onProgress({ progress: Math.min(90, 15 + Math.floor(Math.log2(page + 1) * 8)), pagesScanned, candidates: sink.count })
     }
     if (products.length < 250) break
   }
-  return { candidates: dedupeCandidates(candidates), pagesScanned }
+
+  await sink.flush()
+  return { candidateCount: sink.count, pagesScanned }
 }
 
-async function collectWooCommerce(rootUrl, request, maxProducts) {
+function wooProduct(origin, product) {
+  const minor = Number(product.prices?.currency_minor_unit ?? 2)
+  const rawPrice = Number(product.prices?.price)
+  const price = Number.isFinite(rawPrice) ? rawPrice / (10 ** minor) : null
+  return {
+    source_url: String(product.permalink || `${origin}/?p=${product.id}`),
+    external_id: String(product.id || ''),
+    title: String(product.name || ''),
+    description: String(product.description || product.short_description || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim(),
+    sku: String(product.sku || ''),
+    category: String(product.categories?.[0]?.name || ''),
+    brand: '',
+    images: uniqueStrings(asArray(product.images).map((image) => image?.src || image?.thumbnail || '')),
+    variants: [],
+    properties: asArray(product.attributes).map((attribute) => ({ name: String(attribute.name || ''), values: uniqueStrings(attribute.terms?.map((term) => term.name) || []) })),
+    price,
+    price_text: price == null ? '' : String(price),
+    currency: String(product.prices?.currency_code || ''),
+    availability: product.is_in_stock ? 'InStock' : 'OutOfStock',
+    source: 'woocommerce-store-api',
+  }
+}
+
+async function collectWooCommerce(rootUrl, request, maxProducts, sink, onProgress) {
   const origin = new URL(rootUrl).origin
-  const candidates = []
+  const pageSignatures = new Set()
   let pagesScanned = 0
-  for (let page = 1; page <= 30 && candidates.length < maxProducts; page += 1) {
+
+  for (let page = 1; sink.count < maxProducts; page += 1) {
     const url = `${origin}/wp-json/wc/store/v1/products?per_page=100&page=${page}`
     const response = await request(url, { accept: 'application/json' })
     pagesScanned += 1
@@ -432,34 +527,21 @@ async function collectWooCommerce(rootUrl, request, maxProducts) {
     let products
     try { products = JSON.parse(response.body) } catch { break }
     if (!Array.isArray(products) || !products.length) break
-    for (const product of products) {
-      const minor = Number(product.prices?.currency_minor_unit ?? 2)
-      const rawPrice = Number(product.prices?.price)
-      const price = Number.isFinite(rawPrice) ? rawPrice / (10 ** minor) : null
-      candidates.push({
-        source_url: String(product.permalink || `${origin}/?p=${product.id}`),
-        external_id: String(product.id || ''),
-        title: String(product.name || ''),
-        description: String(product.description || product.short_description || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim(),
-        sku: String(product.sku || ''),
-        category: String(product.categories?.[0]?.name || ''),
-        brand: '',
-        images: uniqueStrings(asArray(product.images).map((image) => image?.src || image?.thumbnail || '')),
-        variants: [],
-        properties: asArray(product.attributes).map((attribute) => ({ name: String(attribute.name || ''), values: uniqueStrings(attribute.terms?.map((term) => term.name) || []) })),
-        price,
-        price_text: price == null ? '' : String(price),
-        currency: String(product.prices?.currency_code || ''),
-        availability: product.is_in_stock ? 'InStock' : 'OutOfStock',
-        source: 'woocommerce-store-api',
-      })
-      if (candidates.length >= maxProducts) break
+
+    const signature = `${products[0]?.id || ''}|${products.at(-1)?.id || ''}|${products.length}`
+    if (pageSignatures.has(signature)) break
+    pageSignatures.add(signature)
+
+    await sink.push(products.map((product) => wooProduct(origin, product)))
+    if (page % 10 === 0 || products.length < 100 || sink.count >= maxProducts) {
+      await onProgress({ progress: Math.min(90, 15 + Math.floor(Math.log2(page + 1) * 8)), pagesScanned, candidates: sink.count })
     }
     if (products.length < 100) break
   }
-  return { candidates: dedupeCandidates(candidates), pagesScanned }
-}
 
+  await sink.flush()
+  return { candidateCount: sink.count, pagesScanned }
+}
 async function mapLimit(values, limit, mapper) {
   const result = new Array(values.length)
   let cursor = 0
@@ -474,19 +556,34 @@ async function mapLimit(values, limit, mapper) {
   return result
 }
 
-async function collectGeneric(rootResponse, request, maxProducts, maxPages, onProgress) {
+async function collectGeneric(rootResponse, request, maxProducts, maxPages, onProgress, sink) {
   const rootUrl = rootResponse.url
   const origin = new URL(rootUrl).origin
   const queued = new Set()
   const visited = new Set([rootUrl])
-  const queue = []
+  const highQueue = []
+  const normalQueue = []
+
   const enqueue = (input) => {
     const resolved = sameOriginUrl(input, origin)
     if (!resolved || visited.has(resolved) || queued.has(resolved) || visited.size + queued.size >= maxPages) return
     queued.add(resolved)
-    queue.push(resolved)
+    if (productPathScore(resolved) > 0) highQueue.push(resolved)
+    else normalQueue.push(resolved)
   }
+  const nextBatch = () => {
+    const batch = []
+    while (batch.length < 12 && (highQueue.length || normalQueue.length)) {
+      const url = highQueue.length ? highQueue.shift() : normalQueue.shift()
+      if (!url) continue
+      queued.delete(url)
+      batch.push(url)
+    }
+    return batch
+  }
+
   for (const link of linksFromHtml(rootResponse.body, rootUrl)) enqueue(link)
+  await sink.push(extractProductsFromHtml(rootResponse.body, rootUrl))
 
   const sitemapQueue = [`${origin}/sitemap.xml`]
   const visitedSitemaps = new Set()
@@ -503,66 +600,67 @@ async function collectGeneric(rootResponse, request, maxProducts, maxPages, onPr
     }
   } catch { /* sitemap.xml fallback remains */ }
 
-  while (sitemapQueue.length && visitedSitemaps.size < MAX_SITEMAPS && visited.size + queued.size < maxPages) {
+  while (sitemapQueue.length && visited.size + queued.size < maxPages && sink.count < maxProducts) {
     const sitemapUrl = sitemapQueue.shift()
     if (!sitemapUrl || visitedSitemaps.has(sitemapUrl)) continue
     visitedSitemaps.add(sitemapUrl)
     try {
-      const response = await request(sitemapUrl, { accept: 'application/xml,text/xml,text/plain' })
+      const response = await request(sitemapUrl, {
+        accept: 'application/xml,text/xml,text/plain,application/gzip',
+        maxBytes: SITEMAP_MAX_RESPONSE_BYTES,
+        maxOutputBytes: SITEMAP_MAX_RESPONSE_BYTES,
+      })
       pagesScanned += 1
       if (!response.ok) continue
       for (const location of extractSitemapLocations(response.body)) {
         const resolved = sameOriginUrl(location, origin)
         if (!resolved) continue
-        if (/\.xml(?:\.gz)?(?:\?|$)/i.test(resolved) || /sitemap/i.test(new URL(resolved).pathname)) sitemapQueue.push(resolved)
-        else enqueue(resolved)
+        if (/\.xml(?:\.gz)?(?:\?|$)/i.test(resolved) || /sitemap/i.test(new URL(resolved).pathname)) {
+          if (!visitedSitemaps.has(resolved)) sitemapQueue.push(resolved)
+        } else {
+          enqueue(resolved)
+        }
         if (visited.size + queued.size >= maxPages) break
       }
     } catch { /* one broken sitemap must not abort the catalog */ }
   }
 
-  const candidates = [...extractProductsFromHtml(rootResponse.body, rootUrl)]
   let processed = 0
-  while (queue.length && visited.size < maxPages && candidates.length < maxProducts) {
-    queue.sort((a, b) => productPathScore(b) - productPathScore(a))
-    const batch = queue.splice(0, Math.min(12, queue.length))
-    for (const url of batch) queued.delete(url)
-
+  while ((highQueue.length || normalQueue.length) && visited.size < maxPages && sink.count < maxProducts) {
+    const batch = nextBatch()
     await mapLimit(batch, 4, async (url) => {
-      if (visited.has(url) || candidates.length >= maxProducts) return
+      if (visited.has(url) || sink.count >= maxProducts) return
       visited.add(url)
       try {
         const response = await request(url)
         pagesScanned += 1
         if (!response.ok || !response.contentType.includes('html')) return
-        const found = extractProductsFromHtml(response.body, response.url)
-        for (const product of found) {
-          if (candidates.length >= maxProducts) break
-          candidates.push(product)
-        }
-        if (visited.size + queued.size < maxPages) {
+        await sink.push(extractProductsFromHtml(response.body, response.url))
+        if (visited.size + queued.size < maxPages && sink.count < maxProducts) {
           for (const link of linksFromHtml(response.body, response.url)) enqueue(link)
         }
       } catch { /* inaccessible pages are skipped */ }
       finally {
         processed += 1
-        if (processed % 10 === 0 || !queue.length || candidates.length >= maxProducts) {
-          const discoveryBase = Math.max(1, Math.min(maxPages, visited.size + queued.size))
-          const progress = Math.min(90, 15 + Math.round((visited.size / discoveryBase) * 75))
-          await onProgress({ progress, pagesScanned, candidates: candidates.length })
+        if (processed % 25 === 0 || (!highQueue.length && !normalQueue.length) || sink.count >= maxProducts) {
+          const discovered = Math.max(1, visited.size + queued.size)
+          const progress = Math.min(90, 15 + Math.round((visited.size / discovered) * 75))
+          await onProgress({ progress, pagesScanned, candidates: sink.count })
         }
       }
     })
   }
 
-  return { candidates: dedupeCandidates(candidates).slice(0, maxProducts), pagesScanned }
+  await sink.flush()
+  return { candidateCount: sink.count, pagesScanned }
 }
 
 export async function collectCatalog(sourceUrl, options = {}) {
   const request = options.request || safeRequest
-  const maxProducts = Math.max(1, Math.min(5000, Number(options.maxProducts || process.env.SCANNER_MAX_PRODUCTS || DEFAULT_MAX_PRODUCTS)))
-  const maxPages = Math.max(1, Math.min(6000, Number(options.maxPages || process.env.SCANNER_MAX_PAGES || DEFAULT_MAX_PAGES)))
+  const maxProducts = configuredLimit(options.maxProducts ?? process.env.SCANNER_MAX_PRODUCTS)
+  const maxPages = configuredLimit(options.maxPages ?? process.env.SCANNER_MAX_PAGES)
   const onProgress = options.onProgress || (async () => {})
+  const sink = createCandidateSink(options, maxProducts)
 
   await onProgress({ progress: 5, pagesScanned: 0, candidates: 0 })
   const rootResponse = await request(sourceUrl)
@@ -574,18 +672,18 @@ export async function collectCatalog(sourceUrl, options = {}) {
 
   if (platform === 'shopify') {
     try {
-      const result = await collectShopify(rootResponse.url, request, maxProducts)
-      if (result.candidates.length) return { platform, pagesScanned: result.pagesScanned + 1, candidates: result.candidates }
-    } catch { /* generic fallback below */ }
+      const result = await collectShopify(rootResponse.url, request, maxProducts, sink, onProgress)
+      if (result.candidateCount) return { platform, pagesScanned: result.pagesScanned + 1, candidateCount: sink.count, candidates: sink.candidates }
+    } catch { /* generic fallback below; already collected batches remain deduplicated */ }
   }
 
   if (platform === 'woocommerce') {
     try {
-      const result = await collectWooCommerce(rootResponse.url, request, maxProducts)
-      if (result.candidates.length) return { platform, pagesScanned: result.pagesScanned + 1, candidates: result.candidates }
+      const result = await collectWooCommerce(rootResponse.url, request, maxProducts, sink, onProgress)
+      if (result.candidateCount) return { platform, pagesScanned: result.pagesScanned + 1, candidateCount: sink.count, candidates: sink.candidates }
     } catch { /* generic fallback below */ }
   }
 
-  const result = await collectGeneric(rootResponse, request, maxProducts, maxPages, onProgress)
-  return { platform, pagesScanned: result.pagesScanned, candidates: result.candidates }
+  const result = await collectGeneric(rootResponse, request, maxProducts, maxPages, onProgress, sink)
+  return { platform, pagesScanned: result.pagesScanned, candidateCount: sink.count, candidates: sink.candidates }
 }
