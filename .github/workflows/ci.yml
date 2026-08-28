@@ -27,6 +27,7 @@ jobs:
       DATABASE_URL: postgresql://atacado:atacado@127.0.0.1:5432/atacado_test
       PORT: 3000
       BASE_URL: http://127.0.0.1:3000
+      SCANNER_WORKER_DISABLED: '1'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,6 +39,8 @@ jobs:
         run: npm install
       - name: Scanner URL tests
         run: npm run test:scanner
+      - name: Scanner collector tests
+        run: npm run test:scanner:collector
       - name: Build
         run: npm run build
       - name: Start application
@@ -46,6 +49,8 @@ jobs:
           echo $! > /tmp/atacado-shop.pid
       - name: Scanner module 1 integration
         run: node server/scanner-module1.integration.mjs
+      - name: Scanner module 2 integration
+        run: npm run test:scanner:module2
       - name: Print server log on failure
         if: failure()
         run: cat /tmp/atacado-shop.log || true
