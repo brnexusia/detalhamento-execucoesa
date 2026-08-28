@@ -45,6 +45,9 @@ jobs:
         run: npm run test:scanner:normalizer
       - name: Scanner review tests
         run: npm run test:scanner:review
+      - name: Live scanner measurement
+        if: github.head_ref == 'scanner-live-e2e'
+        run: npm run test:scanner:live
       - name: Build
         run: npm run build
       - name: Start application
