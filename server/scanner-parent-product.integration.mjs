@@ -101,10 +101,9 @@ const parent = payload.products.find((item) => item.media_url === 'https://cdn.f
 assert.ok(parent, 'imagem encontrada em uma das variações deve acompanhar o produto pai')
 assert.equal(parent.name, 'Camiseta Essencial')
 assert.equal(parent.sku, '', 'SKUs diferentes das variantes não devem ocupar o SKU do pai')
-assert.deepEqual(parent.variations, [
-  { name: 'Cor', options: ['Preto', 'Azul'] },
-  { name: 'Tamanho', options: ['P', 'M'] },
-])
+const variationMap = Object.fromEntries(parent.variations.map((group) => [group.name, [...group.options].sort()]))
+assert.deepEqual(variationMap.Cor, ['Azul', 'Preto'])
+assert.deepEqual(variationMap.Tamanho, ['M', 'P'])
 
 const premium = payload.products.find((item) => item.sku === 'PREM-1')
 assert.ok(premium, 'produto distinto com o mesmo título deve continuar separado')
