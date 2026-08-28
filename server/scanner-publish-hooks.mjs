@@ -208,7 +208,6 @@ function installPublisherRoute(app) {
   app.post('/api/admin/imports/:jobId/publish', express.json({ limit: '16kb' }), (req, res, next) => {
     Promise.resolve(publishJob(req, res)).catch(next)
   })
-  void ensurePublisherSchema().catch((error) => console.error('[scanner publish] schema:', error.message))
 }
 
 const originalInit = express.application.init

@@ -60,6 +60,22 @@ assert.ok(generic.pagesScanned >= 4)
 assert.ok(progressCalls >= 2)
 assert.equal(generic.candidates.find((item) => item.title === 'Bolsa Siena')?.properties[0]?.name, 'Cor')
 
+const nestedFixtures = {
+  'https://nested.fixture/': { contentType: 'text/html', body: '<html><body><a href="/catalogue/page-1.html">Catálogo</a></body></html>' },
+  'https://nested.fixture/robots.txt': { contentType: 'text/plain', body: '' },
+  'https://nested.fixture/sitemap.xml': { contentType: 'text/plain', body: '' },
+  'https://nested.fixture/catalogue/page-1.html': { contentType: 'text/html', body: '<html><body><a href="page-2.html">Próxima</a></body></html>' },
+  'https://nested.fixture/catalogue/page-2.html': { contentType: 'text/html', body: '<html><body><a href="product/deep.html">Produto</a></body></html>' },
+  'https://nested.fixture/catalogue/product/deep.html': { contentType: 'text/html', body: '<html><head><meta property="og:type" content="product"><meta property="og:title" content="Produto Profundo"><meta property="product:price:amount" content="79.90"><meta property="og:image" content="../images/deep.jpg"></head><body><h1>Produto Profundo</h1></body></html>' },
+}
+const nested = await collectCatalog('https://nested.fixture/', {
+  request: fixtureRequest(nestedFixtures),
+  maxPages: 20,
+})
+assert.equal(nested.candidates.length, 1, 'crawler deve seguir links relativos usando a URL da página atual')
+assert.equal(nested.candidates[0].title, 'Produto Profundo')
+assert.equal(nested.candidates[0].images[0], 'https://nested.fixture/catalogue/images/deep.jpg')
+
 const shopifyRoot = '<html><script src="https://cdn.shopify.com/store.js"></script></html>'
 const shopifyFixtures = {
   'https://shop.example/': { contentType: 'text/html', body: shopifyRoot },

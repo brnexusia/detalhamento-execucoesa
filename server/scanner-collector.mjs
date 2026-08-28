@@ -69,7 +69,10 @@ export async function safeRequest(input, options = {}) {
         accept: options.accept || 'text/html,application/xhtml+xml,application/xml;q=0.9,application/json;q=0.8,*/*;q=0.5',
         'accept-encoding': 'identity',
       },
-      lookup: (_hostname, _lookupOptions, callback) => callback(null, resolved.address, resolved.family),
+      lookup: (_hostname, lookupOptions, callback) => {
+        if (lookupOptions?.all) callback(null, [{ address: resolved.address, family: resolved.family }])
+        else callback(null, resolved.address, resolved.family)
+      },
       timeout: Number(options.timeout || REQUEST_TIMEOUT_MS),
     }, async (response) => {
       const status = Number(response.statusCode || 0)
@@ -150,11 +153,16 @@ function uniqueStrings(values) {
   return [...new Set(values.map((value) => String(value || '').trim()).filter(Boolean))]
 }
 
-function imagesFrom(value) {
+function absoluteUrl(value, baseUrl) {
+  try { return value ? new URL(String(value), baseUrl).toString() : '' } catch { return '' }
+}
+
+function imagesFrom(value, baseUrl = '') {
   const result = []
   for (const item of asArray(value)) {
-    if (typeof item === 'string') result.push(item)
-    else if (item && typeof item === 'object') result.push(item.url || item.contentUrl || item.thumbnailUrl || '')
+    const raw = typeof item === 'string' ? item : item && typeof item === 'object' ? item.url || item.contentUrl || item.thumbnailUrl || '' : ''
+    if (!raw) continue
+    result.push(baseUrl ? absoluteUrl(raw, baseUrl) : raw)
   }
   return uniqueStrings(result)
 }
@@ -189,7 +197,7 @@ function productFromJsonLd(node, sourceUrl) {
     sku: String(variant.sku || ''),
     color: String(variant.color || ''),
     size: String(variant.size || ''),
-    images: imagesFrom(variant.image),
+    images: imagesFrom(variant.image, sourceUrl),
     ...offerInfo(variant.offers),
     properties: propertiesFromJsonLd(variant),
   }))
@@ -201,7 +209,7 @@ function productFromJsonLd(node, sourceUrl) {
     sku: String(node.sku || '').trim(),
     category: String(node.category || '').trim(),
     brand: typeof node.brand === 'string' ? node.brand : String(node.brand?.name || ''),
-    images: imagesFrom(node.image),
+    images: imagesFrom(node.image, sourceUrl),
     variants,
     properties: propertiesFromJsonLd(node),
     ...offer,
@@ -244,6 +252,28 @@ function selectOptions($) {
   return properties.slice(0, 10)
 }
 
+function tableValue($, labels) {
+  const wanted = labels.map((value) => value.toLowerCase())
+  let found = ''
+  $('tr').each((_index, row) => {
+    if (found) return
+    const cells = $(row).find('th,td')
+    if (cells.length < 2) return
+    const label = $(cells[0]).text().trim().toLowerCase().replace(/[:：]$/, '')
+    if (wanted.includes(label)) found = $(cells[1]).text().trim()
+  })
+  return found
+}
+
+function inferCurrency(priceText) {
+  const value = String(priceText || '')
+  if (/R\$/i.test(value)) return 'BRL'
+  if (value.includes('£')) return 'GBP'
+  if (value.includes('€')) return 'EUR'
+  if (value.includes('$')) return 'USD'
+  return ''
+}
+
 export function extractProductsFromHtml(html, sourceUrl) {
   const $ = load(String(html || ''))
   const products = []
@@ -256,23 +286,30 @@ export function extractProductsFromHtml(html, sourceUrl) {
 
   const ogType = $('meta[property="og:type"]').attr('content') || ''
   const priceText = $('meta[property="product:price:amount"]').attr('content') ||
-    $('[itemprop="price"]').attr('content') || $('[itemprop="price"]').first().text().trim()
-  const productSignal = /product/i.test(ogType) || Boolean(priceText) || $('[itemtype*="schema.org/Product"], [data-product-id], [data-product]').length > 0
+    $('[itemprop="price"]').attr('content') || $('[itemprop="price"]').first().text().trim() ||
+    $('.product_main .price_color, .product-price, .price, [data-price]').first().text().trim()
+  const productSignal = /product/i.test(ogType) || Boolean(priceText) || $('[itemtype*="schema.org/Product"], [data-product-id], [data-product], .product_main, .product-detail, .product-page').length > 0
   if (!productSignal) return []
 
   const title = $('meta[property="og:title"]').attr('content') || $('h1').first().text().trim() || $('title').text().trim()
   if (!title) return []
-  const description = $('meta[property="og:description"]').attr('content') || $('meta[name="description"]').attr('content') || ''
-  const image = $('meta[property="og:image"]').attr('content') || $('[itemprop="image"]').attr('src') || ''
-  const currency = $('meta[property="product:price:currency"]').attr('content') || ''
+  const description = $('meta[property="og:description"]').attr('content') || $('meta[name="description"]').attr('content') ||
+    $('#product_description').next('p').text().trim() || $('.product-description, .description').first().text().trim() || ''
+  const rawImage = $('meta[property="og:image"]').attr('content') || $('[itemprop="image"]').attr('src') ||
+    $('.item.active img, .product_main img, .product-detail img, .product-page img').first().attr('src') || ''
+  const image = absoluteUrl(rawImage, sourceUrl)
+  const explicitCurrency = $('meta[property="product:price:currency"]').attr('content') || ''
   const numericPrice = Number(String(priceText).replace(/[^0-9,.-]/g, '').replace(/\.(?=\d{3}(?:\D|$))/g, '').replace(',', '.'))
-  const category = $('meta[property="product:category"]').attr('content') || ''
+  const breadcrumb = $('.breadcrumb a').map((_index, element) => $(element).text().trim()).get().filter(Boolean)
+  const category = $('meta[property="product:category"]').attr('content') || breadcrumb[breadcrumb.length - 1] || tableValue($, ['product type', 'categoria', 'category']) || ''
+  const sku = $('[itemprop="sku"]').attr('content') || $('[itemprop="sku"]').first().text().trim() || tableValue($, ['sku', 'referência', 'referencia', 'reference', 'código', 'codigo', 'upc']) || ''
+  const availability = $('meta[property="product:availability"]').attr('content') || $('.availability').first().text().trim() || tableValue($, ['availability', 'disponibilidade']) || ''
   return [{
     source_url: sourceUrl,
     external_id: '',
     title,
     description,
-    sku: $('[itemprop="sku"]').attr('content') || $('[itemprop="sku"]').first().text().trim() || '',
+    sku,
     category,
     brand: '',
     images: image ? [image] : [],
@@ -280,8 +317,8 @@ export function extractProductsFromHtml(html, sourceUrl) {
     properties: selectOptions($),
     price: Number.isFinite(numericPrice) ? numericPrice : null,
     price_text: String(priceText || ''),
-    currency,
-    availability: $('meta[property="product:availability"]').attr('content') || '',
+    currency: explicitCurrency || inferCurrency(priceText),
+    availability,
     source: 'html',
   }]
 }
@@ -326,7 +363,9 @@ function linksFromHtml(html, baseUrl) {
   const origin = new URL(baseUrl).origin
   const links = []
   $('a[href]').each((_index, element) => {
-    const resolved = sameOriginUrl($(element).attr('href'), origin)
+    const href = $(element).attr('href')
+    const absolute = absoluteUrl(href, baseUrl)
+    const resolved = absolute ? sameOriginUrl(absolute, origin) : null
     if (resolved) links.push(resolved)
   })
   return uniqueStrings(links)
@@ -438,7 +477,17 @@ async function mapLimit(values, limit, mapper) {
 async function collectGeneric(rootResponse, request, maxProducts, maxPages, onProgress) {
   const rootUrl = rootResponse.url
   const origin = new URL(rootUrl).origin
-  const discovered = new Set(linksFromHtml(rootResponse.body, rootUrl))
+  const queued = new Set()
+  const visited = new Set([rootUrl])
+  const queue = []
+  const enqueue = (input) => {
+    const resolved = sameOriginUrl(input, origin)
+    if (!resolved || visited.has(resolved) || queued.has(resolved) || visited.size + queued.size >= maxPages) return
+    queued.add(resolved)
+    queue.push(resolved)
+  }
+  for (const link of linksFromHtml(rootResponse.body, rootUrl)) enqueue(link)
+
   const sitemapQueue = [`${origin}/sitemap.xml`]
   const visitedSitemaps = new Set()
   let pagesScanned = 1
@@ -454,7 +503,7 @@ async function collectGeneric(rootResponse, request, maxProducts, maxPages, onPr
     }
   } catch { /* sitemap.xml fallback remains */ }
 
-  while (sitemapQueue.length && visitedSitemaps.size < MAX_SITEMAPS && discovered.size < maxPages) {
+  while (sitemapQueue.length && visitedSitemaps.size < MAX_SITEMAPS && visited.size + queued.size < maxPages) {
     const sitemapUrl = sitemapQueue.shift()
     if (!sitemapUrl || visitedSitemaps.has(sitemapUrl)) continue
     visitedSitemaps.add(sitemapUrl)
@@ -466,40 +515,45 @@ async function collectGeneric(rootResponse, request, maxProducts, maxPages, onPr
         const resolved = sameOriginUrl(location, origin)
         if (!resolved) continue
         if (/\.xml(?:\.gz)?(?:\?|$)/i.test(resolved) || /sitemap/i.test(new URL(resolved).pathname)) sitemapQueue.push(resolved)
-        else discovered.add(resolved)
-        if (discovered.size >= maxPages) break
+        else enqueue(resolved)
+        if (visited.size + queued.size >= maxPages) break
       }
     } catch { /* one broken sitemap must not abort the catalog */ }
   }
 
-  const rootProducts = extractProductsFromHtml(rootResponse.body, rootUrl)
-  const ordered = [...discovered]
-    .filter((url) => url !== rootUrl)
-    .sort((a, b) => productPathScore(b) - productPathScore(a))
-    .slice(0, maxPages)
-
-  const candidates = [...rootProducts]
+  const candidates = [...extractProductsFromHtml(rootResponse.body, rootUrl)]
   let processed = 0
-  await mapLimit(ordered, 4, async (url) => {
-    if (candidates.length >= maxProducts) return
-    try {
-      const response = await request(url)
-      pagesScanned += 1
-      if (!response.ok || !response.contentType.includes('html')) return
-      const found = extractProductsFromHtml(response.body, response.url)
-      for (const product of found) {
-        if (candidates.length >= maxProducts) break
-        candidates.push(product)
+  while (queue.length && visited.size < maxPages && candidates.length < maxProducts) {
+    queue.sort((a, b) => productPathScore(b) - productPathScore(a))
+    const batch = queue.splice(0, Math.min(12, queue.length))
+    for (const url of batch) queued.delete(url)
+
+    await mapLimit(batch, 4, async (url) => {
+      if (visited.has(url) || candidates.length >= maxProducts) return
+      visited.add(url)
+      try {
+        const response = await request(url)
+        pagesScanned += 1
+        if (!response.ok || !response.contentType.includes('html')) return
+        const found = extractProductsFromHtml(response.body, response.url)
+        for (const product of found) {
+          if (candidates.length >= maxProducts) break
+          candidates.push(product)
+        }
+        if (visited.size + queued.size < maxPages) {
+          for (const link of linksFromHtml(response.body, response.url)) enqueue(link)
+        }
+      } catch { /* inaccessible pages are skipped */ }
+      finally {
+        processed += 1
+        if (processed % 10 === 0 || !queue.length || candidates.length >= maxProducts) {
+          const discoveryBase = Math.max(1, Math.min(maxPages, visited.size + queued.size))
+          const progress = Math.min(90, 15 + Math.round((visited.size / discoveryBase) * 75))
+          await onProgress({ progress, pagesScanned, candidates: candidates.length })
+        }
       }
-    } catch { /* inaccessible pages are skipped */ }
-    finally {
-      processed += 1
-      if (processed % 10 === 0 || processed === ordered.length) {
-        const progress = Math.min(90, 15 + Math.round((processed / Math.max(ordered.length, 1)) * 75))
-        await onProgress({ progress, pagesScanned, candidates: candidates.length })
-      }
-    }
-  })
+    })
+  }
 
   return { candidates: dedupeCandidates(candidates).slice(0, maxProducts), pagesScanned }
 }
