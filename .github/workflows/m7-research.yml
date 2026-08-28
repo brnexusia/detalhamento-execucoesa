@@ -8,7 +8,7 @@ jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: Inspect Vesti chunks for public endpoints
+      - name: Extract Vesti product request contract
         shell: bash
         run: |
           set -euo pipefail
@@ -22,22 +22,13 @@ jobs:
           PY
           mkdir -p /tmp/js
           n=0
-          while IFS= read -r URL; do
-            n=$((n+1)); curl -fsSL --max-time 20 -A 'Mozilla/5.0' "$URL" -o "/tmp/js/$n.js" || true
-          done < /tmp/scripts.txt
+          while IFS= read -r URL; do n=$((n+1)); curl -fsSL --max-time 20 "$URL" -o "/tmp/js/$n.js" || true; done < /tmp/scripts.txt
           python - <<'PY'
           from pathlib import Path
           import re
           text='\n'.join(p.read_text(errors='ignore') for p in Path('/tmp/js').glob('*.js'))
-          print('TOTAL_JS_BYTES',len(text))
-          candidates=set()
-          for pat in [r'https?://[^"\'`\\ ]+', r'["\']([^"\']*(?:api|products?|produtos?|catalogues?|catalogos?)[^"\']*)["\']']:
-              for m in re.finditer(pat,text,re.I):
-                  x=m.group(1) if m.lastindex else m.group(0)
-                  if 2 < len(x) < 500: candidates.add(x)
-          for x in sorted(candidates): print(x)
-          print('--- CONTEXTS ---')
-          for term in ('products?', 'catalogue', 'useSWR', 'axios.create', 'fetch('):
-              for m in list(re.finditer(re.escape(term),text,re.I))[:8]:
-                  print('\nTERM',term,'\n',text[max(0,m.start()-700):m.start()+2200][:2900])
+          for needle in ('11414:function','fetchProducts:async','34032:function'):
+              m=re.search(re.escape(needle),text)
+              print('\n###',needle,'###')
+              print(text[m.start():m.start()+12000] if m else 'NOT FOUND')
           PY
