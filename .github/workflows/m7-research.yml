@@ -7,61 +7,55 @@ permissions:
 jobs:
   inspect:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 8
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: scanner-module7-platforms-clean
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - run: npm install
-      - name: Real storefront smoke
+      - name: Inspect variant payloads on real product pages
         shell: bash
         run: |
           set -euo pipefail
-          node --input-type=module <<'NODE'
-          import assert from 'node:assert/strict'
-          import { collectCatalog } from './server/scanner-collector.mjs'
+          python - <<'PY'
+          import json,re,urllib.request,html as htmlmod
+          UA={'User-Agent':'Mozilla/5.0','Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'}
+          def get(url):
+            req=urllib.request.Request(url,headers=UA)
+            with urllib.request.urlopen(req,timeout=20) as r:
+              return r.read(5_000_000).decode('utf-8','ignore'),r.url
+          def locs(body):
+            return [htmlmod.unescape(x.strip()) for x in re.findall(r'<loc[^>]*>(.*?)</loc>',body,re.I|re.S)]
 
-          const targets = [
-            ['nuvemshop', 'https://tecnoloja14.lojavirtualnuvem.com.br/'],
-            ['lojaintegrada', 'https://cn-demo-6.lojaintegrada.com.br/'],
-            ['tray', 'https://demo-go-beauty.commercesuite.com.br/'],
-            ['vesti', 'https://vesti.co/barracadowillinha/catalogo/5e66ad229f3f6fe'],
-          ]
+          # Nuvemshop: use first real /produtos/ URL from sitemap.
+          root='https://tecnoloja14.lojavirtualnuvem.com.br/'
+          sitemap,_=get(root+'sitemap.xml')
+          nuvem=[u for u in locs(sitemap) if re.search(r'/produtos/[^/]+/?$',u,re.I)]
+          print('NUVEM_PRODUCT_COUNT',len(nuvem),'FIRST',nuvem[0] if nuvem else '')
+          if nuvem:
+            body,final=get(nuvem[0]); print('NUVEM_BYTES',len(body),'FINAL',final)
+            terms=['productVariants','variants','variant','sku','attributes','data-product','LS.product','window.LS','selectedVariant','product_variants','product-variants']
+            for term in terms:
+              matches=list(re.finditer(re.escape(term),body,re.I)); print('NUVEM_TERM',term,'COUNT',len(matches))
+              for m in matches[:2]:
+                snippet=body[max(0,m.start()-700):m.start()+2800]
+                print('NUVEM_CTX',term,snippet[:3500].replace('\n',' ')[:3500])
+            for idx,script in enumerate(re.findall(r'<script[^>]*>([\s\S]*?)</script>',body,re.I)):
+              if re.search(r'variant|sku|productVariants|data-product',script,re.I) and len(script)<250000:
+                print('NUVEM_SCRIPT',idx,'LEN',len(script),script[:12000].replace('\n',' '))
 
-          for (const [expected, url] of targets) {
-            const started = Date.now()
-            const result = await collectCatalog(url, {
-              maxProducts: 1000,
-              maxPages: 5000,
-              strictPlatformAdapters: true,
-            })
-            const totalVariants = result.candidates.reduce((sum, p) => sum + (p.variants?.length || 0), 0)
-            const sampleWithVariants = result.candidates.find((p) => p.variants?.length)
-            console.log('REAL_FINAL', JSON.stringify({
-              expected,
-              detected: result.platform,
-              count: result.candidateCount,
-              pages: result.pagesScanned,
-              ms: Date.now() - started,
-              totalVariants,
-              sample: result.candidates.slice(0, 2).map((p) => ({ title: p.title, sku: p.sku, price: p.price, images: p.images?.length || 0, variants: p.variants?.length || 0, properties: p.properties?.map((x) => x.name), source: p.source })),
-              variantSample: sampleWithVariants ? { title: sampleWithVariants.title, variants: sampleWithVariants.variants.slice(0, 3) } : null,
-            }))
-            assert.equal(result.platform, expected)
-            assert.ok(result.candidateCount > 0)
-            if (expected === 'nuvemshop') assert.ok(result.pagesScanned < 150, `Nuvemshop pages=${result.pagesScanned}`)
-            if (expected === 'lojaintegrada') assert.ok(result.pagesScanned < 150, `Loja Integrada pages=${result.pagesScanned}`)
-            if (expected === 'tray') {
-              assert.ok(result.candidateCount >= 50)
-              assert.ok(totalVariants > 0, 'Tray sem variantes públicas agregadas')
-            }
-            if (expected === 'vesti') {
-              assert.ok(result.candidateCount >= 150)
-              assert.ok(totalVariants > 0, 'Vesti sem grade detalhada')
-              assert.ok(result.candidates.some((p) => p.properties?.some((x) => x.name === 'Tamanho')), 'Vesti sem tamanhos')
-            }
-          }
-          NODE
+          # Loja Integrada: resolve product sitemap and inspect first product page.
+          root='https://cn-demo-6.lojaintegrada.com.br/'
+          sm,_=get(root+'sitemap.xml')
+          indexes=[u for u in locs(sm) if re.search(r'/sitemap/product-[^/]*\.xml',u,re.I)]
+          print('LI_PRODUCT_SITEMAPS',indexes)
+          if indexes:
+            prodsm,_=get(indexes[0]); products=locs(prodsm); print('LI_PRODUCT_COUNT',len(products),'FIRST',products[0] if products else '')
+            if products:
+              body,final=get(products[0]); print('LI_BYTES',len(body),'FINAL',final)
+              terms=['variacao','variação','variant','sku','atributo','attribute','data-product','grade','opcao','opção','estoque']
+              for term in terms:
+                matches=list(re.finditer(re.escape(term),body,re.I)); print('LI_TERM',term,'COUNT',len(matches))
+                for m in matches[:2]:
+                  snippet=body[max(0,m.start()-700):m.start()+2800]
+                  print('LI_CTX',term,snippet[:3500].replace('\n',' ')[:3500])
+              for idx,script in enumerate(re.findall(r'<script[^>]*>([\s\S]*?)</script>',body,re.I)):
+                if re.search(r'variacao|variant|sku|atributo|grade',script,re.I) and len(script)<250000:
+                  print('LI_SCRIPT',idx,'LEN',len(script),script[:12000].replace('\n',' '))
+          PY
