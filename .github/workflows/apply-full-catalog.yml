@@ -1,4 +1,4 @@
-name: apply-full-catalog
+name: export-full-catalog-clean
 
 on:
   push:
@@ -8,24 +8,25 @@ permissions:
   contents: write
 
 jobs:
-  patch:
-    if: ${{ !contains(github.event.head_commit.message, '[full-catalog-applied]') }}
+  export:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: scanner-full-catalog
-      - name: Apply patch
+          fetch-depth: 0
+      - name: Export production files to clean branch
         run: |
-          python scripts/fix-patcher.py
-          python scripts/apply-full-catalog-patch.py
-      - name: Verify changed files
-        run: git diff --check
-      - name: Commit patch
-        run: |
-          git checkout -- .github/workflows/ci.yml
+          git fetch origin scanner-full-catalog-clean scanner-full-catalog
+          git checkout -B scanner-full-catalog-clean origin/scanner-full-catalog-clean
+          git checkout origin/scanner-full-catalog -- \
+            server/scanner-collector.mjs \
+            server/scanner-hooks.mjs \
+            server/scanner-publish-hooks.mjs \
+            server/scanner-collector.test.mjs \
+            server/scanner-scale.integration.mjs
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add server/scanner-collector.mjs server/scanner-hooks.mjs server/scanner-publish-hooks.mjs server/scanner-collector.test.mjs server/scanner-scale.integration.mjs
-          git commit -m "Scanner: catálogo completo sem teto [full-catalog-applied]"
-          git push origin HEAD:scanner-full-catalog
+          git commit -m "Scanner: catálogo completo sem teto"
+          git push origin HEAD:scanner-full-catalog-clean
