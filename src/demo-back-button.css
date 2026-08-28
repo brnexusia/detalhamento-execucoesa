@@ -1,0 +1,37 @@
+.demo-back-button {
+  position: fixed;
+  top: calc(clamp(60px, 5.2vw, 76px) + 12px);
+  left: max(var(--canvas-gutter, 16px), env(safe-area-inset-left));
+  z-index: 39;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid var(--ink);
+  background: rgba(242, 238, 230, .96);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(23, 23, 20, .08);
+  backdrop-filter: blur(8px);
+}
+
+.demo-back-button:hover {
+  transform: translateY(-1px);
+}
+
+.app--feed ~ .demo-back-button,
+.demo-back-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 760px) {
+  .demo-back-button {
+    top: 72px;
+    min-height: 36px;
+    padding: 7px 10px;
+  }
+}
