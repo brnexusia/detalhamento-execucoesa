@@ -8,18 +8,21 @@ jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: Inspect Vesti server payload
+      - name: Probe Vesti query pagination
         shell: bash
         run: |
           set -euo pipefail
-          curl -fsSL --max-time 20 -A 'Mozilla/5.0' 'https://vesti.co/barracadowillinha/catalogo/5e66ad229f3f6fe' -o /tmp/vesti.html
-          python - <<'PY'
+          for PAGE in 1 2 3 10; do
+            URL="https://vesti.co/barracadowillinha/catalogo/5e66ad229f3f6fe?page=${PAGE}"
+            curl -fsSL --max-time 20 -A 'Mozilla/5.0' "$URL" -o "/tmp/v${PAGE}.html"
+            python - "$PAGE" <<'PY'
           from pathlib import Path
-          import re
-          t=Path('/tmp/vesti.html').read_text(errors='ignore')
-          print('BYTES',len(t))
-          for term in ('\\"skus\\"','\\"prices\\"','\\"products\\"','\\"slug\\"','cdn-op.vesti.mobi/p/'):
-              ms=list(re.finditer(re.escape(term),t,re.I))
-              print('TERM',term,'COUNT',len(ms))
-              for m in ms[:3]: print(t[max(0,m.start()-1000):m.start()+5000][:6000])
+          import re,sys,hashlib
+          p=sys.argv[1]; t=Path('/tmp/v'+p+'.html').read_text(errors='ignore')
+          print('PAGE',p,'BYTES',len(t),'SHA',hashlib.sha1(t.encode()).hexdigest()[:12])
+          print('PRODUCT_CDN',len(re.findall(r'cdn-op\.vesti\.mobi/p/',t)))
+          for term in ('\\"page\\":'+p,'\\"currentPage\\":'+p,'\\"slug\\"','\\"price\\"','\\"id\\"'):
+            print(term,len(re.findall(re.escape(term),t)))
+          for m in list(re.finditer(r'cdn-op\.vesti\.mobi/p/',t))[:1]: print(t[max(0,m.start()-1500):m.start()+3500][:5000])
           PY
+          done
