@@ -7,6 +7,7 @@ const { Pool } = pg
 const databaseUrl = process.env.DATABASE_URL?.trim() || ''
 const pool = databaseUrl ? new Pool({ connectionString: databaseUrl, max: 4, connectionTimeoutMillis: 5000 }) : null
 const sessionCookie = 'atacado_session'
+const PUBLISH_BATCH_SIZE = 250
 
 if (pool) pool.on('error', (error) => console.error('[scanner publish] pool:', error.message))
 
@@ -99,90 +100,114 @@ async function publishJob(req, res) {
       return res.status(409).json({ error: 'Essa importação ainda não está pronta para publicação.' })
     }
 
-    const selectedResult = await client.query(
-      `SELECT * FROM import_normalized_products
-       WHERE job_id=$1 AND store_id=$2 AND selected=true
-       ORDER BY created_at ASC
-       FOR UPDATE`,
-      [job.id, store.store_id],
-    )
-    if (!selectedResult.rowCount) {
-      await client.query('ROLLBACK')
-      return res.status(400).json({ error: 'Nenhum produto válido está selecionado para importação.' })
-    }
-
-    const preparedRows = selectedResult.rows.map((row) => ({ row, prepared: prepareReview(row.review_data || row.normalized_data) }))
-    const invalid = preparedRows.filter((item) => !item.prepared.publishable)
-    if (invalid.length) {
-      await client.query('ROLLBACK')
-      return res.status(409).json({
-        error: `${invalid.length} produto(s) selecionado(s) ainda precisam de nome e preço válido. Corrija apenas essas exceções antes de importar.`,
-      })
-    }
-
     let created = 0
     let skippedExisting = 0
+    let cursorCreatedAt = null
+    let cursorId = ''
 
-    for (const item of preparedRows) {
-      const row = item.row
-      const data = item.prepared.data
+    while (true) {
+      const selectedResult = await client.query(
+        `SELECT *,created_at::text AS cursor_created_at
+         FROM import_normalized_products
+         WHERE job_id=$1 AND store_id=$2 AND selected=true
+           AND ($3::timestamptz IS NULL OR created_at>$3::timestamptz OR (created_at=$3::timestamptz AND id>$4))
+         ORDER BY created_at ASC,id ASC
+         LIMIT $5
+         FOR UPDATE`,
+        [job.id, store.store_id, cursorCreatedAt, cursorId, PUBLISH_BATCH_SIZE],
+      )
+      if (!selectedResult.rowCount) break
 
-      if (row.published_product_id) {
-        if (row.publish_result === 'created') created += 1
-        else if (row.publish_result === 'existing') skippedExisting += 1
-        continue
+      const preparedRows = selectedResult.rows.map((row) => ({ row, prepared: prepareReview(row.review_data || row.normalized_data) }))
+      const invalid = preparedRows.filter((item) => !item.prepared.publishable)
+      if (invalid.length) {
+        await client.query('ROLLBACK')
+        return res.status(409).json({
+          error: `${invalid.length} produto(s) selecionado(s) ainda precisam de nome e preço válido. Corrija apenas essas exceções antes de importar.`,
+        })
       }
 
-      let existing = null
-      const sku = String(data.sku || '').trim()
-      if (sku) {
+      const pending = preparedRows.filter((item) => !item.row.published_product_id)
+      for (const item of preparedRows) {
+        if (!item.row.published_product_id) continue
+        if (item.row.publish_result === 'created') created += 1
+        else if (item.row.publish_result === 'existing') skippedExisting += 1
+      }
+
+      const skuKeys = [...new Set(pending.map((item) => String(item.prepared.data.sku || '').trim().toLowerCase()).filter(Boolean))]
+      const existingBySku = new Map()
+      if (skuKeys.length) {
         const existingResult = await client.query(
-          `SELECT id FROM products
-           WHERE store_id=$1 AND lower(btrim(sku))=lower(btrim($2))
-           ORDER BY created_at ASC LIMIT 1`,
-          [store.store_id, sku],
+          `SELECT id,lower(btrim(sku)) AS sku_key FROM products
+           WHERE store_id=$1 AND lower(btrim(sku))=ANY($2::text[])`,
+          [store.store_id, skuKeys],
         )
-        existing = existingResult.rows[0] || null
+        for (const row of existingResult.rows) existingBySku.set(row.sku_key, row.id)
       }
 
-      if (existing) {
-        skippedExisting += 1
+      const productRows = []
+      const publishRows = []
+      for (const item of pending) {
+        const row = item.row
+        const data = item.prepared.data
+        const sku = String(data.sku || '').trim().slice(0, 80)
+        const skuKey = sku.toLowerCase()
+        const existingId = skuKey ? existingBySku.get(skuKey) : null
+        if (existingId) {
+          skippedExisting += 1
+          publishRows.push({ row_id: row.id, product_id: existingId, result: 'existing' })
+          continue
+        }
+
+        const productId = id()
+        const mediaUrl = String(data.media_url || data.images?.[0] || '').trim().slice(0, 1000)
+        productRows.push({
+          id: productId,
+          store_id: store.store_id,
+          sku,
+          name: String(data.name || '').trim().slice(0, 180),
+          description: String(data.description || '').trim().slice(0, 2000),
+          price: Number(data.price),
+          category: String(data.category || 'Geral').trim().slice(0, 80) || 'Geral',
+          media_url: mediaUrl,
+          media_type: data.media_type === 'video' ? 'video' : 'image',
+          pack: String(data.pack || '').trim().slice(0, 160),
+          variations: Array.isArray(data.variations) ? data.variations : [],
+        })
+        publishRows.push({ row_id: row.id, product_id: productId, result: 'created' })
+        created += 1
+        if (skuKey) existingBySku.set(skuKey, productId)
+      }
+
+      if (productRows.length) {
         await client.query(
-          `UPDATE import_normalized_products
-           SET published_product_id=$1,publish_result='existing',published_at=now(),updated_at=now()
-           WHERE id=$2 AND job_id=$3 AND store_id=$4`,
-          [existing.id, row.id, job.id, store.store_id],
+          `INSERT INTO products
+           (id,store_id,sku,name,description,price,category,media_url,media_type,pack,variations,featured,active)
+           SELECT x.id,x.store_id,x.sku,x.name,x.description,x.price,x.category,x.media_url,x.media_type,x.pack,x.variations,false,true
+           FROM jsonb_to_recordset($1::jsonb) AS x(
+             id text,store_id text,sku text,name text,description text,price numeric,category text,media_url text,media_type text,pack text,variations jsonb
+           )`,
+          [JSON.stringify(productRows)],
         )
-        continue
+      }
+      if (publishRows.length) {
+        await client.query(
+          `UPDATE import_normalized_products p
+           SET published_product_id=x.product_id,publish_result=x.result,published_at=now(),updated_at=now()
+           FROM jsonb_to_recordset($1::jsonb) AS x(row_id text,product_id text,result text)
+           WHERE p.id=x.row_id AND p.job_id=$2 AND p.store_id=$3`,
+          [JSON.stringify(publishRows), job.id, store.store_id],
+        )
       }
 
-      const productId = id()
-      const mediaUrl = String(data.media_url || data.images?.[0] || '').trim().slice(0, 1000)
-      await client.query(
-        `INSERT INTO products
-         (id,store_id,sku,name,description,price,category,media_url,media_type,pack,variations,featured,active)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,false,true)`,
-        [
-          productId,
-          store.store_id,
-          sku.slice(0, 80),
-          String(data.name || '').trim().slice(0, 180),
-          String(data.description || '').trim().slice(0, 2000),
-          Number(data.price),
-          String(data.category || 'Geral').trim().slice(0, 80) || 'Geral',
-          mediaUrl,
-          data.media_type === 'video' ? 'video' : 'image',
-          String(data.pack || '').trim().slice(0, 160),
-          JSON.stringify(Array.isArray(data.variations) ? data.variations : []),
-        ],
-      )
-      created += 1
-      await client.query(
-        `UPDATE import_normalized_products
-         SET published_product_id=$1,publish_result='created',published_at=now(),updated_at=now()
-         WHERE id=$2 AND job_id=$3 AND store_id=$4`,
-        [productId, row.id, job.id, store.store_id],
-      )
+      const last = selectedResult.rows.at(-1)
+      cursorCreatedAt = last.cursor_created_at
+      cursorId = last.id
+    }
+
+    if (created + skippedExisting === 0) {
+      await client.query('ROLLBACK')
+      return res.status(400).json({ error: 'Nenhum produto válido está selecionado para importação.' })
     }
 
     const updated = await client.query(
