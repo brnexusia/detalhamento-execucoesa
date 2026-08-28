@@ -8,29 +8,17 @@ jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: Probe public pagination
+      - name: Inspect FacilZap public component
         shell: bash
         run: |
           set -euo pipefail
-          for PAGE in 0 1 2 20 30; do
-            URL="https://facilzap.app.br/yeshuaperfumaria/carregar_produtos/${PAGE}/0/92993271499"
-            CODE=$(curl -sSL --max-time 20 -A 'Mozilla/5.0' -o "/tmp/fz-${PAGE}" -w '%{http_code}' "$URL")
-            echo "FZ PAGE=$PAGE HTTP=$CODE BYTES=$(wc -c < /tmp/fz-${PAGE})"
-            head -c 1200 "/tmp/fz-${PAGE}"; echo
-          done
-          for PAGE in 1 2 3; do
-            URL="https://vesti.co/barracadowillinha/catalogo/5e66ad229f3f6fe/f/page/${PAGE}"
-            CODE=$(curl -sSL --max-time 20 -A 'Mozilla/5.0' -o "/tmp/v-${PAGE}" -w '%{http_code}' "$URL")
-            echo "VESTI PAGE=$PAGE HTTP=$CODE BYTES=$(wc -c < /tmp/v-${PAGE})"
-            python - "$PAGE" <<'PY'
+          curl -fsSL --max-time 20 'https://assets-cdn.facilzap.app.br/componentes/catalogo/listagem-catalogo/listagem-catalogo.1.0.1.js' -o /tmp/listagem.js
+          python - <<'PY'
           from pathlib import Path
-          import re,sys
-          page=sys.argv[1]
-          t=Path('/tmp/v-'+page).read_text(errors='ignore')
-          for pattern in [r'\\"products\\"', r'\\"total\\"', r'\\"last_page\\"', r'\\"current_page\\"', r'\\"name\\":\\"', r'/produto/']:
-              print(pattern, len(re.findall(pattern,t,re.I)))
-          for term in ('\\"products\\"','\\"pagination\\"','\\"meta\\"'):
-              i=t.find(term)
-              if i>=0: print(t[max(0,i-300):i+2200][:2500])
+          import re
+          t=Path('/tmp/listagem.js').read_text(errors='ignore')
+          print('JS_BYTES',len(t))
+          for term in ('urlCarregarProdutosTemplate','carregarMaisProdutos','fetch(', 'axios', 'paginaAtual', 'searchId'):
+              for m in list(re.finditer(re.escape(term),t,re.I))[:4]:
+                  print('\nTERM',term,'\n',t[max(0,m.start()-700):m.start()+2800][:3500])
           PY
-          done
