@@ -17,7 +17,8 @@
     "test:scanner:module4": "node server/scanner-module4.integration.mjs",
     "test:scanner:module5": "node server/scanner-module5.integration.mjs",
     "test:scanner:module6": "node server/scanner-module6.integration.mjs",
-    "test:scanner:live": "node server/scanner-live-measure.mjs"
+    "test:scanner:live": "node server/scanner-live-measure.mjs",
+    "test:scanner:live:e2e": "node server/scanner-live-e2e.integration.mjs"
   },
   "dependencies": {
     "cheerio": "^1.1.2",
