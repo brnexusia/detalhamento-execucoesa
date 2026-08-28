@@ -143,18 +143,23 @@ function productFingerprint(candidate, normalized) {
   return `product:${normalizedKey(normalized.name)}:${normalized.price ?? ''}`
 }
 
-function warningList(normalized, candidate) {
+function blockingWarnings(normalized) {
   const warnings = []
-  if (normalized.price == null) warnings.push('missing_price')
-  if (!normalized.images.length) warnings.push('missing_image')
-  if (!normalized.sku) warnings.push('missing_sku')
-  if (!text(candidate?.category, 80)) warnings.push('missing_category')
-  if (!normalized.description) warnings.push('missing_description')
   if (!normalized.name) warnings.push('missing_name')
+  if (normalized.price == null) warnings.push('missing_price')
   return warnings
 }
 
-function confidenceFromWarnings(warnings) {
+function completenessIssues(normalized, candidate) {
+  const issues = [...blockingWarnings(normalized)]
+  if (!normalized.images.length) issues.push('missing_image')
+  if (!normalized.sku) issues.push('missing_sku')
+  if (!text(candidate?.category, 80)) issues.push('missing_category')
+  if (!normalized.description) issues.push('missing_description')
+  return issues
+}
+
+function confidenceFromIssues(issues) {
   const weights = {
     missing_name: 0.45,
     missing_price: 0.25,
@@ -163,7 +168,7 @@ function confidenceFromWarnings(warnings) {
     missing_category: 0.06,
     missing_sku: 0.05,
   }
-  const penalty = warnings.reduce((sum, warning) => sum + (weights[warning] || 0.03), 0)
+  const penalty = issues.reduce((sum, issue) => sum + (weights[issue] || 0.03), 0)
   return Math.max(0, Math.min(1, Math.round((1 - penalty) * 100) / 100))
 }
 
@@ -186,13 +191,14 @@ export function normalizeCandidate(candidate) {
     source: text(candidate?.source, 80),
   }
   normalized.media_url = normalized.images[0] || ''
-  const warnings = warningList(normalized, candidate)
+  const warnings = blockingWarnings(normalized)
+  const issues = completenessIssues(normalized, candidate)
   return {
     fingerprint: productFingerprint(candidate, normalized),
     source_candidate_id: text(candidate?.__candidate_id, 120),
     normalized,
     warnings,
-    confidence: confidenceFromWarnings(warnings),
+    confidence: confidenceFromIssues(issues),
   }
 }
 
