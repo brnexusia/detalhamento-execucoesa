@@ -10,7 +10,9 @@
     "preview": "vite preview",
     "test:scanner": "node server/scanner-url.test.mjs",
     "test:scanner:collector": "node server/scanner-collector.test.mjs",
-    "test:scanner:module2": "node server/scanner-module2.integration.mjs"
+    "test:scanner:normalizer": "node server/scanner-normalizer.test.mjs",
+    "test:scanner:module2": "node server/scanner-module2.integration.mjs",
+    "test:scanner:module3": "node server/scanner-module3.integration.mjs"
   },
   "dependencies": {
     "cheerio": "^1.1.2",
