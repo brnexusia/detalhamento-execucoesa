@@ -239,7 +239,7 @@ export async function processImportJob(jobId, collector = collectCatalog) {
       }
       const updated = await client.query(
         `UPDATE import_jobs
-         SET status='processing',progress=96,result_count=$1,normalized_count=0,warning_count=0,duplicate_count=0,platform=$2,pages_scanned=$3,error='',updated_at=now()
+         SET status='processing',progress=100,result_count=$1,normalized_count=0,warning_count=0,duplicate_count=0,platform=$2,pages_scanned=$3,error='',updated_at=now()
          WHERE id=$4 RETURNING *`,
         [rows.length, String(result?.platform || 'generic'), Number(result?.pagesScanned || 0), job.id],
       )
@@ -262,7 +262,7 @@ export async function processImportJob(jobId, collector = collectCatalog) {
 export async function processNormalizationJob(jobId, normalizer = normalizeCandidates) {
   await ensureScannerSchema()
   const claimed = await pool.query(
-    `UPDATE import_jobs SET progress=97,error='',updated_at=now()
+    `UPDATE import_jobs SET error='',updated_at=now()
      WHERE id=$1 AND status='processing' RETURNING *`,
     [jobId],
   )
@@ -393,10 +393,7 @@ function installScannerRoutes(app) {
        FROM import_normalized_products WHERE job_id=$1 AND store_id=$2 ORDER BY created_at ASC LIMIT $3`,
       [req.params.jobId, req.scannerStore.store_id, limit],
     )
-    res.json({
-      job: publicJob(job.rows[0]),
-      products: result.rows.map((row) => ({ ...row, confidence: Number(row.confidence) })),
-    })
+    res.json({ job: publicJob(job.rows[0]), products: result.rows.map((row) => ({ ...row, confidence: Number(row.confidence) })) })
   }))
 
   router.post('/', requireStore, asyncRoute(async (req, res) => {
