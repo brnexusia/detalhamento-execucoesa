@@ -1,0 +1,28 @@
+name: m7-research
+on:
+  push:
+    branches: [scanner-module7-platforms]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: FacilZap storefront
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --max-time 20 -A 'Mozilla/5.0' 'https://facilzap.app.br/yeshuaperfumaria' -o /tmp/fz.html
+          echo '--- FZ SIZE ---'; wc -c /tmp/fz.html
+          echo '--- FZ SCRIPTS ---'; grep -Eo '<script[^>]+src=["'"'][^"'"']+' /tmp/fz.html | head -30 || true
+          echo '--- FZ ENDPOINT CLUES ---'; grep -Eo '(/[^"'"' <>]*(produto|api|carregar|catalogo|page|pagina)[^"'"' <>]*)' /tmp/fz.html | sort -u | head -80 || true
+          echo '--- FZ DATA/LOAD CLUES ---'; grep -Eio '.{0,100}(carregar mais|loadmore|load-more|ajax|fetch\(|axios|produto).{0,180}' /tmp/fz.html | head -50 || true
+      - name: Vesti storefront
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --max-time 20 -A 'Mozilla/5.0' 'https://vesti.co/barracadowillinha/catalogo/5e66ad229f3f6fe' -o /tmp/vesti.html
+          echo '--- VESTI SIZE ---'; wc -c /tmp/vesti.html
+          echo '--- VESTI SCRIPTS ---'; grep -Eo '<script[^>]+src=["'"'][^"'"']+' /tmp/vesti.html | head -40 || true
+          echo '--- VESTI ENDPOINT CLUES ---'; grep -Eo '(/[^"'"' <>]*(produto|api|catalogo|page|pagina)[^"'"' <>]*)' /tmp/vesti.html | sort -u | head -100 || true
+          echo '--- VESTI DATA CLUES ---'; grep -Eio '.{0,100}(next_data|__next|nuxt|graphql|axios|fetch\(|catalogo|produto).{0,180}' /tmp/vesti.html | head -60 || true
