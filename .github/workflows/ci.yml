@@ -9,6 +9,24 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: atacado
+          POSTGRES_PASSWORD: atacado
+          POSTGRES_DB: atacado_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U atacado -d atacado_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://atacado:atacado@127.0.0.1:5432/atacado_test
+      PORT: 3000
+      BASE_URL: http://127.0.0.1:3000
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -16,8 +34,18 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
       - name: Install
         run: npm install
+      - name: Scanner URL tests
+        run: npm run test:scanner
       - name: Build
         run: npm run build
+      - name: Start application
+        run: |
+          npm start > /tmp/atacado-shop.log 2>&1 &
+          echo $! > /tmp/atacado-shop.pid
+      - name: Scanner module 1 integration
+        run: node server/scanner-module1.integration.mjs
+      - name: Print server log on failure
+        if: failure()
+        run: cat /tmp/atacado-shop.log || true

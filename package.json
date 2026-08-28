@@ -6,8 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "start": "node --import ./server/platform-hooks.mjs server/app.mjs",
-    "preview": "vite preview"
+    "start": "node --import ./server/platform-hooks.mjs --import ./server/scanner-hooks.mjs server/app.mjs",
+    "preview": "vite preview",
+    "test:scanner": "node server/scanner-url.test.mjs"
   },
   "dependencies": {
     "express": "^4.21.2",
