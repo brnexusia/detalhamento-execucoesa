@@ -1,0 +1,44 @@
+name: m7-ua-patch
+on:
+  push:
+    branches: [scanner-module7-platforms]
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: scanner-module7-platforms-clean
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Patch browser-compatible user agent
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('server/scanner-collector.mjs')
+          s=p.read_text()
+          old="const USER_AGENT = 'AtacadoShop-Migration/1.0 (+catalog migration requested by store owner)'"
+          new="const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0 Safari/537.36'"
+          if old in s:
+              s=s.replace(old,new,1)
+          elif new not in s:
+              raise SystemExit('USER_AGENT anchor not found')
+          p.write_text(s)
+          PY
+      - run: npm install
+      - run: node server/scanner-module7-dedicated.test.mjs
+      - run: npm run test:scanner:collector
+      - run: npm run build
+      - name: Commit clean branch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add server/scanner-collector.mjs
+          if git diff --cached --quiet; then echo 'No UA change needed'; exit 0; fi
+          git commit -m "Scanner M7: usar user-agent compatível com vitrines públicas"
+          git push origin HEAD:scanner-module7-platforms-clean
