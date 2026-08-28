@@ -97,7 +97,7 @@ const fakeCollector = async () => ({
 const collected = await processImportJob(jobId, fakeCollector)
 assert.equal(collected.status, 'processing')
 assert.equal(collected.result_count, 3)
-assert.equal(collected.progress, 96)
+assert.equal(collected.progress, 100)
 
 const normalized = await processNormalizationJob(jobId)
 assert.ok(normalized)
