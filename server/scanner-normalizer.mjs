@@ -193,6 +193,7 @@ export function normalizeCandidate(candidate) {
   const warnings = warningList(normalized, candidate)
   return {
     fingerprint: productFingerprint(candidate, normalized),
+    source_candidate_id: text(candidate?.__candidate_id, 120),
     normalized,
     warnings,
     confidence: confidenceFromWarnings(warnings),
