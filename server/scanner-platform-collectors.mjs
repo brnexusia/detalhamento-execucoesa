@@ -121,7 +121,7 @@ export async function collectDirectedSitemap({
       const isProduct = platform === 'nuvemshop'
         ? nuvemshopProductUrl(location)
         : platform === 'lojaintegrada'
-          ? visitedSitemaps.has(sitemapUrl) && lojaIntegradaProductSitemap(sitemapUrl)
+          ? lojaIntegradaProductSitemap(sitemapUrl)
           : false
       if (isProduct) productUrls.add(location)
       if (productUrls.size >= maxProducts) break
@@ -129,7 +129,8 @@ export async function collectDirectedSitemap({
   }
 
   if (!productUrls.size) throw new Error(`O sitemap público da plataforma ${platform} não expôs URLs de produtos.`)
-  const urls = [...productUrls].slice(0, Number.isFinite(maxProducts) ? maxProducts : undefined)
+  const discovered = [...productUrls]
+  const urls = Number.isFinite(maxProducts) ? discovered.slice(0, maxProducts) : discovered
   let processed = 0
   await mapLimit(urls, 6, async (url) => {
     if (sink.count >= maxProducts) return
@@ -230,7 +231,8 @@ async function fetchTrayPages(origin, request, resource, key, maxItems) {
     const total = Number(payload?.paging?.total || 0)
     if ((total && items.length >= total) || pageItems.length < 50) break
   }
-  return { items: items.slice(0, Number.isFinite(maxItems) ? maxItems : undefined), pagesScanned }
+  const resultItems = Number.isFinite(maxItems) ? items.slice(0, maxItems) : items
+  return { items: resultItems, pagesScanned }
 }
 
 export async function collectTrayPublic({ rootResponse, request, maxProducts, sink, onProgress }) {
