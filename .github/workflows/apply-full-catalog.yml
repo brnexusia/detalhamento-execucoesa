@@ -1,0 +1,28 @@
+name: apply-full-catalog
+
+on:
+  push:
+    branches: [scanner-full-catalog]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[full-catalog-applied]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: scanner-full-catalog
+      - name: Apply patch
+        run: python scripts/apply-full-catalog-patch.py
+      - name: Verify changed files
+        run: git diff --check
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add server/scanner-collector.mjs server/scanner-hooks.mjs server/scanner-publish-hooks.mjs server/scanner-collector.test.mjs server/scanner-scale.integration.mjs .github/workflows/ci.yml
+          git commit -m "Scanner: catálogo completo sem teto [full-catalog-applied]"
+          git push origin HEAD:scanner-full-catalog
