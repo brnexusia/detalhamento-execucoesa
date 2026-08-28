@@ -17,7 +17,7 @@ jobs:
         with:
           node-version: 22
       - name: Apply patch
-        run: python .github/scripts/fix-variant-import.py
+        run: python .github/scripts/run-fix-variant-import.py
       - run: npm install
       - name: Normalizer regression
         run: npm run test:scanner:normalizer
@@ -28,7 +28,7 @@ jobs:
       - name: Commit clean branch
         shell: bash
         run: |
-          git rm .github/workflows/fix-import-variant-groups.yml .github/scripts/fix-variant-import.py
+          git rm .github/workflows/fix-import-variant-groups.yml .github/scripts/fix-variant-import.py .github/scripts/run-fix-variant-import.py
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add server/scanner-normalizer.mjs server/scanner-normalizer.test.mjs server/scanner-hooks.mjs server/scanner-variant-grouping.integration.mjs .github/workflows/ci.yml
