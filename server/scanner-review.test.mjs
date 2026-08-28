@@ -39,12 +39,13 @@ assert.deepEqual(sanitizeReviewVariations([
 
 const incomplete = prepareReview({ name: 'Bolsa', price: null, images: [], sku: '', category: '', description: '' })
 assert.equal(incomplete.publishable, false)
-assert.ok(incomplete.warnings.includes('missing_price'))
-assert.ok(incomplete.warnings.includes('missing_image'))
-assert.ok(incomplete.warnings.includes('missing_sku'))
-assert.ok(incomplete.warnings.includes('missing_category'))
-assert.ok(incomplete.warnings.includes('missing_description'))
+assert.deepEqual(incomplete.warnings, ['missing_price'], 'apenas bloqueio real exige revisão')
 assert.ok(incomplete.confidence < 1)
+
+const sparseButValid = prepareReview({ name: 'Bolsa simples', price: 25, images: [], sku: '', category: '', description: '' })
+assert.equal(sparseButValid.publishable, true)
+assert.deepEqual(sparseButValid.warnings, [], 'dados opcionais ausentes não devem obrigar revisão manual')
+assert.ok(sparseButValid.confidence < 1)
 
 const accepted = prepareReview({
   name: 'Bolsa',
