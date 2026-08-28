@@ -61,6 +61,8 @@ jobs:
         run: npm run test:scanner:module4
       - name: Scanner module 5 integration
         run: npm run test:scanner:module5
+      - name: Scanner 50k full pipeline
+        run: node server/scanner-scale.integration.mjs
       - name: Scanner module 6 integration
         run: npm run test:scanner:module6
       - name: Print server log on failure
