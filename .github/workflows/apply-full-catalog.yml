@@ -16,7 +16,9 @@ jobs:
         with:
           ref: scanner-full-catalog
       - name: Apply patch
-        run: python scripts/apply-full-catalog-patch.py
+        run: |
+          python scripts/fix-patcher.py
+          python scripts/apply-full-catalog-patch.py
       - name: Verify changed files
         run: git diff --check
       - name: Commit patch
