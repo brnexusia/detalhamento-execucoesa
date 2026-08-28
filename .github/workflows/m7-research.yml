@@ -9,85 +9,42 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
-      - name: Probe public platform contracts
+      - name: Probe valid Tray demos
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
           import json,re,urllib.request,urllib.error
-          urls={
-            'nuvem_root':'https://tecnoloja14.lojavirtualnuvem.com.br/',
-            'nuvem_products_json':'https://tecnoloja14.lojavirtualnuvem.com.br/products.json',
-            'nuvem_sitemap':'https://tecnoloja14.lojavirtualnuvem.com.br/sitemap.xml',
-            'li_root':'https://cn-demo-6.lojaintegrada.com.br/',
-            'li_sitemap':'https://cn-demo-6.lojaintegrada.com.br/sitemap.xml',
-            'tray_root':'https://728253.commercesuite.com.br/',
-            'tray_api_p1':'https://728253.commercesuite.com.br/web_api/products?limit=100&page=1',
-            'tray_api_p2':'https://728253.commercesuite.com.br/web_api/products?limit=100&page=2',
-            'tray_sitemap':'https://728253.commercesuite.com.br/sitemap.xml',
-            'zapfacil_com':'https://zapfacil.com.br/',
-            'zapfacil_shop':'https://zapfacil.shop/',
-          }
-          for name,url in urls.items():
-            req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0','Accept':'application/json,text/html,application/xml;q=0.9,*/*;q=0.8'})
-            try:
-              with urllib.request.urlopen(req,timeout=20) as r:
-                body=r.read(2_000_000).decode('utf-8','ignore')
-                print('\nPROBE',name,'HTTP',r.status,'TYPE',r.headers.get('content-type'),'BYTES',len(body),'FINAL',r.url)
-            except urllib.error.HTTPError as e:
-              body=e.read(200000).decode('utf-8','ignore')
-              print('\nPROBE',name,'HTTP',e.code,'TYPE',e.headers.get('content-type'),'BYTES',len(body),'FINAL',e.url)
-            except Exception as e:
-              print('\nPROBE',name,'ERROR',type(e).__name__,str(e)); continue
-            if name.startswith('tray_api'):
+          targets=[
+            'https://demo-go-beauty.commercesuite.com.br/',
+            'https://demo-autoparts-store.commercesuite.com.br/',
+            'https://lojatestesizebay.commercesuite.com.br/',
+            'https://750831.commercesuite.com.br/loja/busca.php?loja=750831',
+          ]
+          for root in targets:
+            print('\nROOT',root)
+            for suffix in ('','sitemap.xml','web_api/products?limit=100&page=1'):
+              url=root if not suffix else urllib.parse.urljoin(root,suffix)
+              req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0','Accept':'application/json,text/html,application/xml;q=0.9,*/*;q=0.8'})
               try:
-                data=json.loads(body); print('JSON_KEYS',list(data)[:20] if isinstance(data,dict) else type(data).__name__)
-                if isinstance(data,dict):
-                  for key in ('Products','products','paging','Paging'):
-                    if key in data:
-                      value=data[key]; print(key,'LEN',len(value) if hasattr(value,'__len__') else '-',json.dumps(value,ensure_ascii=False)[:6000])
-              except Exception as exc: print('JSON_ERROR',type(exc).__name__,body[:1000])
-            elif 'sitemap' in name:
-              locs=re.findall(r'<loc[^>]*>(.*?)</loc>',body,re.I|re.S)
-              print('SITEMAP_LOCS',len(locs),'SAMPLE',locs[:8])
-            elif name=='nuvem_root':
-              for token in ('Nuvemshop','Tiendanube','LS.store','data-store','productVariants','variants','/products/'):
-                print('TOKEN',token,body.lower().count(token.lower()))
-              scripts=re.findall(r'<script[^>]+src=["\']([^"\']+)',body,re.I)
-              print('SCRIPTS',scripts[-15:])
-            elif name=='li_root':
-              for token in ('lojaintegrada','cdn.awsli.com.br','schema.org/Product','data-product','produto'):
-                print('TOKEN',token,body.lower().count(token.lower()))
-            elif name.startswith('zapfacil'):
-              print('CATALOG_SIGNALS',[(x,body.lower().count(x)) for x in ('produto','catalog','loja','shop','ecommerce')])
-              print('LINKS',re.findall(r'href=["\']([^"\']+)',body,re.I)[:80])
-          PY
-      - name: Probe Vesti detail with current company UUID
-        shell: bash
-        run: |
-          set -euo pipefail
-          ROOT='https://vesti.co/barracadowillinha/catalogo/5e66ad229f3f6fe'
-          LIST='https://apivesti.vesti.mobi/appmarca/v2/catalogue/5e66ad229f3f6fe/company/barracadowillinha/?page=1&perpage=1&with_categories=true&with_colors=true&with_product_colors=true&with_sizes=true&with_brands=true&with_prices=true&with_tags=1'
-          curl -fsSL --max-time 20 -A 'Mozilla/5.0' "$ROOT" -o /tmp/root.html
-          curl -fsSL --max-time 20 -A 'Mozilla/5.0' "$LIST" -o /tmp/list.json
-          python - <<'PY' > /tmp/vars
-          import json,re
-          from pathlib import Path
-          html=Path('/tmp/root.html').read_text(errors='ignore'); data=json.loads(Path('/tmp/list.json').read_text()); product=data['products'][0]
-          matches=re.findall(r'\\?"company\\?"\s*:\s*\{\s*\\?"id\\?"\s*:\s*\\?"([0-9a-f-]{36})\\?"',html,re.I)
-          print(product['id']); print(matches[0] if matches else '')
-          PY
-          PID=$(sed -n '1p' /tmp/vars); CID=$(sed -n '2p' /tmp/vars)
-          echo "VESTI PID=$PID CID=$CID"; test -n "$CID"
-          URL="https://apivesti.vesti.mobi/appmarca/v1/products/company/${CID}/product/${PID}/showcase?cid=5e66ad229f3f6fe&reseller_id=null"
-          CODE=$(curl -sSL --max-time 20 -A 'Mozilla/5.0' -o /tmp/detail.json -w '%{http_code}' "$URL")
-          echo "DETAIL_HTTP=$CODE"; test "$CODE" = 200
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          d=json.loads(Path('/tmp/detail.json').read_text()); p=d.get('product_group') or d.get('product') or d
-          print('DETAIL_KEYS',sorted(p.keys()))
-          for k in ('colors','sizes','stocks','skus','prices','media','negotiations'):
-            v=p.get(k)
-            print(k,'TYPE',type(v).__name__,'LEN',len(v) if hasattr(v,'__len__') else '-',json.dumps(v,ensure_ascii=False)[:5000])
+                with urllib.request.urlopen(req,timeout=20) as r:
+                  body=r.read(2_000_000).decode('utf-8','ignore')
+                  print('PROBE',url,'HTTP',r.status,'TYPE',r.headers.get('content-type'),'BYTES',len(body),'FINAL',r.url)
+              except urllib.error.HTTPError as e:
+                body=e.read(100000).decode('utf-8','ignore'); print('PROBE',url,'HTTP',e.code,'TYPE',e.headers.get('content-type'),'BYTES',len(body)); continue
+              except Exception as e:
+                print('PROBE',url,'ERROR',type(e).__name__,str(e)); continue
+              if 'web_api' in url:
+                try:
+                  data=json.loads(body); print('JSON_KEYS',list(data)[:15]);
+                  for k in ('Products','products','paging','Paging'):
+                    if k in data: print(k,'LEN',len(data[k]) if hasattr(data[k],'__len__') else '-',json.dumps(data[k],ensure_ascii=False)[:3000])
+                except: print('NOT_JSON',body[:500])
+              elif 'sitemap' in url:
+                locs=re.findall(r'<loc[^>]*>(.*?)</loc>',body,re.I|re.S); print('SITEMAP_LOCS',len(locs),'SAMPLE',locs[:10])
+              else:
+                links=re.findall(r'href=["\']([^"\']+)',body,re.I)
+                product_links=[x for x in links if re.search(r'produto|product|pro=[0-9]+|/p/',x,re.I)]
+                print('PRODUCT_LINKS',len(product_links),'SAMPLE',product_links[:10])
+                m=re.search(r'(\d+)\s+produtos encontrados',body,re.I); print('COUNT_TEXT',m.group(1) if m else '')
           PY
