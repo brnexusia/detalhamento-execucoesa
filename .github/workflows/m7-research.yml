@@ -7,44 +7,61 @@ permissions:
 jobs:
   inspect:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 15
     steps:
-      - name: Probe valid Tray demos
+      - uses: actions/checkout@v4
+        with:
+          ref: scanner-module7-platforms-clean
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Real storefront smoke
         shell: bash
         run: |
           set -euo pipefail
-          python - <<'PY'
-          import json,re,urllib.request,urllib.error
-          targets=[
-            'https://demo-go-beauty.commercesuite.com.br/',
-            'https://demo-autoparts-store.commercesuite.com.br/',
-            'https://lojatestesizebay.commercesuite.com.br/',
-            'https://750831.commercesuite.com.br/loja/busca.php?loja=750831',
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict'
+          import { collectCatalog } from './server/scanner-collector.mjs'
+
+          const targets = [
+            ['nuvemshop', 'https://tecnoloja14.lojavirtualnuvem.com.br/'],
+            ['lojaintegrada', 'https://cn-demo-6.lojaintegrada.com.br/'],
+            ['tray', 'https://demo-go-beauty.commercesuite.com.br/'],
+            ['vesti', 'https://vesti.co/barracadowillinha/catalogo/5e66ad229f3f6fe'],
           ]
-          for root in targets:
-            print('\nROOT',root)
-            for suffix in ('','sitemap.xml','web_api/products?limit=100&page=1'):
-              url=root if not suffix else urllib.parse.urljoin(root,suffix)
-              req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0','Accept':'application/json,text/html,application/xml;q=0.9,*/*;q=0.8'})
-              try:
-                with urllib.request.urlopen(req,timeout=20) as r:
-                  body=r.read(2_000_000).decode('utf-8','ignore')
-                  print('PROBE',url,'HTTP',r.status,'TYPE',r.headers.get('content-type'),'BYTES',len(body),'FINAL',r.url)
-              except urllib.error.HTTPError as e:
-                body=e.read(100000).decode('utf-8','ignore'); print('PROBE',url,'HTTP',e.code,'TYPE',e.headers.get('content-type'),'BYTES',len(body)); continue
-              except Exception as e:
-                print('PROBE',url,'ERROR',type(e).__name__,str(e)); continue
-              if 'web_api' in url:
-                try:
-                  data=json.loads(body); print('JSON_KEYS',list(data)[:15]);
-                  for k in ('Products','products','paging','Paging'):
-                    if k in data: print(k,'LEN',len(data[k]) if hasattr(data[k],'__len__') else '-',json.dumps(data[k],ensure_ascii=False)[:3000])
-                except: print('NOT_JSON',body[:500])
-              elif 'sitemap' in url:
-                locs=re.findall(r'<loc[^>]*>(.*?)</loc>',body,re.I|re.S); print('SITEMAP_LOCS',len(locs),'SAMPLE',locs[:10])
-              else:
-                links=re.findall(r'href=["\']([^"\']+)',body,re.I)
-                product_links=[x for x in links if re.search(r'produto|product|pro=[0-9]+|/p/',x,re.I)]
-                print('PRODUCT_LINKS',len(product_links),'SAMPLE',product_links[:10])
-                m=re.search(r'(\d+)\s+produtos encontrados',body,re.I); print('COUNT_TEXT',m.group(1) if m else '')
-          PY
+
+          for (const [expected, url] of targets) {
+            const started = Date.now()
+            const result = await collectCatalog(url, {
+              maxProducts: 1000,
+              maxPages: 5000,
+              strictPlatformAdapters: true,
+            })
+            const totalVariants = result.candidates.reduce((sum, p) => sum + (p.variants?.length || 0), 0)
+            const sampleWithVariants = result.candidates.find((p) => p.variants?.length)
+            console.log('REAL_FINAL', JSON.stringify({
+              expected,
+              detected: result.platform,
+              count: result.candidateCount,
+              pages: result.pagesScanned,
+              ms: Date.now() - started,
+              totalVariants,
+              sample: result.candidates.slice(0, 2).map((p) => ({ title: p.title, sku: p.sku, price: p.price, images: p.images?.length || 0, variants: p.variants?.length || 0, properties: p.properties?.map((x) => x.name), source: p.source })),
+              variantSample: sampleWithVariants ? { title: sampleWithVariants.title, variants: sampleWithVariants.variants.slice(0, 3) } : null,
+            }))
+            assert.equal(result.platform, expected)
+            assert.ok(result.candidateCount > 0)
+            if (expected === 'nuvemshop') assert.ok(result.pagesScanned < 150, `Nuvemshop pages=${result.pagesScanned}`)
+            if (expected === 'lojaintegrada') assert.ok(result.pagesScanned < 150, `Loja Integrada pages=${result.pagesScanned}`)
+            if (expected === 'tray') {
+              assert.ok(result.candidateCount >= 50)
+              assert.ok(totalVariants > 0, 'Tray sem variantes públicas agregadas')
+            }
+            if (expected === 'vesti') {
+              assert.ok(result.candidateCount >= 150)
+              assert.ok(totalVariants > 0, 'Vesti sem grade detalhada')
+              assert.ok(result.candidates.some((p) => p.properties?.some((x) => x.name === 'Tamanho')), 'Vesti sem tamanhos')
+            }
+          }
+          NODE
