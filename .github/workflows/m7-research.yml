@@ -8,21 +8,36 @@ jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: Probe Vesti query pagination
+      - name: Inspect Vesti chunks for public endpoints
         shell: bash
         run: |
           set -euo pipefail
-          for PAGE in 1 2 3 10; do
-            URL="https://vesti.co/barracadowillinha/catalogo/5e66ad229f3f6fe?page=${PAGE}"
-            curl -fsSL --max-time 20 -A 'Mozilla/5.0' "$URL" -o "/tmp/v${PAGE}.html"
-            python - "$PAGE" <<'PY'
+          curl -fsSL --max-time 20 -A 'Mozilla/5.0' 'https://vesti.co/barracadowillinha/catalogo/5e66ad229f3f6fe' -o /tmp/root.html
+          python - <<'PY' > /tmp/scripts.txt
+          import re
           from pathlib import Path
-          import re,sys,hashlib
-          p=sys.argv[1]; t=Path('/tmp/v'+p+'.html').read_text(errors='ignore')
-          print('PAGE',p,'BYTES',len(t),'SHA',hashlib.sha1(t.encode()).hexdigest()[:12])
-          print('PRODUCT_CDN',len(re.findall(r'cdn-op\.vesti\.mobi/p/',t)))
-          for term in ('\\"page\\":'+p,'\\"currentPage\\":'+p,'\\"slug\\"','\\"price\\"','\\"id\\"'):
-            print(term,len(re.findall(re.escape(term),t)))
-          for m in list(re.finditer(r'cdn-op\.vesti\.mobi/p/',t))[:1]: print(t[max(0,m.start()-1500):m.start()+3500][:5000])
+          t=Path('/tmp/root.html').read_text(errors='ignore')
+          for src in dict.fromkeys(re.findall(r'<script[^>]+src="([^"]+\.js)"',t,re.I)):
+              print('https://vesti.co'+src if src.startswith('/') else src)
           PY
-          done
+          mkdir -p /tmp/js
+          n=0
+          while IFS= read -r URL; do
+            n=$((n+1)); curl -fsSL --max-time 20 -A 'Mozilla/5.0' "$URL" -o "/tmp/js/$n.js" || true
+          done < /tmp/scripts.txt
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          text='\n'.join(p.read_text(errors='ignore') for p in Path('/tmp/js').glob('*.js'))
+          print('TOTAL_JS_BYTES',len(text))
+          candidates=set()
+          for pat in [r'https?://[^"\'`\\ ]+', r'["\']([^"\']*(?:api|products?|produtos?|catalogues?|catalogos?)[^"\']*)["\']']:
+              for m in re.finditer(pat,text,re.I):
+                  x=m.group(1) if m.lastindex else m.group(0)
+                  if 2 < len(x) < 500: candidates.add(x)
+          for x in sorted(candidates): print(x)
+          print('--- CONTEXTS ---')
+          for term in ('products?', 'catalogue', 'useSWR', 'axios.create', 'fetch('):
+              for m in list(re.finditer(re.escape(term),text,re.I))[:8]:
+                  print('\nTERM',term,'\n',text[max(0,m.start()-700):m.start()+2200][:2900])
+          PY
