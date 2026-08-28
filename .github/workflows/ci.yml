@@ -45,6 +45,8 @@ jobs:
         run: npm run test:scanner:normalizer
       - name: Scanner review tests
         run: npm run test:scanner:review
+      - name: Scanner import parent grouping tests
+        run: node server/scanner-import-grouping.test.mjs
       - name: Scanner module 7 platform adapters
         run: node server/scanner-module7.test.mjs
       - name: Scanner module 7 dedicated collectors
@@ -65,6 +67,8 @@ jobs:
         run: npm run test:scanner:module4
       - name: Scanner module 5 integration
         run: npm run test:scanner:module5
+      - name: Scanner parent product integration
+        run: node server/scanner-parent-product.integration.mjs
       - name: Scanner 50k full pipeline
         run: node server/scanner-scale.integration.mjs
       - name: Scanner module 6 integration
