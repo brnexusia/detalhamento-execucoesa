@@ -59,6 +59,8 @@ jobs:
         run: npm run test:scanner:module3
       - name: Scanner module 4 integration
         run: npm run test:scanner:module4
+      - name: Scanner module 5 integration
+        run: npm run test:scanner:module5
       - name: Print server log on failure
         if: failure()
         run: cat /tmp/atacado-shop.log || true
