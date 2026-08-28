@@ -12,7 +12,7 @@ import { collectDirectedSitemap, collectTrayPublic, parseVestiCompanyId, enrichV
 const MAX_RESPONSE_BYTES = 5 * 1024 * 1024
 const SITEMAP_MAX_RESPONSE_BYTES = 64 * 1024 * 1024
 const REQUEST_TIMEOUT_MS = 12000
-const USER_AGENT = 'AtacadoShop-Migration/1.0 (+catalog migration requested by store owner)'
+const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0 Safari/537.36'
 
 function blockedIpv4(address) {
   const parts = address.split('.').map(Number)
