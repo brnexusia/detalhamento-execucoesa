@@ -69,6 +69,9 @@ function isBlockedHostname(hostname) {
 export function normalizeImportUrl(input) {
   let value = String(input || '').trim()
   if (!value || value.length > 2048) throw new Error('Informe uma URL válida da sua loja atual.')
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(value) && !/^https?:\/\//i.test(value)) {
+    throw new Error('A loja precisa usar uma URL http ou https.')
+  }
   if (!/^https?:\/\//i.test(value)) value = `https://${value}`
 
   let url
