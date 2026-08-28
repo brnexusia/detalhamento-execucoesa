@@ -31,8 +31,9 @@ function canonicalKey(value) {
 
 export function canonicalVariationName(value) {
   const key = canonicalKey(value)
-  if (COLOR_NAMES.has(key)) return 'Cor'
-  if (SIZE_NAMES.has(key)) return 'Tamanho'
+  const tokens = key.split(' ').filter(Boolean)
+  if (COLOR_NAMES.has(key) || tokens.some((token) => COLOR_NAMES.has(token))) return 'Cor'
+  if (SIZE_NAMES.has(key) || tokens.some((token) => SIZE_NAMES.has(token))) return 'Tamanho'
   if (!key) return ''
   const original = text(value, 40).replace(/[-_]+/g, ' ')
   return original.charAt(0).toUpperCase() + original.slice(1)
@@ -69,14 +70,9 @@ function propertyValues(property) {
 export function normalizeVariations(candidate) {
   const groups = new Map()
   const properties = Array.isArray(candidate?.properties) ? candidate.properties : []
-
   for (const property of properties) addGroup(groups, property?.name, propertyValues(property))
 
-  const propertyOrder = properties
-    .map((property) => canonicalVariationName(property?.name))
-    .filter(Boolean)
-    .slice(0, 3)
-
+  const propertyOrder = properties.map((property) => canonicalVariationName(property?.name)).filter(Boolean).slice(0, 3)
   const variants = Array.isArray(candidate?.variants) ? candidate.variants : []
   for (const variant of variants) {
     if (!variant || typeof variant !== 'object') continue
