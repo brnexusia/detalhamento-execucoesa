@@ -1,0 +1,35 @@
+name: m7-apply
+on:
+  push:
+    branches: [scanner-module7-platforms]
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: ${{ !contains(github.event.head_commit.message, '[m7-applied]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: scanner-module7-platforms
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Apply production patch
+        run: python scripts/apply-m7-platforms.py
+      - name: Test platform adapters
+        run: node server/scanner-module7.test.mjs
+      - name: Regression collector
+        run: npm run test:scanner:collector
+      - name: Build
+        run: npm run build
+      - name: Verify diff
+        run: git diff --check
+      - name: Commit production collector
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add server/scanner-collector.mjs
+          git commit -m "Scanner M7: adaptadores reais FacilZap e Vesti [m7-applied]"
+          git push origin HEAD:scanner-module7-platforms
