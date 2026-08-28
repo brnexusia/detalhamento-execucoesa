@@ -173,7 +173,8 @@ async function protectedStore(req, res) {
   }
   params.push(limit + 1)
   const productsResult = await pool.query(
-    `SELECT id,sku,name,description,price,category,media_url,media_type,pack,variations,featured,created_at
+    `SELECT id,sku,name,description,price,category,media_url,media_type,pack,variations,featured,created_at,
+            created_at::text AS created_at_cursor
      FROM products
      WHERE ${conditions.join(' AND ')}
      ORDER BY featured DESC,created_at DESC,id DESC
@@ -191,7 +192,7 @@ async function protectedStore(req, res) {
     q,
     category,
     featured: last.featured ? 1 : 0,
-    createdAt: new Date(last.created_at).toISOString(),
+    createdAt: last.created_at_cursor,
     id: last.id,
     expiresAt: Date.now() + 30 * 60_000,
   }) : null
