@@ -17,18 +17,40 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           import re
-          for name, path in [('FZ','/tmp/fz.html'), ('VESTI','/tmp/vesti.html')]:
-              text = Path(path).read_text(errors='ignore')
-              print(f'--- {name} SIZE ---', len(text))
-              scripts = re.findall(r'<script[^>]+src=["\']([^"\']+)', text, re.I)
-              print(f'--- {name} SCRIPTS ---')
-              for x in scripts[:40]: print(x)
-              clues = sorted(set(re.findall(r'["\']([^"\']*(?:produto|api|catalogo|carregar|load|page|pagina)[^"\']*)["\']', text, re.I)))
-              print(f'--- {name} ENDPOINT CLUES ---')
-              for x in clues[:120]: print(x[:300])
-              for term in ('Carregar Mais Produtos','fetch(', 'axios', 'ajax', '__NEXT_DATA__', '__NUXT__'):
-                  idx = text.lower().find(term.lower())
-                  if idx >= 0:
-                      print(f'--- {name} CONTEXT {term} ---')
-                      print(text[max(0, idx-500):idx+1200].replace('\n',' ')[:1700])
+          fz = Path('/tmp/fz.html').read_text(errors='ignore')
+          vesti = Path('/tmp/vesti.html').read_text(errors='ignore')
+          print('--- FZ PAGINATION RUNTIME ---')
+          for term in ('FZCatalogoRuntime.listagem', 'urlCarregar', 'carregarProdutos(', 'ultimaPaginaAlcancada', 'apiBaseUri'):
+              for m in list(re.finditer(re.escape(term), fz, re.I))[:3]:
+                  print('\nTERM', term, '\n', fz[max(0,m.start()-600):m.start()+2600].replace('\n',' ')[:3200])
+          print('--- FZ URL LITERALS ---')
+          for x in sorted(set(re.findall(r'https://facilzap\.app\.br/[^"\' <>{}]+', fz))):
+              if any(k in x.lower() for k in ('api','produto','catalog')): print(x[:500])
+          print('--- VESTI DATA ---')
+          for term in ('"products"', '"produtos"', 'productList', 'catalogProducts', '/f/page/1', 'totalPages', 'pageSize'):
+              m = re.search(re.escape(term), vesti, re.I)
+              if m: print('\nTERM', term, '\n', vesti[max(0,m.start()-800):m.start()+4000].replace('\n',' ')[:4800])
+          pagejs = re.search(r'<script[^>]+src=["\']([^"\']*catalogo[^"\']*page[^"\']*\.js)', vesti, re.I)
+          if pagejs:
+              url = 'https://vesti.co' + pagejs.group(1)
+              print('VESTI_PAGE_JS', url)
           PY
+          VESTI_JS=$(python - <<'PY'
+          import re
+          from pathlib import Path
+          t=Path('/tmp/vesti.html').read_text(errors='ignore')
+          m=re.search(r'<script[^>]+src=["\']([^"\']*catalogo[^"\']*page[^"\']*\.js)',t,re.I)
+          print(('https://vesti.co'+m.group(1)) if m else '')
+          PY
+          )
+          if [ -n "$VESTI_JS" ]; then
+            curl -fsSL --max-time 20 -A 'Mozilla/5.0' "$VESTI_JS" -o /tmp/vesti-page.js
+            python - <<'PY'
+          from pathlib import Path
+          import re
+          text=Path('/tmp/vesti-page.js').read_text(errors='ignore')
+          print('--- VESTI JS SIZE ---',len(text))
+          for x in sorted(set(re.findall(r'["\']([^"\']*(?:api|catalog|product|produto)[^"\']*)["\']',text,re.I))):
+              if len(x)<400: print(x)
+          PY
+          fi
