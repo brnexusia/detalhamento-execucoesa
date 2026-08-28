@@ -1,6 +1,6 @@
 import type { AdminBootstrap, PublicPayload } from './types'
 
-type ImportJob = {
+export type ImportJob = {
   id: string
   source_url: string
   source_host: string
@@ -10,6 +10,8 @@ type ImportJob = {
   normalized_count: number
   warning_count: number
   duplicate_count: number
+  selected_count: number
+  review_changed_count: number
   platform: string
   pages_scanned: number
   error: string
@@ -17,29 +19,52 @@ type ImportJob = {
   updated_at: string
 }
 
-type NormalizedImportProduct = {
+export type ImportReviewData = {
+  name: string
+  description: string
+  sku: string
+  category: string
+  brand: string
+  price: number | null
+  currency: string
+  images: string[]
+  media_url: string
+  media_type: 'image' | 'video'
+  pack: string
+  variations: Array<{ name: string; options: string[] }>
+  availability: string
+  source_url: string
+  source: string
+}
+
+export type NormalizedImportProduct = {
   id: string
   source_candidate_id: string | null
-  normalized_data: {
-    name: string
-    description: string
-    sku: string
-    category: string
-    brand: string
-    price: number | null
-    currency: string
-    images: string[]
-    media_url: string
-    media_type: 'image' | 'video'
-    pack: string
-    variations: Array<{ name: string; options: string[] }>
-    availability: string
-    source_url: string
-    source: string
-  }
+  normalized_data: ImportReviewData
   warnings: string[]
   confidence: number
   created_at: string
+}
+
+export type ImportReviewProduct = {
+  id: string
+  source_candidate_id: string | null
+  data: ImportReviewData
+  original_data: ImportReviewData
+  warnings: string[]
+  confidence: number
+  selected: boolean
+  edited: boolean
+  review_updated_at: string | null
+  created_at: string
+}
+
+export type ImportReviewSummary = {
+  total_count: number
+  selected_count: number
+  warning_count: number
+  ready_count: number
+  review_changed_count: number
 }
 
 async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
@@ -73,6 +98,28 @@ export const api = {
   createImportJob: (url: string) => request<{ job: ImportJob; duplicated: boolean }>('/api/admin/imports', { method: 'POST', body: JSON.stringify({ url }) }),
   importCandidates: (jobId: string, limit = 25) => request<{ job: ImportJob; candidates: Array<{ id: string; source_url: string; raw_data: Record<string, unknown>; created_at: string }> }>(`/api/admin/imports/${encodeURIComponent(jobId)}/candidates?limit=${limit}`),
   normalizedImportProducts: (jobId: string, limit = 25) => request<{ job: ImportJob; products: NormalizedImportProduct[] }>(`/api/admin/imports/${encodeURIComponent(jobId)}/normalized?limit=${limit}`),
+  reviewImportProducts: (jobId: string, options: { limit?: number; offset?: number; filter?: 'all' | 'alerts' | 'selected'; q?: string } = {}) => {
+    const params = new URLSearchParams()
+    params.set('limit', String(options.limit ?? 40))
+    params.set('offset', String(options.offset ?? 0))
+    if (options.filter) params.set('filter', options.filter)
+    if (options.q) params.set('q', options.q)
+    return request<{
+      job: ImportJob
+      products: ImportReviewProduct[]
+      summary: ImportReviewSummary
+      pagination: { limit: number; offset: number; total: number }
+    }>(`/api/admin/imports/${encodeURIComponent(jobId)}/review?${params.toString()}`)
+  },
+  updateImportReviewProduct: (jobId: string, productId: string, body: { data?: Partial<ImportReviewData>; selected?: boolean }) => request<{
+    product: ImportReviewProduct
+    summary: ImportReviewSummary
+    job: ImportJob
+  }>(`/api/admin/imports/${encodeURIComponent(jobId)}/review/${encodeURIComponent(productId)}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  updateImportReviewSelection: (jobId: string, action: 'ready' | 'none') => request<{ summary: ImportReviewSummary; job: ImportJob }>(
+    `/api/admin/imports/${encodeURIComponent(jobId)}/review-selection`,
+    { method: 'PATCH', body: JSON.stringify({ action }) },
+  ),
   upload: async (file: File) => {
     const form = new FormData()
     form.append('file', file)
