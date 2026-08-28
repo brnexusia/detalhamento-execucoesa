@@ -1,5 +1,17 @@
 import type { AdminBootstrap, PublicPayload } from './types'
 
+type ImportJob = {
+  id: string
+  source_url: string
+  source_host: string
+  status: 'queued' | 'scanning' | 'processing' | 'review' | 'completed' | 'failed' | 'cancelled'
+  progress: number
+  result_count: number
+  error: string
+  created_at: string
+  updated_at: string
+}
+
 async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(url, {
     credentials: 'include',
@@ -27,6 +39,8 @@ export const api = {
   createSeller: (body: Record<string, unknown>) => request('/api/admin/sellers', { method: 'POST', body: JSON.stringify(body) }),
   updateSeller: (id: string, body: Record<string, unknown>) => request(`/api/admin/sellers/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   deleteSeller: (id: string) => request(`/api/admin/sellers/${id}`, { method: 'DELETE' }),
+  listImportJobs: () => request<{ jobs: ImportJob[] }>('/api/admin/imports'),
+  createImportJob: (url: string) => request<{ job: ImportJob; duplicated: boolean }>('/api/admin/imports', { method: 'POST', body: JSON.stringify({ url }) }),
   upload: async (file: File) => {
     const form = new FormData()
     form.append('file', file)
