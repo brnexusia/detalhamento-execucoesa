@@ -8,27 +8,23 @@ jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: Extract Vesti product request contract
+      - name: Probe Vesti public catalogue API
         shell: bash
         run: |
           set -euo pipefail
-          curl -fsSL --max-time 20 -A 'Mozilla/5.0' 'https://vesti.co/barracadowillinha/catalogo/5e66ad229f3f6fe' -o /tmp/root.html
-          python - <<'PY' > /tmp/scripts.txt
-          import re
+          BASE='https://apivesti.vesti.mobi/appmarca/v2/catalogue/5e66ad229f3f6fe/company/barracadowillinha/'
+          for PAGE in 1 2; do
+            URL="${BASE}?page=${PAGE}&perpage=60&with_categories=true&with_colors=true&with_product_colors=true&with_sizes=true&with_brands=true&with_prices=true&with_tags=1"
+            curl -fsSL --max-time 20 -A 'Mozilla/5.0' "$URL" -o "/tmp/api-${PAGE}.json"
+            python - "$PAGE" <<'PY'
+          import json,sys
           from pathlib import Path
-          t=Path('/tmp/root.html').read_text(errors='ignore')
-          for src in dict.fromkeys(re.findall(r'<script[^>]+src="([^"]+\.js)"',t,re.I)):
-              print('https://vesti.co'+src if src.startswith('/') else src)
+          p=sys.argv[1]; data=json.loads(Path('/tmp/api-'+p+'.json').read_text())
+          print('PAGE',p,'products',len(data.get('products',[])),'links',data.get('links'),'meta',data.get('meta'))
+          if data.get('products'):
+            x=data['products'][0]
+            print('FIRST_KEYS',sorted(x.keys()))
+            keep={k:x.get(k) for k in ('id','code','name','slug','description','price','price_promotional','prices','media','colors','sizes','stocks','skus','category','categories','brand') if k in x}
+            print(json.dumps(keep,ensure_ascii=False)[:12000])
           PY
-          mkdir -p /tmp/js
-          n=0
-          while IFS= read -r URL; do n=$((n+1)); curl -fsSL --max-time 20 "$URL" -o "/tmp/js/$n.js" || true; done < /tmp/scripts.txt
-          python - <<'PY'
-          from pathlib import Path
-          import re
-          text='\n'.join(p.read_text(errors='ignore') for p in Path('/tmp/js').glob('*.js'))
-          for needle in ('11414:function','fetchProducts:async','34032:function'):
-              m=re.search(re.escape(needle),text)
-              print('\n###',needle,'###')
-              print(text[m.start():m.start()+12000] if m else 'NOT FOUND')
-          PY
+          done
