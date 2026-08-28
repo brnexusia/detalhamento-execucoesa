@@ -8,9 +8,12 @@
     "build": "tsc -b && vite build",
     "start": "node --import ./server/platform-hooks.mjs --import ./server/scanner-hooks.mjs server/app.mjs",
     "preview": "vite preview",
-    "test:scanner": "node server/scanner-url.test.mjs"
+    "test:scanner": "node server/scanner-url.test.mjs",
+    "test:scanner:collector": "node server/scanner-collector.test.mjs",
+    "test:scanner:module2": "node server/scanner-module2.integration.mjs"
   },
   "dependencies": {
+    "cheerio": "^1.1.2",
     "express": "^4.21.2",
     "lucide-react": "^0.575.0",
     "multer": "^1.4.5-lts.1",
