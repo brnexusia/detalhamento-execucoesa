@@ -1,0 +1,40 @@
+name: m7-finalize-clean
+on:
+  push:
+    branches: [scanner-module7-platforms]
+permissions:
+  contents: write
+jobs:
+  finalize:
+    if: ${{ !contains(github.event.head_commit.message, '[m7-finalize-done]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: scanner-module7-platforms-clean
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Fetch patch script
+        run: git show origin/scanner-module7-platforms:scripts/finalize-m7-clean.py > /tmp/finalize-m7-clean.py
+      - name: Apply collector integration
+        run: python /tmp/finalize-m7-clean.py
+      - name: Install
+        run: npm install
+      - name: Existing M7 tests
+        run: node server/scanner-module7.test.mjs
+      - name: Collector regression
+        run: npm run test:scanner:collector
+      - name: Build
+        run: npm run build
+      - name: Check diff
+        run: git diff --check
+      - name: Commit clean branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add server/scanner-collector.mjs
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Scanner M7: integrar coletores por plataforma [m7-finalize-done]"
+          git push origin HEAD:scanner-module7-platforms-clean
