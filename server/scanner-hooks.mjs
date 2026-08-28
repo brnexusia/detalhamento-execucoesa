@@ -3,6 +3,7 @@ import { isIP } from 'node:net'
 import express from 'express'
 import pg from 'pg'
 import { collectCatalog } from './scanner-collector.mjs'
+import { normalizeCandidates } from './scanner-normalizer.mjs'
 
 const { Pool } = pg
 const databaseUrl = process.env.DATABASE_URL?.trim() || ''
@@ -18,16 +19,10 @@ const hashValue = (value) => crypto.createHash('sha256').update(String(value || 
 
 function parseCookies(req) {
   const header = req.headers.cookie || ''
-  return Object.fromEntries(
-    header
-      .split(';')
-      .map((part) => part.trim())
-      .filter(Boolean)
-      .map((part) => {
-        const index = part.indexOf('=')
-        return index < 0 ? [part, ''] : [part.slice(0, index), decodeURIComponent(part.slice(index + 1))]
-      }),
-  )
+  return Object.fromEntries(header.split(';').map((part) => part.trim()).filter(Boolean).map((part) => {
+    const index = part.indexOf('=')
+    return index < 0 ? [part, ''] : [part.slice(0, index), decodeURIComponent(part.slice(index + 1))]
+  }))
 }
 
 function isBlockedIpv4(hostname) {
@@ -62,9 +57,7 @@ function isBlockedHostname(hostname) {
 export function normalizeImportUrl(input) {
   let value = String(input || '').trim()
   if (!value || value.length > 2048) throw new Error('Informe uma URL válida da sua loja atual.')
-  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(value) && !/^https?:\/\//i.test(value)) {
-    throw new Error('A loja precisa usar uma URL http ou https.')
-  }
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(value) && !/^https?:\/\//i.test(value)) throw new Error('A loja precisa usar uma URL http ou https.')
   if (!/^https?:\/\//i.test(value)) value = `https://${value}`
 
   let url
@@ -103,6 +96,9 @@ export async function ensureScannerSchema() {
       );
       ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS platform text NOT NULL DEFAULT '';
       ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS pages_scanned integer NOT NULL DEFAULT 0;
+      ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS normalized_count integer NOT NULL DEFAULT 0;
+      ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS warning_count integer NOT NULL DEFAULT 0;
+      ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS duplicate_count integer NOT NULL DEFAULT 0;
       CREATE INDEX IF NOT EXISTS idx_import_jobs_store_created ON import_jobs(store_id, created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_import_jobs_store_status ON import_jobs(store_id, status);
 
@@ -118,6 +114,22 @@ export async function ensureScannerSchema() {
       );
       CREATE INDEX IF NOT EXISTS idx_import_candidates_job ON import_candidates(job_id, created_at ASC);
       CREATE INDEX IF NOT EXISTS idx_import_candidates_store ON import_candidates(store_id);
+
+      CREATE TABLE IF NOT EXISTS import_normalized_products (
+        id text PRIMARY KEY,
+        job_id text NOT NULL REFERENCES import_jobs(id) ON DELETE CASCADE,
+        store_id text NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+        source_candidate_id text REFERENCES import_candidates(id) ON DELETE SET NULL,
+        fingerprint text NOT NULL,
+        normalized_data jsonb NOT NULL,
+        warnings jsonb NOT NULL DEFAULT '[]'::jsonb,
+        confidence numeric(4,3) NOT NULL DEFAULT 0,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now(),
+        UNIQUE(job_id, fingerprint)
+      );
+      CREATE INDEX IF NOT EXISTS idx_import_normalized_job ON import_normalized_products(job_id, created_at ASC);
+      CREATE INDEX IF NOT EXISTS idx_import_normalized_store ON import_normalized_products(store_id);
     `)
   })()
   try { await schemaPromise } finally { schemaPromise = null }
@@ -149,6 +161,9 @@ function publicJob(row) {
     status: row.status,
     progress: Number(row.progress || 0),
     result_count: Number(row.result_count || 0),
+    normalized_count: Number(row.normalized_count || 0),
+    warning_count: Number(row.warning_count || 0),
+    duplicate_count: Number(row.duplicate_count || 0),
     platform: row.platform || '',
     pages_scanned: Number(row.pages_scanned || 0),
     error: row.error || '',
@@ -181,10 +196,8 @@ function compactCandidate(candidate) {
 export async function processImportJob(jobId, collector = collectCatalog) {
   await ensureScannerSchema()
   const claimed = await pool.query(
-    `UPDATE import_jobs
-     SET status='scanning',progress=1,error='',updated_at=now()
-     WHERE id=$1 AND status='queued'
-     RETURNING *`,
+    `UPDATE import_jobs SET status='scanning',progress=1,error='',updated_at=now()
+     WHERE id=$1 AND status='queued' RETURNING *`,
     [jobId],
   )
   if (!claimed.rowCount) return null
@@ -205,17 +218,15 @@ export async function processImportJob(jobId, collector = collectCatalog) {
     const rawCandidates = Array.isArray(result?.candidates) ? result.candidates : []
     const candidates = rawCandidates.map(compactCandidate).filter((item) => item.title && item.source_url)
     const rows = candidates.map((candidate) => ({
-      id: id(),
-      job_id: job.id,
-      store_id: job.store_id,
+      id: id(), job_id: job.id, store_id: job.store_id,
       source_key: hashValue(`${candidate.external_id}|${candidate.source_url}|${candidate.title.toLowerCase()}`),
-      source_url: candidate.source_url,
-      raw_data: candidate,
+      source_url: candidate.source_url, raw_data: candidate,
     }))
 
     const client = await pool.connect()
     try {
       await client.query('BEGIN')
+      await client.query('DELETE FROM import_normalized_products WHERE job_id=$1', [job.id])
       await client.query('DELETE FROM import_candidates WHERE job_id=$1', [job.id])
       if (rows.length) {
         await client.query(
@@ -228,9 +239,8 @@ export async function processImportJob(jobId, collector = collectCatalog) {
       }
       const updated = await client.query(
         `UPDATE import_jobs
-         SET status='processing',progress=100,result_count=$1,platform=$2,pages_scanned=$3,error='',updated_at=now()
-         WHERE id=$4
-         RETURNING *`,
+         SET status='processing',progress=100,result_count=$1,normalized_count=0,warning_count=0,duplicate_count=0,platform=$2,pages_scanned=$3,error='',updated_at=now()
+         WHERE id=$4 RETURNING *`,
         [rows.length, String(result?.platform || 'generic'), Number(result?.pagesScanned || 0), job.id],
       )
       await client.query('COMMIT')
@@ -243,24 +253,93 @@ export async function processImportJob(jobId, collector = collectCatalog) {
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    const failed = await pool.query(
-      `UPDATE import_jobs SET status='failed',error=$1,updated_at=now() WHERE id=$2 RETURNING *`,
-      [message.slice(0, 2000), job.id],
-    )
+    const failed = await pool.query(`UPDATE import_jobs SET status='failed',error=$1,updated_at=now() WHERE id=$2 RETURNING *`, [message.slice(0, 2000), job.id])
     console.error('[scanner] job failed:', job.id, message)
+    return publicJob(failed.rows[0])
+  }
+}
+
+export async function processNormalizationJob(jobId, normalizer = normalizeCandidates) {
+  await ensureScannerSchema()
+  const claimed = await pool.query(
+    `UPDATE import_jobs SET error='',updated_at=now()
+     WHERE id=$1 AND status='processing' RETURNING *`,
+    [jobId],
+  )
+  if (!claimed.rowCount) return null
+  const job = claimed.rows[0]
+
+  try {
+    const candidatesResult = await pool.query(
+      `SELECT id,raw_data FROM import_candidates WHERE job_id=$1 AND store_id=$2 ORDER BY created_at ASC`,
+      [job.id, job.store_id],
+    )
+    const candidates = candidatesResult.rows.map((row) => ({ ...row.raw_data, __candidate_id: row.id }))
+    const result = normalizer(candidates)
+    const products = Array.isArray(result?.products) ? result.products : []
+    const rows = products.map((product) => ({
+      id: id(),
+      job_id: job.id,
+      store_id: job.store_id,
+      source_candidate_id: product.source_candidate_id || null,
+      fingerprint: hashValue(product.fingerprint),
+      normalized_data: product.normalized,
+      warnings: Array.isArray(product.warnings) ? product.warnings : [],
+      confidence: Number.isFinite(Number(product.confidence)) ? Number(product.confidence) : 0,
+    }))
+
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      await client.query('DELETE FROM import_normalized_products WHERE job_id=$1', [job.id])
+      if (rows.length) {
+        await client.query(
+          `INSERT INTO import_normalized_products
+           (id,job_id,store_id,source_candidate_id,fingerprint,normalized_data,warnings,confidence)
+           SELECT x.id,x.job_id,x.store_id,x.source_candidate_id,x.fingerprint,x.normalized_data,x.warnings,x.confidence
+           FROM jsonb_to_recordset($1::jsonb) AS x(
+             id text,job_id text,store_id text,source_candidate_id text,fingerprint text,normalized_data jsonb,warnings jsonb,confidence numeric
+           )
+           ON CONFLICT (job_id,fingerprint) DO UPDATE
+           SET source_candidate_id=EXCLUDED.source_candidate_id,normalized_data=EXCLUDED.normalized_data,warnings=EXCLUDED.warnings,confidence=EXCLUDED.confidence,updated_at=now()`,
+          [JSON.stringify(rows)],
+        )
+      }
+      const updated = await client.query(
+        `UPDATE import_jobs
+         SET status='review',progress=100,normalized_count=$1,warning_count=$2,duplicate_count=$3,error='',updated_at=now()
+         WHERE id=$4 RETURNING *`,
+        [rows.length, Number(result?.warningCount || 0), Number(result?.duplicateCount || 0), job.id],
+      )
+      await client.query('COMMIT')
+      return publicJob(updated.rows[0])
+    } catch (error) {
+      await client.query('ROLLBACK')
+      throw error
+    } finally {
+      client.release()
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    const failed = await pool.query(`UPDATE import_jobs SET status='failed',error=$1,updated_at=now() WHERE id=$2 RETURNING *`, [message.slice(0, 2000), job.id])
+    console.error('[scanner] normalization failed:', job.id, message)
     return publicJob(failed.rows[0])
   }
 }
 
 let workerBusy = false
 let workerTimer = null
-async function runNextQueued() {
+async function runNextWork() {
   if (workerDisabled || workerBusy || !pool) return
   workerBusy = true
   try {
     await ensureScannerSchema()
-    const next = await pool.query("SELECT id FROM import_jobs WHERE status='queued' ORDER BY created_at ASC LIMIT 1")
-    if (next.rowCount) await processImportJob(next.rows[0].id)
+    const processing = await pool.query("SELECT id FROM import_jobs WHERE status='processing' ORDER BY updated_at ASC LIMIT 1")
+    if (processing.rowCount) await processNormalizationJob(processing.rows[0].id)
+    else {
+      const queued = await pool.query("SELECT id FROM import_jobs WHERE status='queued' ORDER BY created_at ASC LIMIT 1")
+      if (queued.rowCount) await processImportJob(queued.rows[0].id)
+    }
   } catch (error) {
     console.error('[scanner] worker:', error instanceof Error ? error.message : error)
   } finally {
@@ -270,9 +349,9 @@ async function runNextQueued() {
 
 function startWorker() {
   if (workerDisabled || workerTimer) return
-  workerTimer = setInterval(() => void runNextQueued(), 3000)
+  workerTimer = setInterval(() => void runNextWork(), 3000)
   workerTimer.unref()
-  setImmediate(() => void runNextQueued())
+  setImmediate(() => void runNextWork())
 }
 
 function installScannerRoutes(app) {
@@ -290,10 +369,7 @@ function installScannerRoutes(app) {
   })
 
   router.get('/', requireStore, asyncRoute(async (req, res) => {
-    const result = await pool.query(
-      `SELECT * FROM import_jobs WHERE store_id=$1 ORDER BY created_at DESC LIMIT 10`,
-      [req.scannerStore.store_id],
-    )
+    const result = await pool.query(`SELECT * FROM import_jobs WHERE store_id=$1 ORDER BY created_at DESC LIMIT 10`, [req.scannerStore.store_id])
     res.json({ jobs: result.rows.map(publicJob) })
   }))
 
@@ -308,25 +384,34 @@ function installScannerRoutes(app) {
     res.json({ job: publicJob(job.rows[0]), candidates: result.rows })
   }))
 
+  router.get('/:jobId/normalized', requireStore, asyncRoute(async (req, res) => {
+    const job = await pool.query('SELECT * FROM import_jobs WHERE id=$1 AND store_id=$2 LIMIT 1', [req.params.jobId, req.scannerStore.store_id])
+    if (!job.rowCount) return res.status(404).json({ error: 'Importação não encontrada.' })
+    const limit = Math.max(1, Math.min(100, Number(req.query.limit || 25)))
+    const result = await pool.query(
+      `SELECT id,source_candidate_id,normalized_data,warnings,confidence,created_at
+       FROM import_normalized_products WHERE job_id=$1 AND store_id=$2 ORDER BY created_at ASC LIMIT $3`,
+      [req.params.jobId, req.scannerStore.store_id, limit],
+    )
+    res.json({ job: publicJob(job.rows[0]), products: result.rows.map((row) => ({ ...row, confidence: Number(row.confidence) })) })
+  }))
+
   router.post('/', requireStore, asyncRoute(async (req, res) => {
     let normalized
     try { normalized = normalizeImportUrl(req.body?.url) }
     catch (error) { return res.status(400).json({ error: error instanceof Error ? error.message : 'URL inválida.' }) }
 
     const existing = await pool.query(
-      `SELECT * FROM import_jobs
-       WHERE store_id=$1 AND source_url=$2 AND status IN ('queued','scanning','processing')
-       ORDER BY created_at DESC LIMIT 1`,
+      `SELECT * FROM import_jobs WHERE store_id=$1 AND source_url=$2 AND status IN ('queued','scanning','processing') ORDER BY created_at DESC LIMIT 1`,
       [req.scannerStore.store_id, normalized.url],
     )
     if (existing.rowCount) return res.json({ job: publicJob(existing.rows[0]), duplicated: true })
 
     const result = await pool.query(
-      `INSERT INTO import_jobs (id,store_id,source_url,source_host,status)
-       VALUES ($1,$2,$3,$4,'queued') RETURNING *`,
+      `INSERT INTO import_jobs (id,store_id,source_url,source_host,status) VALUES ($1,$2,$3,$4,'queued') RETURNING *`,
       [id(), req.scannerStore.store_id, normalized.url, normalized.host],
     )
-    if (!workerDisabled) setImmediate(() => void runNextQueued())
+    if (!workerDisabled) setImmediate(() => void runNextWork())
     res.status(201).json({ job: publicJob(result.rows[0]), duplicated: false })
   }))
 

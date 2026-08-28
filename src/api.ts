@@ -7,11 +7,39 @@ type ImportJob = {
   status: 'queued' | 'scanning' | 'processing' | 'review' | 'completed' | 'failed' | 'cancelled'
   progress: number
   result_count: number
+  normalized_count: number
+  warning_count: number
+  duplicate_count: number
   platform: string
   pages_scanned: number
   error: string
   created_at: string
   updated_at: string
+}
+
+type NormalizedImportProduct = {
+  id: string
+  source_candidate_id: string | null
+  normalized_data: {
+    name: string
+    description: string
+    sku: string
+    category: string
+    brand: string
+    price: number | null
+    currency: string
+    images: string[]
+    media_url: string
+    media_type: 'image' | 'video'
+    pack: string
+    variations: Array<{ name: string; options: string[] }>
+    availability: string
+    source_url: string
+    source: string
+  }
+  warnings: string[]
+  confidence: number
+  created_at: string
 }
 
 async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
@@ -44,6 +72,7 @@ export const api = {
   listImportJobs: () => request<{ jobs: ImportJob[] }>('/api/admin/imports'),
   createImportJob: (url: string) => request<{ job: ImportJob; duplicated: boolean }>('/api/admin/imports', { method: 'POST', body: JSON.stringify({ url }) }),
   importCandidates: (jobId: string, limit = 25) => request<{ job: ImportJob; candidates: Array<{ id: string; source_url: string; raw_data: Record<string, unknown>; created_at: string }> }>(`/api/admin/imports/${encodeURIComponent(jobId)}/candidates?limit=${limit}`),
+  normalizedImportProducts: (jobId: string, limit = 25) => request<{ job: ImportJob; products: NormalizedImportProduct[] }>(`/api/admin/imports/${encodeURIComponent(jobId)}/normalized?limit=${limit}`),
   upload: async (file: File) => {
     const form = new FormData()
     form.append('file', file)
