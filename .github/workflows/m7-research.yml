@@ -8,17 +8,18 @@ jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: Inspect FacilZap public component
+      - name: Inspect Vesti server payload
         shell: bash
         run: |
           set -euo pipefail
-          curl -fsSL --max-time 20 'https://assets-cdn.facilzap.app.br/componentes/catalogo/listagem-catalogo/listagem-catalogo.1.0.1.js' -o /tmp/listagem.js
+          curl -fsSL --max-time 20 -A 'Mozilla/5.0' 'https://vesti.co/barracadowillinha/catalogo/5e66ad229f3f6fe' -o /tmp/vesti.html
           python - <<'PY'
           from pathlib import Path
           import re
-          t=Path('/tmp/listagem.js').read_text(errors='ignore')
-          print('JS_BYTES',len(t))
-          for term in ('urlCarregarProdutosTemplate','carregarMaisProdutos','fetch(', 'axios', 'paginaAtual', 'searchId'):
-              for m in list(re.finditer(re.escape(term),t,re.I))[:4]:
-                  print('\nTERM',term,'\n',t[max(0,m.start()-700):m.start()+2800][:3500])
+          t=Path('/tmp/vesti.html').read_text(errors='ignore')
+          print('BYTES',len(t))
+          for term in ('\\"skus\\"','\\"prices\\"','\\"products\\"','\\"slug\\"','cdn-op.vesti.mobi/p/'):
+              ms=list(re.finditer(re.escape(term),t,re.I))
+              print('TERM',term,'COUNT',len(ms))
+              for m in ms[:3]: print(t[max(0,m.start()-1000):m.start()+5000][:6000])
           PY
