@@ -41,6 +41,8 @@ jobs:
         run: npm run test:scanner
       - name: Scanner collector tests
         run: npm run test:scanner:collector
+      - name: Scanner normalizer tests
+        run: npm run test:scanner:normalizer
       - name: Build
         run: npm run build
       - name: Start application
@@ -51,6 +53,8 @@ jobs:
         run: node server/scanner-module1.integration.mjs
       - name: Scanner module 2 integration
         run: npm run test:scanner:module2
+      - name: Scanner module 3 integration
+        run: npm run test:scanner:module3
       - name: Print server log on failure
         if: failure()
         run: cat /tmp/atacado-shop.log || true
