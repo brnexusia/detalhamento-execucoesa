@@ -2,12 +2,14 @@ import crypto from 'node:crypto'
 import express from 'express'
 import pg from 'pg'
 import { prepareReview } from './scanner-review.mjs'
+import { importParentHash, mergeImportParentProducts } from './scanner-import-grouping.mjs'
 
 const { Pool } = pg
 const databaseUrl = process.env.DATABASE_URL?.trim() || ''
 const pool = databaseUrl ? new Pool({ connectionString: databaseUrl, max: 4, connectionTimeoutMillis: 5000 }) : null
 const sessionCookie = 'atacado_session'
 const PUBLISH_BATCH_SIZE = 250
+const PUBLISH_GROUP_BATCH_SIZE = 100
 
 if (pool) pool.on('error', (error) => console.error('[scanner publish] pool:', error.message))
 
@@ -31,7 +33,9 @@ async function ensurePublisherSchema() {
     ALTER TABLE import_normalized_products ADD COLUMN IF NOT EXISTS published_product_id text;
     ALTER TABLE import_normalized_products ADD COLUMN IF NOT EXISTS publish_result text NOT NULL DEFAULT '';
     ALTER TABLE import_normalized_products ADD COLUMN IF NOT EXISTS published_at timestamptz;
+    ALTER TABLE import_normalized_products ADD COLUMN IF NOT EXISTS publish_group_key text NOT NULL DEFAULT '';
     CREATE INDEX IF NOT EXISTS idx_import_normalized_publish_result ON import_normalized_products(job_id,publish_result);
+    CREATE INDEX IF NOT EXISTS idx_import_normalized_publish_group ON import_normalized_products(job_id,selected,publish_group_key);
   `)
 }
 
@@ -52,6 +56,7 @@ async function currentStore(req) {
 }
 
 function publicResult(job, idempotent = false) {
+  const parentProducts = Number(job.published_count || 0) + Number(job.skipped_existing_count || 0)
   return {
     job: {
       id: job.id,
@@ -62,12 +67,48 @@ function publicResult(job, idempotent = false) {
       published_at: job.published_at || null,
     },
     result: {
-      selected: Number(job.selected_count || 0),
+      selected: parentProducts,
+      source_rows: Number(job.selected_count || 0),
       created: Number(job.published_count || 0),
       skipped_existing: Number(job.skipped_existing_count || 0),
     },
     idempotent,
   }
+}
+
+async function assignPublishGroups(client, jobId, storeId) {
+  let cursorId = ''
+  while (true) {
+    const result = await client.query(
+      `SELECT id,COALESCE(review_data,normalized_data) AS data
+       FROM import_normalized_products
+       WHERE job_id=$1 AND store_id=$2 AND selected=true AND id>$3
+       ORDER BY id ASC
+       LIMIT $4
+       FOR UPDATE`,
+      [jobId, storeId, cursorId, PUBLISH_BATCH_SIZE],
+    )
+    if (!result.rowCount) break
+
+    const updates = result.rows.map((row) => ({ id: row.id, group_key: importParentHash(row.data) }))
+    await client.query(
+      `UPDATE import_normalized_products p
+       SET publish_group_key=x.group_key,updated_at=now()
+       FROM jsonb_to_recordset($1::jsonb) AS x(id text,group_key text)
+       WHERE p.id=x.id AND p.job_id=$2 AND p.store_id=$3`,
+      [JSON.stringify(updates), jobId, storeId],
+    )
+    cursorId = result.rows.at(-1).id
+  }
+}
+
+function groupedRows(rows) {
+  const groups = new Map()
+  for (const row of rows) {
+    if (!groups.has(row.publish_group_key)) groups.set(row.publish_group_key, [])
+    groups.get(row.publish_group_key).push(row)
+  }
+  return groups
 }
 
 async function publishJob(req, res) {
@@ -100,41 +141,66 @@ async function publishJob(req, res) {
       return res.status(409).json({ error: 'Essa importação ainda não está pronta para publicação.' })
     }
 
+    await assignPublishGroups(client, job.id, store.store_id)
+
+    const groupCountResult = await client.query(
+      `SELECT count(DISTINCT publish_group_key)::int AS count
+       FROM import_normalized_products
+       WHERE job_id=$1 AND store_id=$2 AND selected=true AND publish_group_key<>''`,
+      [job.id, store.store_id],
+    )
+    const selectedParentCount = Number(groupCountResult.rows[0]?.count || 0)
+    if (!selectedParentCount) {
+      await client.query('ROLLBACK')
+      return res.status(400).json({ error: 'Nenhum produto válido está selecionado para importação.' })
+    }
+
     let created = 0
     let skippedExisting = 0
-    let cursorCreatedAt = null
-    let cursorId = ''
+    let cursorGroupKey = ''
 
     while (true) {
-      const selectedResult = await client.query(
-        `SELECT *,created_at::text AS cursor_created_at
+      const keysResult = await client.query(
+        `SELECT DISTINCT publish_group_key
          FROM import_normalized_products
-         WHERE job_id=$1 AND store_id=$2 AND selected=true
-           AND ($3::timestamptz IS NULL OR created_at>$3::timestamptz OR (created_at=$3::timestamptz AND id>$4))
-         ORDER BY created_at ASC,id ASC
-         LIMIT $5
-         FOR UPDATE`,
-        [job.id, store.store_id, cursorCreatedAt, cursorId, PUBLISH_BATCH_SIZE],
+         WHERE job_id=$1 AND store_id=$2 AND selected=true AND publish_group_key>$3
+         ORDER BY publish_group_key ASC
+         LIMIT $4`,
+        [job.id, store.store_id, cursorGroupKey, PUBLISH_GROUP_BATCH_SIZE],
       )
-      if (!selectedResult.rowCount) break
+      if (!keysResult.rowCount) break
+      const groupKeys = keysResult.rows.map((row) => row.publish_group_key)
 
-      const preparedRows = selectedResult.rows.map((row) => ({ row, prepared: prepareReview(row.review_data || row.normalized_data) }))
-      const invalid = preparedRows.filter((item) => !item.prepared.publishable)
+      const selectedResult = await client.query(
+        `SELECT *
+         FROM import_normalized_products
+         WHERE job_id=$1 AND store_id=$2 AND selected=true AND publish_group_key=ANY($3::text[])
+         ORDER BY publish_group_key ASC,id ASC
+         FOR UPDATE`,
+        [job.id, store.store_id, groupKeys],
+      )
+      const groups = groupedRows(selectedResult.rows)
+      const preparedGroups = []
+      for (const groupKey of groupKeys) {
+        const members = groups.get(groupKey) || []
+        if (!members.length) continue
+        const memberData = members.map((row) => prepareReview(row.review_data || row.normalized_data).data)
+        const merged = mergeImportParentProducts(memberData)
+        const prepared = prepareReview(merged)
+        preparedGroups.push({ groupKey, members, prepared })
+      }
+
+      const invalid = preparedGroups.filter((item) => !item.prepared.publishable)
       if (invalid.length) {
         await client.query('ROLLBACK')
         return res.status(409).json({
-          error: `${invalid.length} produto(s) selecionado(s) ainda precisam de nome e preço válido. Corrija apenas essas exceções antes de importar.`,
+          error: `${invalid.length} produto(s) agrupado(s) ainda precisam de nome e preço válido. Corrija apenas essas exceções antes de importar.`,
         })
       }
 
-      const pending = preparedRows.filter((item) => !item.row.published_product_id)
-      for (const item of preparedRows) {
-        if (!item.row.published_product_id) continue
-        if (item.row.publish_result === 'created') created += 1
-        else if (item.row.publish_result === 'existing') skippedExisting += 1
-      }
-
-      const skuKeys = [...new Set(pending.map((item) => String(item.prepared.data.sku || '').trim().toLowerCase()).filter(Boolean))]
+      const skuKeys = [...new Set(preparedGroups
+        .map((item) => String(item.prepared.data.sku || '').trim().toLowerCase())
+        .filter(Boolean))]
       const existingBySku = new Map()
       if (skuKeys.length) {
         const existingResult = await client.query(
@@ -147,15 +213,25 @@ async function publishJob(req, res) {
 
       const productRows = []
       const publishRows = []
-      for (const item of pending) {
-        const row = item.row
+      for (const item of preparedGroups) {
+        const alreadyPublished = item.members.find((row) => row.published_product_id)
+        if (alreadyPublished) {
+          const result = alreadyPublished.publish_result || 'created'
+          if (result === 'existing') skippedExisting += 1
+          else created += 1
+          for (const row of item.members) {
+            publishRows.push({ row_id: row.id, product_id: alreadyPublished.published_product_id, result })
+          }
+          continue
+        }
+
         const data = item.prepared.data
         const sku = String(data.sku || '').trim().slice(0, 80)
         const skuKey = sku.toLowerCase()
         const existingId = skuKey ? existingBySku.get(skuKey) : null
         if (existingId) {
           skippedExisting += 1
-          publishRows.push({ row_id: row.id, product_id: existingId, result: 'existing' })
+          for (const row of item.members) publishRows.push({ row_id: row.id, product_id: existingId, result: 'existing' })
           continue
         }
 
@@ -174,7 +250,7 @@ async function publishJob(req, res) {
           pack: String(data.pack || '').trim().slice(0, 160),
           variations: Array.isArray(data.variations) ? data.variations : [],
         })
-        publishRows.push({ row_id: row.id, product_id: productId, result: 'created' })
+        for (const row of item.members) publishRows.push({ row_id: row.id, product_id: productId, result: 'created' })
         created += 1
         if (skuKey) existingBySku.set(skuKey, productId)
       }
@@ -200,9 +276,7 @@ async function publishJob(req, res) {
         )
       }
 
-      const last = selectedResult.rows.at(-1)
-      cursorCreatedAt = last.cursor_created_at
-      cursorId = last.id
+      cursorGroupKey = groupKeys.at(-1)
     }
 
     if (created + skippedExisting === 0) {
