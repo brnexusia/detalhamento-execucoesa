@@ -17,7 +17,44 @@ function productHtml(name, price, sku = '') {
   })}</script></head><body></body></html>`
 }
 
-// Nuvemshop: catálogo dirigido exclusivamente pelas URLs de produto do sitemap.
+function nuvemshopProductHtml() {
+  const base = productHtml('Vestido Azul', 89.9, 'VA-BASE').replace('</body></html>', '')
+  const variants = [
+    { id: 101, sku: 'VA-P-AZ', option0: 'P', option1: 'Azul', price_number: 89.9, stock: 4, available: true, image_url: '//cdn.example/vestido-azul-p.jpg' },
+    { id: 102, sku: 'VA-M-PT', option0: 'M', option1: 'Preto', price_number: 94.9, stock: 2, available: true, image_url: '//cdn.example/vestido-preto-m.jpg' },
+  ]
+  return `${base}<div class="js-product-variants">
+    <div class="js-product-variants-group" data-variation-id="0"><label>Tamanho:</label></div>
+    <div class="js-product-variants-group" data-variation-id="1"><label>Cor:</label></div>
+  </div><script>LS.variants = ${JSON.stringify(variants)};</script></body></html>`
+}
+
+function lojaIntegradaVariantHtml() {
+  const base = productHtml('Shorts Preto', 900, 'M9LUXNV6J').replace('</body></html>', '')
+  return `${base}
+    <div class="atributos"><div class="atributo-comum"><b>Tamanho</b><ul>
+      <li><a class="atributo-item" data-grade-id="8947" data-grade-nome="Tamanho" data-variacao-id="37103" data-variacao-nome="34">34</a></li>
+      <li><a class="atributo-item" data-grade-id="8947" data-grade-nome="Tamanho" data-variacao-id="37104" data-variacao-nome="36">36</a></li>
+    </ul></div></div>
+    <script>var variacoes = [{339949881: [37103]}, {339949902: [37104]}]; var grades = [8947];</script>
+    <div class="acoes-produto hide disponivel SKU-M9LUXNV6J-34" data-produto-id="339949881" data-variacao-id="37103">
+      <div itemprop="offers" itemscope itemtype="http://schema.org/Offer">
+        <meta itemprop="price" content="900.00"><meta itemprop="priceCurrency" content="BRL">
+        <meta itemprop="availability" content="http://schema.org/InStock"><meta itemprop="sku" content="M9LUXNV6J-34">
+        <meta itemprop="url" content="https://demo.lojaintegrada.com.br/shorts-preto?sku=M9LUXNV6J-34">
+      </div>
+    </div>
+    <div class="acoes-produto hide disponivel SKU-M9LUXNV6J-36" data-produto-id="339949902" data-variacao-id="37104">
+      <div itemprop="offers" itemscope itemtype="http://schema.org/Offer">
+        <meta itemprop="price" content="920.00"><meta itemprop="priceCurrency" content="BRL">
+        <meta itemprop="availability" content="http://schema.org/InStock"><meta itemprop="sku" content="M9LUXNV6J-36">
+        <meta itemprop="url" content="https://demo.lojaintegrada.com.br/shorts-preto?sku=M9LUXNV6J-36">
+      </div>
+    </div>
+  </body></html>`
+}
+
+// Nuvemshop: catálogo dirigido pelo sitemap e grade pública LS.variants preservada.
 {
   const calls = []
   const request = async (input) => {
@@ -29,19 +66,27 @@ function productHtml(name, price, sku = '') {
       <url><loc>https://demo.lojavirtualnuvem.com.br/produtos/calca-preta/</loc></url>
       <url><loc>https://demo.lojavirtualnuvem.com.br/categorias/feminino/</loc></url>
     </urlset>`, 'application/xml')
-    if (url.includes('/produtos/vestido-azul')) return response(url, productHtml('Vestido Azul', 89.9, 'VA-1'))
+    if (url.includes('/produtos/vestido-azul')) return response(url, nuvemshopProductHtml())
     if (url.includes('/produtos/calca-preta')) return response(url, productHtml('Calça Preta', 119.9, 'CP-1'))
     throw new Error(`unexpected nuvemshop URL ${url}`)
   }
   const result = await collectCatalog('https://demo.lojavirtualnuvem.com.br/', { request, strictPlatformAdapters: true })
   assert.equal(result.platform, 'nuvemshop')
   assert.equal(result.candidateCount, 2)
-  assert.deepEqual(result.candidates.map((p) => p.sku).sort(), ['CP-1', 'VA-1'])
   assert.ok(!calls.some((url) => url.includes('/categorias/feminino')))
   assert.ok(calls.length <= 4)
+  const dress = result.candidates.find((product) => product.title === 'Vestido Azul')
+  assert.equal(dress.source, 'nuvemshop-public-html-variants')
+  assert.equal(dress.variants.length, 2)
+  assert.equal(dress.variants[0].sku, 'VA-P-AZ')
+  assert.equal(dress.variants[0].size, 'P')
+  assert.equal(dress.variants[0].color, 'Azul')
+  assert.deepEqual(dress.properties.find((property) => property.name === 'Tamanho').values, ['P', 'M'])
+  assert.deepEqual(dress.properties.find((property) => property.name === 'Cor').values, ['Azul', 'Preto'])
+  assert.ok(dress.images.includes('https://cdn.example/vestido-azul-p.jpg'))
 }
 
-// Loja Integrada: segue apenas sitemap/product-*.xml, sem explodir em marca/categoria/páginas auxiliares.
+// Loja Integrada: só sitemap/product-*.xml e preserva grade/variações presentes no HTML público.
 {
   const calls = []
   const request = async (input) => {
@@ -53,10 +98,10 @@ function productHtml(name, price, sku = '') {
       <sitemap><loc>https://demo.lojaintegrada.com.br/sitemap/brand-1.xml</loc></sitemap>
     </sitemapindex>`, 'application/xml')
     if (url === 'https://demo.lojaintegrada.com.br/sitemap/product-1.xml') return response(url, `<?xml version="1.0"?><urlset>
-      <url><loc>https://demo.lojaintegrada.com.br/produto-a</loc></url>
+      <url><loc>https://demo.lojaintegrada.com.br/shorts-preto</loc></url>
       <url><loc>https://demo.lojaintegrada.com.br/produto-b</loc></url>
     </urlset>`, 'application/xml')
-    if (url.endsWith('/produto-a')) return response(url, productHtml('Produto A', 10, 'LI-A'))
+    if (url.endsWith('/shorts-preto')) return response(url, lojaIntegradaVariantHtml())
     if (url.endsWith('/produto-b')) return response(url, productHtml('Produto B', 20, 'LI-B'))
     throw new Error(`unexpected loja integrada URL ${url}`)
   }
@@ -65,6 +110,13 @@ function productHtml(name, price, sku = '') {
   assert.equal(result.candidateCount, 2)
   assert.ok(!calls.some((url) => url.includes('category-1.xml') || url.includes('brand-1.xml')))
   assert.ok(calls.length <= 5)
+  const shorts = result.candidates.find((product) => product.title === 'Shorts Preto')
+  assert.equal(shorts.source, 'lojaintegrada-public-html-variants')
+  assert.equal(shorts.variants.length, 2)
+  assert.equal(shorts.variants[0].sku, 'M9LUXNV6J-34')
+  assert.equal(shorts.variants[0].size, '34')
+  assert.equal(shorts.variants[1].price, 920)
+  assert.deepEqual(shorts.properties.find((property) => property.name === 'Tamanho').values, ['34', '36'])
 }
 
 // Tray: web_api pública paginada + grade/SKU das variantes públicas.
