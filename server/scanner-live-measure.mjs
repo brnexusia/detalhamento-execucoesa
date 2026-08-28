@@ -8,7 +8,7 @@ const result = await collectCatalog(sourceUrl, {
   maxPages: 700,
   onProgress: async ({ progress, pagesScanned, candidates, platform }) => {
     if (progress % 15 === 0 || progress >= 90) {
-      console.log(`[live-scanner] ${progress}% platform=${platform || result?.platform || ''} pages=${pagesScanned || 0} candidates=${candidates || 0}`)
+      console.log(`[live-scanner] ${progress}% platform=${platform || ''} pages=${pagesScanned || 0} candidates=${candidates || 0}`)
     }
   },
 })
