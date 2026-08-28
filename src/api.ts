@@ -7,6 +7,8 @@ type ImportJob = {
   status: 'queued' | 'scanning' | 'processing' | 'review' | 'completed' | 'failed' | 'cancelled'
   progress: number
   result_count: number
+  platform: string
+  pages_scanned: number
   error: string
   created_at: string
   updated_at: string
@@ -41,6 +43,7 @@ export const api = {
   deleteSeller: (id: string) => request(`/api/admin/sellers/${id}`, { method: 'DELETE' }),
   listImportJobs: () => request<{ jobs: ImportJob[] }>('/api/admin/imports'),
   createImportJob: (url: string) => request<{ job: ImportJob; duplicated: boolean }>('/api/admin/imports', { method: 'POST', body: JSON.stringify({ url }) }),
+  importCandidates: (jobId: string, limit = 25) => request<{ job: ImportJob; candidates: Array<{ id: string; source_url: string; raw_data: Record<string, unknown>; created_at: string }> }>(`/api/admin/imports/${encodeURIComponent(jobId)}/candidates?limit=${limit}`),
   upload: async (file: File) => {
     const form = new FormData()
     form.append('file', file)
