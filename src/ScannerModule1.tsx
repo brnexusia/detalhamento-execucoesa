@@ -9,7 +9,7 @@ type ImportJob = Awaited<ReturnType<typeof api.listImportJobs>>['jobs'][number]
 function statusLabel(status: ImportJob['status']) {
   if (status === 'queued') return 'Aguardando scanner'
   if (status === 'scanning') return 'Escaneando'
-  if (status === 'processing') return 'Coleta concluída'
+  if (status === 'processing') return 'Organizando produtos'
   if (status === 'review') return 'Pronto para revisão'
   if (status === 'completed') return 'Concluído'
   if (status === 'failed') return 'Falhou'
@@ -24,6 +24,15 @@ function platformLabel(value: string) {
   if (value === 'lojaintegrada') return 'Loja Integrada'
   if (value === 'tray') return 'Tray'
   return value
+}
+
+function jobDetails(job: ImportJob) {
+  if (job.status === 'review') {
+    const alerts = job.warning_count ? ` · ${job.warning_count} para conferir` : ''
+    const duplicates = job.duplicate_count ? ` · ${job.duplicate_count} duplicado(s) removido(s)` : ''
+    return `${platformLabel(job.platform)} · ${job.normalized_count} pronto(s)${alerts}${duplicates}`
+  }
+  return `${job.platform ? `${platformLabel(job.platform)} · ` : ''}${job.result_count} produto(s) · ${job.pages_scanned} página(s)`
 }
 
 export default function ScannerModule1() {
@@ -77,7 +86,7 @@ export default function ScannerModule1() {
   useEffect(() => {
     if (!open) return
     const timer = window.setInterval(() => {
-      if (jobs.some((job) => job.status === 'queued' || job.status === 'scanning')) void loadJobs(true)
+      if (jobs.some((job) => ['queued', 'scanning', 'processing'].includes(job.status))) void loadJobs(true)
     }, 2000)
     return () => window.clearInterval(timer)
   }, [open, jobs])
@@ -118,7 +127,7 @@ export default function ScannerModule1() {
           <header><div><span>Migração de catálogo</span><h2 id="scanner-title">Importar de outra loja</h2></div><button type="button" onClick={() => setOpen(false)}><X size={20} /></button></header>
           <form onSubmit={submit}>
             <label><span>URL da sua loja atual</span><input value={url} onChange={(event) => setUrl(event.target.value)} inputMode="url" autoComplete="url" placeholder="https://minhaloja.com.br" required autoFocus /></label>
-            <p className="scanner-help">Cole o endereço público da loja que pertence à sua empresa. A coleta acontece no servidor e não publica nenhum produto sem revisão.</p>
+            <p className="scanner-help">Cole o endereço público da loja que pertence à sua empresa. A coleta e a organização acontecem no servidor e não publicam nenhum produto sem revisão.</p>
             {error && <p className="scanner-message scanner-message--error">{error}</p>}
             {success && <p className="scanner-message scanner-message--success"><Check size={16} /> {success}</p>}
             <button className="primary-action scanner-submit" disabled={busy}>{busy ? 'Iniciando…' : 'Escanear loja'}<ArrowRight size={17} /></button>
@@ -126,8 +135,8 @@ export default function ScannerModule1() {
           <div className="scanner-jobs">
             <div><strong>Importações recentes</strong><small>{loadingJobs ? 'Atualizando…' : jobs.length ? `${jobs.length} registro(s)` : 'Nenhuma ainda'}</small></div>
             {jobs.slice(0, 3).map((job) => <article key={job.id}>
-              <div><strong>{job.source_host}</strong><small>{job.platform ? `${platformLabel(job.platform)} · ` : ''}{job.result_count} produto(s) · {job.pages_scanned} página(s)</small>{job.status === 'failed' && job.error && <small className="scanner-job-error">{job.error}</small>}</div>
-              <span data-status={job.status}>{job.status === 'scanning' ? `${statusLabel(job.status)} ${job.progress}%` : statusLabel(job.status)}</span>
+              <div><strong>{job.source_host}</strong><small>{jobDetails(job)}</small>{job.status === 'failed' && job.error && <small className="scanner-job-error">{job.error}</small>}</div>
+              <span data-status={job.status}>{job.status === 'scanning' || job.status === 'processing' ? `${statusLabel(job.status)} ${job.progress}%` : statusLabel(job.status)}</span>
             </article>)}
           </div>
         </section>
