@@ -1,3 +1,5 @@
+import { load } from 'cheerio'
+
 function asArray(value) {
   return value == null ? [] : Array.isArray(value) ? value : [value]
 }
@@ -23,6 +25,209 @@ function preferredMediaUrls(value) {
     if (!item || typeof item !== 'object') return ''
     return item.normal?.url || item.zoom?.url || item.https || item.url || item.src || item.fallback || ''
   }))
+}
+
+function absoluteUrl(value, baseUrl) {
+  const raw = text(value)
+  if (!raw) return ''
+  try { return new URL(raw, baseUrl).toString() } catch { return raw }
+}
+
+function aggregateProperties(variants) {
+  const byName = new Map()
+  for (const variant of variants) {
+    for (const property of variant?.properties || []) {
+      const name = text(property?.name)
+      const value = text(property?.value)
+      if (!name || !value) continue
+      if (!byName.has(name)) byName.set(name, new Set())
+      byName.get(name).add(value)
+    }
+  }
+  return [...byName].map(([name, values]) => ({ name, values: [...values] }))
+}
+
+function extractAssignedArray(source, expression) {
+  const match = expression.exec(String(source || ''))
+  if (!match) return null
+  const start = match.index + match[0].length
+  const textSource = String(source || '')
+  let cursor = start
+  while (cursor < textSource.length && /\s/.test(textSource[cursor])) cursor += 1
+  if (textSource[cursor] !== '[') return null
+  let depth = 0
+  let quote = ''
+  let escaped = false
+  for (let index = cursor; index < textSource.length; index += 1) {
+    const char = textSource[index]
+    if (quote) {
+      if (escaped) escaped = false
+      else if (char === '\\') escaped = true
+      else if (char === quote) quote = ''
+      continue
+    }
+    if (char === '"' || char === "'") {
+      quote = char
+      continue
+    }
+    if (char === '[') depth += 1
+    else if (char === ']') {
+      depth -= 1
+      if (depth === 0) return textSource.slice(cursor, index + 1)
+    }
+  }
+  return null
+}
+
+function optionKind(name) {
+  const normalized = text(name)
+  if (/\b(?:cor|cores|color|colour)\b/i.test(normalized)) return 'color'
+  if (/\b(?:tamanho|tam|size)\b/i.test(normalized)) return 'size'
+  return ''
+}
+
+export function enrichNuvemshopCandidate(candidate, html, sourceUrl = candidate?.source_url || '') {
+  const raw = extractAssignedArray(html, /(?:window\.)?LS\.variants\s*=\s*/i)
+  if (!raw) return candidate
+  let rows
+  try { rows = JSON.parse(raw) } catch { return candidate }
+  if (!Array.isArray(rows) || !rows.length) return candidate
+
+  const $ = load(String(html || ''))
+  const propertyNames = new Map()
+  $('.js-product-variants-group, [data-variation-id].js-product-variants-group, .js-product-variants [data-variation-id]').each((index, element) => {
+    const node = $(element)
+    const rawIndex = node.attr('data-variation-id')
+    const numericIndex = rawIndex != null && /^\d+$/.test(rawIndex) ? Number(rawIndex) : index
+    if (numericIndex > 2 || propertyNames.has(numericIndex)) return
+    const label = text(
+      node.attr('data-variation-name') ||
+      node.attr('data-name') ||
+      node.find('.js-variation-label, .variation-label, label').first().text() ||
+      node.prev('label').text(),
+    ).replace(/:\s*$/, '')
+    if (label) propertyNames.set(numericIndex, label)
+  })
+  $('select[data-variation-id], select.js-variation-option').each((index, element) => {
+    const node = $(element)
+    const rawIndex = node.attr('data-variation-id')
+    const numericIndex = rawIndex != null && /^\d+$/.test(rawIndex) ? Number(rawIndex) : index
+    if (numericIndex > 2 || propertyNames.has(numericIndex)) return
+    const label = text(node.attr('data-variation-name') || node.attr('aria-label') || node.attr('name')).replace(/[_-]+/g, ' ')
+    if (label) propertyNames.set(numericIndex, label)
+  })
+
+  const variants = rows.map((row) => {
+    const properties = []
+    for (let index = 0; index < 3; index += 1) {
+      const value = text(row?.[`option${index}`])
+      if (!value) continue
+      const name = propertyNames.get(index) || `Opção ${index + 1}`
+      properties.push({ name, value })
+    }
+    const colorProperty = properties.find((property) => optionKind(property.name) === 'color')
+    const sizeProperty = properties.find((property) => optionKind(property.name) === 'size')
+    const promotional = numberValue(row?.promotional_price_number ?? row?.sale_price_number)
+    const regular = numberValue(row?.price_number ?? row?.price)
+    const stock = numberValue(row?.stock)
+    return {
+      external_id: text(row?.id),
+      title: properties.map((property) => `${property.name}: ${property.value}`).join(' / '),
+      sku: text(row?.sku ?? row?.barcode),
+      color: text(colorProperty?.value),
+      size: text(sizeProperty?.value),
+      price: promotional && promotional > 0 ? promotional : regular,
+      available: row?.available !== false && (stock == null || stock !== 0),
+      image: absoluteUrl(row?.image_url ?? row?.image?.url, sourceUrl),
+      properties,
+    }
+  }).filter((variant) => variant.external_id || variant.sku || variant.properties.length)
+  if (!variants.length) return candidate
+
+  const variantImages = unique(variants.map((variant) => variant.image))
+  return {
+    ...candidate,
+    images: unique([...(candidate.images || []), ...variantImages]),
+    variants,
+    properties: aggregateProperties(variants),
+    source: 'nuvemshop-public-html-variants',
+  }
+}
+
+function parseLojaIntegradaVariationMap(html) {
+  const raw = extractAssignedArray(html, /var\s+variacoes\s*=\s*/i)
+  if (!raw) return new Map()
+  try {
+    const jsonLike = raw.replace(/([{,]\s*)(\d+)\s*:/g, '$1"$2":')
+    const parsed = JSON.parse(jsonLike)
+    const result = new Map()
+    for (const item of asArray(parsed)) {
+      if (!item || typeof item !== 'object') continue
+      for (const [productId, variationIds] of Object.entries(item)) {
+        result.set(text(productId), asArray(variationIds).map((id) => text(id)).filter(Boolean))
+      }
+    }
+    return result
+  } catch {
+    return new Map()
+  }
+}
+
+export function enrichLojaIntegradaCandidate(candidate, html) {
+  const $ = load(String(html || ''))
+  const variationMeta = new Map()
+  $('.atributo-item[data-variacao-id]').each((_index, element) => {
+    const node = $(element)
+    const id = text(node.attr('data-variacao-id'))
+    if (!id) return
+    variationMeta.set(id, {
+      name: text(node.attr('data-grade-nome')) || 'Opção',
+      value: text(node.attr('data-variacao-nome') || node.text()),
+    })
+  })
+  if (!variationMeta.size) return candidate
+
+  const mapping = parseLojaIntegradaVariationMap(html)
+  const variants = []
+  $('.acoes-produto[data-produto-id]').each((_index, element) => {
+    const node = $(element)
+    const productId = text(node.attr('data-produto-id'))
+    const directVariationId = text(node.attr('data-variacao-id'))
+    const offer = node.find('[itemprop="offers"]').first()
+    if (!productId || !offer.length || !directVariationId) return
+
+    const variationIds = mapping.get(productId) || [directVariationId]
+    const properties = unique(variationIds).map((id) => variationMeta.get(id)).filter((item) => item?.value).map((item) => ({ name: item.name, value: item.value }))
+    if (!properties.length && variationMeta.has(directVariationId)) {
+      const item = variationMeta.get(directVariationId)
+      properties.push({ name: item.name, value: item.value })
+    }
+    const sku = text(offer.find('meta[itemprop="sku"]').attr('content') || node.attr('class')?.match(/\bSKU-([^\s]+)/)?.[1])
+    const price = numberValue(offer.find('meta[itemprop="price"]').attr('content') || node.find('[data-sell-price]').first().attr('data-sell-price'))
+    const availability = text(offer.find('meta[itemprop="availability"]').attr('content'))
+    const sourceUrl = text(offer.find('meta[itemprop="url"]').attr('content'))
+    const colorProperty = properties.find((property) => optionKind(property.name) === 'color')
+    const sizeProperty = properties.find((property) => optionKind(property.name) === 'size')
+    variants.push({
+      external_id: productId,
+      title: properties.map((property) => `${property.name}: ${property.value}`).join(' / '),
+      sku,
+      color: text(colorProperty?.value),
+      size: text(sizeProperty?.value),
+      price,
+      available: !/outofstock|indispon/i.test(`${availability} ${node.attr('class') || ''}`),
+      source_url: sourceUrl,
+      properties,
+    })
+  })
+  if (!variants.length) return candidate
+
+  return {
+    ...candidate,
+    variants,
+    properties: aggregateProperties(variants),
+    source: 'lojaintegrada-public-html-variants',
+  }
 }
 
 async function mapLimit(values, limit, mapper) {
@@ -138,7 +343,10 @@ export async function collectDirectedSitemap({
       const response = await request(url)
       pagesScanned += 1
       if (!response.ok || !response.contentType.includes('html')) return
-      await sink.push(extractProductsFromHtml(response.body, response.url))
+      let products = extractProductsFromHtml(response.body, response.url)
+      if (platform === 'nuvemshop') products = products.map((product) => enrichNuvemshopCandidate(product, response.body, response.url))
+      if (platform === 'lojaintegrada') products = products.map((product) => enrichLojaIntegradaCandidate(product, response.body))
+      await sink.push(products)
     } catch {
       // Uma página removida entre a leitura do sitemap e a importação não invalida o catálogo inteiro.
     } finally {
@@ -178,14 +386,7 @@ function trayVariant(variant) {
 
 function trayProduct(origin, product, variantsByProduct) {
   const variants = (variantsByProduct.get(text(product.id)) || []).map(trayVariant)
-  const propertiesByName = new Map()
-  for (const variant of variants) {
-    for (const property of variant.properties || []) {
-      if (!propertiesByName.has(property.name)) propertiesByName.set(property.name, new Set())
-      propertiesByName.get(property.name).add(property.value)
-    }
-  }
-  const properties = [...propertiesByName].map(([name, values]) => ({ name, values: [...values] }))
+  const properties = aggregateProperties(variants)
   const promotional = numberValue(product.promotional_price)
   const regular = numberValue(product.price)
   const url = product.url?.https || product.url?.http || (product.slug ? `${origin}/${product.slug}` : origin)
