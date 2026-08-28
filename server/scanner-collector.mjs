@@ -4,13 +4,15 @@ import https from 'node:https'
 import { isIP } from 'node:net'
 import { gunzipSync } from 'node:zlib'
 import { load } from 'cheerio'
+import { detectStorefrontPlatform, extractFacilZapRuntime, facilZapProducts, parseVestiContext, vestiProducts, isZapFacilCatalogPage } from './scanner-platforms.mjs'
+import { collectDirectedSitemap, collectTrayPublic, parseVestiCompanyId, enrichVestiCandidate } from './scanner-platform-collectors.mjs'
 
 // Produção não possui teto artificial de produtos/páginas. Limites só são usados quando
 // explicitamente informados (testes, diagnóstico ou operação controlada).
 const MAX_RESPONSE_BYTES = 5 * 1024 * 1024
 const SITEMAP_MAX_RESPONSE_BYTES = 64 * 1024 * 1024
 const REQUEST_TIMEOUT_MS = 12000
-const USER_AGENT = 'AtacadoShop-Migration/1.0 (+catalog migration requested by store owner)'
+const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0 Safari/537.36'
 
 function blockedIpv4(address) {
   const parts = address.split('.').map(Number)
@@ -55,21 +57,28 @@ export async function safeRequest(input, options = {}) {
   const requestImpl = url.protocol === 'https:' ? https.request : http.request
   const maxBytes = Number(options.maxBytes || MAX_RESPONSE_BYTES)
   const redirects = Number(options.redirects || 0)
+  const method = String(options.method || 'GET').toUpperCase()
+  if (!['GET', 'POST'].includes(method)) throw new Error('Método HTTP não permitido pelo scanner.')
+  const body = options.body == null ? null : Buffer.from(typeof options.body === 'string' ? options.body : JSON.stringify(options.body))
+  if (body && body.length > 64 * 1024) throw new Error('Corpo da requisição maior que o limite seguro do scanner.')
   if (redirects > 5) throw new Error('A loja redirecionou vezes demais.')
 
   return new Promise((resolve, reject) => {
+    const headers = {
+      'user-agent': USER_AGENT,
+      accept: options.accept || 'text/html,application/xhtml+xml,application/xml;q=0.9,application/json;q=0.8,*/*;q=0.5',
+      'accept-encoding': 'identity',
+      ...(options.headers && typeof options.headers === 'object' ? options.headers : {}),
+    }
+    if (body && !headers['content-length']) headers['content-length'] = String(body.length)
     const request = requestImpl({
       protocol: url.protocol,
       hostname: url.hostname,
       port: url.port || undefined,
       path: `${url.pathname}${url.search}`,
-      method: 'GET',
+      method,
       servername: url.hostname,
-      headers: {
-        'user-agent': USER_AGENT,
-        accept: options.accept || 'text/html,application/xhtml+xml,application/xml;q=0.9,application/json;q=0.8,*/*;q=0.5',
-        'accept-encoding': 'identity',
-      },
+      headers,
       lookup: (_hostname, lookupOptions, callback) => {
         if (lookupOptions?.all) callback(null, [{ address: resolved.address, family: resolved.family }])
         else callback(null, resolved.address, resolved.family)
@@ -122,6 +131,7 @@ export async function safeRequest(input, options = {}) {
     })
     request.on('timeout', () => request.destroy(new Error('A página demorou demais para responder.')))
     request.on('error', reject)
+    if (body) request.write(body)
     request.end()
   })
 }
@@ -146,14 +156,8 @@ export function extractSitemapLocations(xml) {
   return locations
 }
 
-export function detectPlatform(html) {
-  const value = String(html || '').toLowerCase()
-  if (value.includes('cdn.shopify.com') || value.includes('shopify.theme') || value.includes('shopify-section')) return 'shopify'
-  if (value.includes('woocommerce') || value.includes('wc-block') || value.includes('wp-content/plugins/woocommerce')) return 'woocommerce'
-  if (value.includes('nuvemshop') || value.includes('tiendanube')) return 'nuvemshop'
-  if (value.includes('lojaintegrada') || value.includes('cdn.awsli.com.br')) return 'lojaintegrada'
-  if (value.includes('tray.com.br') || value.includes('traycdn.com')) return 'tray'
-  return 'generic'
+export function detectPlatform(html, sourceUrl = '') {
+  return detectStorefrontPlatform(html, sourceUrl)
 }
 
 function asArray(value) {
@@ -542,6 +546,109 @@ async function collectWooCommerce(rootUrl, request, maxProducts, sink, onProgres
   await sink.flush()
   return { candidateCount: sink.count, pagesScanned }
 }
+
+async function collectFacilZap(rootResponse, request, maxProducts, sink, onProgress) {
+  const runtime = extractFacilZapRuntime(rootResponse.body)
+  if (!runtime?.urlCarregarProdutosTemplate) throw new Error('A vitrine FácilZap não expôs o contrato público de paginação esperado.')
+
+  const seenPages = new Set()
+  let pagesScanned = 1
+  let page = 1
+  while (sink.count < maxProducts) {
+    const category = Number(runtime.categoria || 0) > 0 ? String(runtime.categoria) : 'todas'
+    const endpoint = String(runtime.urlCarregarProdutosTemplate)
+      .replace('{PAGE}', String(page))
+      .replace('{CATEGORY}', category)
+    const url = new URL(endpoint, rootResponse.url)
+    if (runtime.searchId) url.searchParams.set('search_id', String(runtime.searchId))
+    url.searchParams.set('mobile', '0')
+    if (runtime.idPerfilCompra) url.searchParams.set('perfil_compra', String(runtime.idPerfilCompra))
+    if (runtime.variacoes) url.searchParams.set('variacoes', String(runtime.variacoes))
+
+    const response = await request(url.toString(), {
+      method: 'POST',
+      accept: 'application/json,text/plain,*/*',
+      headers: { 'content-type': 'application/json' },
+      body: { pagina_especifica: runtime.paginaEspecifica || '' },
+    })
+    pagesScanned += 1
+    if (!response.ok) throw new Error(`A paginação pública do FácilZap respondeu HTTP ${response.status}.`)
+
+    let payload
+    try { payload = JSON.parse(response.body || '{}') } catch { throw new Error('O FácilZap retornou uma página de catálogo em formato inesperado.') }
+    const mapped = facilZapProducts(payload, rootResponse.url)
+    if (mapped.end) break
+    const signature = mapped.products.map((product) => product.external_id || product.source_url || product.title).join('|')
+    if (!signature || seenPages.has(signature)) break
+    seenPages.add(signature)
+    await sink.push(mapped.products)
+    await onProgress({ progress: Math.min(90, 15 + Math.floor(Math.log2(page + 1) * 8)), pagesScanned, candidates: sink.count, platform: 'facilzap' })
+    page += 1
+  }
+  await sink.flush()
+  return { candidateCount: sink.count, pagesScanned }
+}
+
+async function collectVesti(rootResponse, request, maxProducts, sink, onProgress) {
+  const context = parseVestiContext(rootResponse.url, rootResponse.body)
+  if (!context) throw new Error('Não foi possível identificar loja e catálogo Vesti pela URL pública.')
+  const companyId = parseVestiCompanyId(rootResponse.body)
+  const pageSignatures = new Set()
+  let pagesScanned = 1
+
+  for (let page = 1; sink.count < maxProducts; page += 1) {
+    const endpoint = new URL(`https://apivesti.vesti.mobi/appmarca/v2/catalogue/${encodeURIComponent(context.catalogId)}/company/${encodeURIComponent(context.schemeUrl)}/`)
+    endpoint.searchParams.set('page', String(page))
+    endpoint.searchParams.set('perpage', '60')
+    endpoint.searchParams.set('with_categories', 'true')
+    endpoint.searchParams.set('with_colors', 'true')
+    endpoint.searchParams.set('with_product_colors', 'true')
+    endpoint.searchParams.set('with_sizes', 'true')
+    endpoint.searchParams.set('with_brands', 'true')
+    endpoint.searchParams.set('with_prices', 'true')
+    endpoint.searchParams.set('with_tags', '1')
+
+    const response = await request(endpoint.toString(), { accept: 'application/json' })
+    pagesScanned += 1
+    if (!response.ok) throw new Error(`A API pública do Vesti respondeu HTTP ${response.status}.`)
+    let payload
+    try { payload = JSON.parse(response.body) } catch { throw new Error('O Vesti retornou catálogo em formato inesperado.') }
+    const listed = Array.isArray(payload?.products) ? payload.products : []
+    const products = vestiProducts(payload, context)
+    if (!products.length) break
+    const signature = `${products[0]?.external_id || ''}|${products.at(-1)?.external_id || ''}|${products.length}`
+    if (pageSignatures.has(signature)) break
+    pageSignatures.add(signature)
+
+    let enriched = products
+    if (companyId) {
+      enriched = await mapLimit(products, 6, async (candidate, index) => {
+        const raw = listed[index]
+        const productId = candidate.external_id || raw?.id
+        if (!productId) return candidate
+        const detailUrl = new URL(`https://apivesti.vesti.mobi/appmarca/v1/products/company/${encodeURIComponent(companyId)}/product/${encodeURIComponent(productId)}/showcase`)
+        detailUrl.searchParams.set('cid', context.catalogId)
+        detailUrl.searchParams.set('reseller_id', 'null')
+        try {
+          const detailResponse = await request(detailUrl.toString(), { accept: 'application/json' })
+          pagesScanned += 1
+          if (!detailResponse.ok) return candidate
+          const detail = JSON.parse(detailResponse.body)
+          return enrichVestiCandidate(candidate, detail)
+        } catch {
+          return candidate
+        }
+      })
+    }
+
+    await sink.push(enriched)
+    await onProgress({ progress: Math.min(90, 15 + Math.floor(Math.log2(page + 1) * 8)), pagesScanned, candidates: sink.count, platform: 'vesti' })
+    if (!payload?.links?.next) break
+  }
+  await sink.flush()
+  return { candidateCount: sink.count, pagesScanned }
+}
+
 async function mapLimit(values, limit, mapper) {
   const result = new Array(values.length)
   let cursor = 0
@@ -667,8 +774,62 @@ export async function collectCatalog(sourceUrl, options = {}) {
   if (!rootResponse.ok) throw new Error(`A loja respondeu HTTP ${rootResponse.status}.`)
   if (!rootResponse.contentType.includes('html')) throw new Error('A URL informada não parece ser uma página de loja.')
 
-  const platform = detectPlatform(rootResponse.body)
+  const platform = detectPlatform(rootResponse.body, rootResponse.url)
   await onProgress({ progress: 10, pagesScanned: 1, candidates: 0, platform })
+
+  if (platform === 'facilzap') {
+    try {
+      const result = await collectFacilZap(rootResponse, request, maxProducts, sink, onProgress)
+      if (result.candidateCount) return { platform, pagesScanned: result.pagesScanned, candidateCount: sink.count, candidates: sink.candidates }
+    } catch (error) {
+      if (options.strictPlatformAdapters) throw error
+      // A vitrine muda com frequência; o crawler genérico continua como fallback seguro.
+    }
+  }
+
+  if (platform === 'vesti') {
+    try {
+      const result = await collectVesti(rootResponse, request, maxProducts, sink, onProgress)
+      if (result.candidateCount) return { platform, pagesScanned: result.pagesScanned, candidateCount: sink.count, candidates: sink.candidates }
+    } catch (error) {
+      if (options.strictPlatformAdapters) throw error
+      // Mantém fallback genérico para URLs Vesti legadas.
+    }
+  }
+
+  if (platform === 'zapfacil' && !isZapFacilCatalogPage(rootResponse.body)) {
+    throw new Error('Esta URL do ZapFácil não expõe uma vitrine pública de produtos. Informe o link público da loja/catálogo, não o site da ferramenta.')
+  }
+
+  if (platform === 'nuvemshop' || platform === 'lojaintegrada') {
+    try {
+      const result = await collectDirectedSitemap({
+        rootResponse,
+        platform,
+        request,
+        maxProducts,
+        maxPages,
+        sink,
+        onProgress,
+        extractSitemapLocations,
+        extractProductsFromHtml,
+      })
+      if (result.candidateCount) return { platform, pagesScanned: result.pagesScanned, candidateCount: sink.count, candidates: sink.candidates }
+    } catch (error) {
+      if (options.strictPlatformAdapters) throw error
+      // Sites legados sem sitemap de produto continuam pelo crawler genérico.
+    }
+  }
+
+  if (platform === 'tray') {
+    try {
+      const result = await collectTrayPublic({ rootResponse, request, maxProducts, sink, onProgress })
+      if (result.candidateCount) return { platform, pagesScanned: result.pagesScanned, candidateCount: sink.count, candidates: sink.candidates }
+    } catch (error) {
+      if (options.strictPlatformAdapters) throw error
+      // Algumas lojas Tray restringem a API pública; nesses casos há fallback genérico.
+    }
+  }
 
   if (platform === 'shopify') {
     try {

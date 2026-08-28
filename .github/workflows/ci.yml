@@ -45,6 +45,10 @@ jobs:
         run: npm run test:scanner:normalizer
       - name: Scanner review tests
         run: npm run test:scanner:review
+      - name: Scanner module 7 platform adapters
+        run: node server/scanner-module7.test.mjs
+      - name: Scanner module 7 dedicated collectors
+        run: node server/scanner-module7-dedicated.test.mjs
       - name: Build
         run: npm run build
       - name: Start application
