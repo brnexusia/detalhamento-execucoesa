@@ -66,6 +66,9 @@ jobs:
         run: npm run test:scanner:module5
       - name: Scanner module 6 integration
         run: npm run test:scanner:module6
+      - name: Live scanner end-to-end
+        if: github.head_ref == 'scanner-live-e2e'
+        run: npm run test:scanner:live:e2e
       - name: Print server log on failure
         if: failure()
         run: cat /tmp/atacado-shop.log || true
