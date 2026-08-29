@@ -1,37 +1,47 @@
+import { useEffect, useState } from 'react'
 import AdminApp from './AdminApp'
 import ScannerModule1 from './ScannerModule1'
 import ScannerPublishModule from './ScannerPublishModule'
 import BusinessFeaturesPanel from './BusinessFeaturesPanel'
 import AnalyticsPanel from './AnalyticsPanel'
-import TeamPanel from './TeamPanel'
-import CommercialSettingsPanel from './CommercialSettingsPanel'
+import AdminSectionFrame from './AdminSectionFrame'
+import AdminAdditions from './AdminAdditions'
 import './ux-polish.css'
 import './yellow-ux-fixes.css'
-import './business-launchers.css'
 
-function go(path: string) {
-  window.history.pushState({}, '', path)
-  window.dispatchEvent(new PopStateEvent('popstate'))
+function RedirectTo({ path }: { path: string }) {
+  useEffect(() => {
+    window.history.replaceState({}, '', path)
+    window.dispatchEvent(new PopStateEvent('popstate'))
+  }, [path])
+  return null
 }
 
 export default function AdminRoute() {
-  const analytics = window.location.pathname === '/painel/relatorios' || window.location.pathname.startsWith('/painel/relatorios/')
-  if (analytics) return <AnalyticsPanel />
-  const team = window.location.pathname === '/painel/equipe' || window.location.pathname.startsWith('/painel/equipe/')
-  if (team) return <TeamPanel />
-  const commercial = window.location.pathname === '/painel/comercial' || window.location.pathname.startsWith('/painel/comercial/')
-  if (commercial) return <CommercialSettingsPanel />
-  const features = window.location.pathname === '/painel/recursos' || window.location.pathname.startsWith('/painel/recursos/')
-  if (features) return <BusinessFeaturesPanel />
+  const [path, setPath] = useState(() => window.location.pathname)
+
+  useEffect(() => {
+    const onPop = () => setPath(window.location.pathname)
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
+
+  const analytics = path === '/painel/relatorios' || path.startsWith('/painel/relatorios/')
+  if (analytics) return <AdminSectionFrame active="relatorios"><AnalyticsPanel/></AdminSectionFrame>
+
+  const features = path === '/painel/recursos' || path.startsWith('/painel/recursos/')
+  if (features) return <AdminSectionFrame active="recursos"><BusinessFeaturesPanel/></AdminSectionFrame>
+
+  const hiddenTeam = path === '/painel/equipe' || path.startsWith('/painel/equipe/')
+  if (hiddenTeam) return <RedirectTo path="/painel"/>
+
+  const commercial = path === '/painel/comercial' || path.startsWith('/painel/comercial/')
+  if (commercial) return <RedirectTo path="/painel/loja"/>
+
   return <>
-    <AdminApp />
-    <ScannerModule1 />
-    <ScannerPublishModule />
-    <div className="business-launcher-group">
-      <button className="business-launcher business-launcher--reports" type="button" onClick={() => go('/painel/relatorios')}>Inteligência comercial</button>
-      <button className="business-launcher" type="button" onClick={() => go('/painel/equipe')}>Equipe e comissão</button>
-      <button className="business-launcher" type="button" onClick={() => go('/painel/comercial')}>Pagamento e entrega</button>
-      <button className="business-launcher" type="button" onClick={() => go('/painel/recursos')}>Estoque e recursos</button>
-    </div>
+    <AdminApp/>
+    <AdminAdditions/>
+    <ScannerModule1/>
+    <ScannerPublishModule/>
   </>
 }
