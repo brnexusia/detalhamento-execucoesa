@@ -84,6 +84,7 @@ function productShape(product) {
 async function publicStore(req, res, next) {
   try {
     await schemaReady()
+    res.setHeader('Cache-Control', 'private, no-store')
     const storeResult = await pool.query('SELECT * FROM stores WHERE slug=$1 AND is_active=true LIMIT 1', [req.params.storeSlug])
     if (!storeResult.rowCount) return res.status(404).json({ error: 'Loja não encontrada.' })
     const store = storeResult.rows[0]
