@@ -430,7 +430,7 @@ async function createCatalogOrder(req, res) {
     const productsResult = await client.query(
       `SELECT p.*,COALESCE(cp.price_override,p.price) AS public_price,COALESCE(cp.visible,true) AS catalog_visible
        FROM products p LEFT JOIN catalog_products cp ON cp.product_id=p.id AND cp.catalog_id=$3
-       WHERE p.store_id=$1 AND p.active=true AND p.id=ANY($2::text[]) ORDER BY p.id FOR UPDATE`,
+       WHERE p.store_id=$1 AND p.active=true AND p.id=ANY($2::text[]) ORDER BY p.id FOR UPDATE OF p`,
       [store.id, productIds, catalog.id],
     )
     const byId = new Map(productsResult.rows.map((product) => [product.id, product]))
