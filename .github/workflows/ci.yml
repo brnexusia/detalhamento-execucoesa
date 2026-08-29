@@ -43,6 +43,7 @@ jobs:
           grep -Fq '"./server/api-json-hooks.mjs"' Dockerfile
           grep -Fq '"./server/analytics-features-hooks.mjs"' Dockerfile
           grep -Fq '"./server/team-features-hooks.mjs"' Dockerfile
+          grep -Fq '"./server/commercial-config-hooks.mjs"' Dockerfile
           grep -Fq '"./server/catalog-order-lock-fix.mjs"' Dockerfile
           grep -Fq '"./server/catalog-features-hooks.mjs"' Dockerfile
           grep -Fq '"./server/business-features-hooks.mjs"' Dockerfile
@@ -80,6 +81,8 @@ jobs:
         run: node server/business-module4.integration.mjs
       - name: Business module 5 team integration
         run: node server/business-module5.integration.mjs
+      - name: Business module 6 commercial info integration
+        run: node server/business-module6.integration.mjs
       - name: Scanner module 1 integration
         run: node server/scanner-module1.integration.mjs
       - name: Scanner module 2 integration
