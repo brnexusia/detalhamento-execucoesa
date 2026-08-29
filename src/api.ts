@@ -1,4 +1,4 @@
-import type { AdminBootstrap, PublicPayload } from './types'
+import type { AdminBootstrap, Catalog, PublicPayload } from './types'
 
 export type ImportJob = {
   id: string
@@ -67,6 +67,10 @@ export type ImportReviewSummary = {
   review_changed_count: number
 }
 
+export type AdminCatalog = Catalog & {
+  items: Array<{ productId: string; priceOverride: number | null; visible: boolean }>
+}
+
 async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(url, {
     credentials: 'include',
@@ -78,18 +82,25 @@ async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
   return payload as T
 }
 
+function currentCatalogSlug() {
+  if (typeof window === 'undefined') return ''
+  return new URLSearchParams(window.location.search).get('catalog') || ''
+}
+
 export const api = {
-  publicStore: (storeSlug: string, sellerSlug?: string, options: { cursor?: string | null; q?: string; category?: string; limit?: number } = {}) => {
+  publicStore: (storeSlug: string, sellerSlug?: string, options: { cursor?: string | null; q?: string; category?: string; limit?: number; catalog?: string } = {}) => {
     const params = new URLSearchParams()
     if (options.cursor) params.set('cursor', options.cursor)
     if (options.q) params.set('q', options.q)
     if (options.category) params.set('category', options.category)
     if (options.limit) params.set('limit', String(options.limit))
+    const catalog = options.catalog ?? currentCatalogSlug()
+    if (catalog) params.set('catalog', catalog)
     const query = params.toString()
     return request<PublicPayload>(`/api/public/store/${encodeURIComponent(storeSlug)}${sellerSlug ? `/${encodeURIComponent(sellerSlug)}` : ''}${query ? `?${query}` : ''}`)
   },
   track: (body: { storeSlug: string; sellerSlug?: string; kind: 'view' | 'cart' | 'whatsapp' }) => request<void>('/api/public/events', { method: 'POST', body: JSON.stringify(body) }).catch(() => undefined),
-  createOrder: (body: { storeSlug: string; sellerSlug?: string; items: Array<{ productId: string; quantity: number; selections: Record<string, string> }> }) => request<{ code: string; orderId?: string; whatsappUrl: string }>('/api/business/orders', { method: 'POST', body: JSON.stringify(body) }),
+  createOrder: (body: { storeSlug: string; sellerSlug?: string; catalogSlug?: string; items: Array<{ productId: string; quantity: number; selections: Record<string, string> }> }) => request<{ code: string; orderId?: string; catalog?: Catalog; whatsappUrl: string }>('/api/business/orders', { method: 'POST', body: JSON.stringify({ ...body, catalogSlug: body.catalogSlug ?? currentCatalogSlug() }) }),
   login: (body: { email: string; password: string }) => request<{ ok: true }>('/api/auth/login', { method: 'POST', body: JSON.stringify(body) }),
   register: (body: { name: string; email: string; password: string; storeName: string; whatsapp: string }) => request<{ ok: true; storeSlug: string }>('/api/auth/register', { method: 'POST', body: JSON.stringify(body) }),
   logout: () => request<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
@@ -101,6 +112,10 @@ export const api = {
   deleteProduct: (id: string) => request(`/api/admin/products/${id}`, { method: 'DELETE' }),
   updateStock: (productId: string, body: { enabled: boolean; quantity: number; variantStock: Record<string, number> }) => request<{ product: { id: string; stock_enabled: boolean; stock_quantity: number; variant_stock: Record<string, number> } }>(`/api/admin/features/products/${encodeURIComponent(productId)}/stock`, { method: 'PATCH', body: JSON.stringify(body) }),
   cancelOrder: (orderId: string) => request<{ order: { id: string; status: string; stock_reverted: boolean }; idempotent: boolean }>(`/api/admin/features/orders/${encodeURIComponent(orderId)}/cancel`, { method: 'POST', body: '{}' }),
+  catalogs: () => request<{ catalogs: AdminCatalog[] }>('/api/admin/catalogs'),
+  createCatalog: (body: { name: string; kind: 'geral' | 'atacado' | 'varejo'; minimumOrder?: number | null }) => request<{ catalog: AdminCatalog }>('/api/admin/catalogs', { method: 'POST', body: JSON.stringify(body) }),
+  updateCatalog: (catalogId: string, body: { name?: string; kind?: 'geral' | 'atacado' | 'varejo'; minimumOrder?: number | null; active?: boolean; items?: Array<{ productId: string; priceOverride: number | null; visible: boolean }> }) => request<{ catalog: Catalog }>(`/api/admin/catalogs/${encodeURIComponent(catalogId)}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteCatalog: (catalogId: string) => request<void>(`/api/admin/catalogs/${encodeURIComponent(catalogId)}`, { method: 'DELETE' }),
   createSeller: (body: Record<string, unknown>) => request('/api/admin/sellers', { method: 'POST', body: JSON.stringify(body) }),
   updateSeller: (id: string, body: Record<string, unknown>) => request(`/api/admin/sellers/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   deleteSeller: (id: string) => request(`/api/admin/sellers/${id}`, { method: 'DELETE' }),
@@ -115,22 +130,10 @@ export const api = {
     params.set('offset', String(options.offset ?? 0))
     if (options.filter) params.set('filter', options.filter)
     if (options.q) params.set('q', options.q)
-    return request<{
-      job: ImportJob
-      products: ImportReviewProduct[]
-      summary: ImportReviewSummary
-      pagination: { limit: number; offset: number; total: number }
-    }>(`/api/admin/imports/${encodeURIComponent(jobId)}/review?${params.toString()}`)
+    return request<{ job: ImportJob; products: ImportReviewProduct[]; summary: ImportReviewSummary; pagination: { limit: number; offset: number; total: number } }>(`/api/admin/imports/${encodeURIComponent(jobId)}/review?${params.toString()}`)
   },
-  updateImportReviewProduct: (jobId: string, productId: string, body: { data?: Partial<ImportReviewData>; selected?: boolean }) => request<{
-    product: ImportReviewProduct
-    summary: ImportReviewSummary
-    job: ImportJob
-  }>(`/api/admin/imports/${encodeURIComponent(jobId)}/review/${encodeURIComponent(productId)}`, { method: 'PATCH', body: JSON.stringify(body) }),
-  updateImportReviewSelection: (jobId: string, action: 'ready' | 'none') => request<{ summary: ImportReviewSummary; job: ImportJob }>(
-    `/api/admin/imports/${encodeURIComponent(jobId)}/review-selection`,
-    { method: 'PATCH', body: JSON.stringify({ action }) },
-  ),
+  updateImportReviewProduct: (jobId: string, productId: string, body: { data?: Partial<ImportReviewData>; selected?: boolean }) => request<{ product: ImportReviewProduct; summary: ImportReviewSummary; job: ImportJob }>(`/api/admin/imports/${encodeURIComponent(jobId)}/review/${encodeURIComponent(productId)}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  updateImportReviewSelection: (jobId: string, action: 'ready' | 'none') => request<{ summary: ImportReviewSummary; job: ImportJob }>(`/api/admin/imports/${encodeURIComponent(jobId)}/review-selection`, { method: 'PATCH', body: JSON.stringify({ action }) }),
   upload: async (file: File) => {
     const form = new FormData()
     form.append('file', file)
