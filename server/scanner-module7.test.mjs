@@ -63,6 +63,18 @@ assert.equal(mappedFacil.products[0].variants[0].color, 'Preto')
 assert.equal(mappedFacil.products[0].variants[0].sku, 'FZ3652733.6')
 assert.equal(mappedFacil.products[0].variants[0].price, 60)
 assert.equal(mappedFacil.products[0].availability, 'InStock')
+
+const namedColorFacil = facilZapProducts({ produtos: [{
+  id: '4263588', nome: 'Pulseira', sku: 'FZ4263588', preco: 37.5,
+  variacoes: {
+    '2124362': { id: '2124362', nome: 'Prata', cor: '#b8bec4' },
+    '2130878': { id: '2130878', nome: 'Grafite', cor: '#8a8787' },
+  },
+  sku_variacoes: { '2124362': 'FZ4263588.1', '2130878': 'FZ4263588.2' },
+}] }, 'https://cristaluxe.example/')
+assert.deepEqual(namedColorFacil.products[0].properties.find((group) => group.name === 'Cor').values, ['Prata', 'Grafite'])
+assert.equal(namedColorFacil.products[0].variants[0].color, 'Prata')
+assert.equal(namedColorFacil.products[0].variants[1].color, 'Grafite')
 assert.equal(facilZapProducts({ acao: 'sem_mais_produtos' }, 'https://facilzap.app.br/minhaloja/').end, true)
 
 const vestiContext = parseVestiContext('https://v.vesti.mobi/lojax/catalogo/cat123')
