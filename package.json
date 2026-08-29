@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "start": "node --import ./server/performance-hooks.mjs --import ./server/api-json-hooks.mjs --import ./server/analytics-features-hooks.mjs --import ./server/catalog-order-lock-fix.mjs --import ./server/catalog-features-hooks.mjs --import ./server/business-features-hooks.mjs --import ./server/platform-hooks.mjs --import ./server/scanner-hooks.mjs --import ./server/scanner-publish-hooks.mjs --import ./server/public-protection-hooks.mjs server/app.mjs",
+    "start": "node --import ./server/performance-hooks.mjs --import ./server/api-json-hooks.mjs --import ./server/analytics-features-hooks.mjs --import ./server/team-features-hooks.mjs --import ./server/catalog-order-lock-fix.mjs --import ./server/catalog-features-hooks.mjs --import ./server/business-features-hooks.mjs --import ./server/platform-hooks.mjs --import ./server/scanner-hooks.mjs --import ./server/scanner-publish-hooks.mjs --import ./server/public-protection-hooks.mjs server/app.mjs",
     "preview": "vite preview",
     "test:scanner": "node server/scanner-url.test.mjs",
     "test:scanner:collector": "node server/scanner-collector.test.mjs",
