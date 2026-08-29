@@ -4,6 +4,7 @@ on:
     branches: [scanner-complete-custom-sites]
     paths:
       - '.github/workflows/research-cristaluxe.yml'
+      - '.github/scripts/research-cristaluxe.mjs'
 permissions:
   contents: read
 jobs:
