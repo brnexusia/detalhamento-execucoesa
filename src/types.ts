@@ -3,6 +3,11 @@ export type VariationGroup = {
   options: string[]
 }
 
+export type VariantImageGroup = {
+  selections: Record<string, string>
+  images: string[]
+}
+
 export type Product = {
   id: string
   sku: string
@@ -12,6 +17,8 @@ export type Product = {
   category: string
   mediaUrl: string
   mediaType: 'image' | 'video'
+  images?: string[]
+  variantImages?: VariantImageGroup[]
   pack?: string
   variations: VariationGroup[]
   featured?: boolean
@@ -63,6 +70,8 @@ export type AdminProduct = {
   category: string
   media_url: string
   media_type: 'image' | 'video'
+  images?: string[]
+  variant_images?: VariantImageGroup[]
   pack: string
   variations: VariationGroup[]
   featured: boolean
