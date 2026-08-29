@@ -22,6 +22,9 @@ export type Product = {
   pack?: string
   variations: VariationGroup[]
   featured?: boolean
+  stockEnabled?: boolean
+  stockQuantity?: number
+  variantStock?: Record<string, number>
 }
 
 export type Seller = {
@@ -76,6 +79,9 @@ export type AdminProduct = {
   variations: VariationGroup[]
   featured: boolean
   active: boolean
+  stock_enabled?: boolean
+  stock_quantity?: number
+  variant_stock?: Record<string, number>
 }
 
 export type AdminStore = {
@@ -104,15 +110,18 @@ export type AdminOrder = {
   code: string
   total: number
   items: Array<{
+    productId?: string
     name: string
     sku: string
     quantity: number
     unitPrice: number
     lineTotal: number
     selections: Record<string, string>
+    stockKey?: string
   }>
   status: string
   seller_id?: string | null
+  stock_reverted?: boolean
   created_at: string
 }
 
