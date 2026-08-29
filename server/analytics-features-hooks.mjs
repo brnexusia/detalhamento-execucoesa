@@ -270,12 +270,8 @@ async function reports(req, res) {
 
   return res.json({
     periodDays: days,
-    interpretation: 'Cliques para finalizar no WhatsApp representam intenção / lead / pedido enviado ao WhatsApp. Não representam faturamento nem venda confirmada.',
-    items,
-    links,
-    sellers,
-    catalogs,
-    funnel,
+    interpretation: 'Cliques para o WhatsApp representam intenção / lead / pedido enviado ao WhatsApp. Não representam faturamento, ticket médio ou venda concluída.',
+    items, links, sellers, catalogs, funnel,
   })
 }
 
@@ -289,7 +285,7 @@ function install(app) {
       if (req.method === 'GET' && req.path.startsWith('/api/public/store/')) {
         const originalJson = res.json.bind(res)
         res.json = async (payload) => {
-          try { if (res.statusCode < 400) await recordCatalogResponse(req, res, payload) }
+          try { if (res.statusCode === 200) await recordCatalogResponse(req, res, payload) }
           catch (error) { console.error('[analytics features] catalog event:', error.message) }
           return originalJson(payload)
         }
@@ -306,7 +302,7 @@ function install(app) {
     }).catch(next)
   })
 
-  app.post('/api/public/intent-events', (req, res, next) => Promise.resolve(publicIntentEvent(req, res)).catch(next))
+  app.post('/api/public/intent-events', express.json({ limit: '64kb' }), (req, res, next) => Promise.resolve(publicIntentEvent(req, res)).catch(next))
   app.get('/api/admin/intent-reports', requireStore, (req, res, next) => Promise.resolve(reports(req, res)).catch(next))
 }
 
