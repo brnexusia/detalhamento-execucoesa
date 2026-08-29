@@ -1,0 +1,34 @@
+name: apply-human-variant-labels
+on:
+  push:
+    branches: [fix-facilzap-human-variant-labels]
+    paths:
+      - '.github/workflows/apply-human-variant-labels.yml'
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix-facilzap-human-variant-labels
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: python .github/scripts/apply-human-variant-labels.py
+      - run: npm install
+      - run: node server/scanner-module7.test.mjs
+      - run: npm run test:scanner:normalizer
+      - run: npm run build
+      - name: Commit clean patch
+        run: |
+          rm -f .github/scripts/apply-human-variant-labels.py
+          rm -f .github/workflows/apply-human-variant-labels.yml
+          rm -f package-lock.json tsconfig.app.tsbuildinfo
+          git config user.name brnexusia
+          git config user.email brnexusia@gmail.com
+          git add -A
+          git commit -m "Scanner: usar nomes humanos nas cores do FacilZap" || exit 0
+          git push origin HEAD:fix-facilzap-human-variant-labels
