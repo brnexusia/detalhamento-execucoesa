@@ -106,20 +106,93 @@ function candidatePrice(candidate) {
   return Math.round(Math.min(...prices) * 100) / 100
 }
 
+function safeImageUrl(raw) {
+  try {
+    const url = new URL(String(raw || ''))
+    if (!['http:', 'https:'].includes(url.protocol)) return ''
+    url.hash = ''
+    return url.toString()
+  } catch { return '' }
+}
+
+function imageValues(value) {
+  const items = value == null ? [] : Array.isArray(value) ? value : [value]
+  return items.flatMap((item) => {
+    if (typeof item === 'string') return [item]
+    if (!item || typeof item !== 'object') return []
+    return [item.src, item.url, item.contentUrl, item.thumbnailUrl].filter(Boolean)
+  })
+}
+
+function variantImages(variant) {
+  return [
+    ...imageValues(variant?.images),
+    ...imageValues(variant?.image),
+    ...imageValues(variant?.featured_image),
+    ...imageValues(variant?.featuredImage),
+  ]
+}
+
 function normalizeImages(candidate) {
   const result = []
   const seen = new Set()
-  for (const raw of Array.isArray(candidate?.images) ? candidate.images : []) {
-    try {
-      const url = new URL(String(raw))
-      if (!['http:', 'https:'].includes(url.protocol)) continue
-      url.hash = ''
-      const value = url.toString()
-      if (seen.has(value)) continue
-      seen.add(value)
-      result.push(value)
-    } catch {}
-    if (result.length >= 12) break
+  const rawImages = [
+    ...(Array.isArray(candidate?.images) ? candidate.images : []),
+    ...(Array.isArray(candidate?.variants) ? candidate.variants.flatMap(variantImages) : []),
+  ]
+  for (const raw of rawImages) {
+    const value = safeImageUrl(raw)
+    if (!value || seen.has(value)) continue
+    seen.add(value)
+    result.push(value)
+    if (result.length >= 40) break
+  }
+  return result
+}
+
+function variantSelections(variant, propertyOrder) {
+  const selections = {}
+  const add = (name, value) => {
+    const canonical = canonicalVariationName(name)
+    const option = validOption(value)
+    if (canonical && option && !selections[canonical]) selections[canonical] = option
+  }
+  add('Cor', variant?.color)
+  add('Tamanho', variant?.size)
+  if (Array.isArray(variant?.properties)) {
+    for (const property of variant.properties) {
+      const values = propertyValues(property)
+      if (values.length) add(property?.name, values[0])
+    }
+  }
+  for (let index = 1; index <= 3; index += 1) {
+    if (propertyOrder[index - 1]) add(propertyOrder[index - 1], variant?.[`option${index}`])
+  }
+  return selections
+}
+
+function normalizeVariantImages(candidate) {
+  const properties = Array.isArray(candidate?.properties) ? candidate.properties : []
+  const propertyOrder = properties.map((property) => canonicalVariationName(property?.name)).filter(Boolean).slice(0, 3)
+  const result = []
+  const seen = new Set()
+  for (const variant of Array.isArray(candidate?.variants) ? candidate.variants : []) {
+    const images = []
+    const imageSeen = new Set()
+    for (const raw of variantImages(variant)) {
+      const url = safeImageUrl(raw)
+      if (!url || imageSeen.has(url)) continue
+      imageSeen.add(url)
+      images.push(url)
+      if (images.length >= 8) break
+    }
+    if (!images.length) continue
+    const selections = variantSelections(variant, propertyOrder)
+    const key = `${JSON.stringify(selections)}|${images.join('|')}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    result.push({ selections, images })
+    if (result.length >= 80) break
   }
   return result
 }
@@ -182,6 +255,7 @@ export function normalizeCandidate(candidate) {
     price: candidatePrice(candidate),
     currency: text(candidate?.currency, 10).toUpperCase(),
     images: normalizeImages(candidate),
+    variant_images: normalizeVariantImages(candidate),
     media_url: '',
     media_type: 'image',
     pack: '',
@@ -204,7 +278,7 @@ export function normalizeCandidate(candidate) {
 
 function richness(item) {
   const n = item.normalized
-  return (n.images.length * 3) + (n.variations.length * 4) + (n.description ? 3 : 0) + (n.sku ? 2 : 0) + (n.price != null ? 4 : 0) + item.confidence * 10
+  return (n.images.length * 3) + (n.variant_images.length * 4) + (n.variations.length * 4) + (n.description ? 3 : 0) + (n.sku ? 2 : 0) + (n.price != null ? 4 : 0) + item.confidence * 10
 }
 
 export function normalizeCandidates(candidates) {
