@@ -89,7 +89,7 @@ export const api = {
     return request<PublicPayload>(`/api/public/store/${encodeURIComponent(storeSlug)}${sellerSlug ? `/${encodeURIComponent(sellerSlug)}` : ''}${query ? `?${query}` : ''}`)
   },
   track: (body: { storeSlug: string; sellerSlug?: string; kind: 'view' | 'cart' | 'whatsapp' }) => request<void>('/api/public/events', { method: 'POST', body: JSON.stringify(body) }).catch(() => undefined),
-  createOrder: (body: { storeSlug: string; sellerSlug?: string; items: Array<{ productId: string; quantity: number; selections: Record<string, string> }> }) => request<{ code: string; whatsappUrl: string }>('/api/public/orders', { method: 'POST', body: JSON.stringify(body) }),
+  createOrder: (body: { storeSlug: string; sellerSlug?: string; items: Array<{ productId: string; quantity: number; selections: Record<string, string> }> }) => request<{ code: string; orderId?: string; whatsappUrl: string }>('/api/business/orders', { method: 'POST', body: JSON.stringify(body) }),
   login: (body: { email: string; password: string }) => request<{ ok: true }>('/api/auth/login', { method: 'POST', body: JSON.stringify(body) }),
   register: (body: { name: string; email: string; password: string; storeName: string; whatsapp: string }) => request<{ ok: true; storeSlug: string }>('/api/auth/register', { method: 'POST', body: JSON.stringify(body) }),
   logout: () => request<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
@@ -99,6 +99,8 @@ export const api = {
   createProduct: (body: Record<string, unknown>) => request('/api/admin/products', { method: 'POST', body: JSON.stringify(body) }),
   updateProduct: (id: string, body: Record<string, unknown>) => request(`/api/admin/products/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   deleteProduct: (id: string) => request(`/api/admin/products/${id}`, { method: 'DELETE' }),
+  updateStock: (productId: string, body: { enabled: boolean; quantity: number; variantStock: Record<string, number> }) => request<{ product: { id: string; stock_enabled: boolean; stock_quantity: number; variant_stock: Record<string, number> } }>(`/api/admin/features/products/${encodeURIComponent(productId)}/stock`, { method: 'PATCH', body: JSON.stringify(body) }),
+  cancelOrder: (orderId: string) => request<{ order: { id: string; status: string; stock_reverted: boolean }; idempotent: boolean }>(`/api/admin/features/orders/${encodeURIComponent(orderId)}/cancel`, { method: 'POST', body: '{}' }),
   createSeller: (body: Record<string, unknown>) => request('/api/admin/sellers', { method: 'POST', body: JSON.stringify(body) }),
   updateSeller: (id: string, body: Record<string, unknown>) => request(`/api/admin/sellers/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   deleteSeller: (id: string) => request(`/api/admin/sellers/${id}`, { method: 'DELETE' }),
