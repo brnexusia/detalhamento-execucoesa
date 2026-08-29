@@ -37,6 +37,12 @@ jobs:
           node-version: 22
       - name: Install
         run: npm install
+      - name: Validate production Docker hooks
+        run: |
+          grep -Fq '"./server/platform-hooks.mjs"' Dockerfile
+          grep -Fq '"./server/scanner-hooks.mjs"' Dockerfile
+          grep -Fq '"./server/scanner-publish-hooks.mjs"' Dockerfile
+          grep -Fq '"./server/public-protection-hooks.mjs"' Dockerfile
       - name: Scanner URL tests
         run: npm run test:scanner
       - name: Scanner collector tests
