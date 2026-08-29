@@ -72,7 +72,6 @@ express.application.init = function performancePatchedInit(...args) {
   this.__atacadoPerformanceInstalled = true
 
   this.disable('x-powered-by')
-  this.set('etag', 'strong')
   this.use(compression({ threshold: 1024 }))
   this.use((req, res, next) => {
     res.setHeader('X-DNS-Prefetch-Control', 'on')
