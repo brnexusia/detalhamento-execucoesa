@@ -97,7 +97,7 @@ function shape(row) {
     deliveryMethods: deliveries.map((key) => ({ key, label: deliveryLabels[key] })),
     note: String(row.commercial_note || ''),
     informationalOnly: true,
-    disclaimer: 'Estas opções são apenas informativas. Pagamento, frete, prazo e entrega são combinados com o atendimento; o Atacado Shop não processa pagamento nem calcula ou rastreia frete.',
+    disclaimer: 'Estas opções são apenas informativas. Pagamento, frete, prazo e entrega são combinados com o atendimento; o Atacado Shop não processa pagamento e não calcula ou rastreia frete.',
   }
 }
 
