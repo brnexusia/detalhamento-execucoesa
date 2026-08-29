@@ -1,10 +1,10 @@
 import { safeRequest } from '../../server/scanner-collector.mjs'
 import { extractFacilZapRuntime, facilZapProducts } from '../../server/scanner-platforms.mjs'
 
-const storeUrl = process.env.FACILZAP_STORE_URL || 'https://facilzap.app.br/nesmodaintima'
+const storeUrl = process.env.FACILZAP_STORE_URL || 'https://nesmodaintima.com.br'
 const root = await safeRequest(storeUrl)
 console.log('root', root.status, root.url, root.contentType, root.body.length)
-console.log('rootBody', JSON.stringify(root.body.slice(0,1000)))
+console.log('hasFacilZap', /facilzap/i.test(root.body), 'hasRuntime', /FZCatalogoRuntime/i.test(root.body))
 const runtime = extractFacilZapRuntime(root.body)
 console.log('runtime', JSON.stringify(runtime))
 if (!runtime?.urlCarregarProdutosTemplate) process.exit(2)
