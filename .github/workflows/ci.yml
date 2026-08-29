@@ -39,6 +39,7 @@ jobs:
         run: npm install
       - name: Validate production Docker hooks
         run: |
+          grep -Fq '"./server/performance-hooks.mjs"' Dockerfile
           grep -Fq '"./server/platform-hooks.mjs"' Dockerfile
           grep -Fq '"./server/scanner-hooks.mjs"' Dockerfile
           grep -Fq '"./server/scanner-publish-hooks.mjs"' Dockerfile
@@ -59,6 +60,8 @@ jobs:
         run: node server/scanner-module7-dedicated.test.mjs
       - name: Build
         run: npm run build
+      - name: Show production bundles
+        run: find dist/assets -maxdepth 1 -type f -printf '%f %k KB\n' | sort
       - name: Start application
         run: |
           npm start > /tmp/atacado-shop.log 2>&1 &
