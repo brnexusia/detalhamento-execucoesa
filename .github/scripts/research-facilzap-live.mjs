@@ -1,7 +1,7 @@
 import { safeRequest } from '../../server/scanner-collector.mjs'
 import { extractFacilZapRuntime, facilZapProducts } from '../../server/scanner-platforms.mjs'
 
-const storeUrl = process.env.FACILZAP_STORE_URL || 'https://facilzap.app.br/feminisces'
+const storeUrl = process.env.FACILZAP_STORE_URL || 'https://facilzap.app.br/nesmodaintima'
 const root = await safeRequest(storeUrl)
 console.log('root', root.status, root.url, root.contentType, root.body.length)
 console.log('rootBody', JSON.stringify(root.body.slice(0,1000)))
