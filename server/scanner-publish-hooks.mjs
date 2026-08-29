@@ -35,6 +35,8 @@ async function ensurePublisherSchema() {
     ALTER TABLE import_normalized_products ADD COLUMN IF NOT EXISTS publish_result text NOT NULL DEFAULT '';
     ALTER TABLE import_normalized_products ADD COLUMN IF NOT EXISTS published_at timestamptz;
     ALTER TABLE import_normalized_products ADD COLUMN IF NOT EXISTS publish_group_key text NOT NULL DEFAULT '';
+    ALTER TABLE products ADD COLUMN IF NOT EXISTS images jsonb NOT NULL DEFAULT '[]'::jsonb;
+    ALTER TABLE products ADD COLUMN IF NOT EXISTS variant_images jsonb NOT NULL DEFAULT '[]'::jsonb;
     CREATE INDEX IF NOT EXISTS idx_import_normalized_publish_result ON import_normalized_products(job_id,publish_result);
     CREATE INDEX IF NOT EXISTS idx_import_normalized_publish_group ON import_normalized_products(job_id,selected,publish_group_key);
   `)
@@ -220,9 +222,7 @@ async function publishJob(req, res) {
           const result = alreadyPublished.publish_result || 'created'
           if (result === 'existing') skippedExisting += 1
           else created += 1
-          for (const row of item.members) {
-            publishRows.push({ row_id: row.id, product_id: alreadyPublished.published_product_id, result })
-          }
+          for (const row of item.members) publishRows.push({ row_id: row.id, product_id: alreadyPublished.published_product_id, result })
           continue
         }
 
@@ -237,7 +237,8 @@ async function publishJob(req, res) {
         }
 
         const productId = id()
-        const mediaUrl = String(data.media_url || data.images?.[0] || '').trim().slice(0, 1000)
+        const images = Array.isArray(data.images) ? data.images.slice(0, 40) : []
+        const mediaUrl = String(data.media_url || images[0] || '').trim().slice(0, 1000)
         productRows.push({
           id: productId,
           store_id: store.store_id,
@@ -248,6 +249,8 @@ async function publishJob(req, res) {
           category: String(data.category || 'Geral').trim().slice(0, 80) || 'Geral',
           media_url: mediaUrl,
           media_type: data.media_type === 'video' ? 'video' : 'image',
+          images,
+          variant_images: Array.isArray(data.variant_images) ? data.variant_images.slice(0, 80) : [],
           pack: String(data.pack || '').trim().slice(0, 160),
           variations: Array.isArray(data.variations) ? data.variations : [],
         })
@@ -259,10 +262,10 @@ async function publishJob(req, res) {
       if (productRows.length) {
         await client.query(
           `INSERT INTO products
-           (id,store_id,sku,name,description,price,category,media_url,media_type,pack,variations,featured,active)
-           SELECT x.id,x.store_id,x.sku,x.name,x.description,x.price,x.category,x.media_url,x.media_type,x.pack,x.variations,false,true
+           (id,store_id,sku,name,description,price,category,media_url,media_type,images,variant_images,pack,variations,featured,active)
+           SELECT x.id,x.store_id,x.sku,x.name,x.description,x.price,x.category,x.media_url,x.media_type,x.images,x.variant_images,x.pack,x.variations,false,true
            FROM jsonb_to_recordset($1::jsonb) AS x(
-             id text,store_id text,sku text,name text,description text,price numeric,category text,media_url text,media_type text,pack text,variations jsonb
+             id text,store_id text,sku text,name text,description text,price numeric,category text,media_url text,media_type text,images jsonb,variant_images jsonb,pack text,variations jsonb
            )`,
           [JSON.stringify(productRows)],
         )
