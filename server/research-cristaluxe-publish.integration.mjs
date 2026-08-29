@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import pg from 'pg'
 import { processImportJob, processNormalizationJob } from './scanner-hooks.mjs'
 import { collectCatalog } from './scanner-collector.mjs'
 
@@ -50,6 +51,13 @@ console.log('normalized', JSON.stringify({ status: normalized.status, normalized
 assert.equal(normalized.normalized_count, 175)
 assert.equal(normalized.selected_count, 175)
 
+// Simula um banco de produção criado por uma versão antiga: a tabela existe,
+// mas ainda não possui a coluna updated_at que versões novas passaram a usar.
+const legacyPool = new pg.Pool({ connectionString: process.env.DATABASE_URL })
+await legacyPool.query('ALTER TABLE import_normalized_products DROP COLUMN IF EXISTS updated_at')
+await legacyPool.end()
+console.log('legacySchema', 'updated_at removida')
+
 response = await api(`/api/admin/imports/${jobId}/publish`, cookie, { method: 'POST', body: '{}' })
 raw = await response.text()
 console.log('publish', response.status, raw)
@@ -69,4 +77,4 @@ assert.equal(bootstrap.products.length, 175)
 assert.ok(bootstrap.products.every((p) => p.name && Number(p.price) > 0))
 assert.ok(bootstrap.products.filter((p) => p.mediaUrl || p.media_url).length >= 170)
 
-console.log('[cristaluxe publish] 175/175 saved successfully')
+console.log('[cristaluxe publish] legacy schema -> 175/175 saved successfully')
