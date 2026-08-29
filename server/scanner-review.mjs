@@ -64,6 +64,33 @@ export function sanitizeReviewVariations(value) {
   return groups
 }
 
+function sanitizeVariantImages(value) {
+  const result = []
+  for (const raw of Array.isArray(value) ? value : []) {
+    const images = []
+    const seen = new Set()
+    for (const item of Array.isArray(raw?.images) ? raw.images : []) {
+      const url = safeMediaUrl(item)
+      if (!url || seen.has(url)) continue
+      seen.add(url)
+      images.push(url)
+      if (images.length >= 8) break
+    }
+    if (!images.length) continue
+    const selections = {}
+    if (raw?.selections && typeof raw.selections === 'object') {
+      for (const [name, option] of Object.entries(raw.selections)) {
+        const canonical = canonicalVariationName(name)
+        const clean = text(option, 60)
+        if (canonical && clean) selections[canonical] = clean
+      }
+    }
+    result.push({ selections, images })
+    if (result.length >= 80) break
+  }
+  return result
+}
+
 export function sanitizeReviewData(value) {
   const input = value && typeof value === 'object' ? value : {}
   const images = []
@@ -73,7 +100,7 @@ export function sanitizeReviewData(value) {
     if (!url || seenImages.has(url)) continue
     seenImages.add(url)
     images.push(url)
-    if (images.length >= 12) break
+    if (images.length >= 40) break
   }
 
   let mediaUrl = safeMediaUrl(input.media_url)
@@ -89,6 +116,7 @@ export function sanitizeReviewData(value) {
     price: money(input.price),
     currency: text(input.currency, 10).toUpperCase(),
     images,
+    variant_images: sanitizeVariantImages(input.variant_images),
     media_url: mediaUrl,
     media_type: input.media_type === 'video' ? 'video' : 'image',
     pack: text(input.pack, 160),
