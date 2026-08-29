@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react'
-import AdminApp from './AdminApp'
-import { AuthPage } from './Auth'
-import Home from './Home'
-import PlatformAdmin from './PlatformAdmin'
-import PublicStore from './PublicStore'
-import ScannerModule1 from './ScannerModule1'
+import { lazy, Suspense, useEffect, useState } from 'react'
+
+const HomeRoute = lazy(() => import('./HomeRoute'))
+const AuthRoute = lazy(() => import('./AuthRoute'))
+const PlatformRoute = lazy(() => import('./PlatformRoute'))
+const AdminRoute = lazy(() => import('./AdminRoute'))
+const PublicRoute = lazy(() => import('./PublicRoute'))
 
 function pageFor(pathname: string) {
   if (pathname === '/' || pathname === '') return 'home'
@@ -13,6 +13,10 @@ function pageFor(pathname: string) {
   if (pathname === '/admin' || pathname.startsWith('/admin/')) return 'platform'
   if (pathname === '/painel' || pathname.startsWith('/painel/')) return 'admin'
   return 'store'
+}
+
+function RouteFallback() {
+  return <div className="store-loading"><span className="brand__mark">AS</span><strong>Carregando…</strong></div>
 }
 
 export default function App() {
@@ -24,10 +28,13 @@ export default function App() {
     return () => window.removeEventListener('popstate', onPop)
   }, [])
 
-  if (page === 'home') return <Home />
-  if (page === 'login') return <AuthPage mode="login" />
-  if (page === 'register') return <AuthPage mode="register" />
-  if (page === 'platform') return <PlatformAdmin />
-  if (page === 'admin') return <><AdminApp /><ScannerModule1 /></>
-  return <PublicStore />
+  let content
+  if (page === 'home') content = <HomeRoute />
+  else if (page === 'login') content = <AuthRoute mode="login" />
+  else if (page === 'register') content = <AuthRoute mode="register" />
+  else if (page === 'platform') content = <PlatformRoute />
+  else if (page === 'admin') content = <AdminRoute />
+  else content = <PublicRoute />
+
+  return <Suspense fallback={<RouteFallback />}>{content}</Suspense>
 }
