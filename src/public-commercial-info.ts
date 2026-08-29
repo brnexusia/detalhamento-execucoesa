@@ -57,3 +57,5 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   else void load()
   window.addEventListener('popstate', () => { document.getElementById('atacado-commercial-info')?.remove(); void load() })
 }
+
+export {}
