@@ -40,7 +40,9 @@ jobs:
       - name: Validate production Docker hooks
         run: |
           grep -Fq '"./server/performance-hooks.mjs"' Dockerfile
+          grep -Fq '"./server/api-json-hooks.mjs"' Dockerfile
           grep -Fq '"./server/analytics-features-hooks.mjs"' Dockerfile
+          grep -Fq '"./server/team-features-hooks.mjs"' Dockerfile
           grep -Fq '"./server/catalog-order-lock-fix.mjs"' Dockerfile
           grep -Fq '"./server/catalog-features-hooks.mjs"' Dockerfile
           grep -Fq '"./server/business-features-hooks.mjs"' Dockerfile
@@ -76,6 +78,8 @@ jobs:
         run: node server/business-module3.integration.mjs
       - name: Business module 4 intelligence integration
         run: node server/business-module4.integration.mjs
+      - name: Business module 5 team integration
+        run: node server/business-module5.integration.mjs
       - name: Scanner module 1 integration
         run: node server/scanner-module1.integration.mjs
       - name: Scanner module 2 integration
