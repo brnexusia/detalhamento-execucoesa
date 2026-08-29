@@ -30,6 +30,7 @@ async function ensurePublisherSchema() {
     ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS published_count integer NOT NULL DEFAULT 0;
     ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS skipped_existing_count integer NOT NULL DEFAULT 0;
     ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS published_at timestamptz;
+    ALTER TABLE import_normalized_products ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
     ALTER TABLE import_normalized_products ADD COLUMN IF NOT EXISTS published_product_id text;
     ALTER TABLE import_normalized_products ADD COLUMN IF NOT EXISTS publish_result text NOT NULL DEFAULT '';
     ALTER TABLE import_normalized_products ADD COLUMN IF NOT EXISTS published_at timestamptz;
