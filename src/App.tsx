@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import PublicRoute from './PublicRoute'
+import './intent-tracker'
 
 const HomeRoute = lazy(() => import('./HomeRoute'))
 const AuthRoute = lazy(() => import('./AuthRoute'))
