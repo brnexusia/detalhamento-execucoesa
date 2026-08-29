@@ -4,6 +4,7 @@ on:
     branches: [fix-facilzap-images-publish]
     paths:
       - '.github/workflows/research-facilzap-live.yml'
+      - '.github/scripts/research-facilzap-live.mjs'
 permissions:
   contents: read
 jobs:
