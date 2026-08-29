@@ -49,6 +49,22 @@ express.static = function performanceStatic(root, options = {}) {
   })
 }
 
+function mediaOrigins(payload) {
+  const urls = [
+    payload?.store?.logoUrl,
+    ...(Array.isArray(payload?.products) ? payload.products.slice(0, 8).map((product) => product?.mediaUrl) : []),
+  ]
+  const origins = new Set()
+  for (const value of urls) {
+    if (!value) continue
+    try {
+      const url = new URL(String(value))
+      if (url.protocol === 'https:' || url.protocol === 'http:') origins.add(url.origin)
+    } catch {}
+  }
+  return Array.from(origins).slice(0, 4)
+}
+
 const originalInit = express.application.init
 express.application.init = function performancePatchedInit(...args) {
   const result = originalInit.apply(this, args)
@@ -62,9 +78,8 @@ express.application.init = function performancePatchedInit(...args) {
     res.setHeader('X-DNS-Prefetch-Control', 'on')
     res.setHeader('Permissions-Policy', 'interest-cohort=()')
 
-    // A primeira tela da loja precisa de poucos produtos. O restante entra por cursor
-    // conforme o usuário se aproxima do fim da grade/feed.
-    if (req.method === 'GET' && req.url.startsWith('/api/public/store/')) {
+    const isPublicStore = req.method === 'GET' && req.url.startsWith('/api/public/store/')
+    if (isPublicStore) {
       try {
         const url = new URL(req.url, 'http://atacado.local')
         if (!url.searchParams.has('limit')) {
@@ -72,6 +87,18 @@ express.application.init = function performancePatchedInit(...args) {
           req.url = `${url.pathname}?${url.searchParams.toString()}`
         }
       } catch {}
+
+      const json = res.json.bind(res)
+      res.json = (payload) => {
+        if (res.statusCode >= 200 && res.statusCode < 300 && Array.isArray(payload?.products)) {
+          res.setHeader('Cache-Control', 'private, max-age=15, stale-while-revalidate=45')
+          const origins = mediaOrigins(payload)
+          if (origins.length) {
+            res.setHeader('Link', origins.map((origin) => `<${origin}>; rel=preconnect; crossorigin`).join(', '))
+          }
+        }
+        return json(payload)
+      }
     }
 
     next()
