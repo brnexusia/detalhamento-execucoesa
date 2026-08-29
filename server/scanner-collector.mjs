@@ -160,6 +160,21 @@ export function detectPlatform(html, sourceUrl = '') {
   return detectStorefrontPlatform(html, sourceUrl)
 }
 
+
+function facilZapJavascriptRedirect(html, currentUrl) {
+  let host = ''
+  try { host = new URL(currentUrl).hostname.toLowerCase() } catch { return '' }
+  if (host !== 'facilzap.app.br' && !host.endsWith('.facilzap.app.br')) return ''
+  const source = String(html || '')
+  if (source.length > 4096) return ''
+  const match = /(?:window\.)?location(?:\.href)?\s*=\s*['"](https?:\/\/[^'"]+)['"]/i.exec(source)
+  if (!match) return ''
+  try {
+    const target = new URL(match[1])
+    return ['http:', 'https:'].includes(target.protocol) ? target.toString() : ''
+  } catch { return '' }
+}
+
 function asArray(value) {
   return value == null ? [] : Array.isArray(value) ? value : [value]
 }
@@ -770,9 +785,20 @@ export async function collectCatalog(sourceUrl, options = {}) {
   const sink = createCandidateSink(options, maxProducts)
 
   await onProgress({ progress: 5, pagesScanned: 0, candidates: 0 })
-  const rootResponse = await request(sourceUrl)
+  let rootResponse = await request(sourceUrl)
   if (!rootResponse.ok) throw new Error(`A loja respondeu HTTP ${rootResponse.status}.`)
   if (!rootResponse.contentType.includes('html')) throw new Error('A URL informada não parece ser uma página de loja.')
+
+  // FácilZap usa um redirect por JavaScript quando a loja possui domínio próprio.
+  // Seguimos somente esse formato explícito vindo de facilzap.app.br; a nova URL ainda
+  // passa integralmente pelo safeRequest/SSRF antes de ser lida.
+  const jsRedirect = facilZapJavascriptRedirect(rootResponse.body, rootResponse.url)
+  if (jsRedirect) {
+    const redirected = await request(jsRedirect)
+    if (!redirected.ok) throw new Error(`O domínio próprio da loja respondeu HTTP ${redirected.status}.`)
+    if (!redirected.contentType.includes('html')) throw new Error('O domínio próprio do FácilZap não retornou uma vitrine HTML.')
+    rootResponse = redirected
+  }
 
   const platform = detectPlatform(rootResponse.body, rootResponse.url)
   await onProgress({ progress: 10, pagesScanned: 1, candidates: 0, platform })

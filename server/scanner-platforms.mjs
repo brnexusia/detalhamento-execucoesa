@@ -46,6 +46,73 @@ function mediaUrls(value, baseUrl) {
   return unique(found)
 }
 
+
+function facilZapMediaUrl(value, baseUrl) {
+  const raw = text(value)
+  if (!raw) return ''
+  if (/^https?:\/\//i.test(raw)) return raw
+  if (raw.startsWith('//')) return `https:${raw}`
+  const path = raw.replace(/^\/+/, '')
+  // O payload público do FácilZap entrega imagens como `produtos/arquivo.webp`.
+  // Esses caminhos pertencem ao CDN de arquivos, inclusive quando a loja usa domínio próprio.
+  if (/^(?:produtos|lojas|categorias|banners|uploads)\//i.test(path)) {
+    return `https://arquivos.facilzap.app.br/${path}`
+  }
+  return absolute(raw, baseUrl)
+}
+
+function facilZapMediaUrls(value, baseUrl) {
+  const found = []
+  const visit = (item) => {
+    if (!item) return
+    if (typeof item === 'string') {
+      const url = facilZapMediaUrl(item, baseUrl)
+      if (url) found.push(url)
+      return
+    }
+    if (Array.isArray(item)) {
+      for (const child of item) visit(child)
+      return
+    }
+    if (typeof item !== 'object') return
+    for (const key of ['url', 'src', 'image', 'imagem', 'foto', 'arquivo', 'fallback', 'caminho', 'path']) {
+      if (typeof item[key] === 'string') visit(item[key])
+    }
+    for (const key of ['normal', 'zoom', 'thumb', 'media', 'images', 'imagens', 'fotos']) {
+      if (item[key]) visit(item[key])
+    }
+  }
+  visit(value)
+  return unique(found)
+}
+
+function objectEntries(value) {
+  if (Array.isArray(value)) return value.map((item, index) => [String(item?.id ?? index), item])
+  if (value && typeof value === 'object') return Object.entries(value)
+  return []
+}
+
+function positiveNumber(...values) {
+  for (const value of values) {
+    const parsed = numberValue(value)
+    if (parsed != null && parsed > 0) return parsed
+  }
+  return null
+}
+
+function facilZapVariantProperties(nameValue, colorValue) {
+  const name = text(nameValue)
+  const color = text(colorValue)
+  const properties = []
+  if (color) properties.push({ name: 'Cor', value: color })
+
+  const sizeMatch = /^(?:tamanho|tam)\s*[:\-]?\s*(.+)$/i.exec(name)
+  if (sizeMatch?.[1]) properties.push({ name: 'Tamanho', value: text(sizeMatch[1]) })
+  else if (/^(?:pp|p|m|g|gg|xg|xgg|eg|egg|\d{1,3})$/i.test(name)) properties.push({ name: 'Tamanho', value: name })
+  else if (name && !color) properties.push({ name: 'Variação', value: name })
+  return properties
+}
+
 export function detectStorefrontPlatform(html, sourceUrl = '') {
   const value = String(html || '').toLowerCase()
   let host = ''
@@ -99,23 +166,40 @@ export function extractFacilZapRuntime(html) {
   return null
 }
 
-function normalizeVariation(item) {
+function normalizeVariation(item, fallbackId = '', parent = {}) {
   if (!item || typeof item !== 'object') return null
-  const result = {
-    external_id: text(item.id ?? item.idVariacao ?? item.variacao_id ?? item.variant_id),
-    title: text(item.nome ?? item.name ?? item.titulo ?? item.title),
-    sku: text(item.sku ?? item.codigo ?? item.referencia ?? item.code),
-    color: text(item.cor ?? item.color ?? item.nome_cor),
-    size: text(item.tamanho ?? item.size ?? item.nome_tamanho),
-    price: numberValue(item.preco ?? item.preco_venda ?? item.valor ?? item.price),
-    available: item.disponivel ?? item.available ?? item.ativo ?? item.active ?? true,
+  const externalId = text(item.id ?? item.idVariacao ?? item.variacao_id ?? item.variant_id ?? fallbackId)
+  const title = text(item.nome ?? item.name ?? item.titulo ?? item.title)
+  const properties = facilZapVariantProperties(title, item.cor ?? item.color ?? item.nome_cor)
+  const color = text(properties.find((property) => property.name === 'Cor')?.value)
+  const size = text(properties.find((property) => property.name === 'Tamanho')?.value)
+  const priceMeta = parent?.precos_produto?.variacoes?.[externalId] ?? parent?.precos_produto?.variations?.[externalId] ?? {}
+  const stockRaw = parent?.estoque?.[externalId] ?? item.estoque ?? item.stock
+  const availabilityRaw = parent?.disponibilidade?.[externalId] ?? item.disponivel ?? item.available ?? item.ativo ?? item.active
+  const controlled = parent?.controlar_estoque === true
+  const stock = numberValue(stockRaw)
+  const explicitAvailable = !['0', 'false', 'indisponivel', 'indisponível'].includes(text(availabilityRaw).toLowerCase())
+  return {
+    external_id: externalId,
+    title,
+    sku: text(item.sku ?? item.codigo ?? item.referencia ?? item.code ?? parent?.sku_variacoes?.[externalId]),
+    color,
+    size,
+    price: positiveNumber(
+      item.preco_promocional,
+      item.preco,
+      item.preco_venda,
+      item.valor,
+      item.price,
+      priceMeta?.promocional,
+      priceMeta?.padrao,
+    ),
+    available: explicitAvailable && (!controlled || stock == null || stock > 0),
+    stock,
+    properties,
   }
-  const properties = []
-  if (result.color) properties.push({ name: 'Cor', value: result.color })
-  if (result.size) properties.push({ name: 'Tamanho', value: result.size })
-  result.properties = properties
-  return result
 }
+
 
 export function facilZapProducts(payload, sourceUrl) {
   if (!payload) return { end: false, products: [] }
@@ -130,14 +214,51 @@ export function facilZapProducts(payload, sourceUrl) {
     const title = text(item.nome ?? item.name ?? item.titulo ?? item.title)
     if (!title) continue
     const productUrl = absolute(item.url ?? item.link ?? item.permalink ?? (externalId ? `produto/${externalId}` : ''), sourceUrl)
-    const images = mediaUrls(item.imagens ?? item.images ?? item.fotos ?? item.media ?? item.imagem ?? item.image, sourceUrl)
-    const rawVariants = asArray(item.variacoes ?? item.variants ?? item.grade ?? item.grades ?? item.opcoes)
-    const variants = rawVariants.map(normalizeVariation).filter(Boolean)
-    const properties = []
-    const colors = unique(asArray(item.cores ?? item.colors).map((entry) => typeof entry === 'object' ? entry.nome ?? entry.name ?? entry.cor ?? entry.color : entry))
-    const sizes = unique(asArray(item.tamanhos ?? item.sizes).map((entry) => typeof entry === 'object' ? entry.nome ?? entry.name ?? entry.tamanho ?? entry.size : entry))
-    if (colors.length) properties.push({ name: 'Cor', values: colors })
-    if (sizes.length) properties.push({ name: 'Tamanho', values: sizes })
+    const images = facilZapMediaUrls([
+      item.imagens,
+      item.images,
+      item.fotos,
+      item.media,
+      item.imagem,
+      item.image,
+      item.imagens_variacoes,
+    ], sourceUrl)
+
+    // Na API real `variacoes` é um objeto indexado pelo ID da variação.
+    const variantSource = item.variacoes ?? item.variants ?? item.grade ?? item.grades ?? item.opcoes
+    const variants = objectEntries(variantSource)
+      .map(([variantId, variant]) => normalizeVariation(variant, variantId, item))
+      .filter((variant) => variant && (variant.external_id || variant.sku || variant.properties.length))
+
+    const propertyMap = new Map()
+    const addProperty = (nameValue, valueValue) => {
+      const name = text(nameValue)
+      const value = text(valueValue)
+      if (!name || !value) return
+      const key = name.toLocaleLowerCase('pt-BR')
+      if (!propertyMap.has(key)) propertyMap.set(key, { name, values: [] })
+      const group = propertyMap.get(key)
+      if (!group.values.some((entry) => entry.toLocaleLowerCase('pt-BR') === value.toLocaleLowerCase('pt-BR'))) group.values.push(value)
+    }
+    for (const variant of variants) for (const property of variant.properties || []) addProperty(property.name, property.value)
+    for (const entry of asArray(item.cores ?? item.colors)) addProperty('Cor', typeof entry === 'object' ? entry.nome ?? entry.name ?? entry.cor ?? entry.color : entry)
+    for (const entry of asArray(item.tamanhos ?? item.sizes)) addProperty('Tamanho', typeof entry === 'object' ? entry.nome ?? entry.name ?? entry.tamanho ?? entry.size : entry)
+    const properties = [...propertyMap.values()].filter((group) => group.values.length)
+
+    const priceMeta = item.precos_produto || {}
+    const effectivePrice = positiveNumber(
+      priceMeta?.preco_a_partir?.ativado !== false ? priceMeta?.preco_a_partir?.preco : null,
+      priceMeta?.promocional,
+      item.preco_promocional,
+      item.preco,
+      item.preco_venda,
+      item.valor,
+      item.price,
+      ...variants.map((variant) => variant.price),
+    )
+    const controlled = item.controlar_estoque === true
+    const totalAvailable = numberValue(item.total_disponibilidade ?? item.total_estoque)
+    const available = item.status !== false && (!controlled || totalAvailable == null || totalAvailable > 0)
 
     products.push({
       source_url: productUrl || sourceUrl,
@@ -145,20 +266,21 @@ export function facilZapProducts(payload, sourceUrl) {
       title,
       description: text(item.descricao ?? item.description ?? item.detalhes ?? item.details),
       sku: text(item.sku ?? item.codigo ?? item.referencia ?? item.code),
-      category: text(item.categoria?.nome ?? item.categoria ?? item.category?.name ?? item.category),
+      category: text(item.categoria_nome ?? item.categoria?.nome ?? item.categoria ?? item.category?.name ?? item.category),
       brand: text(item.marca?.nome ?? item.marca ?? item.brand?.name ?? item.brand),
       images,
       variants,
       properties,
-      price: numberValue(item.preco ?? item.preco_venda ?? item.valor ?? item.price),
-      price_text: text(item.preco_formatado ?? item.price_text ?? item.preco ?? item.price),
+      price: effectivePrice,
+      price_text: effectivePrice == null ? '' : String(effectivePrice),
       currency: text(item.moeda ?? item.currency) || 'BRL',
-      availability: text(item.disponibilidade ?? item.availability ?? (item.disponivel === false ? 'OutOfStock' : '')),
+      availability: available ? 'InStock' : 'OutOfStock',
       source: 'facilzap-public-pagination',
     })
   }
   return { end: products.length === 0, products }
 }
+
 
 export function parseVestiContext(sourceUrl, html = '') {
   let url

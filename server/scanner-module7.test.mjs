@@ -19,22 +19,39 @@ assert.match(runtime.urlCarregarProdutosTemplate, /carregar_produtos\/\{PAGE\}\/
 assert.equal(runtime.searchId, 'search-123')
 
 const mappedFacil = facilZapProducts({ produtos: [{
-  id: 11,
-  nome: 'Vestido Solar',
-  descricao: 'Midi',
-  codigo: 'VS-11',
-  preco: 'R$ 49,90',
-  categoria: { nome: 'Vestidos' },
-  fotos: [{ url: '/media/11.jpg' }],
-  cores: [{ nome: 'Azul' }, { nome: 'Preto' }],
-  tamanhos: ['P', 'M'],
-  variacoes: [{ id: 101, sku: 'VS-11-P-AZ', cor: 'Azul', tamanho: 'P', preco: '49,90' }],
-}] }, 'https://facilzap.app.br/minhaloja/')
+  id: '3652733',
+  nome: 'Kit Calcinhas Total Confort',
+  descricao: 'Produto realista de teste',
+  preco: 75,
+  categoria: 47650,
+  categoria_nome: 'Calcinhas',
+  sku: 'FZ3652733',
+  controlar_estoque: true,
+  total_disponibilidade: 6,
+  imagens: ['produtos/1765916872_baba5b625a9226b240b3.webp'],
+  precos_produto: {
+    preco_a_partir: { preco: '60', ativado: true },
+    promocional: '70.00',
+    variacoes: { '1773005': { padrao: '60', promocional: false }, '1773006': { padrao: '60', promocional: false } },
+  },
+  variacoes: {
+    '1773005': { id: '1773005', nome: 'Tamanho M', cor: '' },
+    '1773006': { id: '1773006', nome: 'Tamanho G', cor: '' },
+  },
+  sku_variacoes: { '1773005': 'FZ3652733.6', '1773006': 'FZ3652733.15' },
+  disponibilidade: { '1773005': '1', '1773006': '1' },
+  estoque: { '1773005': 3, '1773006': 5 },
+}] }, 'https://minhaloja.com.br/')
 assert.equal(mappedFacil.products.length, 1)
-assert.equal(mappedFacil.products[0].price, 49.9)
-assert.equal(mappedFacil.products[0].sku, 'VS-11')
-assert.deepEqual(mappedFacil.products[0].properties[0].values, ['Azul', 'Preto'])
-assert.equal(mappedFacil.products[0].variants[0].size, 'P')
+assert.equal(mappedFacil.products[0].price, 60)
+assert.equal(mappedFacil.products[0].sku, 'FZ3652733')
+assert.equal(mappedFacil.products[0].category, 'Calcinhas')
+assert.equal(mappedFacil.products[0].images[0], 'https://arquivos.facilzap.app.br/produtos/1765916872_baba5b625a9226b240b3.webp')
+assert.deepEqual(mappedFacil.products[0].properties[0].values, ['M', 'G'])
+assert.equal(mappedFacil.products[0].variants[0].size, 'M')
+assert.equal(mappedFacil.products[0].variants[0].sku, 'FZ3652733.6')
+assert.equal(mappedFacil.products[0].variants[0].price, 60)
+assert.equal(mappedFacil.products[0].availability, 'InStock')
 assert.equal(facilZapProducts({ acao: 'sem_mais_produtos' }, 'https://facilzap.app.br/minhaloja/').end, true)
 
 const vestiContext = parseVestiContext('https://v.vesti.mobi/lojax/catalogo/cat123')
@@ -90,6 +107,25 @@ assert.equal(facilCollected.candidateCount, 26)
 assert.equal(facilCollected.candidates.length, 26)
 assert.equal(facilCollected.candidates.at(-1).sku, 'FZ-26')
 assert.ok(facilCalls.some((call) => call.options.method === 'POST'))
+
+
+let redirectedRootCalls = []
+const redirectedRequest = async (input, options = {}) => {
+  const url = String(input)
+  redirectedRootCalls.push(url)
+  if (url === 'https://facilzap.app.br/minhaloja') return response(url, `<script>window.location.href = 'https://loja-propria.example';</script>`)
+  if (url === 'https://loja-propria.example/') return response(url, facilRoot.replaceAll('https://facilzap.app.br/minhaloja', 'https://loja-propria.example'))
+  const match = /carregar_produtos\/(\d+)\/todas\//.exec(url)
+  if (!match) return { status: 404, ok: false, url, contentType: 'text/plain', headers: {}, body: '' }
+  const page = Number(match[1])
+  if (page > 1) return response(url, JSON.stringify({ acao: 'sem_mais_produtos' }), 'application/json')
+  return response(url, JSON.stringify({ produtos: [{ id: 1, nome: 'Produto redirecionado', sku: 'FZ1', preco: 10, imagens: ['produtos/foto.webp'] }] }), 'application/json')
+}
+const redirectedCollected = await collectCatalog('https://facilzap.app.br/minhaloja', { request: redirectedRequest, strictPlatformAdapters: true })
+assert.equal(redirectedCollected.platform, 'facilzap')
+assert.equal(redirectedCollected.candidateCount, 1)
+assert.equal(redirectedCollected.candidates[0].images[0], 'https://arquivos.facilzap.app.br/produtos/foto.webp')
+assert.ok(redirectedRootCalls.includes('https://loja-propria.example/'))
 
 const vestiRoot = '<html><head><meta property="og:image" content="https://cdn-op.vesti.mobi/p/x.jpg"></head></html>'
 const vestiRequest = async (input) => {
