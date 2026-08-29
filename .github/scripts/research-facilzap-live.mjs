@@ -4,6 +4,7 @@ import { extractFacilZapRuntime, facilZapProducts } from '../../server/scanner-p
 const storeUrl = process.env.FACILZAP_STORE_URL || 'https://facilzap.app.br/feminisces'
 const root = await safeRequest(storeUrl)
 console.log('root', root.status, root.url, root.contentType, root.body.length)
+console.log('rootBody', JSON.stringify(root.body.slice(0,1000)))
 const runtime = extractFacilZapRuntime(root.body)
 console.log('runtime', JSON.stringify(runtime))
 if (!runtime?.urlCarregarProdutosTemplate) process.exit(2)
