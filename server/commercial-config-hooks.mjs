@@ -86,7 +86,7 @@ function normalizeList(value, dictionary, fallback) {
     seen.add(key)
     result.push(key)
   }
-  return result.length ? result : fallback
+  return result
 }
 
 function shape(row) {
