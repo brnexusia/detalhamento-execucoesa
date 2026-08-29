@@ -156,6 +156,24 @@ export function extractFacilZapRuntime(html) {
     } catch {}
   }
 
+  // Builds mais novos do FácilZap (inclusive domínios próprios) expõem a rota
+  // de carregamento como uma constante de seções, usando página 0 na home. A mesma
+  // rota aceita páginas 1..N para o catálogo completo.
+  const modernRoute = /const\s+urlCarregarSecoesProdutos\s*=\s*[`'"]([^`'"]+)[`'"]/i.exec(source)
+  if (modernRoute?.[1]) {
+    const rawUrl = decodeHtmlJson(modernRoute[1]).replace(/\\\//g, '/')
+    if (/\/carregar_produtos\/0\//i.test(rawUrl)) {
+      return {
+        urlCarregarProdutosTemplate: rawUrl
+          .replace(/\/carregar_produtos\/0\//i, '/carregar_produtos/{PAGE}/')
+          .replace(/\/todas\//i, '/{CATEGORY}/'),
+        searchId: '',
+        categoria: 0,
+        paginaEspecifica: '',
+      }
+    }
+  }
+
   // Some storefront builds serialize the runtime as data-* attributes.
   const $ = load(source)
   const node = $('[data-url-carregar-produtos-template]').first()

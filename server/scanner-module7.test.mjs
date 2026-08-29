@@ -18,6 +18,15 @@ assert.ok(runtime)
 assert.match(runtime.urlCarregarProdutosTemplate, /carregar_produtos\/\{PAGE\}\/\{CATEGORY\}/)
 assert.equal(runtime.searchId, 'search-123')
 
+const modernFacilRoot = `<!doctype html><html><head>
+<script src="https://assets-cdn.facilzap.app.br/catalogo.js"></script>
+</head><body><script>
+const urlCarregarSecoesProdutos = ` + "`" + `https://cristaluxe.example/c/atacado/carregar_produtos/0/todas/11933520201` + "`" + `;
+</script></body></html>`
+const modernRuntime = extractFacilZapRuntime(modernFacilRoot)
+assert.ok(modernRuntime)
+assert.equal(modernRuntime.urlCarregarProdutosTemplate, 'https://cristaluxe.example/c/atacado/carregar_produtos/{PAGE}/{CATEGORY}/11933520201')
+
 const mappedFacil = facilZapProducts({ produtos: [{
   id: '3652733',
   nome: 'Kit Calcinhas Total Confort',
@@ -109,6 +118,33 @@ assert.equal(facilCollected.candidateCount, 26)
 assert.equal(facilCollected.candidates.length, 26)
 assert.equal(facilCollected.candidates.at(-1).sku, 'FZ-26')
 assert.ok(facilCalls.some((call) => call.options.method === 'POST'))
+
+const modernCalls = []
+const modernRequest = async (input, options = {}) => {
+  const url = String(input)
+  modernCalls.push({ url, options })
+  if (url === 'https://cristaluxe.example/') return response(url, modernFacilRoot)
+  const match = /carregar_produtos\/(\d+)\/todas\//.exec(url)
+  if (!match) return { status: 404, ok: false, url, contentType: 'text/plain', headers: {}, body: '' }
+  const page = Number(match[1])
+  if (page === 3) return response(url, JSON.stringify({ acao: 'sem_mais_produtos' }), 'application/json')
+  const count = page === 1 ? 12 : 7
+  const start = page === 1 ? 0 : 12
+  return response(url, JSON.stringify({ produtos: Array.from({ length: count }, (_, index) => ({
+    id: start + index + 1,
+    nome: `Cristaluxe ${start + index + 1}`,
+    sku: `CR-${start + index + 1}`,
+    preco: '29,90',
+    imagens: [`produtos/cr-${start + index + 1}.webp`],
+    descricao: 'Descrição completa',
+  })) }), 'application/json')
+}
+const modernCollected = await collectCatalog('https://cristaluxe.example/', { request: modernRequest, strictPlatformAdapters: true })
+assert.equal(modernCollected.platform, 'facilzap')
+assert.equal(modernCollected.candidateCount, 19)
+assert.equal(modernCollected.candidates.at(-1).sku, 'CR-19')
+assert.equal(modernCollected.candidates[0].images[0], 'https://arquivos.facilzap.app.br/produtos/cr-1.webp')
+assert.ok(modernCalls.some((call) => call.url.includes('/carregar_produtos/2/todas/')))
 
 
 let redirectedRootCalls = []
