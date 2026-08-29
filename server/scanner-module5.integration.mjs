@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import pg from 'pg'
 import { processImportJob, processNormalizationJob } from './scanner-hooks.mjs'
 
 const base = process.env.BASE_URL || 'http://127.0.0.1:3000'
@@ -109,6 +110,12 @@ response = await api('/api/admin/products', cookieA, {
 })
 assert.equal(response.status, 201)
 
+// Regressão de produção: versões antigas criaram import_normalized_products
+// sem updated_at. O publish deve migrar o schema automaticamente antes de usar a coluna.
+const legacyPool = new pg.Pool({ connectionString: process.env.DATABASE_URL })
+await legacyPool.query('ALTER TABLE import_normalized_products DROP COLUMN IF EXISTS updated_at')
+await legacyPool.end()
+
 const [publishA, publishB] = await Promise.all([
   api(`/api/admin/imports/${jobId}/publish`, cookieA, { method: 'POST', body: '{}' }),
   api(`/api/admin/imports/${jobId}/publish`, cookieA, { method: 'POST', body: '{}' }),
@@ -182,4 +189,4 @@ assert.equal(emptyNormalized.selected_count, 0)
 response = await api(`/api/admin/imports/${emptyJobId}/publish`, cookieB, { method: 'POST', body: '{}' })
 assert.equal(response.status, 400, 'job sem produto válido não pode concluir publicação vazia')
 
-console.log('[scanner module 5] transactional bulk publish: ok')
+console.log('[scanner module 5] transactional bulk publish + legacy schema repair: ok')
