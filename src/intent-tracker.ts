@@ -1,3 +1,5 @@
+export {}
+
 type IntentKind = 'product_click' | 'cart_add' | 'checkout_start'
 
 function routeContext() {
