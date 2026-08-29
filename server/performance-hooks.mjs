@@ -90,7 +90,6 @@ express.application.init = function performancePatchedInit(...args) {
       const json = res.json.bind(res)
       res.json = (payload) => {
         if (res.statusCode >= 200 && res.statusCode < 300 && Array.isArray(payload?.products)) {
-          res.setHeader('Cache-Control', 'private, max-age=15, stale-while-revalidate=45')
           const origins = mediaOrigins(payload)
           if (origins.length) {
             res.setHeader('Link', origins.map((origin) => `<${origin}>; rel=preconnect; crossorigin`).join(', '))
