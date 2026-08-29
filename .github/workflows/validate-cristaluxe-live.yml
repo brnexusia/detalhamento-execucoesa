@@ -1,0 +1,53 @@
+name: validate-cristaluxe-live
+on:
+  push:
+    branches: [scanner-complete-custom-sites]
+    paths:
+      - '.github/workflows/validate-cristaluxe-live.yml'
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: scanner-complete-custom-sites
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Scan completo real
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict'
+          import { collectCatalog, safeRequest } from './server/scanner-collector.mjs'
+          const result = await collectCatalog('https://cristaluxesemijoias.com.br/', { strictPlatformAdapters: true })
+          const coverage = { total: result.candidateCount, images: 0, descriptions: 0, skus: 0, categories: 0, prices: 0, withVariants: 0, variants: 0, multiImage: 0 }
+          for (const p of result.candidates) {
+            if (p.images?.length) coverage.images++
+            if ((p.images?.length || 0) > 1) coverage.multiImage++
+            if (String(p.description || '').trim()) coverage.descriptions++
+            if (String(p.sku || '').trim()) coverage.skus++
+            if (String(p.category || '').trim()) coverage.categories++
+            if (Number(p.price) > 0) coverage.prices++
+            if (p.variants?.length) { coverage.withVariants++; coverage.variants += p.variants.length }
+          }
+          console.log('platform', result.platform, 'pages', result.pagesScanned)
+          console.log('coverage', JSON.stringify(coverage))
+          console.log('sampleVariantProduct', JSON.stringify(result.candidates.find(p => p.variants?.length) || null, null, 2))
+          assert.equal(result.platform, 'facilzap')
+          assert.equal(result.candidateCount, 175)
+          assert.equal(coverage.images, 175)
+          assert.equal(coverage.prices, 175)
+          assert.equal(coverage.skus, 175)
+          assert.equal(coverage.categories, 175)
+          assert.equal(coverage.descriptions, 175)
+          for (const p of result.candidates.filter(p => p.images?.[0]).slice(0, 10)) {
+            const r = await safeRequest(p.images[0], { accept: 'image/*', maxBytes: 5 * 1024 * 1024 })
+            assert.equal(r.status, 200)
+            assert.match(r.contentType, /^image\//)
+          }
+          console.log('[cristaluxe] complete live scan: ok')
+          NODE
