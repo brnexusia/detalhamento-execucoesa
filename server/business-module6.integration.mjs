@@ -71,4 +71,12 @@ assert.equal('freightQuote' in publicConfig, false)
 assert.equal('tracking' in publicConfig, false)
 assert.match(publicConfig.disclaimer, /combinados com o atendimento/i)
 
+response = await admin('/api/admin/commercial-config', account.cookie, {
+  method: 'PUT', body: JSON.stringify({ paymentMethods: [], deliveryMethods: [], note: '' }),
+})
+assert.equal(response.status, 200)
+config = await response.json()
+assert.deepEqual(config.paymentMethods, [])
+assert.deepEqual(config.deliveryMethods, [])
+
 console.log('[business module 6] informational payment + delivery only: ok')
