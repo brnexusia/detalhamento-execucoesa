@@ -5,10 +5,41 @@ const url = 'https://cristaluxesemijoias.com.br/'
 const root = await safeRequest(url)
 console.log('root', root.status, root.url, root.contentType, root.body.length)
 console.log('runtime', JSON.stringify(extractFacilZapRuntime(root.body)))
-for (const needle of ['carregar_produtos','FZCatalogoRuntime','search_id','guias_medidas','facilzap']) {
-  const idx = root.body.toLowerCase().indexOf(needle.toLowerCase())
-  console.log('needle', needle, idx, idx >= 0 ? root.body.slice(Math.max(0, idx-500), idx+1400) : '')
+
+const marker = 'urlCarregarSecoesProdutos'
+let from = 0
+while (true) {
+  const idx = root.body.indexOf(marker, from)
+  if (idx < 0) break
+  console.log('markerSnippet', root.body.slice(Math.max(0, idx-800), idx+2200))
+  from = idx + marker.length
 }
+
+const match = /const\s+urlCarregarSecoesProdutos\s*=\s*`([^`]+)`/i.exec(root.body)
+if (match) {
+  const endpoint = match[1]
+  console.log('endpoint', endpoint)
+  for (const method of ['GET','POST']) {
+    try {
+      const r = await safeRequest(endpoint, {
+        method,
+        accept: 'application/json,text/plain,*/*',
+        headers: method === 'POST' ? {'content-type':'application/json'} : undefined,
+        body: method === 'POST' ? {} : undefined,
+      })
+      console.log('endpointResult', method, r.status, r.contentType, r.body.length, r.body.slice(0,1500))
+      if (r.ok && r.contentType.includes('json')) {
+        const p = JSON.parse(r.body)
+        console.log('endpointKeys', method, Object.keys(p))
+        for (const [k,v] of Object.entries(p)) {
+          if (Array.isArray(v)) console.log('arrayKey', k, v.length, JSON.stringify(v.slice(0,1)))
+          else if (v && typeof v === 'object') console.log('objectKey', k, Object.keys(v).length, JSON.stringify(Object.entries(v).slice(0,1)))
+        }
+      }
+    } catch (e) { console.log('endpointError', method, String(e)) }
+  }
+}
+
 try {
   const result = await collectCatalog(url, { strictPlatformAdapters: true })
   console.log('platform', result.platform)
@@ -24,7 +55,6 @@ try {
     if (String(p.category||'').trim()) withCategory++
   }
   console.log('coverage', JSON.stringify({withImages,withVariants,variantCount,withDescription,withSku,withCategory}))
-  console.log('sample', JSON.stringify(result.candidates.slice(0,3), null, 2))
 } catch (error) {
   console.error('collectError', error?.stack || error)
 }
