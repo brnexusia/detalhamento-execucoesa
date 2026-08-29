@@ -35,8 +35,8 @@ const mappedFacil = facilZapProducts({ produtos: [{
     variacoes: { '1773005': { padrao: '60', promocional: false }, '1773006': { padrao: '60', promocional: false } },
   },
   variacoes: {
-    '1773005': { id: '1773005', nome: 'Tamanho M', cor: '' },
-    '1773006': { id: '1773006', nome: 'Tamanho G', cor: '' },
+    '1773005': { id: '1773005', nome: 'M (Preto)', cor: '' },
+    '1773006': { id: '1773006', nome: 'G (Azul)', cor: '' },
   },
   sku_variacoes: { '1773005': 'FZ3652733.6', '1773006': 'FZ3652733.15' },
   disponibilidade: { '1773005': '1', '1773006': '1' },
@@ -47,8 +47,10 @@ assert.equal(mappedFacil.products[0].price, 60)
 assert.equal(mappedFacil.products[0].sku, 'FZ3652733')
 assert.equal(mappedFacil.products[0].category, 'Calcinhas')
 assert.equal(mappedFacil.products[0].images[0], 'https://arquivos.facilzap.app.br/produtos/1765916872_baba5b625a9226b240b3.webp')
-assert.deepEqual(mappedFacil.products[0].properties[0].values, ['M', 'G'])
+assert.deepEqual(mappedFacil.products[0].properties.find((group) => group.name === 'Tamanho').values, ['M', 'G'])
+assert.deepEqual(mappedFacil.products[0].properties.find((group) => group.name === 'Cor').values, ['Preto', 'Azul'])
 assert.equal(mappedFacil.products[0].variants[0].size, 'M')
+assert.equal(mappedFacil.products[0].variants[0].color, 'Preto')
 assert.equal(mappedFacil.products[0].variants[0].sku, 'FZ3652733.6')
 assert.equal(mappedFacil.products[0].variants[0].price, 60)
 assert.equal(mappedFacil.products[0].availability, 'InStock')

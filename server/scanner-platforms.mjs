@@ -106,8 +106,12 @@ function facilZapVariantProperties(nameValue, colorValue) {
   const properties = []
   if (color) properties.push({ name: 'Cor', value: color })
 
+  const sizeColorMatch = /^(pp|p|m|g|gg|xg|xgg|eg|egg|\d{1,3})\s*\(([^)]+)\)$/i.exec(name)
   const sizeMatch = /^(?:tamanho|tam)\s*[:\-]?\s*(.+)$/i.exec(name)
-  if (sizeMatch?.[1]) properties.push({ name: 'Tamanho', value: text(sizeMatch[1]) })
+  if (sizeColorMatch) {
+    properties.push({ name: 'Tamanho', value: text(sizeColorMatch[1]) })
+    if (!color) properties.push({ name: 'Cor', value: text(sizeColorMatch[2]) })
+  } else if (sizeMatch?.[1]) properties.push({ name: 'Tamanho', value: text(sizeMatch[1]) })
   else if (/^(?:pp|p|m|g|gg|xg|xgg|eg|egg|\d{1,3})$/i.test(name)) properties.push({ name: 'Tamanho', value: name })
   else if (name && !color) properties.push({ name: 'Variação', value: name })
   return properties
