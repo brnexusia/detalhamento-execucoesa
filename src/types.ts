@@ -8,6 +8,16 @@ export type VariantImageGroup = {
   images: string[]
 }
 
+export type Catalog = {
+  id: string
+  slug: string
+  name: string
+  kind: 'geral' | 'atacado' | 'varejo'
+  minimumOrder: number | null
+  isDefault: boolean
+  active: boolean
+}
+
 export type Product = {
   id: string
   sku: string
@@ -55,6 +65,8 @@ export type CartItem = {
 export type PublicPayload = {
   store: Store
   seller: Seller
+  catalogs?: Catalog[]
+  activeCatalog?: Catalog
   categories?: string[]
   products: Product[]
   page?: {
@@ -118,9 +130,11 @@ export type AdminOrder = {
     lineTotal: number
     selections: Record<string, string>
     stockKey?: string
+    catalogId?: string
   }>
   status: string
   seller_id?: string | null
+  catalog_id?: string | null
   stock_reverted?: boolean
   created_at: string
 }
