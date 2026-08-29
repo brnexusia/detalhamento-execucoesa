@@ -40,6 +40,7 @@ jobs:
       - name: Validate production Docker hooks
         run: |
           grep -Fq '"./server/performance-hooks.mjs"' Dockerfile
+          grep -Fq '"./server/business-features-hooks.mjs"' Dockerfile
           grep -Fq '"./server/platform-hooks.mjs"' Dockerfile
           grep -Fq '"./server/scanner-hooks.mjs"' Dockerfile
           grep -Fq '"./server/scanner-publish-hooks.mjs"' Dockerfile
@@ -66,6 +67,8 @@ jobs:
         run: |
           npm start > /tmp/atacado-shop.log 2>&1 &
           echo $! > /tmp/atacado-shop.pid
+      - name: Business module 2 stock integration
+        run: node server/business-module2.integration.mjs
       - name: Scanner module 1 integration
         run: node server/scanner-module1.integration.mjs
       - name: Scanner module 2 integration
