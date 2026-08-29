@@ -28,12 +28,46 @@ if (pool) {
   timer.unref()
 }
 
+function uniqueImages(row, fallback) {
+  const values = [...(Array.isArray(row?.images) ? row.images : []), fallback || '']
+  const seen = new Set()
+  return values.map((value) => String(value || '').trim()).filter((value) => value && !seen.has(value) && seen.add(value)).slice(0, 40)
+}
+
 function install(app) {
   if (app.__atacadoBusinessFeaturesInstalled) return
   app.__atacadoBusinessFeaturesInstalled = true
-  app.use((req, _res, next) => {
+  app.use((req, res, next) => {
     if (!req.path.startsWith('/api/')) return next()
-    Promise.resolve(schemaReady()).then(() => next()).catch(next)
+    Promise.resolve(schemaReady()).then(() => {
+      if (req.method === 'GET' && req.path.startsWith('/api/public/store/')) {
+        const originalJson = res.json.bind(res)
+        res.json = async (payload) => {
+          try {
+            if (Array.isArray(payload?.products) && payload.products.length) {
+              const ids = payload.products.map((product) => String(product.id || '')).filter(Boolean)
+              const result = await pool.query('SELECT id,images,variant_images,media_url,media_type FROM products WHERE id=ANY($1::text[])', [ids])
+              const byId = new Map(result.rows.map((row) => [row.id, row]))
+              payload.products = payload.products.map((product) => {
+                const row = byId.get(product.id)
+                if (!row) return product
+                const images = uniqueImages(row, row.media_type !== 'video' ? row.media_url : '')
+                return {
+                  ...product,
+                  images,
+                  variantImages: Array.isArray(row.variant_images) ? row.variant_images : [],
+                  mediaUrl: product.mediaUrl || images[0] || '',
+                }
+              })
+            }
+          } catch (error) {
+            console.error('[business features] gallery payload:', error.message)
+          }
+          return originalJson(payload)
+        }
+      }
+      next()
+    }).catch(next)
   })
 }
 
