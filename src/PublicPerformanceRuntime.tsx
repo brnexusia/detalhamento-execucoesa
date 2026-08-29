@@ -2,8 +2,10 @@ import { useLayoutEffect } from 'react'
 
 function preconnect(origin: string) {
   if (!origin || origin === window.location.origin) return
-  const selector = `link[rel="preconnect"][href="${CSS.escape(origin)}"]`
-  if (document.head.querySelector(selector)) return
+  const exists = Array.from(document.head.querySelectorAll<HTMLLinkElement>('link[rel="preconnect"]')).some((link) => {
+    try { return new URL(link.href, window.location.href).origin === origin } catch { return false }
+  })
+  if (exists) return
   const link = document.createElement('link')
   link.rel = 'preconnect'
   link.href = origin
