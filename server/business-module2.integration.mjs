@@ -5,6 +5,18 @@ const { Pool } = pg
 const base = process.env.BASE_URL || 'http://127.0.0.1:3000'
 const db = new Pool({ connectionString: process.env.DATABASE_URL })
 
+async function waitForServer() {
+  let lastError = null
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    try {
+      const response = await fetch(`${base}/health`)
+      if (response.ok) return
+    } catch (error) { lastError = error }
+    await new Promise((resolve) => setTimeout(resolve, 250))
+  }
+  throw lastError || new Error('Servidor não ficou pronto para os testes.')
+}
+
 async function register() {
   const response = await fetch(`${base}/api/auth/register`, {
     method: 'POST',
@@ -29,6 +41,7 @@ async function admin(path, cookie, options = {}) {
 }
 
 try {
+  await waitForServer()
   const account = await register()
   let response = await admin('/api/admin/products', account.cookie, {
     method: 'POST',
