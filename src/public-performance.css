@@ -1,0 +1,20 @@
+/* Performance da vitrine: o navegador só pinta cards próximos da área visível. */
+.product-card {
+  content-visibility: auto;
+  contain-intrinsic-size: 560px;
+}
+
+.feed-card:not(:first-child) {
+  content-visibility: auto;
+  contain-intrinsic-size: 100dvh;
+}
+
+.product-card__media img,
+.feed-card > img,
+.product-picker__media img {
+  background: #ddd7cb;
+}
+
+@media (max-width: 720px) {
+  .product-card { contain-intrinsic-size: 420px; }
+}
