@@ -72,7 +72,7 @@ export function importParentHash(data) {
   return crypto.createHash('sha256').update(importParentKey(data)).digest('hex')
 }
 
-function uniqueUrls(values, max = 12) {
+function uniqueUrls(values, max = 40) {
   const result = []
   const seen = new Set()
   for (const raw of values) {
@@ -115,10 +115,29 @@ function mergeVariationGroups(rows) {
     .slice(0, 5)
 }
 
+function mergeVariantImages(rows) {
+  const result = []
+  const seen = new Set()
+  for (const row of rows) {
+    for (const raw of Array.isArray(row?.variant_images) ? row.variant_images : []) {
+      const images = uniqueUrls(Array.isArray(raw?.images) ? raw.images : [], 8)
+      if (!images.length) continue
+      const selections = raw?.selections && typeof raw.selections === 'object' ? raw.selections : {}
+      const key = `${JSON.stringify(selections)}|${images.join('|')}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      result.push({ selections, images })
+      if (result.length >= 80) return result
+    }
+  }
+  return result
+}
+
 function richness(data) {
   const images = Array.isArray(data?.images) ? data.images.length : 0
+  const variantImages = Array.isArray(data?.variant_images) ? data.variant_images.length : 0
   const variations = Array.isArray(data?.variations) ? data.variations.reduce((sum, group) => sum + (group?.options?.length || 0), 0) : 0
-  return (images * 5) + (variations * 3) + (text(data?.description, 2000) ? 5 : 0) +
+  return (images * 5) + (variantImages * 4) + (variations * 3) + (text(data?.description, 2000) ? 5 : 0) +
     (text(data?.category, 80) && text(data?.category, 80) !== 'Geral' ? 2 : 0) + (text(data?.brand, 100) ? 2 : 0)
 }
 
@@ -126,8 +145,10 @@ export function mergeImportParentProducts(values) {
   const rows = (Array.isArray(values) ? values : []).filter((value) => value && typeof value === 'object')
   if (!rows.length) return null
   const base = [...rows].sort((a, b) => richness(b) - richness(a))[0]
+  const variantImages = mergeVariantImages(rows)
   const images = uniqueUrls(rows.flatMap((row) => [
     ...(Array.isArray(row.images) ? row.images : []),
+    ...(Array.isArray(row.variant_images) ? row.variant_images.flatMap((item) => Array.isArray(item?.images) ? item.images : []) : []),
     row.media_type !== 'video' ? row.media_url : '',
   ]))
   const variations = mergeVariationGroups(rows)
@@ -143,6 +164,7 @@ export function mergeImportParentProducts(values) {
     sku: skuValues.length === 1 ? skuValues[0] : '',
     price: prices.length ? Math.min(...prices) : base.price,
     images,
+    variant_images: variantImages,
     media_url: mediaUrl,
     media_type: base.media_type === 'video' && !images.length ? 'video' : 'image',
     variations,
