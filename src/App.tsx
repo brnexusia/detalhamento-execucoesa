@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import PublicRoute from './PublicRoute'
 import './intent-tracker'
+import './public-commercial-info'
 
 const HomeRoute = lazy(() => import('./HomeRoute'))
 const AuthRoute = lazy(() => import('./AuthRoute'))
@@ -29,8 +30,6 @@ export default function App() {
     return () => window.removeEventListener('popstate', onPop)
   }, [])
 
-  // A vitrine é o caminho crítico: fica no bundle inicial. Painel, auth e plataforma
-  // são carregados somente quando alguém realmente entra nessas áreas.
   if (page === 'store') return <PublicRoute />
 
   let content
