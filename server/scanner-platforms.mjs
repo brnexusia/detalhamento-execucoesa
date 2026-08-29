@@ -104,16 +104,31 @@ function facilZapVariantProperties(nameValue, colorValue) {
   const name = text(nameValue)
   const color = text(colorValue)
   const properties = []
-  if (color) properties.push({ name: 'Cor', value: color })
+  const technicalColor = /^(?:#[0-9a-f]{3,8}|rgba?\(|hsla?\()/i.test(color)
 
   const sizeColorMatch = /^(pp|p|m|g|gg|xg|xgg|eg|egg|\d{1,3})\s*\(([^)]+)\)$/i.exec(name)
   const sizeMatch = /^(?:tamanho|tam)\s*[:\-]?\s*(.+)$/i.exec(name)
+  const plainSize = /^(?:pp|p|m|g|gg|xg|xgg|eg|egg|\d{1,3})$/i.test(name)
+
   if (sizeColorMatch) {
     properties.push({ name: 'Tamanho', value: text(sizeColorMatch[1]) })
-    if (!color) properties.push({ name: 'Cor', value: text(sizeColorMatch[2]) })
-  } else if (sizeMatch?.[1]) properties.push({ name: 'Tamanho', value: text(sizeMatch[1]) })
-  else if (/^(?:pp|p|m|g|gg|xg|xgg|eg|egg|\d{1,3})$/i.test(name)) properties.push({ name: 'Tamanho', value: name })
-  else if (name && !color) properties.push({ name: 'Variação', value: name })
+    properties.push({ name: 'Cor', value: text(sizeColorMatch[2]) })
+  } else if (sizeMatch?.[1]) {
+    properties.push({ name: 'Tamanho', value: text(sizeMatch[1]) })
+    if (color) properties.push({ name: 'Cor', value: color })
+  } else if (plainSize) {
+    properties.push({ name: 'Tamanho', value: name })
+    if (color) properties.push({ name: 'Cor', value: color })
+  } else if (technicalColor && name) {
+    // FácilZap moderno envia o nome humano em `nome` e a amostra visual em `cor`.
+    // A variação da loja deve mostrar "Prata"/"Grafite", não "#b8bec4".
+    properties.push({ name: 'Cor', value: name })
+  } else if (color) {
+    properties.push({ name: 'Cor', value: color })
+    if (name && name.toLocaleLowerCase('pt-BR') != color.toLocaleLowerCase('pt-BR')) properties.push({ name: 'Variação', value: name })
+  } else if (name) {
+    properties.push({ name: 'Variação', value: name })
+  }
   return properties
 }
 
