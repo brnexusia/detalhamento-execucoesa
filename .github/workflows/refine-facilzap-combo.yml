@@ -1,0 +1,30 @@
+name: refine-facilzap-combo
+on:
+  push:
+    branches: [fix-facilzap-images-publish]
+    paths:
+      - '.github/workflows/refine-facilzap-combo.yml'
+permissions:
+  contents: write
+jobs:
+  refine:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix-facilzap-images-publish
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: python .github/scripts/refine-facilzap-combo.py
+      - run: npm install
+      - run: node server/scanner-module7.test.mjs
+      - run: npm run build
+      - run: |
+          git config user.name "brnexusia"
+          git config user.email "brnexusia@gmail.com"
+          git add server/scanner-platforms.mjs server/scanner-module7.test.mjs
+          git commit -m "Scanner: separar cor e tamanho nas grades FácilZap"
+          git push origin HEAD:fix-facilzap-images-publish
