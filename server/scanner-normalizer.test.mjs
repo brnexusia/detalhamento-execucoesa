@@ -65,11 +65,17 @@ assert.ok(validButSparse.confidence < 1, 'dados opcionais ausentes continuam ref
 const deduped = normalizeCandidates([
   {
     __candidate_id: 'poor', source_url: 'https://loja.example/a', title: 'Bolsa Siena', sku: 'BS-01', price: 40,
+    images: ['https://cdn.example/bolsa-frente.jpg'],
+    variants: [{ color: 'Preto', image: 'https://cdn.example/bolsa-preta-1.jpg' }],
   },
   {
     __candidate_id: 'rich', source_url: 'https://loja.example/b', title: 'Bolsa Siena', sku: 'BS-01', price: 40,
-    description: 'Bolsa estruturada.', category: 'Bolsas', images: ['https://cdn.example/bolsa.jpg'],
+    description: 'Bolsa estruturada.', category: 'Bolsas', images: ['https://cdn.example/bolsa-lado.jpg'],
     properties: [{ name: 'Cores', values: ['Preto', 'Caramelo'] }],
+    variants: [
+      { color: 'Preto', images: ['https://cdn.example/bolsa-preta-2.jpg'] },
+      { color: 'Caramelo', image: 'https://cdn.example/bolsa-caramelo.jpg' },
+    ],
   },
 ])
 assert.equal(deduped.inputCount, 2)
@@ -77,5 +83,18 @@ assert.equal(deduped.products.length, 1)
 assert.equal(deduped.duplicateCount, 1)
 assert.equal(deduped.products[0].source_candidate_id, 'rich')
 assert.equal(deduped.products[0].normalized.description, 'Bolsa estruturada.')
+assert.deepEqual(deduped.products[0].normalized.images, [
+  'https://cdn.example/bolsa-lado.jpg',
+  'https://cdn.example/bolsa-preta-2.jpg',
+  'https://cdn.example/bolsa-caramelo.jpg',
+  'https://cdn.example/bolsa-frente.jpg',
+  'https://cdn.example/bolsa-preta-1.jpg',
+], 'candidatos duplicados devem somar galerias complementares, não descartar uma delas')
+const blackGallery = deduped.products[0].normalized.variant_images.find((item) => item.selections.Cor === 'Preto')
+assert.deepEqual(blackGallery?.images, [
+  'https://cdn.example/bolsa-preta-2.jpg',
+  'https://cdn.example/bolsa-preta-1.jpg',
+], 'imagens da mesma variação também devem ser unidas')
+assert.deepEqual(deduped.products[0].normalized.variations, [{ name: 'Cor', options: ['Preto', 'Caramelo'] }])
 
 console.log('[scanner module 3] normalizer tests: ok')
