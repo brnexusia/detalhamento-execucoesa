@@ -23,13 +23,42 @@ const jsonLdHtml = `<!doctype html><html><head><script type="application/ld+json
     { '@type': 'Product', name: 'Vestido Flora P', sku: 'VF-10-P', size: 'P', color: 'Azul', offers: { price: '59.90', priceCurrency: 'BRL' } },
     { '@type': 'Product', name: 'Vestido Flora M', sku: 'VF-10-M', size: 'M', color: 'Azul', offers: { price: '59.90', priceCurrency: 'BRL' } },
   ],
-})}</script></head><body></body></html>`
+})}</script></head><body>
+  <div class="product-gallery">
+    <img data-src="/flora-3.jpg">
+    <img srcset="/flora-4-small.webp 320w, /flora-4-large.webp 1280w">
+    <a href="/flora-5.webp">ver outra foto</a>
+  </div>
+</body></html>`
 const extracted = extractProductsFromHtml(jsonLdHtml, 'https://fixture.shop/produto/flora')
 assert.equal(extracted.length, 1)
 assert.equal(extracted[0].title, 'Vestido Flora')
 assert.equal(extracted[0].price, 59.9)
 assert.equal(extracted[0].variants.length, 2)
-assert.deepEqual(extracted[0].images, ['https://fixture.shop/flora-1.jpg', 'https://fixture.shop/flora-2.jpg'])
+assert.deepEqual(extracted[0].images, [
+  'https://fixture.shop/flora-1.jpg',
+  'https://fixture.shop/flora-2.jpg',
+  'https://fixture.shop/flora-3.jpg',
+  'https://fixture.shop/flora-4-large.webp',
+  'https://fixture.shop/flora-5.webp',
+], 'JSON-LD parcial deve ser complementado pela galeria real da página')
+
+const htmlGallery = extractProductsFromHtml(`<!doctype html><html><head>
+  <meta property="og:type" content="product">
+  <meta property="og:title" content="Camisa Galeria">
+  <meta property="product:price:amount" content="79,90">
+  <meta property="og:image" content="/camisa-capa.jpg">
+</head><body><div class="product-images">
+  <img data-original="/camisa-frente.jpg">
+  <img data-zoom-image="/camisa-costas.jpg">
+  <a href="/camisa-detalhe.webp">zoom</a>
+</div></body></html>`, 'https://fixture.shop/produto/camisa')
+assert.deepEqual(htmlGallery[0].images, [
+  'https://fixture.shop/camisa-capa.jpg',
+  'https://fixture.shop/camisa-frente.jpg',
+  'https://fixture.shop/camisa-costas.jpg',
+  'https://fixture.shop/camisa-detalhe.webp',
+], 'fallback HTML deve capturar toda a galeria e não somente a primeira imagem')
 
 function fixtureRequest(fixtures) {
   return async (input) => {
@@ -59,6 +88,7 @@ assert.equal(generic.candidates.length, 2)
 assert.ok(generic.pagesScanned >= 4)
 assert.ok(progressCalls >= 2)
 assert.equal(generic.candidates.find((item) => item.title === 'Bolsa Siena')?.properties[0]?.name, 'Cor')
+assert.equal(generic.candidates.find((item) => item.title === 'Vestido Flora')?.images.length, 5)
 
 const nestedFixtures = {
   'https://nested.fixture/': { contentType: 'text/html', body: '<html><body><a href="/catalogue/page-1.html">Catálogo</a></body></html>' },
