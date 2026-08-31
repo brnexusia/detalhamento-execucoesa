@@ -13,6 +13,7 @@ const MAX_RESPONSE_BYTES = 5 * 1024 * 1024
 const SITEMAP_MAX_RESPONSE_BYTES = 64 * 1024 * 1024
 const REQUEST_TIMEOUT_MS = 12000
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0 Safari/537.36'
+const MAX_PRODUCT_IMAGES = 40
 
 function blockedIpv4(address) {
   const parts = address.split('.').map(Number)
@@ -189,12 +190,88 @@ function absoluteUrl(value, baseUrl) {
 
 function imagesFrom(value, baseUrl = '') {
   const result = []
-  for (const item of asArray(value)) {
-    const raw = typeof item === 'string' ? item : item && typeof item === 'object' ? item.url || item.contentUrl || item.thumbnailUrl || '' : ''
-    if (!raw) continue
-    result.push(baseUrl ? absoluteUrl(raw, baseUrl) : raw)
+  const visited = new Set()
+  const add = (raw) => {
+    const value = baseUrl ? absoluteUrl(raw, baseUrl) : String(raw || '').trim()
+    if (value && !result.includes(value)) result.push(value)
   }
-  return uniqueStrings(result)
+  const visit = (item) => {
+    if (item == null || result.length >= MAX_PRODUCT_IMAGES) return
+    if (typeof item === 'string') {
+      add(item)
+      return
+    }
+    if (Array.isArray(item)) {
+      for (const child of item) visit(child)
+      return
+    }
+    if (typeof item !== 'object' || visited.has(item)) return
+    visited.add(item)
+    for (const key of ['url', 'contentUrl', 'thumbnailUrl', 'src', 'imageUrl', 'image_url', 'original', 'large', 'full']) {
+      if (typeof item[key] === 'string') add(item[key])
+    }
+    for (const key of ['image', 'images', 'media', 'gallery', 'thumbnail']) {
+      if (item[key] != null) visit(item[key])
+    }
+  }
+  visit(value)
+  return uniqueStrings(result).slice(0, MAX_PRODUCT_IMAGES)
+}
+
+function bestSrcsetUrl(value, baseUrl) {
+  const candidates = String(value || '')
+    .split(',')
+    .map((part) => part.trim().split(/\s+/)[0])
+    .filter(Boolean)
+  if (!candidates.length) return ''
+  return absoluteUrl(candidates.at(-1), baseUrl)
+}
+
+function pageGalleryImages($, sourceUrl) {
+  const result = []
+  const seen = new Set()
+  const add = (raw) => {
+    const value = absoluteUrl(raw, sourceUrl)
+    if (!value || seen.has(value)) return
+    seen.add(value)
+    result.push(value)
+  }
+  const addNode = (node) => {
+    if (result.length >= MAX_PRODUCT_IMAGES) return
+    const tag = String(node[0]?.tagName || '').toLowerCase()
+    if (tag === 'meta') add(node.attr('content'))
+    for (const attribute of ['src', 'data-src', 'data-lazy-src', 'data-original', 'data-image', 'data-image-url', 'data-zoom-image', 'data-large-image', 'data-full', 'data-full-image']) {
+      add(node.attr(attribute))
+    }
+    for (const attribute of ['srcset', 'data-srcset']) add(bestSrcsetUrl(node.attr(attribute), sourceUrl))
+    if (tag === 'a') {
+      const href = node.attr('href')
+      if (/\.(?:avif|webp|jpe?g|png|gif)(?:$|[?#])/i.test(String(href || ''))) add(href)
+    }
+  }
+
+  $('meta[property="og:image"], meta[property="og:image:secure_url"], meta[name="twitter:image"], meta[itemprop="image"]').each((_index, element) => addNode($(element)))
+  const selectors = [
+    '[itemprop="image"]',
+    '.product-gallery img', '.product-gallery a',
+    '.product-images img', '.product-images a',
+    '.product-image img', '.product-image a',
+    '.product-media img', '.product-media a',
+    '.product-thumbnails img', '.product-thumbnails a',
+    '.product-thumbs img', '.product-thumbs a',
+    '.produto-imagens img', '.produto-imagens a',
+    '.produto-imagem img', '.produto-imagem a',
+    '.produto-thumbs img', '.produto-thumbs a',
+    '[data-product-gallery] img', '[data-product-gallery] a',
+    '[data-product-images] img', '[data-product-images] a',
+    '.gallery img', '.gallery a',
+    '.swiper-slide img', '.slick-slide img', '.carousel-item img',
+    '.item.active img', '.product_main img', '.product-detail img', '.product-page img',
+  ]
+  $(selectors.join(',')).each((_index, element) => {
+    if (result.length < MAX_PRODUCT_IMAGES) addNode($(element))
+  })
+  return result.slice(0, MAX_PRODUCT_IMAGES)
 }
 
 function offerInfo(offers) {
@@ -312,7 +389,13 @@ export function extractProductsFromHtml(html, sourceUrl) {
     if (!text) return
     try { walkJsonLd(JSON.parse(text), products, sourceUrl) } catch { /* invalid JSON-LD is ignored */ }
   })
-  if (products.length) return dedupeCandidates(products)
+  const galleryImages = pageGalleryImages($, sourceUrl)
+  if (products.length) {
+    return dedupeCandidates(products.map((product) => ({
+      ...product,
+      images: uniqueStrings([...(product.images || []), ...galleryImages]).slice(0, MAX_PRODUCT_IMAGES),
+    })))
+  }
 
   const ogType = $('meta[property="og:type"]').attr('content') || ''
   const priceText = $('meta[property="product:price:amount"]').attr('content') ||
@@ -325,9 +408,6 @@ export function extractProductsFromHtml(html, sourceUrl) {
   if (!title) return []
   const description = $('meta[property="og:description"]').attr('content') || $('meta[name="description"]').attr('content') ||
     $('#product_description').next('p').text().trim() || $('.product-description, .description').first().text().trim() || ''
-  const rawImage = $('meta[property="og:image"]').attr('content') || $('[itemprop="image"]').attr('src') ||
-    $('.item.active img, .product_main img, .product-detail img, .product-page img').first().attr('src') || ''
-  const image = absoluteUrl(rawImage, sourceUrl)
   const explicitCurrency = $('meta[property="product:price:currency"]').attr('content') || ''
   const numericPrice = Number(String(priceText).replace(/[^0-9,.-]/g, '').replace(/\.(?=\d{3}(?:\D|$))/g, '').replace(',', '.'))
   const breadcrumb = $('.breadcrumb a').map((_index, element) => $(element).text().trim()).get().filter(Boolean)
@@ -342,7 +422,7 @@ export function extractProductsFromHtml(html, sourceUrl) {
     sku,
     category,
     brand: '',
-    images: image ? [image] : [],
+    images: galleryImages,
     variants: [],
     properties: selectOptions($),
     price: Number.isFinite(numericPrice) ? numericPrice : null,
@@ -469,7 +549,7 @@ function shopifyProduct(origin, product) {
     sku: String(variants[0]?.sku || ''),
     category: String(product.product_type || ''),
     brand: String(product.vendor || ''),
-    images: uniqueStrings(asArray(product.images).map((image) => image?.src || '')),
+    images: uniqueStrings(asArray(product.images).map((image) => image?.src || '')).slice(0, MAX_PRODUCT_IMAGES),
     variants,
     properties: options,
     price: Number.isFinite(variants[0]?.price) ? variants[0].price : null,
@@ -522,7 +602,7 @@ function wooProduct(origin, product) {
     sku: String(product.sku || ''),
     category: String(product.categories?.[0]?.name || ''),
     brand: '',
-    images: uniqueStrings(asArray(product.images).map((image) => image?.src || image?.thumbnail || '')),
+    images: uniqueStrings(asArray(product.images).map((image) => image?.src || image?.thumbnail || '')).slice(0, MAX_PRODUCT_IMAGES),
     variants: [],
     properties: asArray(product.attributes).map((attribute) => ({ name: String(attribute.name || ''), values: uniqueStrings(attribute.terms?.map((term) => term.name) || []) })),
     price,
@@ -562,6 +642,33 @@ async function collectWooCommerce(rootUrl, request, maxProducts, sink, onProgres
   return { candidateCount: sink.count, pagesScanned }
 }
 
+function variantMatchKey(variant) {
+  const sku = String(variant?.sku || '').trim().toLowerCase()
+  if (sku) return `sku:${sku}`
+  const id = String(variant?.external_id || '').trim().toLowerCase()
+  if (id) return `id:${id}`
+  const title = String(variant?.title || variant?.name || '').trim().toLowerCase()
+  const color = String(variant?.color || '').trim().toLowerCase()
+  const size = String(variant?.size || '').trim().toLowerCase()
+  return `fallback:${title}|${color}|${size}`
+}
+
+function mergeDetailIntoCandidate(candidate, detail) {
+  if (!detail) return candidate
+  const images = uniqueStrings([...(candidate.images || []), ...(detail.images || [])]).slice(0, MAX_PRODUCT_IMAGES)
+  const detailVariants = new Map(asArray(detail.variants).map((variant) => [variantMatchKey(variant), variant]))
+  const variants = asArray(candidate.variants).map((variant) => {
+    const match = detailVariants.get(variantMatchKey(variant))
+    if (!match) return variant
+    const variantImages = uniqueStrings([
+      ...imagesFrom(variant.images || variant.image, candidate.source_url),
+      ...imagesFrom(match.images || match.image, detail.source_url || candidate.source_url),
+    ]).slice(0, 8)
+    return variantImages.length ? { ...variant, images: variantImages } : variant
+  })
+  return { ...candidate, images, variants }
+}
+
 async function collectFacilZap(rootResponse, request, maxProducts, sink, onProgress) {
   const runtime = extractFacilZapRuntime(rootResponse.body)
   if (!runtime?.urlCarregarProdutosTemplate) throw new Error('A vitrine FácilZap não expôs o contrato público de paginação esperado.')
@@ -596,7 +703,25 @@ async function collectFacilZap(rootResponse, request, maxProducts, sink, onProgr
     const signature = mapped.products.map((product) => product.external_id || product.source_url || product.title).join('|')
     if (!signature || seenPages.has(signature)) break
     seenPages.add(signature)
-    await sink.push(mapped.products)
+
+    const enriched = await mapLimit(mapped.products, 6, async (candidate) => {
+      const detailUrl = String(candidate?.source_url || '').trim()
+      if (!detailUrl || detailUrl === rootResponse.url) return candidate
+      try {
+        const detailResponse = await request(detailUrl, { accept: 'text/html,application/xhtml+xml' })
+        pagesScanned += 1
+        if (!detailResponse.ok || !detailResponse.contentType.includes('html')) return candidate
+        const detailProducts = extractProductsFromHtml(detailResponse.body, detailResponse.url)
+        const normalizedTitle = String(candidate.title || '').trim().toLowerCase()
+        const detail = detailProducts.find((product) => String(product.sku || '').trim() && String(product.sku || '').trim() === String(candidate.sku || '').trim()) ||
+          detailProducts.find((product) => String(product.title || '').trim().toLowerCase() === normalizedTitle) || detailProducts[0]
+        return mergeDetailIntoCandidate(candidate, detail)
+      } catch {
+        return candidate
+      }
+    })
+
+    await sink.push(enriched)
     await onProgress({ progress: Math.min(90, 15 + Math.floor(Math.log2(page + 1) * 8)), pagesScanned, candidates: sink.count, platform: 'facilzap' })
     page += 1
   }

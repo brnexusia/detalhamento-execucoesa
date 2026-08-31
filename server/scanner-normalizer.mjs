@@ -3,6 +3,9 @@ import { load } from 'cheerio'
 const COLOR_NAMES = new Set(['cor', 'cores', 'color', 'colors', 'colour', 'colours'])
 const SIZE_NAMES = new Set(['tamanho', 'tamanhos', 'tam', 'size', 'sizes', 'numero', 'número', 'numeracao', 'numeração'])
 const IGNORED_OPTIONS = new Set(['default title', 'padrão', 'padrao', 'default', 'único', 'unico', 'one size'])
+const MAX_PRODUCT_IMAGES = 40
+const MAX_VARIANT_IMAGES = 8
+const MAX_VARIANT_IMAGE_GROUPS = 80
 
 function text(value, max = 4000) {
   return String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, max)
@@ -133,21 +136,24 @@ function variantImages(variant) {
   ]
 }
 
-function normalizeImages(candidate) {
+function mergeImageUrls(values, max = MAX_PRODUCT_IMAGES) {
   const result = []
   const seen = new Set()
-  const rawImages = [
-    ...(Array.isArray(candidate?.images) ? candidate.images : []),
-    ...(Array.isArray(candidate?.variants) ? candidate.variants.flatMap(variantImages) : []),
-  ]
-  for (const raw of rawImages) {
+  for (const raw of Array.isArray(values) ? values : []) {
     const value = safeImageUrl(raw)
     if (!value || seen.has(value)) continue
     seen.add(value)
     result.push(value)
-    if (result.length >= 40) break
+    if (result.length >= max) break
   }
   return result
+}
+
+function normalizeImages(candidate) {
+  return mergeImageUrls([
+    ...(Array.isArray(candidate?.images) ? candidate.images : []),
+    ...(Array.isArray(candidate?.variants) ? candidate.variants.flatMap(variantImages) : []),
+  ])
 }
 
 function variantSelections(variant, propertyOrder) {
@@ -177,22 +183,14 @@ function normalizeVariantImages(candidate) {
   const result = []
   const seen = new Set()
   for (const variant of Array.isArray(candidate?.variants) ? candidate.variants : []) {
-    const images = []
-    const imageSeen = new Set()
-    for (const raw of variantImages(variant)) {
-      const url = safeImageUrl(raw)
-      if (!url || imageSeen.has(url)) continue
-      imageSeen.add(url)
-      images.push(url)
-      if (images.length >= 8) break
-    }
+    const images = mergeImageUrls(variantImages(variant), MAX_VARIANT_IMAGES)
     if (!images.length) continue
     const selections = variantSelections(variant, propertyOrder)
     const key = `${JSON.stringify(selections)}|${images.join('|')}`
     if (seen.has(key)) continue
     seen.add(key)
     result.push({ selections, images })
-    if (result.length >= 80) break
+    if (result.length >= MAX_VARIANT_IMAGE_GROUPS) break
   }
   return result
 }
@@ -228,6 +226,15 @@ function completenessIssues(normalized, candidate) {
   if (!normalized.images.length) issues.push('missing_image')
   if (!normalized.sku) issues.push('missing_sku')
   if (!text(candidate?.category, 80)) issues.push('missing_category')
+  if (!normalized.description) issues.push('missing_description')
+  return issues
+}
+
+function mergedCompletenessIssues(normalized) {
+  const issues = [...blockingWarnings(normalized)]
+  if (!normalized.images.length) issues.push('missing_image')
+  if (!normalized.sku) issues.push('missing_sku')
+  if (!normalized.category || normalized.category === 'Geral') issues.push('missing_category')
   if (!normalized.description) issues.push('missing_description')
   return issues
 }
@@ -281,13 +288,107 @@ function richness(item) {
   return (n.images.length * 3) + (n.variant_images.length * 4) + (n.variations.length * 4) + (n.description ? 3 : 0) + (n.sku ? 2 : 0) + (n.price != null ? 4 : 0) + item.confidence * 10
 }
 
+function mergeVariations(values) {
+  const groups = new Map()
+  for (const variation of Array.isArray(values) ? values : []) {
+    const name = canonicalVariationName(variation?.name)
+    if (!name) continue
+    const key = canonicalKey(name)
+    if (!groups.has(key)) groups.set(key, { name, options: [] })
+    const group = groups.get(key)
+    const seen = new Set(group.options.map((option) => canonicalKey(option)))
+    for (const raw of Array.isArray(variation?.options) ? variation.options : []) {
+      const option = validOption(raw)
+      const optionKey = canonicalKey(option)
+      if (!option || !optionKey || seen.has(optionKey)) continue
+      seen.add(optionKey)
+      group.options.push(option)
+      if (group.options.length >= 30) break
+    }
+  }
+  const priority = { Cor: 0, Tamanho: 1 }
+  return [...groups.values()]
+    .filter((group) => group.options.length)
+    .sort((a, b) => (priority[a.name] ?? 10) - (priority[b.name] ?? 10) || a.name.localeCompare(b.name, 'pt-BR'))
+    .slice(0, 5)
+}
+
+function selectionKey(selections) {
+  if (!selections || typeof selections !== 'object') return ''
+  return Object.entries(selections)
+    .map(([name, option]) => [canonicalVariationName(name), validOption(option)])
+    .filter(([name, option]) => name && option)
+    .sort(([a], [b]) => a.localeCompare(b, 'pt-BR'))
+    .map(([name, option]) => `${canonicalKey(name)}=${canonicalKey(option)}`)
+    .join('|')
+}
+
+function mergeVariantImages(values) {
+  const groups = new Map()
+  for (const raw of Array.isArray(values) ? values : []) {
+    if (!raw || typeof raw !== 'object') continue
+    const selections = raw.selections && typeof raw.selections === 'object' ? raw.selections : {}
+    const key = selectionKey(selections) || `images:${mergeImageUrls(raw.images, MAX_VARIANT_IMAGES).join('|')}`
+    const images = mergeImageUrls(raw.images, MAX_VARIANT_IMAGES)
+    if (!images.length) continue
+    if (!groups.has(key)) groups.set(key, { selections, images: [] })
+    const group = groups.get(key)
+    group.images = mergeImageUrls([...group.images, ...images], MAX_VARIANT_IMAGES)
+    if (groups.size >= MAX_VARIANT_IMAGE_GROUPS && !groups.has(key)) break
+  }
+  return [...groups.values()].slice(0, MAX_VARIANT_IMAGE_GROUPS)
+}
+
+function preferMeaningfulCategory(primary, secondary) {
+  const first = text(primary, 80)
+  const second = text(secondary, 80)
+  if (first && first !== 'Geral') return first
+  if (second && second !== 'Geral') return second
+  return first || second || 'Geral'
+}
+
+function mergeNormalizedItems(previous, incoming) {
+  const base = richness(incoming) > richness(previous) ? incoming : previous
+  const other = base === incoming ? previous : incoming
+  const a = base.normalized
+  const b = other.normalized
+  const images = mergeImageUrls([...a.images, ...b.images])
+  const variantImages = mergeVariantImages([...a.variant_images, ...b.variant_images])
+  const normalized = {
+    ...a,
+    name: a.name || b.name,
+    description: a.description || b.description,
+    sku: a.sku || b.sku,
+    category: preferMeaningfulCategory(a.category, b.category),
+    brand: a.brand || b.brand,
+    price: a.price ?? b.price,
+    currency: a.currency || b.currency,
+    images,
+    variant_images: variantImages,
+    media_url: images[0] || a.media_url || b.media_url || '',
+    media_type: images.length ? 'image' : (a.media_type || b.media_type || 'image'),
+    pack: a.pack || b.pack,
+    variations: mergeVariations([...a.variations, ...b.variations]),
+    availability: a.availability || b.availability,
+    source_url: a.source_url || b.source_url,
+    source: a.source || b.source,
+  }
+  const warnings = blockingWarnings(normalized)
+  return {
+    ...base,
+    normalized,
+    warnings,
+    confidence: confidenceFromIssues(mergedCompletenessIssues(normalized)),
+  }
+}
+
 export function normalizeCandidates(candidates) {
   const byFingerprint = new Map()
   for (const candidate of Array.isArray(candidates) ? candidates : []) {
     const item = normalizeCandidate(candidate)
     if (!item.normalized.name) continue
     const previous = byFingerprint.get(item.fingerprint)
-    if (!previous || richness(item) > richness(previous)) byFingerprint.set(item.fingerprint, item)
+    byFingerprint.set(item.fingerprint, previous ? mergeNormalizedItems(previous, item) : item)
   }
   const products = [...byFingerprint.values()]
   return {
