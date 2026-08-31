@@ -756,7 +756,7 @@ async function collectVesti(rootResponse, request, maxProducts, sink, onProgress
     const listed = Array.isArray(payload?.products) ? payload.products : []
     const products = vestiProducts(payload, context)
     if (!products.length) break
-    const signature = `${products[0]?.external_id || ''}|${products.at(-1]?.external_id || ''}|${products.length}`
+    const signature = `${products[0]?.external_id || ''}|${products.at(-1)?.external_id || ''}|${products.length}`
     if (pageSignatures.has(signature)) break
     pageSignatures.add(signature)
 
