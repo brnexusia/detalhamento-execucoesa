@@ -51,6 +51,7 @@ jobs:
           grep -Fq '"./server/scanner-hooks.mjs"' Dockerfile
           grep -Fq '"./server/scanner-publish-hooks.mjs"' Dockerfile
           grep -Fq '"./server/social-network-hooks.mjs"' Dockerfile
+          grep -Fq '"./server/social-feed-ranking-hooks.mjs"' Dockerfile
           grep -Fq '"./server/social-commerce-hooks.mjs"' Dockerfile
           grep -Fq '"./server/public-protection-hooks.mjs"' Dockerfile
       - name: Scanner URL tests
@@ -87,6 +88,8 @@ jobs:
         run: node server/social-module5.integration.mjs
       - name: Social module 6 ask to WhatsApp
         run: node server/social-module6.integration.mjs
+      - name: Social module 7 plan priority
+        run: node server/social-module7.integration.mjs
       - name: Business module 2 stock integration
         run: node server/business-module2.integration.mjs
       - name: Business module 3 catalogs integration
