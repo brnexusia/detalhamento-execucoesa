@@ -76,6 +76,8 @@ jobs:
           echo $! > /tmp/atacado-shop.pid
       - name: Social module 1 network foundation
         run: node server/social-module1.integration.mjs
+      - name: Social module 2 public store profile
+        run: node server/social-module2.integration.mjs
       - name: Business module 2 stock integration
         run: node server/business-module2.integration.mjs
       - name: Business module 3 catalogs integration

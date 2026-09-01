@@ -30,6 +30,35 @@ if (pool) {
   timer.unref()
 }
 
+async function publicStoreProfile(slug) {
+  await schemaReady()
+  const result = await pool.query(`
+    SELECT s.id,s.slug,s.name,s.tagline,s.eyebrow,s.logo_url,s.accent,s.plan_tier,
+      COUNT(p.id) FILTER (WHERE p.active=true AND p.social_published=true)::int AS product_count
+    FROM stores s
+    LEFT JOIN products p ON p.store_id=s.id
+    WHERE s.slug=$1 AND s.is_active=true AND s.social_enabled=true
+    GROUP BY s.id
+    LIMIT 1
+  `, [slug])
+  if (!result.rowCount) return null
+  const row = result.rows[0]
+  return {
+    store: {
+      id: row.id,
+      slug: row.slug,
+      name: row.name,
+      tagline: row.tagline,
+      eyebrow: row.eyebrow,
+      logoUrl: row.logo_url,
+      accent: row.accent,
+      planTier: ['ouro', 'prata'].includes(row.plan_tier) ? row.plan_tier : 'bronze',
+      productCount: Number(row.product_count || 0),
+    },
+    stats: { followers: 0, views: 0 },
+  }
+}
+
 function install(app) {
   if (app.__shopvaxSocialNetworkInstalled) return
   app.__shopvaxSocialNetworkInstalled = true
@@ -44,6 +73,14 @@ function install(app) {
         FROM stores
       `)
       res.json({ ok: true, network: true, stores: Number(result.rows[0]?.stores || 0), products: Number(result.rows[0]?.products || 0) })
+    } catch (error) { next(error) }
+  })
+
+  app.get('/api/social/stores/:slug', async (req, res, next) => {
+    try {
+      const profile = await publicStoreProfile(String(req.params.slug || '').trim().slice(0, 80))
+      if (!profile) return res.status(404).json({ error: 'Loja não encontrada.' })
+      return res.json(profile)
     } catch (error) { next(error) }
   })
 }
