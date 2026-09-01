@@ -47,6 +47,7 @@ function ProductMedia({ product, className = '' }: { product: Product; className
 
 export default function PublicStoreV2() {
   const route = useMemo(routeParts, [])
+  const cartStorageKey = useMemo(() => `shopvax-cart-v1:${encodeURIComponent(route.storeSlug)}`, [route.storeSlug])
   const deepLinkedProductId = useMemo(requestedProductId, [])
   const deepLinkOpenedRef = useRef(false)
   const [payload, setPayload] = useState<PublicPayload | null>(null)
@@ -67,7 +68,7 @@ export default function PublicStoreV2() {
   const filterKeyRef = useRef('Todos|')
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
   const [cart, setCart] = useState<CartItem[]>(() => {
-    try { return JSON.parse(localStorage.getItem('atacado-shop-cart-v3') || '[]') }
+    try { return JSON.parse(localStorage.getItem(cartStorageKey) || '[]') }
     catch { return [] }
   })
 
@@ -91,7 +92,7 @@ export default function PublicStoreV2() {
   }, [route.storeSlug, route.sellerSlug])
 
   useEffect(() => { void loadFirst() }, [loadFirst])
-  useEffect(() => { localStorage.setItem('atacado-shop-cart-v3', JSON.stringify(cart)) }, [cart])
+  useEffect(() => { localStorage.setItem(cartStorageKey, JSON.stringify(cart)) }, [cart, cartStorageKey])
 
   useEffect(() => {
     if (!payload || demo) return
