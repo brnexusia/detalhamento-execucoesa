@@ -53,6 +53,7 @@ jobs:
           grep -Fq '"./server/social-network-hooks.mjs"' Dockerfile
           grep -Fq '"./server/social-feed-ranking-hooks.mjs"' Dockerfile
           grep -Fq '"./server/social-commerce-hooks.mjs"' Dockerfile
+          grep -Fq '"./server/social-analytics-hooks.mjs"' Dockerfile
           grep -Fq '"./server/public-protection-hooks.mjs"' Dockerfile
       - name: Scanner URL tests
         run: npm run test:scanner
@@ -94,6 +95,8 @@ jobs:
         run: node server/social-module8.integration.mjs
       - name: Social module 9 public navigation
         run: node server/social-module9.integration.mjs
+      - name: Social module 10 social metrics
+        run: node server/social-module10.integration.mjs
       - name: Business module 2 stock integration
         run: node server/business-module2.integration.mjs
       - name: Business module 3 catalogs integration

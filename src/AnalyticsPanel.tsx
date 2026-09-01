@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, BarChart3, Boxes, ExternalLink, Filter, Link2, ShoppingCart, Users } from 'lucide-react'
+import { ArrowLeft, BarChart3, Boxes, Eye, ExternalLink, Filter, Heart, Link2, MessageCircleQuestion, Share2, ShoppingCart, UserPlus, Users } from 'lucide-react'
 import './analytics-panel.css'
 
 type ReportPayload = {
@@ -10,6 +10,14 @@ type ReportPayload = {
   sellers: Array<{ sellerId: string; name: string; slug: string; accesses: number; carts: number; checkouts: number; whatsapp: number; conversion: number }>
   catalogs: Array<{ catalogId: string | null; name: string; kind: string; slug: string; views: number; clicks: number; carts: number; whatsapp: number; engagement: number }>
   funnel: Array<{ key: string; label: string; value: number; fromPrevious: number; fromAccess: number }>
+}
+
+type SocialReportPayload = {
+  periodDays: number
+  interpretation: string
+  summary: { activePosts: number; reach: number; productViews: number; likes: number; shares: number; followers: number; newFollowers: number; asks: number; engagedVisitors: number; interactionRate: number; askRate: number }
+  products: Array<{ id: string; sku: string; name: string; views: number; likes: number; shares: number; asks: number; askRate: number }>
+  sellers: Array<{ sellerId: string | null; name: string; slug: string; asks: number }>
 }
 
 function go(path: string) {
@@ -27,29 +35,60 @@ async function loadReports(days: number) {
   return body as ReportPayload
 }
 
+async function loadSocialReports(days: number) {
+  const response = await fetch(`/api/admin/social-metrics?days=${days}`, { credentials: 'include' })
+  const body = await response.json().catch(() => null)
+  if (!response.ok) throw new Error(body?.error || 'Não foi possível carregar as métricas da rede Shopvax.')
+  return body as SocialReportPayload
+}
+
 export default function AnalyticsPanel() {
   const [days, setDays] = useState(30)
   const [data, setData] = useState<ReportPayload | null>(null)
+  const [social, setSocial] = useState<SocialReportPayload | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     let active = true
     setLoading(true); setError('')
-    loadReports(days).then((result) => { if (active) setData(result) }).catch((err) => { if (active) setError(err instanceof Error ? err.message : 'Erro ao carregar relatórios.') }).finally(() => { if (active) setLoading(false) })
+    Promise.all([loadReports(days), loadSocialReports(days)])
+      .then(([result, socialResult]) => { if (active) { setData(result); setSocial(socialResult) } })
+      .catch((err) => { if (active) setError(err instanceof Error ? err.message : 'Erro ao carregar relatórios.') })
+      .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
   }, [days])
 
   return <div className="analytics-shell">
     <header className="analytics-head">
       <button onClick={() => go('/painel')}><ArrowLeft size={18}/> Painel</button>
-      <div><span>Inteligência comercial</span><h1>Intenção até o WhatsApp</h1><p>O que realmente acontece entre a visita ao catálogo e o pedido enviado ao atendimento.</p></div>
+      <div><span>Inteligência comercial</span><h1>Descoberta até o WhatsApp</h1><p>Como produtos e lojas geram atenção, interação e intenção dentro do Shopvax.</p></div>
       <label className="analytics-period"><Filter size={16}/><span>Período</span><select value={days} onChange={(event) => setDays(Number(event.target.value))}><option value={7}>7 dias</option><option value={30}>30 dias</option><option value={90}>90 dias</option></select></label>
     </header>
 
     {error && <div className="analytics-error">{error}</div>}
-    {data?.interpretation && <div className="analytics-rule"><strong>Regra de leitura</strong><span>{data.interpretation}</span></div>}
-    {loading && !data ? <div className="analytics-loading"><BarChart3 size={30}/><strong>Montando relatórios…</strong></div> : data && <>
+    {social?.interpretation && <div className="analytics-rule"><strong>Regra da rede</strong><span>{social.interpretation}</span></div>}
+    {data?.interpretation && <div className="analytics-rule"><strong>Regra comercial</strong><span>{data.interpretation}</span></div>}
+    {loading && (!data || !social) ? <div className="analytics-loading"><BarChart3 size={30}/><strong>Montando relatórios…</strong></div> : data && social && <>
+      <section className="analytics-card analytics-card--social">
+        <div className="analytics-card__head"><div><Heart size={19}/><span>S</span><h2>Rede Shopvax</h2></div><p>Alcance, interação e perguntas geradas pelo feed social.</p></div>
+        <div className="analytics-social-summary">
+          <div className="analytics-social-stat"><Eye size={18}/><small>Alcance</small><strong>{num(social.summary.reach)}</strong><span>visitantes únicos</span></div>
+          <div className="analytics-social-stat"><Eye size={18}/><small>Visualizações</small><strong>{num(social.summary.productViews)}</strong><span>{num(social.summary.activePosts)} produtos ativos</span></div>
+          <div className="analytics-social-stat"><Heart size={18}/><small>Curtidas</small><strong>{num(social.summary.likes)}</strong><span>interesse nos produtos</span></div>
+          <div className="analytics-social-stat"><Share2 size={18}/><small>Compartilhamentos</small><strong>{num(social.summary.shares)}</strong><span>conteúdo enviado adiante</span></div>
+          <div className="analytics-social-stat"><UserPlus size={18}/><small>Seguidores</small><strong>{num(social.summary.followers)}</strong><span>+{num(social.summary.newFollowers)} no período</span></div>
+          <div className="analytics-social-stat"><MessageCircleQuestion size={18}/><small>Perguntas</small><strong>{num(social.summary.asks)}</strong><span>{pct(social.summary.askRate)} do alcance</span></div>
+          <div className="analytics-social-stat"><BarChart3 size={18}/><small>Taxa de interação</small><strong>{pct(social.summary.interactionRate)}</strong><span>{num(social.summary.engagedVisitors)} visitantes interagiram</span></div>
+        </div>
+
+        <div className="analytics-social-subhead"><strong>Produtos que mais geram atenção</strong><span>Views, ações sociais e perguntas encaminhadas ao WhatsApp.</span></div>
+        <div className="analytics-table"><div className="analytics-row analytics-row--social analytics-row--head"><span>Produto</span><span>Views</span><span>Likes</span><span>Compart.</span><span>Perguntas</span><span>Perguntas / views</span></div>{social.products.map((item) => <div className="analytics-row analytics-row--social" key={item.id}><span><strong>{item.name}</strong><small>{item.sku || 'SEM SKU'}</small></span><span>{num(item.views)}</span><span>{num(item.likes)}</span><span>{num(item.shares)}</span><span>{num(item.asks)}</span><span>{pct(item.askRate)}</span></div>)}{!social.products.length && <p className="analytics-empty">Ainda não há interação social suficiente neste período.</p>}</div>
+
+        <div className="analytics-social-subhead"><strong>Perguntas por atendimento</strong><span>Para onde o botão Perguntar está encaminhando oportunidades.</span></div>
+        <div className="analytics-table"><div className="analytics-row analytics-row--social-sellers analytics-row--head"><span>Vendedora</span><span>Perguntas</span></div>{social.sellers.map((item, index) => <div className="analytics-row analytics-row--social-sellers" key={`${item.sellerId || 'principal'}-${index}`}><span><strong>{item.name}</strong><small>{item.slug ? `/${item.slug}` : 'WhatsApp principal da loja'}</small></span><span>{num(item.asks)}</span></div>)}{!social.sellers.length && <p className="analytics-empty">Ainda não houve perguntas encaminhadas neste período.</p>}</div>
+      </section>
+
       <section className="analytics-card">
         <div className="analytics-card__head"><div><Boxes size={19}/><span>1</span><h2>Performance dos itens</h2></div><p>Quais produtos despertam mais interesse.</p></div>
         <div className="analytics-table"><div className="analytics-row analytics-row--head analytics-row--items"><span>Produto</span><span>Views</span><span>Cliques</span><span>Carrinho</span><span>WhatsApp</span><span>Taxa de interesse</span></div>{data.items.map((item) => <div className="analytics-row analytics-row--items" key={item.id}><span><strong>{item.name}</strong><small>{item.sku || 'SEM SKU'}</small></span><span>{num(item.views)}</span><span>{num(item.clicks)}</span><span>{num(item.cartAdds)}</span><span>{num(item.whatsapp)}</span><span>{pct(item.interestRate)}</span></div>)}{!data.items.length && <p className="analytics-empty">Ainda não há interação suficiente com produtos neste período.</p>}</div>
