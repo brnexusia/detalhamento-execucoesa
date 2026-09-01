@@ -50,6 +50,10 @@ jobs:
           grep -Fq '"./server/platform-hooks.mjs"' Dockerfile
           grep -Fq '"./server/scanner-hooks.mjs"' Dockerfile
           grep -Fq '"./server/scanner-publish-hooks.mjs"' Dockerfile
+          grep -Fq '"./server/social-network-hooks.mjs"' Dockerfile
+          grep -Fq '"./server/social-feed-ranking-hooks.mjs"' Dockerfile
+          grep -Fq '"./server/social-commerce-hooks.mjs"' Dockerfile
+          grep -Fq '"./server/social-analytics-hooks.mjs"' Dockerfile
           grep -Fq '"./server/public-protection-hooks.mjs"' Dockerfile
       - name: Scanner URL tests
         run: npm run test:scanner
@@ -73,6 +77,26 @@ jobs:
         run: |
           npm start > /tmp/atacado-shop.log 2>&1 &
           echo $! > /tmp/atacado-shop.pid
+      - name: Social module 1 network foundation
+        run: node server/social-module1.integration.mjs
+      - name: Social module 2 public store profile
+        run: node server/social-module2.integration.mjs
+      - name: Social module 3 product publications
+        run: node server/social-module3.integration.mjs
+      - name: Social module 4 global infinite feed
+        run: node server/social-module4.integration.mjs
+      - name: Social module 5 interactions
+        run: node server/social-module5.integration.mjs
+      - name: Social module 6 ask to WhatsApp
+        run: node server/social-module6.integration.mjs
+      - name: Social module 7 plan priority
+        run: node server/social-module7.integration.mjs
+      - name: Social module 8 store diversity
+        run: node server/social-module8.integration.mjs
+      - name: Social module 9 public navigation
+        run: node server/social-module9.integration.mjs
+      - name: Social module 10 social metrics
+        run: node server/social-module10.integration.mjs
       - name: Business module 2 stock integration
         run: node server/business-module2.integration.mjs
       - name: Business module 3 catalogs integration
