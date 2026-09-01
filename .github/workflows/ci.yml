@@ -80,6 +80,8 @@ jobs:
         run: node server/social-module2.integration.mjs
       - name: Social module 3 product publications
         run: node server/social-module3.integration.mjs
+      - name: Social module 4 global infinite feed
+        run: node server/social-module4.integration.mjs
       - name: Business module 2 stock integration
         run: node server/business-module2.integration.mjs
       - name: Business module 3 catalogs integration

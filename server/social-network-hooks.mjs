@@ -81,6 +81,19 @@ function publicationShape(row) {
   }
 }
 
+function encodeFeedCursor(row) {
+  return Buffer.from(JSON.stringify({ at: row.social_published_at, id: row.id }), 'utf8').toString('base64url')
+}
+
+function decodeFeedCursor(value) {
+  if (!value) return null
+  try {
+    const parsed = JSON.parse(Buffer.from(String(value), 'base64url').toString('utf8'))
+    if (!parsed?.at || !parsed?.id || Number.isNaN(Date.parse(parsed.at))) throw new Error('invalid')
+    return { at: new Date(parsed.at).toISOString(), id: String(parsed.id) }
+  } catch { throw new Error('CURSOR_INVALID') }
+}
+
 async function publicStoreProfile(slug) {
   await schemaReady()
   const result = await pool.query(`
@@ -124,6 +137,39 @@ async function publicStorePublications(slug) {
   return products.rows.map(publicationShape)
 }
 
+async function publicFeed(cursorValue, requestedLimit) {
+  await schemaReady()
+  const cursor = decodeFeedCursor(cursorValue)
+  const limit = Math.max(1, Math.min(30, Math.floor(Number(requestedLimit) || 12)))
+  const result = await pool.query(`
+    SELECT p.id,p.sku,p.name,p.description,p.price,p.category,p.media_url,p.media_type,p.pack,p.variations,p.featured,p.social_published_at,
+      s.id AS store_id,s.slug AS store_slug,s.name AS store_name,s.logo_url AS store_logo_url,s.accent AS store_accent,s.plan_tier
+    FROM products p
+    JOIN stores s ON s.id=p.store_id
+    WHERE p.active=true AND p.social_published=true AND s.is_active=true AND s.social_enabled=true
+      AND ($1::timestamptz IS NULL OR p.social_published_at < $1::timestamptz OR (p.social_published_at = $1::timestamptz AND p.id < $2))
+    ORDER BY p.social_published_at DESC,p.id DESC
+    LIMIT $3
+  `, [cursor?.at || null, cursor?.id || '', limit + 1])
+  const hasMore = result.rows.length > limit
+  const rows = result.rows.slice(0, limit)
+  return {
+    posts: rows.map((row) => ({
+      id: row.id,
+      product: publicationShape(row),
+      store: {
+        id: row.store_id,
+        slug: row.store_slug,
+        name: row.store_name,
+        logoUrl: row.store_logo_url,
+        accent: row.store_accent,
+        planTier: planTier(row.plan_tier),
+      },
+    })),
+    page: { hasMore, nextCursor: hasMore && rows.length ? encodeFeedCursor(rows[rows.length - 1]) : null },
+  }
+}
+
 function install(app) {
   if (app.__shopvaxSocialNetworkInstalled) return
   app.__shopvaxSocialNetworkInstalled = true
@@ -139,6 +185,15 @@ function install(app) {
       `)
       res.json({ ok: true, network: true, stores: Number(result.rows[0]?.stores || 0), products: Number(result.rows[0]?.products || 0) })
     } catch (error) { next(error) }
+  })
+
+  app.get('/api/social/feed', async (req, res, next) => {
+    try {
+      return res.json(await publicFeed(req.query.cursor, req.query.limit))
+    } catch (error) {
+      if (error?.message === 'CURSOR_INVALID') return res.status(400).json({ error: 'Cursor inválido.' })
+      next(error)
+    }
   })
 
   app.get('/api/social/stores/:slug', async (req, res, next) => {
