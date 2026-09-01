@@ -19,6 +19,7 @@ function SocialPostCard({ post }: { post: SocialPost }) {
   const cardRef = useRef<HTMLElement | null>(null)
   const viewed = useRef(false)
   const [interactions, setInteractions] = useState(post.interactions)
+  const [asking, setAsking] = useState(false)
 
   useEffect(() => {
     const target = cardRef.current
@@ -52,6 +53,17 @@ function SocialPostCard({ post }: { post: SocialPost }) {
     } catch { /* compartilhamento cancelado */ }
   }
 
+  const ask = async () => {
+    if (asking) return
+    setAsking(true)
+    try {
+      const response = await fetch(`/api/social/posts/${post.id}/ask`, { method: 'POST' })
+      const body = await response.json().catch(() => null)
+      if (response.ok && body?.whatsappUrl) window.open(body.whatsappUrl, '_blank', 'noopener,noreferrer')
+      else if (body?.error) window.alert(body.error)
+    } finally { setAsking(false) }
+  }
+
   return <article className="social-feed-card" ref={cardRef}>
     <div className="social-feed-media">
       {post.product.mediaType === 'video'
@@ -70,7 +82,7 @@ function SocialPostCard({ post }: { post: SocialPost }) {
       <button className={interactions.liked ? 'is-active' : ''} onClick={like}><Heart size={25} fill={interactions.liked ? 'currentColor' : 'none'}/><span>{compact(interactions.likes)}</span></button>
       <div className="social-feed-actions__metric"><Eye size={24}/><span>{compact(interactions.views)}</span></div>
       <button onClick={share}><Share2 size={24}/><span>{compact(interactions.shares)}</span></button>
-      <button className="social-feed-actions__ask" onClick={() => openStore(post.store.slug)}><MessageCircleQuestion size={25}/><span>Perguntar</span></button>
+      <button className="social-feed-actions__ask" onClick={ask} disabled={asking}><MessageCircleQuestion size={25}/><span>{asking ? 'Abrindo…' : 'Perguntar'}</span></button>
     </aside>
     <div className="social-feed-copy">
       <span>{post.product.category}</span>
