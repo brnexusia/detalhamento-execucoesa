@@ -16,6 +16,36 @@ async function ensureSchema() {
     ALTER TABLE products ADD COLUMN IF NOT EXISTS social_published_at timestamptz NOT NULL DEFAULT now();
     CREATE INDEX IF NOT EXISTS idx_stores_social_enabled ON stores(social_enabled,is_active,plan_tier);
     CREATE INDEX IF NOT EXISTS idx_products_social_feed ON products(social_published_at DESC,id) WHERE active=true AND social_published=true;
+
+    CREATE OR REPLACE FUNCTION shopvax_touch_social_publication()
+    RETURNS trigger AS $$
+    BEGIN
+      IF TG_OP = 'INSERT' THEN
+        IF NEW.active = true THEN
+          NEW.social_published := true;
+          NEW.social_published_at := now();
+        END IF;
+      ELSIF NEW.active = true AND (
+        OLD.active IS DISTINCT FROM NEW.active OR
+        OLD.name IS DISTINCT FROM NEW.name OR
+        OLD.description IS DISTINCT FROM NEW.description OR
+        OLD.price IS DISTINCT FROM NEW.price OR
+        OLD.category IS DISTINCT FROM NEW.category OR
+        OLD.media_url IS DISTINCT FROM NEW.media_url OR
+        OLD.media_type IS DISTINCT FROM NEW.media_type OR
+        OLD.variations IS DISTINCT FROM NEW.variations
+      ) THEN
+        NEW.social_published := true;
+        NEW.social_published_at := now();
+      END IF;
+      RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql;
+
+    DROP TRIGGER IF EXISTS trg_shopvax_social_publication ON products;
+    CREATE TRIGGER trg_shopvax_social_publication
+      BEFORE INSERT OR UPDATE ON products
+      FOR EACH ROW EXECUTE FUNCTION shopvax_touch_social_publication();
   `)
 }
 
@@ -28,6 +58,27 @@ function schemaReady() {
 if (pool) {
   const timer = setTimeout(() => void schemaReady().catch((error) => console.error('[social network] schema:', error.message)), 1200)
   timer.unref()
+}
+
+function planTier(value) {
+  return ['ouro', 'prata'].includes(value) ? value : 'bronze'
+}
+
+function publicationShape(row) {
+  return {
+    id: row.id,
+    sku: row.sku,
+    name: row.name,
+    description: row.description,
+    price: Number(row.price),
+    category: row.category,
+    mediaUrl: row.media_url,
+    mediaType: row.media_type === 'video' ? 'video' : 'image',
+    pack: row.pack,
+    variations: Array.isArray(row.variations) ? row.variations : [],
+    featured: Boolean(row.featured),
+    publishedAt: row.social_published_at,
+  }
 }
 
 async function publicStoreProfile(slug) {
@@ -52,11 +103,25 @@ async function publicStoreProfile(slug) {
       eyebrow: row.eyebrow,
       logoUrl: row.logo_url,
       accent: row.accent,
-      planTier: ['ouro', 'prata'].includes(row.plan_tier) ? row.plan_tier : 'bronze',
+      planTier: planTier(row.plan_tier),
       productCount: Number(row.product_count || 0),
     },
     stats: { followers: 0, views: 0 },
   }
+}
+
+async function publicStorePublications(slug) {
+  await schemaReady()
+  const store = await pool.query('SELECT id FROM stores WHERE slug=$1 AND is_active=true AND social_enabled=true LIMIT 1', [slug])
+  if (!store.rowCount) return null
+  const products = await pool.query(`
+    SELECT id,sku,name,description,price,category,media_url,media_type,pack,variations,featured,social_published_at
+    FROM products
+    WHERE store_id=$1 AND active=true AND social_published=true
+    ORDER BY social_published_at DESC,id DESC
+    LIMIT 500
+  `, [store.rows[0].id])
+  return products.rows.map(publicationShape)
 }
 
 function install(app) {
@@ -81,6 +146,14 @@ function install(app) {
       const profile = await publicStoreProfile(String(req.params.slug || '').trim().slice(0, 80))
       if (!profile) return res.status(404).json({ error: 'Loja não encontrada.' })
       return res.json(profile)
+    } catch (error) { next(error) }
+  })
+
+  app.get('/api/social/stores/:slug/publications', async (req, res, next) => {
+    try {
+      const publications = await publicStorePublications(String(req.params.slug || '').trim().slice(0, 80))
+      if (!publications) return res.status(404).json({ error: 'Loja não encontrada.' })
+      return res.json({ publications })
     } catch (error) { next(error) }
   })
 }
