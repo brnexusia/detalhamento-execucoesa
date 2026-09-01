@@ -158,7 +158,10 @@ async function protectedStore(req, res) {
   }
   if (q) {
     params.push(`%${q.toLowerCase()}%`)
-    conditions.push(`lower(name || ' ' || sku || ' ' || category) LIKE $${params.length}`)
+    const likeIndex = params.length
+    params.push(q)
+    const idIndex = params.length
+    conditions.push(`(lower(name || ' ' || sku || ' ' || category) LIKE $${likeIndex} OR id=$${idIndex})`)
   }
   if (cursor) {
     params.push(Number(cursor.featured || 0), cursor.createdAt, cursor.id)

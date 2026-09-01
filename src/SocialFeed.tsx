@@ -34,9 +34,14 @@ function persistFeedScroll() {
   } catch { /* sessão indisponível */ }
 }
 
-function openStore(slug: string) {
+function storePath(slug: string, productId?: string) {
+  const base = `/${encodeURIComponent(slug)}`
+  return productId ? `${base}?produto=${encodeURIComponent(productId)}` : base
+}
+
+function openStore(slug: string, productId?: string) {
   persistFeedScroll()
-  window.history.pushState({}, '', `/${encodeURIComponent(slug)}`)
+  window.history.pushState({}, '', storePath(slug, productId))
   window.dispatchEvent(new PopStateEvent('popstate'))
 }
 
@@ -83,7 +88,7 @@ function SocialPostCard({ post }: { post: SocialPost }) {
   }
 
   const share = async () => {
-    const url = `${window.location.origin}/${encodeURIComponent(post.store.slug)}`
+    const url = `${window.location.origin}${storePath(post.store.slug, post.product.id)}`
     try {
       if (navigator.share) await navigator.share({ title: post.product.name, text: `${post.product.name} · ${post.store.name}`, url })
       else await navigator.clipboard.writeText(url)
@@ -128,7 +133,7 @@ function SocialPostCard({ post }: { post: SocialPost }) {
       <span>{post.product.category}</span>
       <h2>{post.product.name}</h2>
       {post.product.description && <p>{post.product.description}</p>}
-      <div><strong>{money.format(post.product.price)}</strong><button onClick={() => openStore(post.store.slug)}>Ver na loja <ChevronRight size={17}/></button></div>
+      <div><strong>{money.format(post.product.price)}</strong><button onClick={() => openStore(post.store.slug, post.product.id)}>Ver na loja <ChevronRight size={17}/></button></div>
     </div>
   </article>
 }

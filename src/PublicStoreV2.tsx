@@ -12,6 +12,10 @@ function routeParts() {
   return { storeSlug: storeSlug || demoPayload.store.slug, sellerSlug }
 }
 
+function requestedProductId() {
+  return new URLSearchParams(window.location.search).get('produto')?.trim().slice(0, 100) || ''
+}
+
 function cartKey(product: Product, selections: Record<string, string>) {
   return `${product.id}:${Object.entries(selections).sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => `${key}=${value}`).join('|')}`
 }
@@ -43,6 +47,8 @@ function ProductMedia({ product, className = '' }: { product: Product; className
 
 export default function PublicStoreV2() {
   const route = useMemo(routeParts, [])
+  const deepLinkedProductId = useMemo(requestedProductId, [])
+  const deepLinkOpenedRef = useRef(false)
   const [payload, setPayload] = useState<PublicPayload | null>(null)
   const [demo, setDemo] = useState(false)
   const [view, setView] = useState<ViewMode>('store')
@@ -69,7 +75,7 @@ export default function PublicStoreV2() {
     setCategory('Todos')
     setQuery('')
     filterKeyRef.current = 'Todos|'
-    return api.publicStore(route.storeSlug, route.sellerSlug)
+    return api.publicStore(route.storeSlug, route.sellerSlug, deepLinkedProductId ? { q: deepLinkedProductId } : {})
       .then((data) => {
         setPayload(data)
         setDemo(false)
@@ -82,7 +88,7 @@ export default function PublicStoreV2() {
           setDemo(true)
         }
       })
-  }, [route.storeSlug, route.sellerSlug])
+  }, [route.storeSlug, route.sellerSlug, deepLinkedProductId])
 
   useEffect(() => { void loadFirst() }, [loadFirst])
   useEffect(() => { localStorage.setItem('atacado-shop-cart-v3', JSON.stringify(cart)) }, [cart])
@@ -160,6 +166,19 @@ export default function PublicStoreV2() {
     setGalleryIndex(0)
     setError('')
   }
+
+  useEffect(() => {
+    if (!deepLinkedProductId || deepLinkOpenedRef.current || !payload) return
+    const product = products.find((item) => item.id === deepLinkedProductId)
+    if (!product) return
+    deepLinkOpenedRef.current = true
+    openPicker(product)
+    if (!demo) {
+      void api.publicStore(route.storeSlug, route.sellerSlug)
+        .then((data) => setPayload(data))
+        .catch(() => undefined)
+    }
+  }, [deepLinkedProductId, payload, products, demo, route.storeSlug, route.sellerSlug])
 
   const pickerGallery = picker ? galleryFor(picker, pickerSelections) : []
   useEffect(() => { setGalleryIndex(0) }, [pickerSelections, picker?.id])
