@@ -1,10 +1,21 @@
 const base = process.env.BASE_URL || 'http://127.0.0.1:3000'
 
-async function request(path) {
-  const response = await fetch(`${base}${path}`)
-  const body = await response.json().catch(() => ({}))
-  if (!response.ok) throw new Error(`${response.status} ${path}: ${JSON.stringify(body)}`)
-  return body
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+async function request(path, attempts = 30) {
+  let lastError = null
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const response = await fetch(`${base}${path}`)
+      const body = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(`${response.status} ${path}: ${JSON.stringify(body)}`)
+      return body
+    } catch (error) {
+      lastError = error
+      if (attempt < attempts) await sleep(500)
+    }
+  }
+  throw lastError || new Error(`Falha em ${path}`)
 }
 
 const health = await request('/api/social/health')
