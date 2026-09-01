@@ -124,14 +124,10 @@ async function rankedFeed(req, res) {
   const limit = Math.max(1, Math.min(30, Math.floor(Number(req.query.limit) || 12)))
   const key = visitorKey(req, res)
   const result = await pool.query(`
-    WITH base AS (
+    WITH eligible AS (
       SELECT p.id,p.sku,p.name,p.description,p.price,p.category,p.media_url,p.media_type,p.pack,p.variations,p.featured,p.social_published_at,
         s.id AS store_id,s.slug AS store_slug,s.name AS store_name,s.logo_url AS store_logo_url,s.accent AS store_accent,
         CASE WHEN s.plan_tier='ouro' THEN 'ouro' WHEN s.plan_tier='prata' THEN 'prata' ELSE 'bronze' END AS tier,
-        ROW_NUMBER() OVER (
-          PARTITION BY CASE WHEN s.plan_tier='ouro' THEN 'ouro' WHEN s.plan_tier='prata' THEN 'prata' ELSE 'bronze' END
-          ORDER BY p.social_published_at DESC,p.id DESC
-        )::bigint AS tier_pos,
         (SELECT COUNT(*)::int FROM social_post_views v WHERE v.product_id=p.id) AS social_views,
         (SELECT COUNT(*)::int FROM social_post_likes l WHERE l.product_id=p.id) AS social_likes,
         (SELECT COUNT(*)::int FROM social_actions a WHERE a.product_id=p.id AND a.kind='share') AS social_shares,
@@ -142,13 +138,33 @@ async function rankedFeed(req, res) {
       JOIN stores s ON s.id=p.store_id
       WHERE p.active=true AND p.social_published=true AND s.is_active=true AND s.social_enabled=true
         AND p.social_published_at <= $1::timestamptz
+    ), store_latest AS (
+      SELECT tier,store_id,MAX(social_published_at) AS latest
+      FROM eligible
+      GROUP BY tier,store_id
+    ), store_order AS (
+      SELECT tier,store_id,
+        ROW_NUMBER() OVER (PARTITION BY tier ORDER BY latest DESC,store_id ASC)::bigint AS store_rank
+      FROM store_latest
+    ), per_store AS (
+      SELECT e.*,
+        ROW_NUMBER() OVER (PARTITION BY e.tier,e.store_id ORDER BY e.social_published_at DESC,e.id DESC)::bigint AS product_pos
+      FROM eligible e
+    ), diversified AS (
+      SELECT p.*,
+        ROW_NUMBER() OVER (
+          PARTITION BY p.tier
+          ORDER BY p.product_pos ASC,o.store_rank ASC,p.social_published_at DESC,p.id DESC
+        )::bigint AS tier_pos
+      FROM per_store p
+      JOIN store_order o ON o.tier=p.tier AND o.store_id=p.store_id
     ), slotted AS (
       SELECT *, CASE tier
         WHEN 'ouro' THEN (((tier_pos-1)/3)*6 + CASE ((tier_pos-1)%3) WHEN 0 THEN 1 WHEN 1 THEN 3 ELSE 5 END)
         WHEN 'prata' THEN (((tier_pos-1)/2)*6 + CASE ((tier_pos-1)%2) WHEN 0 THEN 2 ELSE 6 END)
         ELSE ((tier_pos-1)*6 + 4)
       END::bigint AS feed_slot
-      FROM base
+      FROM diversified
     )
     SELECT * FROM slotted
     WHERE feed_slot > $2::bigint
@@ -161,7 +177,11 @@ async function rankedFeed(req, res) {
   return {
     posts: rows.map(publication),
     page: { hasMore, nextCursor: hasMore ? encodeCursor(cursor.snapshot, lastSlot) : null },
-    ranking: { version: 'plan-priority-v1', weights: { ouro: 3, prata: 2, bronze: 1 } },
+    ranking: {
+      version: 'plan-priority-v2',
+      weights: { ouro: 3, prata: 2, bronze: 1 },
+      diversity: 'store-round-robin-v1',
+    },
   }
 }
 
