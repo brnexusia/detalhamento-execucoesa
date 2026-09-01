@@ -97,6 +97,8 @@ jobs:
         run: node server/social-module9.integration.mjs
       - name: Social module 10 social metrics
         run: node server/social-module10.integration.mjs
+      - name: Social module 11 feed behavior
+        run: node server/social-module11.integration.mjs
       - name: Business module 2 stock integration
         run: node server/business-module2.integration.mjs
       - name: Business module 3 catalogs integration

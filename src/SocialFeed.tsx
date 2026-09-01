@@ -10,36 +10,76 @@ type SocialPost = {
 }
 
 type FeedPayload = { posts: SocialPost[]; page: { hasMore: boolean; nextCursor: string | null } }
-const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
+type FeedSession = { posts: SocialPost[]; cursor: string | null; hasMore: boolean; scrollY: number; savedAt: number }
 
-function openStore(slug: string) { window.location.assign(`/${encodeURIComponent(slug)}`) }
+const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
+const feedSessionKey = 'shopvax_social_feed_state_v1'
+const feedSessionTtl = 30 * 60 * 1000
+
 function compact(value: number) { return new Intl.NumberFormat('pt-BR', { notation: 'compact', maximumFractionDigits: 1 }).format(value || 0) }
+
+function readFeedSession(): FeedSession | null {
+  try {
+    const parsed = JSON.parse(sessionStorage.getItem(feedSessionKey) || 'null') as FeedSession | null
+    if (!parsed || !Array.isArray(parsed.posts) || Date.now() - Number(parsed.savedAt || 0) > feedSessionTtl) return null
+    return parsed
+  } catch { return null }
+}
+
+function persistFeedScroll() {
+  try {
+    const parsed = readFeedSession()
+    if (!parsed) return
+    sessionStorage.setItem(feedSessionKey, JSON.stringify({ ...parsed, scrollY: window.scrollY, savedAt: Date.now() }))
+  } catch { /* sessão indisponível */ }
+}
+
+function openStore(slug: string) {
+  persistFeedScroll()
+  window.history.pushState({}, '', `/${encodeURIComponent(slug)}`)
+  window.dispatchEvent(new PopStateEvent('popstate'))
+}
 
 function SocialPostCard({ post }: { post: SocialPost }) {
   const cardRef = useRef<HTMLElement | null>(null)
+  const videoRef = useRef<HTMLVideoElement | null>(null)
   const viewed = useRef(false)
   const [interactions, setInteractions] = useState(post.interactions)
   const [asking, setAsking] = useState(false)
+  const [muted, setMuted] = useState(true)
 
   useEffect(() => {
     const target = cardRef.current
     if (!target) return
     const observer = new IntersectionObserver((entries) => {
-      if (viewed.current || !entries.some((entry) => entry.isIntersecting && entry.intersectionRatio >= .55)) return
+      const entry = entries[0]
+      const active = Boolean(entry?.isIntersecting && entry.intersectionRatio >= .62)
+      if (videoRef.current) {
+        if (active) void videoRef.current.play().catch(() => undefined)
+        else videoRef.current.pause()
+      }
+      if (viewed.current || !entry?.isIntersecting || entry.intersectionRatio < .55) return
       viewed.current = true
       fetch(`/api/social/posts/${post.id}/view`, { method: 'POST' })
         .then((response) => response.ok ? response.json() : null)
         .then((body) => { if (body) setInteractions((current) => ({ ...current, views: body.views })) })
         .catch(() => undefined)
-    }, { threshold: [.55] })
+    }, { threshold: [0, .55, .62, 1] })
     observer.observe(target)
-    return () => observer.disconnect()
+    return () => {
+      observer.disconnect()
+      videoRef.current?.pause()
+    }
   }, [post.id])
 
   const like = async () => {
     const response = await fetch(`/api/social/posts/${post.id}/like`, { method: 'POST' })
     const body = await response.json().catch(() => null)
     if (response.ok && body) setInteractions((current) => ({ ...current, liked: body.liked, likes: body.likes }))
+  }
+
+  const likeFromGesture = () => {
+    if (!interactions.liked) void like()
   }
 
   const share = async () => {
@@ -65,11 +105,11 @@ function SocialPostCard({ post }: { post: SocialPost }) {
   }
 
   return <article className="social-feed-card" ref={cardRef}>
-    <div className="social-feed-media">
+    <div className="social-feed-media" onDoubleClick={likeFromGesture}>
       {post.product.mediaType === 'video'
-        ? <video src={post.product.mediaUrl} autoPlay loop muted playsInline preload="metadata" />
+        ? <video ref={videoRef} src={post.product.mediaUrl} loop muted={muted} playsInline preload="metadata" onClick={() => setMuted((value) => !value)} />
         : post.product.mediaUrl
-          ? <img src={post.product.mediaUrl} alt={post.product.name} loading="lazy" />
+          ? <img src={post.product.mediaUrl} alt={post.product.name} loading="lazy" decoding="async" />
           : <div className="social-feed-media__empty"><Play size={34}/></div>}
       <div className="social-feed-shade" />
     </div>
@@ -79,10 +119,10 @@ function SocialPostCard({ post }: { post: SocialPost }) {
       <ChevronRight size={18}/>
     </button>
     <aside className="social-feed-actions" aria-label="Interações">
-      <button className={interactions.liked ? 'is-active' : ''} onClick={like}><Heart size={25} fill={interactions.liked ? 'currentColor' : 'none'}/><span>{compact(interactions.likes)}</span></button>
-      <div className="social-feed-actions__metric"><Eye size={24}/><span>{compact(interactions.views)}</span></div>
-      <button onClick={share}><Share2 size={24}/><span>{compact(interactions.shares)}</span></button>
-      <button className="social-feed-actions__ask" onClick={ask} disabled={asking}><MessageCircleQuestion size={25}/><span>{asking ? 'Abrindo…' : 'Perguntar'}</span></button>
+      <button aria-label={interactions.liked ? 'Descurtir produto' : 'Curtir produto'} className={interactions.liked ? 'is-active' : ''} onClick={like}><Heart size={25} fill={interactions.liked ? 'currentColor' : 'none'}/><span>{compact(interactions.likes)}</span></button>
+      <div className="social-feed-actions__metric" aria-label={`${compact(interactions.views)} visualizações`}><Eye size={24}/><span>{compact(interactions.views)}</span></div>
+      <button aria-label="Compartilhar produto" onClick={share}><Share2 size={24}/><span>{compact(interactions.shares)}</span></button>
+      <button aria-label="Perguntar sobre o produto" className="social-feed-actions__ask" onClick={ask} disabled={asking}><MessageCircleQuestion size={25}/><span>{asking ? 'Abrindo…' : 'Perguntar'}</span></button>
     </aside>
     <div className="social-feed-copy">
       <span>{post.product.category}</span>
@@ -94,15 +134,18 @@ function SocialPostCard({ post }: { post: SocialPost }) {
 }
 
 export default function SocialFeed() {
-  const [posts, setPosts] = useState<SocialPost[]>([])
-  const [cursor, setCursor] = useState<string | null>(null)
-  const [hasMore, setHasMore] = useState(true)
+  const restored = useRef<FeedSession | null>(readFeedSession())
+  const [posts, setPosts] = useState<SocialPost[]>(() => restored.current?.posts || [])
+  const [cursor, setCursor] = useState<string | null>(() => restored.current?.cursor || null)
+  const [hasMore, setHasMore] = useState(() => restored.current?.hasMore ?? true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const sentinel = useRef<HTMLDivElement | null>(null)
+  const loadingRef = useRef(false)
 
   const load = useCallback(async (nextCursor?: string | null) => {
-    if (loading || (!hasMore && nextCursor)) return
+    if (loadingRef.current || (!hasMore && nextCursor)) return
+    loadingRef.current = true
     setLoading(true); setError('')
     try {
       const query = new URLSearchParams({ limit: '12' })
@@ -116,10 +159,31 @@ export default function SocialFeed() {
       })
       setCursor(body.page?.nextCursor || null); setHasMore(Boolean(body.page?.hasMore))
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível carregar o feed.') }
-    finally { setLoading(false) }
-  }, [hasMore, loading])
+    finally { loadingRef.current = false; setLoading(false) }
+  }, [hasMore])
 
-  useEffect(() => { void load(null) }, [])
+  useEffect(() => {
+    if (restored.current?.posts?.length) {
+      const y = Number(restored.current.scrollY || 0)
+      requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo({ top: y, behavior: 'auto' })))
+      restored.current = null
+      return
+    }
+    void load(null)
+  }, [load])
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(feedSessionKey, JSON.stringify({ posts, cursor, hasMore, scrollY: window.scrollY, savedAt: Date.now() } satisfies FeedSession))
+    } catch { /* sessão indisponível */ }
+  }, [posts, cursor, hasMore])
+
+  useEffect(() => {
+    const save = () => persistFeedScroll()
+    window.addEventListener('pagehide', save)
+    return () => window.removeEventListener('pagehide', save)
+  }, [])
+
   useEffect(() => {
     const target = sentinel.current
     if (!target || !hasMore || loading) return
