@@ -129,6 +129,14 @@ async function sellerFor(storeId, key) {
   return seller
 }
 
+async function sellerRoute(storeSlug, key) {
+  await schemaReady()
+  const result = await pool.query('SELECT id FROM stores WHERE slug=$1 AND is_active=true AND social_enabled=true LIMIT 1', [storeSlug])
+  if (!result.rowCount) return null
+  const seller = await sellerFor(result.rows[0].id, key)
+  return seller ? { id: seller.id, slug: seller.slug, name: seller.name } : { id: null, slug: '', name: 'Atendimento' }
+}
+
 async function askAboutProduct(productId, key) {
   await schemaReady()
   const result = await pool.query(`
@@ -173,6 +181,14 @@ async function askAboutProduct(productId, key) {
 function install(app) {
   if (app.__shopvaxSocialCommerceInstalled) return
   app.__shopvaxSocialCommerceInstalled = true
+
+  app.get('/api/social/stores/:storeSlug/seller-route', async (req, res, next) => {
+    try {
+      const seller = await sellerRoute(String(req.params.storeSlug || '').trim().slice(0, 80), visitorKey(req, res))
+      if (!seller) return res.status(404).json({ error: 'Loja não encontrada.' })
+      return res.json({ seller })
+    } catch (error) { next(error) }
+  })
 
   app.get('/api/social/stores/:storeSlug/products/:productId', async (req, res, next) => {
     try {

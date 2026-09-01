@@ -34,14 +34,23 @@ function persistFeedScroll() {
   } catch { /* sessão indisponível */ }
 }
 
-function storePath(slug: string, productId?: string) {
-  const base = `/${encodeURIComponent(slug)}`
+function storePath(slug: string, productId?: string, sellerSlug?: string) {
+  const base = sellerSlug ? `/${encodeURIComponent(slug)}/${encodeURIComponent(sellerSlug)}` : `/${encodeURIComponent(slug)}`
   return productId ? `${base}?produto=${encodeURIComponent(productId)}` : base
 }
 
-function openStore(slug: string, productId?: string) {
+async function sellerSlugForStore(slug: string) {
+  try {
+    const response = await fetch(`/api/social/stores/${encodeURIComponent(slug)}/seller-route`, { credentials: 'include' })
+    const body = await response.json().catch(() => null)
+    return response.ok ? String(body?.seller?.slug || '') : ''
+  } catch { return '' }
+}
+
+async function openStore(slug: string, productId?: string) {
   persistFeedScroll()
-  window.history.pushState({}, '', storePath(slug, productId))
+  const sellerSlug = await sellerSlugForStore(slug)
+  window.history.pushState({}, '', storePath(slug, productId, sellerSlug))
   window.dispatchEvent(new PopStateEvent('popstate'))
 }
 
@@ -118,7 +127,7 @@ function SocialPostCard({ post }: { post: SocialPost }) {
           : <div className="social-feed-media__empty"><Play size={34}/></div>}
       <div className="social-feed-shade" />
     </div>
-    <button className="social-feed-store" onClick={() => openStore(post.store.slug)}>
+    <button className="social-feed-store" onClick={() => void openStore(post.store.slug)}>
       <span className="social-feed-store__avatar">{post.store.logoUrl ? <img src={post.store.logoUrl} alt=""/> : <Store size={20}/>}</span>
       <span><strong>{post.store.name}</strong><small>@{post.store.slug}</small></span>
       <ChevronRight size={18}/>
@@ -133,7 +142,7 @@ function SocialPostCard({ post }: { post: SocialPost }) {
       <span>{post.product.category}</span>
       <h2>{post.product.name}</h2>
       {post.product.description && <p>{post.product.description}</p>}
-      <div><strong>{money.format(post.product.price)}</strong><button onClick={() => openStore(post.store.slug, post.product.id)}>Ver na loja <ChevronRight size={17}/></button></div>
+      <div><strong>{money.format(post.product.price)}</strong><button onClick={() => void openStore(post.store.slug, post.product.id)}>Ver na loja <ChevronRight size={17}/></button></div>
     </div>
   </article>
 }
