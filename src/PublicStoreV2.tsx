@@ -75,7 +75,7 @@ export default function PublicStoreV2() {
     setCategory('Todos')
     setQuery('')
     filterKeyRef.current = 'Todos|'
-    return api.publicStore(route.storeSlug, route.sellerSlug, deepLinkedProductId ? { q: deepLinkedProductId } : {})
+    return api.publicStore(route.storeSlug, route.sellerSlug)
       .then((data) => {
         setPayload(data)
         setDemo(false)
@@ -88,7 +88,7 @@ export default function PublicStoreV2() {
           setDemo(true)
         }
       })
-  }, [route.storeSlug, route.sellerSlug, deepLinkedProductId])
+  }, [route.storeSlug, route.sellerSlug])
 
   useEffect(() => { void loadFirst() }, [loadFirst])
   useEffect(() => { localStorage.setItem('atacado-shop-cart-v3', JSON.stringify(cart)) }, [cart])
@@ -168,17 +168,13 @@ export default function PublicStoreV2() {
   }
 
   useEffect(() => {
-    if (!deepLinkedProductId || deepLinkOpenedRef.current || !payload) return
-    const product = products.find((item) => item.id === deepLinkedProductId)
-    if (!product) return
+    if (!deepLinkedProductId || deepLinkOpenedRef.current || !payload || demo) return
     deepLinkOpenedRef.current = true
-    openPicker(product)
-    if (!demo) {
-      void api.publicStore(route.storeSlug, route.sellerSlug)
-        .then((data) => setPayload(data))
-        .catch(() => undefined)
-    }
-  }, [deepLinkedProductId, payload, products, demo, route.storeSlug, route.sellerSlug])
+    fetch(`/api/social/stores/${encodeURIComponent(route.storeSlug)}/products/${encodeURIComponent(deepLinkedProductId)}`)
+      .then(async (response) => response.ok ? response.json() : null)
+      .then((body) => { if (body?.product) openPicker(body.product as Product) })
+      .catch(() => undefined)
+  }, [deepLinkedProductId, payload, demo, route.storeSlug])
 
   const pickerGallery = picker ? galleryFor(picker, pickerSelections) : []
   useEffect(() => { setGalleryIndex(0) }, [pickerSelections, picker?.id])
