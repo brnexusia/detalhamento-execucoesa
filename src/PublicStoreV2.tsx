@@ -205,11 +205,11 @@ export default function PublicStoreV2() {
     finally { setSending(false) }
   }
 
-  if (!payload) return <div className="store-loading"><span className="brand__mark">AS</span><strong>Abrindo a loja…</strong><p>Só um instante.</p></div>
+  if (!payload) return <div className="store-loading"><span className="brand__mark">SV</span><strong>Abrindo a loja…</strong><p>Só um instante.</p></div>
 
   return <div className={`app ${view === 'feed' ? 'app--feed' : ''}`} style={{ '--accent': store?.accent || '#c94c2d' } as React.CSSProperties}>
     <header className="topbar">
-      <button className="brand" onClick={() => setView('store')}>{store?.logoUrl ? <img className="brand__logo" src={store.logoUrl} alt="" /> : <span className="brand__mark">AS</span>}<span className="brand__text"><strong>{store?.name}</strong><small>via Atacado Shop</small></span></button>
+      <button className="brand" onClick={() => setView('store')}>{store?.logoUrl ? <img className="brand__logo" src={store.logoUrl} alt="" /> : <span className="brand__mark">SV</span>}<span className="brand__text"><strong>{store?.name}</strong><small>via Shopvax</small></span></button>
       <nav className="view-switch"><button className={view === 'store' ? 'is-active' : ''} onClick={() => setView('store')}><Grid2X2 size={16}/> Loja</button><button className={view === 'feed' ? 'is-active' : ''} onClick={() => { setCategory('Todos'); setQuery(''); setView('feed') }}><Sparkles size={16}/> Feed</button></nav>
       <button className="cart-trigger" onClick={() => setCartOpen(true)}><ShoppingBag size={19}/><span>Carrinho</span>{cartCount > 0 && <b>{cartCount}</b>}</button>
     </header>
