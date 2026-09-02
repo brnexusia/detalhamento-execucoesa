@@ -9,7 +9,7 @@ export default function Home() {
   return (
     <div className="home-shell">
       <header className="home-nav">
-        <button className="wordmark"><span>AS</span> Atacado Shop</button>
+        <button className="wordmark"><span>SV</span> Shopvax</button>
         <div><button className="text-button" onClick={() => go('/entrar')}>Entrar</button><button className="nav-cta" onClick={() => go('/criar-conta')}>Criar loja</button></div>
       </header>
       <main className="home-main">
