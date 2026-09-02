@@ -107,6 +107,8 @@ jobs:
         run: node server/social-module14.integration.mjs
       - name: Social module 15 Shopvax base rebrand
         run: node server/social-module15.integration.mjs
+      - name: Social module 16 Shopvax surfaces rebrand
+        run: node server/social-module16.integration.mjs
       - name: Business module 2 stock integration
         run: node server/business-module2.integration.mjs
       - name: Business module 3 catalogs integration
