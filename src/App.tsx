@@ -20,7 +20,7 @@ function pageFor(pathname: string) {
 }
 
 function RouteFallback() {
-  return <div className="store-loading"><span className="brand__mark">AS</span><strong>Carregando…</strong></div>
+  return <div className="store-loading"><span className="brand__mark">SV</span><strong>Carregando…</strong></div>
 }
 
 export default function App() {
