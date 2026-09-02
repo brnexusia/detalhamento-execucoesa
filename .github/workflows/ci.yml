@@ -55,6 +55,7 @@ jobs:
           grep -Fq '"./server/social-commerce-hooks.mjs"' Dockerfile
           grep -Fq '"./server/social-analytics-hooks.mjs"' Dockerfile
           grep -Fq '"./server/public-protection-hooks.mjs"' Dockerfile
+          grep -Fq '"./server/page-metadata-hooks.mjs"' Dockerfile
       - name: Scanner URL tests
         run: npm run test:scanner
       - name: Scanner collector tests
@@ -109,6 +110,8 @@ jobs:
         run: node server/social-module15.integration.mjs
       - name: Social module 16 Shopvax surfaces rebrand
         run: node server/social-module16.integration.mjs
+      - name: Social module 17 deep-link metadata
+        run: node server/social-module17.integration.mjs
       - name: Business module 2 stock integration
         run: node server/business-module2.integration.mjs
       - name: Business module 3 catalogs integration
