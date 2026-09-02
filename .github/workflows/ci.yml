@@ -39,6 +39,7 @@ jobs:
         run: npm install
       - name: Validate production Docker hooks
         run: |
+          grep -Fq '"./server/brand-compat-hooks.mjs"' Dockerfile
           grep -Fq '"./server/performance-hooks.mjs"' Dockerfile
           grep -Fq '"./server/api-json-hooks.mjs"' Dockerfile
           grep -Fq '"./server/analytics-features-hooks.mjs"' Dockerfile
@@ -76,8 +77,8 @@ jobs:
         run: find dist/assets -maxdepth 1 -type f -printf '%f %k KB\n' | sort
       - name: Start application
         run: |
-          npm start > /tmp/atacado-shop.log 2>&1 &
-          echo $! > /tmp/atacado-shop.pid
+          npm start > /tmp/shopvax.log 2>&1 &
+          echo $! > /tmp/shopvax.pid
       - name: Social module 1 network foundation
         run: node server/social-module1.integration.mjs
       - name: Social module 2 public store profile
@@ -112,6 +113,8 @@ jobs:
         run: node server/social-module16.integration.mjs
       - name: Social module 17 deep-link metadata
         run: node server/social-module17.integration.mjs
+      - name: Social module 18 brand compatibility
+        run: node server/social-module18.integration.mjs
       - name: Business module 2 stock integration
         run: node server/business-module2.integration.mjs
       - name: Business module 3 catalogs integration
@@ -140,4 +143,4 @@ jobs:
         run: npm run test:scanner:module6
       - name: Print server log on failure
         if: failure()
-        run: cat /tmp/atacado-shop.log || true
+        run: cat /tmp/shopvax.log || true
