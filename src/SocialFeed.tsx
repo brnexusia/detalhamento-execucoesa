@@ -39,6 +39,29 @@ function storePath(slug: string, productId?: string, sellerSlug?: string) {
   return productId ? `${base}?produto=${encodeURIComponent(productId)}` : base
 }
 
+async function copyText(value: string) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value)
+      return true
+    }
+  } catch { /* usa fallback */ }
+
+  try {
+    const textarea = document.createElement('textarea')
+    textarea.value = value
+    textarea.setAttribute('readonly', '')
+    textarea.style.position = 'fixed'
+    textarea.style.opacity = '0'
+    textarea.style.pointerEvents = 'none'
+    document.body.appendChild(textarea)
+    textarea.select()
+    const copied = document.execCommand('copy')
+    textarea.remove()
+    return copied
+  } catch { return false }
+}
+
 async function sellerSlugForStore(slug: string) {
   try {
     const response = await fetch(`/api/social/stores/${encodeURIComponent(slug)}/seller-route`, { credentials: 'include' })
@@ -100,7 +123,7 @@ function SocialPostCard({ post }: { post: SocialPost }) {
     const url = `${window.location.origin}${storePath(post.store.slug, post.product.id)}`
     try {
       if (navigator.share) await navigator.share({ title: post.product.name, text: `${post.product.name} · ${post.store.name}`, url })
-      else await navigator.clipboard.writeText(url)
+      else if (!(await copyText(url))) return
       const response = await fetch(`/api/social/posts/${post.id}/share`, { method: 'POST' })
       const body = await response.json().catch(() => null)
       if (response.ok && body) setInteractions((current) => ({ ...current, shares: body.shares }))
