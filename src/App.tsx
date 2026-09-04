@@ -8,6 +8,7 @@ const AuthRoute = lazy(() => import('./AuthRoute'))
 const PlatformRoute = lazy(() => import('./PlatformRoute'))
 const AdminRoute = lazy(() => import('./AdminRoute'))
 const SocialFeed = lazy(() => import('./SocialFeed'))
+const SocialStoreProfile = lazy(() => import('./SocialStoreProfile'))
 
 function pageFor(pathname: string) {
   if (pathname === '/' || pathname === '' || pathname === '/feed' || pathname === '/descobrir') return 'social'
@@ -16,6 +17,7 @@ function pageFor(pathname: string) {
   if (pathname === '/criar-conta') return 'register'
   if (pathname === '/admin' || pathname.startsWith('/admin/')) return 'platform'
   if (pathname === '/painel' || pathname.startsWith('/painel/')) return 'admin'
+  if (pathname === '/perfil' || pathname.startsWith('/perfil/')) return 'profile'
   return 'store'
 }
 
@@ -36,6 +38,7 @@ export default function App() {
 
   let content
   if (page === 'social') content = <SocialFeed />
+  else if (page === 'profile') content = <SocialStoreProfile />
   else if (page === 'home') content = <HomeRoute />
   else if (page === 'login') content = <AuthRoute mode="login" />
   else if (page === 'register') content = <AuthRoute mode="register" />
