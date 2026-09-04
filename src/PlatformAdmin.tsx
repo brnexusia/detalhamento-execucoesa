@@ -156,7 +156,7 @@ export default function PlatformAdmin() {
   if (loading) {
     return (
       <div className="platform-loading">
-        <span className="platform-mark">AS</span>
+        <span className="platform-mark">SV</span>
         <strong>Abrindo administração…</strong>
       </div>
     )
@@ -180,8 +180,8 @@ export default function PlatformAdmin() {
     <div className="platform-shell">
       <aside className="platform-sidebar">
         <div className="platform-brand">
-          <span className="platform-mark">AS</span>
-          <div><strong>Atacado Shop</strong><small>Administração</small></div>
+          <span className="platform-mark">SV</span>
+          <div><strong>Shopvax</strong><small>Administração</small></div>
         </div>
 
         <nav>
@@ -204,7 +204,7 @@ export default function PlatformAdmin() {
 
       <main className="platform-main">
         <header className="platform-topbar">
-          <div><span>Atacado Shop</span><strong>{section === 'visao' ? 'Visão geral' : section === 'lojas' ? 'Lojas' : 'Administradores'}</strong></div>
+          <div><span>Shopvax</span><strong>{section === 'visao' ? 'Visão geral' : section === 'lojas' ? 'Lojas' : 'Administradores'}</strong></div>
           <a href="/painel">Painel da minha loja <ExternalLink size={14} /></a>
         </header>
 

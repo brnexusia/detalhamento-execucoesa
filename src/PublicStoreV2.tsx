@@ -12,6 +12,10 @@ function routeParts() {
   return { storeSlug: storeSlug || demoPayload.store.slug, sellerSlug }
 }
 
+function requestedProductId() {
+  return new URLSearchParams(window.location.search).get('produto')?.trim().slice(0, 100) || ''
+}
+
 function cartKey(product: Product, selections: Record<string, string>) {
   return `${product.id}:${Object.entries(selections).sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => `${key}=${value}`).join('|')}`
 }
@@ -43,6 +47,9 @@ function ProductMedia({ product, className = '' }: { product: Product; className
 
 export default function PublicStoreV2() {
   const route = useMemo(routeParts, [])
+  const cartStorageKey = useMemo(() => `shopvax-cart-v1:${encodeURIComponent(route.storeSlug)}`, [route.storeSlug])
+  const deepLinkedProductId = useMemo(requestedProductId, [])
+  const deepLinkOpenedRef = useRef(false)
   const [payload, setPayload] = useState<PublicPayload | null>(null)
   const [demo, setDemo] = useState(false)
   const [view, setView] = useState<ViewMode>('store')
@@ -61,7 +68,7 @@ export default function PublicStoreV2() {
   const filterKeyRef = useRef('Todos|')
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
   const [cart, setCart] = useState<CartItem[]>(() => {
-    try { return JSON.parse(localStorage.getItem('atacado-shop-cart-v3') || '[]') }
+    try { return JSON.parse(localStorage.getItem(cartStorageKey) || '[]') }
     catch { return [] }
   })
 
@@ -85,7 +92,7 @@ export default function PublicStoreV2() {
   }, [route.storeSlug, route.sellerSlug])
 
   useEffect(() => { void loadFirst() }, [loadFirst])
-  useEffect(() => { localStorage.setItem('atacado-shop-cart-v3', JSON.stringify(cart)) }, [cart])
+  useEffect(() => { localStorage.setItem(cartStorageKey, JSON.stringify(cart)) }, [cart, cartStorageKey])
 
   useEffect(() => {
     if (!payload || demo) return
@@ -161,6 +168,15 @@ export default function PublicStoreV2() {
     setError('')
   }
 
+  useEffect(() => {
+    if (!deepLinkedProductId || deepLinkOpenedRef.current || !payload || demo) return
+    deepLinkOpenedRef.current = true
+    fetch(`/api/social/stores/${encodeURIComponent(route.storeSlug)}/products/${encodeURIComponent(deepLinkedProductId)}`)
+      .then(async (response) => response.ok ? response.json() : null)
+      .then((body) => { if (body?.product) openPicker(body.product as Product) })
+      .catch(() => undefined)
+  }, [deepLinkedProductId, payload, demo, route.storeSlug])
+
   const pickerGallery = picker ? galleryFor(picker, pickerSelections) : []
   useEffect(() => { setGalleryIndex(0) }, [pickerSelections, picker?.id])
 
@@ -189,11 +205,11 @@ export default function PublicStoreV2() {
     finally { setSending(false) }
   }
 
-  if (!payload) return <div className="store-loading"><span className="brand__mark">AS</span><strong>Abrindo a loja…</strong><p>Só um instante.</p></div>
+  if (!payload) return <div className="store-loading"><span className="brand__mark">SV</span><strong>Abrindo a loja…</strong><p>Só um instante.</p></div>
 
   return <div className={`app ${view === 'feed' ? 'app--feed' : ''}`} style={{ '--accent': store?.accent || '#c94c2d' } as React.CSSProperties}>
     <header className="topbar">
-      <button className="brand" onClick={() => setView('store')}>{store?.logoUrl ? <img className="brand__logo" src={store.logoUrl} alt="" /> : <span className="brand__mark">AS</span>}<span className="brand__text"><strong>{store?.name}</strong><small>via Atacado Shop</small></span></button>
+      <button className="brand" onClick={() => setView('store')}>{store?.logoUrl ? <img className="brand__logo" src={store.logoUrl} alt="" /> : <span className="brand__mark">SV</span>}<span className="brand__text"><strong>{store?.name}</strong><small>via Shopvax</small></span></button>
       <nav className="view-switch"><button className={view === 'store' ? 'is-active' : ''} onClick={() => setView('store')}><Grid2X2 size={16}/> Loja</button><button className={view === 'feed' ? 'is-active' : ''} onClick={() => { setCategory('Todos'); setQuery(''); setView('feed') }}><Sparkles size={16}/> Feed</button></nav>
       <button className="cart-trigger" onClick={() => setCartOpen(true)}><ShoppingBag size={19}/><span>Carrinho</span>{cartCount > 0 && <b>{cartCount}</b>}</button>
     </header>

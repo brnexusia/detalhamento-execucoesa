@@ -42,7 +42,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   return (
     <div className="auth-shell">
       <aside className="auth-poster">
-        <button className="wordmark" onClick={() => go('/')}><span>AS</span> Atacado Shop</button>
+        <button className="wordmark" onClick={() => go('/')}><span>SV</span> Shopvax</button>
         <div className="auth-poster__copy">
           <p>Venda assistida para atacado.</p>
           <h1>{mode === 'register' ? 'Sua loja no ar. Sua vendedora no fechamento.' : 'Volte para a sua operação.'}</h1>
@@ -53,7 +53,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
         <button className="auth-close" onClick={() => go('/')} aria-label="Fechar"><X size={20} /></button>
         <form className="auth-form" onSubmit={submit}>
           <div className="auth-form__head">
-            <span className="brand__mark">AS</span>
+            <span className="brand__mark">SV</span>
             <p>{mode === 'register' ? 'Criar conta' : 'Entrar'}</p>
             <h2>{mode === 'register' ? 'Monte sua loja em poucos minutos.' : 'Acesse seu painel.'}</h2>
           </div>
