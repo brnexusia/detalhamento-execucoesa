@@ -39,17 +39,18 @@ async function metadataFor(req) {
   const origin = originFor(req)
   const url = new URL(req.originalUrl || req.url || '/', origin)
   const segments = url.pathname.split('/').filter(Boolean)
-  const slug = segments[0] || ''
+  const isProfile = segments[0] === 'perfil'
+  const slug = isProfile ? segments[1] || '' : segments[0] || ''
   const canonicalUrl = `${origin}${url.pathname}${url.search}`
   const fallback = {
     title: 'Shopvax',
-    description: 'Shopvax — catálogo e feed de produtos com pedido direto para sua vendedora.',
+    description: 'Shopvax — descubra produtos e lojas e monte seu pedido direto pelo WhatsApp.',
     url: canonicalUrl,
     image: '',
     video: '',
   }
 
-  if (!pool || !slug || reserved.has(slug)) return fallback
+  if (!pool || !slug || (!isProfile && reserved.has(slug))) return fallback
 
   try {
     const storeResult = await pool.query(
@@ -70,7 +71,7 @@ async function metadataFor(req) {
         const product = productResult.rows[0]
         return {
           title: `${product.name} · ${store.name} | Shopvax`,
-          description: String(product.description || `Veja ${product.name} na ${store.name} e monte seu pedido pelo Shopvax.`).slice(0, 220),
+          description: String(product.description || `Veja ${product.name} no perfil da ${store.name} no Shopvax.`).slice(0, 220),
           url: canonicalUrl,
           image: product.media_type === 'image' ? absoluteUrl(req, product.media_url) : absoluteUrl(req, store.logo_url),
           video: product.media_type === 'video' ? absoluteUrl(req, product.media_url) : '',
@@ -80,7 +81,7 @@ async function metadataFor(req) {
 
     return {
       title: `${store.name} | Shopvax`,
-      description: String(store.tagline || `Veja o catálogo da ${store.name} no Shopvax.`).slice(0, 220),
+      description: String(store.tagline || `Veja o perfil da ${store.name} no Shopvax.`).slice(0, 220),
       url: canonicalUrl,
       image: absoluteUrl(req, store.logo_url),
       video: '',
@@ -136,10 +137,10 @@ express.response.sendFile = function metadataSendFile(filePath, options, callbac
     res.type('html').send(injectMetadata(html, meta))
     if (typeof callback === 'function') callback(null)
   }).catch((error) => {
-    if (typeof callback === 'function') return originalSendFile.call(res, filePath, options, callback)
-    return originalSendFile.call(res, filePath, options, (sendError) => {
-      if (sendError && !res.headersSent) res.req?.next?.(sendError)
-      else if (error) console.error('[page metadata] fallback:', error instanceof Error ? error.message : String(error))
+    console.error('[page metadata] fallback:', error instanceof Error ? error.message : String(error))
+    originalSendFile.call(res, filePath, options, (sendError) => {
+      if (typeof callback === 'function') callback(sendError || null)
+      else if (sendError && !res.headersSent) res.status(sendError.statusCode || 500).end()
     })
   })
 
