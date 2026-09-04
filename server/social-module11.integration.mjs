@@ -13,3 +13,4 @@ if (!css.includes('overflow-y:auto') || !css.includes('scroll-snap-type:y mandat
 if (!css.includes('-webkit-line-clamp:2')) throw new Error('Texto do feed não está limitado para preservar a mídia.')
 
 console.log('social module 11 ok')
+await import('./social-module20.integration.mjs')
