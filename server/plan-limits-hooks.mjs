@@ -110,9 +110,37 @@ async function limitFor(storeId, planCode, tableName, columnName) {
   return { max, current: Number(current.rows[0]?.total || 0) }
 }
 
-function friendly(resource, max) {
+function friendly(resource, max = null) {
   const labels = { products: 'produtos', sellers: 'vendedoras', catalogs: 'catálogos' }
-  return `Seu plano permite até ${max} ${labels[resource] || resource}. Faça upgrade ou ajuste o plano antes de adicionar mais.`
+  const label = labels[resource] || resource
+  return max == null
+    ? `Seu plano atingiu o limite de ${label}. Faça upgrade ou ajuste o plano antes de adicionar mais.`
+    : `Seu plano permite até ${max} ${label}. Faça upgrade ou ajuste o plano antes de adicionar mais.`
+}
+
+function isDatabasePlanLimit(error) {
+  return error?.code === 'P0001' && String(error?.message || '').startsWith('SHOPVAX_PLAN_LIMIT:')
+}
+
+function resourceFromDatabaseError(error) {
+  return String(error?.message || '').split(':')[1] || 'recursos'
+}
+
+// Os gatilhos do PostgreSQL são a última barreira contra concorrência e inserções em massa.
+// Converte a exceção deles no mesmo contrato HTTP amigável usado pelo pre-check da API.
+const originalUse = express.application.use
+express.application.use = function planLimitAwareUse(...args) {
+  const wrapped = args.map((handler) => {
+    if (typeof handler !== 'function' || handler.length !== 4) return handler
+    return function shopvaxPlanLimitErrorHandler(error, req, res, next) {
+      if (isDatabasePlanLimit(error)) {
+        const resource = resourceFromDatabaseError(error)
+        return res.status(409).json({ error: friendly(resource), code: 'PLAN_LIMIT' })
+      }
+      return handler(error, req, res, next)
+    }
+  })
+  return originalUse.apply(this, wrapped)
 }
 
 async function enforce(req, res, next) {
