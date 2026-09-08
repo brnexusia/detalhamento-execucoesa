@@ -28,6 +28,8 @@ jobs:
       PORT: 3000
       BASE_URL: http://127.0.0.1:3000
       SCANNER_WORKER_DISABLED: '1'
+      SHOPVAX_PLAN_LIMITS_DISABLED: '1'
+      SHOPVAX_SECURITY_RATE_LIMIT_DISABLED: '1'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -40,6 +42,7 @@ jobs:
       - name: Validate production Docker hooks
         run: |
           grep -Fq '"./server/brand-compat-hooks.mjs"' Dockerfile
+          grep -Fq '"./server/security-hooks.mjs"' Dockerfile
           grep -Fq '"./server/performance-hooks.mjs"' Dockerfile
           grep -Fq '"./server/api-json-hooks.mjs"' Dockerfile
           grep -Fq '"./server/analytics-features-hooks.mjs"' Dockerfile
@@ -49,6 +52,7 @@ jobs:
           grep -Fq '"./server/catalog-features-hooks.mjs"' Dockerfile
           grep -Fq '"./server/business-features-hooks.mjs"' Dockerfile
           grep -Fq '"./server/platform-hooks.mjs"' Dockerfile
+          grep -Fq '"./server/plan-limits-hooks.mjs"' Dockerfile
           grep -Fq '"./server/scanner-hooks.mjs"' Dockerfile
           grep -Fq '"./server/scanner-publish-hooks.mjs"' Dockerfile
           grep -Fq '"./server/social-network-hooks.mjs"' Dockerfile
@@ -57,6 +61,8 @@ jobs:
           grep -Fq '"./server/social-analytics-hooks.mjs"' Dockerfile
           grep -Fq '"./server/public-protection-hooks.mjs"' Dockerfile
           grep -Fq '"./server/page-metadata-hooks.mjs"' Dockerfile
+          grep -Fq 'href="/favicon.svg"' index.html
+          test -s public/favicon.svg
       - name: Scanner URL tests
         run: npm run test:scanner
       - name: Scanner collector tests
@@ -141,6 +147,29 @@ jobs:
         run: node server/scanner-scale.integration.mjs
       - name: Scanner module 6 integration
         run: npm run test:scanner:module6
+      - name: Start secure launch profile
+        env:
+          PORT: 3001
+          BASE_URL: http://127.0.0.1:3001
+          SHOPVAX_PLAN_LIMITS_DISABLED: '0'
+          SHOPVAX_SECURITY_RATE_LIMIT_DISABLED: '0'
+        run: |
+          npm start > /tmp/shopvax-secure.log 2>&1 &
+          echo $! > /tmp/shopvax-secure.pid
+          for i in {1..40}; do
+            if curl -fsS http://127.0.0.1:3001/health >/dev/null; then exit 0; fi
+            sleep .25
+          done
+          cat /tmp/shopvax-secure.log
+          exit 1
+      - name: Platform admin and launch security integration
+        env:
+          BASE_URL: http://127.0.0.1:3001
+          SHOPVAX_PLAN_LIMITS_DISABLED: '0'
+          SHOPVAX_SECURITY_RATE_LIMIT_DISABLED: '0'
+        run: node server/platform-admin.integration.mjs
       - name: Print server log on failure
         if: failure()
-        run: cat /tmp/shopvax.log || true
+        run: |
+          cat /tmp/shopvax.log || true
+          cat /tmp/shopvax-secure.log || true

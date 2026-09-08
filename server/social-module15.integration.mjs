@@ -5,6 +5,8 @@ const files = [
   'src/Home.tsx',
   'src/Auth.tsx',
   'src/App.tsx',
+  'README.md',
+  'MIGRATION_NOTE.md',
 ]
 
 for (const file of files) {
@@ -16,6 +18,9 @@ for (const file of files) {
 const index = await fs.readFile('index.html', 'utf8')
 if (!index.includes('<title>Shopvax</title>')) throw new Error('Título público não está como Shopvax.')
 if (!index.includes('content="Shopvax — catálogo e feed')) throw new Error('Descrição pública não está como Shopvax.')
+if (!index.includes('href="/favicon.svg"')) throw new Error('Favicon do Shopvax não foi conectado ao HTML.')
+const favicon = await fs.readFile('public/favicon.svg', 'utf8')
+if (!favicon.includes('<svg') || !favicon.includes('#171714')) throw new Error('Favicon Shopvax inválido.')
 
 const home = await fs.readFile('src/Home.tsx', 'utf8')
 if (!home.includes('<span>SV</span> Shopvax')) throw new Error('Landing não está identificada como Shopvax.')
