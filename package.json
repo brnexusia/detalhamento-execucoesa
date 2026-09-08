@@ -17,7 +17,7 @@
     "test:scanner:module4": "node server/scanner-module4.integration.mjs",
     "test:scanner:module5": "node server/scanner-module5.integration.mjs",
     "test:scanner:module6": "node server/scanner-module6.integration.mjs",
-    "test:feed:snap": "playwright test server/feed-snap.e2e.mjs --browser=webkit --reporter=line"
+    "test:feed:snap": "node server/feed-snap.e2e.mjs"
   },
   "dependencies": {
     "cheerio": "^1.1.2",
