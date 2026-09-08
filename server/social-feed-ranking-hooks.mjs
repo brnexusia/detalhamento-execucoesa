@@ -18,6 +18,28 @@ function ensureSchema() {
       ALTER TABLE stores ADD COLUMN IF NOT EXISTS plan_tier text NOT NULL DEFAULT 'bronze';
       ALTER TABLE products ADD COLUMN IF NOT EXISTS social_published boolean NOT NULL DEFAULT true;
       ALTER TABLE products ADD COLUMN IF NOT EXISTS social_published_at timestamptz NOT NULL DEFAULT now();
+      CREATE TABLE IF NOT EXISTS platform_plans (
+        id text PRIMARY KEY,
+        code text UNIQUE NOT NULL,
+        name text NOT NULL,
+        monthly_price numeric(12,2) NOT NULL,
+        semester_discount numeric(5,2) NOT NULL DEFAULT 5,
+        annual_discount numeric(5,2) NOT NULL DEFAULT 15,
+        seller_limit integer,
+        product_limit integer,
+        catalog_limit integer,
+        social_weight integer NOT NULL DEFAULT 1,
+        active boolean NOT NULL DEFAULT true,
+        is_system boolean NOT NULL DEFAULT false,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );
+      INSERT INTO platform_plans (id,code,name,monthly_price,semester_discount,annual_discount,seller_limit,product_limit,catalog_limit,social_weight,active,is_system)
+      VALUES
+        ('plan-bronze','bronze','Bronze',49.90,5,15,5,500,1,1,true,true),
+        ('plan-prata','prata','Prata',94.90,5,15,15,2000,3,2,true,true),
+        ('plan-ouro','ouro','Ouro',144.90,5,15,NULL,NULL,NULL,3,true,true)
+      ON CONFLICT (code) DO NOTHING;
       CREATE TABLE IF NOT EXISTS social_post_views (
         product_id text NOT NULL REFERENCES products(id) ON DELETE CASCADE,
         store_id text NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
@@ -127,7 +149,11 @@ async function rankedFeed(req, res) {
     WITH eligible AS (
       SELECT p.id,p.sku,p.name,p.description,p.price,p.category,p.media_url,p.media_type,p.pack,p.variations,p.featured,p.social_published_at,
         s.id AS store_id,s.slug AS store_slug,s.name AS store_name,s.logo_url AS store_logo_url,s.accent AS store_accent,
-        CASE WHEN s.plan_tier='ouro' THEN 'ouro' WHEN s.plan_tier='prata' THEN 'prata' ELSE 'bronze' END AS tier,
+        CASE
+          WHEN COALESCE(pp.social_weight, CASE WHEN s.plan_tier='ouro' THEN 3 WHEN s.plan_tier='prata' THEN 2 ELSE 1 END) >= 3 THEN 'ouro'
+          WHEN COALESCE(pp.social_weight, CASE WHEN s.plan_tier='ouro' THEN 3 WHEN s.plan_tier='prata' THEN 2 ELSE 1 END) >= 2 THEN 'prata'
+          ELSE 'bronze'
+        END AS tier,
         (SELECT COUNT(*)::int FROM social_post_views v WHERE v.product_id=p.id) AS social_views,
         (SELECT COUNT(*)::int FROM social_post_likes l WHERE l.product_id=p.id) AS social_likes,
         (SELECT COUNT(*)::int FROM social_actions a WHERE a.product_id=p.id AND a.kind='share') AS social_shares,
@@ -136,6 +162,7 @@ async function rankedFeed(req, res) {
         EXISTS(SELECT 1 FROM social_store_follows f WHERE f.store_id=s.id AND f.visitor_key=$4) AS social_following
       FROM products p
       JOIN stores s ON s.id=p.store_id
+      LEFT JOIN platform_plans pp ON pp.code=s.plan_tier
       WHERE p.active=true AND p.social_published=true AND s.is_active=true AND s.social_enabled=true
         AND p.social_published_at <= $1::timestamptz
     ), store_latest AS (
@@ -178,7 +205,7 @@ async function rankedFeed(req, res) {
     posts: rows.map(publication),
     page: { hasMore, nextCursor: hasMore ? encodeCursor(cursor.snapshot, lastSlot) : null },
     ranking: {
-      version: 'plan-priority-v2',
+      version: 'plan-priority-v3',
       weights: { ouro: 3, prata: 2, bronze: 1 },
       diversity: 'store-round-robin-v1',
     },

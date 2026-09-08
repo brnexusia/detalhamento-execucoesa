@@ -55,6 +55,44 @@ function visitorKey(req, res) {
 }
 
 function digits(value) { return String(value || '').replace(/\D/g, '') }
+function productShape(row) {
+  const images = Array.isArray(row.images) ? row.images.map(String).filter(Boolean) : []
+  if (row.media_type !== 'video' && row.media_url && !images.includes(row.media_url)) images.push(row.media_url)
+  return {
+    id: row.id,
+    sku: row.sku,
+    name: row.name,
+    description: row.description,
+    price: Number(row.public_price ?? row.price),
+    category: row.category,
+    mediaUrl: row.media_url || images[0] || '',
+    mediaType: row.media_type === 'video' ? 'video' : 'image',
+    images: images.slice(0, 40),
+    variantImages: Array.isArray(row.variant_images) ? row.variant_images : [],
+    pack: row.pack,
+    variations: Array.isArray(row.variations) ? row.variations : [],
+    featured: Boolean(row.featured),
+    stockEnabled: Boolean(row.stock_enabled),
+    stockQuantity: Math.max(0, Number(row.stock_quantity || 0)),
+    variantStock: row.variant_stock && typeof row.variant_stock === 'object' ? row.variant_stock : {},
+  }
+}
+
+async function productForStore(storeSlug, productId) {
+  await schemaReady()
+  const result = await pool.query(`
+    SELECT p.*,COALESCE(cp.price_override,p.price) AS public_price
+    FROM products p
+    JOIN stores s ON s.id=p.store_id
+    LEFT JOIN catalogs c ON c.store_id=s.id AND c.is_default=true AND c.active=true
+    LEFT JOIN catalog_products cp ON cp.product_id=p.id AND cp.catalog_id=c.id
+    WHERE s.slug=$1 AND s.is_active=true AND s.social_enabled=true
+      AND p.id=$2 AND p.active=true AND p.social_published=true
+      AND (cp.visible IS NULL OR cp.visible=true)
+    LIMIT 1
+  `, [storeSlug, productId])
+  return result.rowCount ? productShape(result.rows[0]) : null
+}
 
 async function sellerFor(storeId, key) {
   const existing = await pool.query(`
@@ -89,6 +127,14 @@ async function sellerFor(storeId, key) {
     DO UPDATE SET seller_id=EXCLUDED.seller_id,updated_at=now()
   `, [storeId, key, seller.id])
   return seller
+}
+
+async function sellerRoute(storeSlug, key) {
+  await schemaReady()
+  const result = await pool.query('SELECT id FROM stores WHERE slug=$1 AND is_active=true AND social_enabled=true LIMIT 1', [storeSlug])
+  if (!result.rowCount) return null
+  const seller = await sellerFor(result.rows[0].id, key)
+  return seller ? { id: seller.id, slug: seller.slug, name: seller.name } : { id: null, slug: '', name: 'Atendimento' }
 }
 
 async function askAboutProduct(productId, key) {
@@ -135,6 +181,22 @@ async function askAboutProduct(productId, key) {
 function install(app) {
   if (app.__shopvaxSocialCommerceInstalled) return
   app.__shopvaxSocialCommerceInstalled = true
+
+  app.get('/api/social/stores/:storeSlug/seller-route', async (req, res, next) => {
+    try {
+      const seller = await sellerRoute(String(req.params.storeSlug || '').trim().slice(0, 80), visitorKey(req, res))
+      if (!seller) return res.status(404).json({ error: 'Loja não encontrada.' })
+      return res.json({ seller })
+    } catch (error) { next(error) }
+  })
+
+  app.get('/api/social/stores/:storeSlug/products/:productId', async (req, res, next) => {
+    try {
+      const product = await productForStore(String(req.params.storeSlug || '').trim().slice(0, 80), String(req.params.productId || '').trim().slice(0, 100))
+      if (!product) return res.status(404).json({ error: 'Produto não encontrado nesta loja.' })
+      return res.json({ product })
+    } catch (error) { next(error) }
+  })
 
   app.post('/api/social/posts/:productId/ask', async (req, res, next) => {
     try {

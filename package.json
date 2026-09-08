@@ -1,12 +1,12 @@
 {
-  "name": "atacado-shop",
+  "name": "shopvax",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.4.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "start": "node --import ./server/performance-hooks.mjs --import ./server/api-json-hooks.mjs --import ./server/analytics-features-hooks.mjs --import ./server/team-features-hooks.mjs --import ./server/commercial-config-hooks.mjs --import ./server/catalog-order-lock-fix.mjs --import ./server/catalog-features-hooks.mjs --import ./server/business-features-hooks.mjs --import ./server/platform-hooks.mjs --import ./server/scanner-hooks.mjs --import ./server/scanner-publish-hooks.mjs --import ./server/social-network-hooks.mjs --import ./server/social-feed-ranking-hooks.mjs --import ./server/social-commerce-hooks.mjs --import ./server/social-analytics-hooks.mjs --import ./server/public-protection-hooks.mjs server/app.mjs",
+    "start": "node --import ./server/brand-compat-hooks.mjs --import ./server/security-hooks.mjs --import ./server/performance-hooks.mjs --import ./server/api-json-hooks.mjs --import ./server/analytics-features-hooks.mjs --import ./server/team-features-hooks.mjs --import ./server/commercial-config-hooks.mjs --import ./server/catalog-order-lock-fix.mjs --import ./server/catalog-features-hooks.mjs --import ./server/business-features-hooks.mjs --import ./server/platform-hooks.mjs --import ./server/plan-limits-hooks.mjs --import ./server/scanner-hooks.mjs --import ./server/scanner-publish-hooks.mjs --import ./server/social-network-hooks.mjs --import ./server/social-feed-ranking-hooks.mjs --import ./server/social-commerce-hooks.mjs --import ./server/social-analytics-hooks.mjs --import ./server/public-protection-hooks.mjs --import ./server/page-metadata-hooks.mjs server/app.mjs",
     "preview": "vite preview",
     "test:scanner": "node server/scanner-url.test.mjs",
     "test:scanner:collector": "node server/scanner-collector.test.mjs",
@@ -23,19 +23,22 @@
     "compression": "^1.8.1",
     "express": "^4.21.2",
     "lucide-react": "^0.575.0",
-    "multer": "^1.4.5-lts.1",
+    "multer": "2.3.0",
     "pg": "^8.13.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.1",
-    "@types/multer": "^1.4.12",
+    "@types/multer": "2.2.0",
     "@types/pg": "^8.11.11",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^5.2.0",
     "typescript": "^5.8.3",
     "vite": "^8.1.5"
+  },
+  "overrides": {
+    "qs": "6.16.0"
   }
 }
