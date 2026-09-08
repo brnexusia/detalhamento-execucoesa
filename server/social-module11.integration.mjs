@@ -2,6 +2,8 @@ import fs from 'node:fs'
 
 const feed = fs.readFileSync(new URL('../src/SocialFeed.tsx', import.meta.url), 'utf8')
 const css = fs.readFileSync(new URL('../src/social-feed.css', import.meta.url), 'utf8')
+const hardeningCss = fs.readFileSync(new URL('../src/feed-snap-hardening.css', import.meta.url), 'utf8')
+const runtime = fs.readFileSync(new URL('../src/feed-snap-runtime.ts', import.meta.url), 'utf8')
 
 if (!feed.includes('videoRef.current?.pause()') || !feed.includes('videoRef.current.play()')) throw new Error('Feed não pausa/reproduz vídeo conforme visibilidade.')
 if (!feed.includes('onDoubleClick={() => { if (!interactions.liked) void like() }}')) throw new Error('Gesto de curtir por duplo toque/clique não está ativo.')
@@ -14,6 +16,9 @@ if (!css.includes('.social-feed-card{width:min(100%,560px);height:100dvh;min-hei
 if (!css.includes('.social-feed-media,.social-feed-media img,.social-feed-media video{position:absolute;inset:0;width:100%;height:100%}')) throw new Error('Mídia do feed não ocupa a publicação inteira.')
 if (!css.includes('object-fit:cover')) throw new Error('Foto/vídeo do feed não preenche a tela corretamente.')
 if (!css.includes('-webkit-line-clamp:2')) throw new Error('Texto do feed não está limitado para preservar a mídia.')
+if (!hardeningCss.includes('var(--shopvax-feed-height, 100dvh)') || !hardeningCss.includes('scroll-snap-type: y mandatory !important') || !hardeningCss.includes('scroll-snap-stop: always !important')) throw new Error('Hardening móvel do scroll snap não está carregado.')
+if (!runtime.includes('window.visualViewport?.height') || !runtime.includes('snapToNearest(list)') || !runtime.includes("list.addEventListener('touchend'")) throw new Error('Fallback runtime para Safari/iOS não está ativo.')
 
-console.log('social module 11 ok')
+console.log('social module 11 static checks ok')
+await import('./feed-snap.e2e.mjs')
 await import('./social-module20.integration.mjs')
