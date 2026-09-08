@@ -9,8 +9,8 @@ if (!databaseUrl) throw new Error('DATABASE_URL ausente.')
 
 const pkg = await fs.readFile('package.json', 'utf8')
 const dockerfile = await fs.readFile('Dockerfile', 'utf8')
-if (!pkg.includes('node --import ./server/brand-compat-hooks.mjs --import ./server/performance-hooks.mjs')) throw new Error('Bridge de compatibilidade não é o primeiro hook no npm start.')
-if (!dockerfile.includes('"./server/brand-compat-hooks.mjs", "--import", "./server/performance-hooks.mjs"')) throw new Error('Bridge de compatibilidade não é o primeiro hook no Docker.')
+if (!pkg.includes('node --import ./server/brand-compat-hooks.mjs --import ./server/security-hooks.mjs --import ./server/performance-hooks.mjs')) throw new Error('Bridge de compatibilidade e segurança não estão no início correto do npm start.')
+if (!dockerfile.includes('"./server/brand-compat-hooks.mjs", "--import", "./server/security-hooks.mjs", "--import", "./server/performance-hooks.mjs"')) throw new Error('Bridge de compatibilidade e segurança não estão no início correto do Docker.')
 
 function setCookies(response) {
   if (typeof response.headers.getSetCookie === 'function') return response.headers.getSetCookie()
