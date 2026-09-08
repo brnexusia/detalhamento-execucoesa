@@ -39,6 +39,10 @@ jobs:
           node-version: 22
       - name: Install
         run: npm install
+      - name: Production dependency audit
+        run: |
+          test "$(node -p "require('./node_modules/multer/package.json').version")" = "2.3.0"
+          npm audit --omit=dev --audit-level=moderate
       - name: Validate production Docker hooks
         run: |
           grep -Fq '"./server/brand-compat-hooks.mjs"' Dockerfile
