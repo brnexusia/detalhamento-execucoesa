@@ -1,15 +1,13 @@
-import { devices, expect, test } from '@playwright/test'
+import fs from 'node:fs'
+import { chromium, devices } from '@playwright/test'
 
 const baseUrl = process.env.BASE_URL || 'http://127.0.0.1:3000'
-const iphone = devices['iPhone 13']
+const browserPath = ['/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser'].find((candidate) => fs.existsSync(candidate))
+if (!browserPath) throw new Error('Chrome/Chromium do runner não encontrado para validar o scroll snap em navegador real.')
 
-test.use({
-  viewport: iphone.viewport,
-  userAgent: iphone.userAgent,
-  deviceScaleFactor: iphone.deviceScaleFactor,
-  isMobile: iphone.isMobile,
-  hasTouch: iphone.hasTouch,
-})
+function assert(condition, message) {
+  if (!condition) throw new Error(message)
+}
 
 function post(id, name, price) {
   return {
@@ -39,7 +37,18 @@ function post(id, name, price) {
   }
 }
 
-test('feed mobile WebKit settles exactly one publication per viewport', async ({ page }) => {
+const iphone = devices['iPhone 13']
+const browser = await chromium.launch({ headless: true, executablePath: browserPath, args: ['--no-sandbox'] })
+try {
+  const context = await browser.newContext({
+    viewport: iphone.viewport,
+    userAgent: iphone.userAgent,
+    deviceScaleFactor: iphone.deviceScaleFactor,
+    isMobile: true,
+    hasTouch: true,
+  })
+  const page = await context.newPage()
+
   await page.route('**/api/social/feed?**', async (route) => {
     await route.fulfill({
       status: 200,
@@ -55,29 +64,26 @@ test('feed mobile WebKit settles exactly one publication per viewport', async ({
   })
 
   await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' })
-  const list = page.locator('.social-feed-list')
-  const cards = page.locator('.social-feed-card')
-  await expect(cards).toHaveCount(3)
+  await page.waitForFunction(() => document.querySelectorAll('.social-feed-card').length === 3, null, { timeout: 5000 })
 
-  const sizes = await list.evaluate((element) => {
-    const cardHeights = Array.from(element.querySelectorAll('.social-feed-card')).map((card) => card.getBoundingClientRect().height)
-    return { listHeight: element.getBoundingClientRect().height, cardHeights }
-  })
-  expect(sizes.listHeight).toBeGreaterThan(500)
-  for (const height of sizes.cardHeights) expect(Math.abs(height - sizes.listHeight)).toBeLessThanOrEqual(1)
+  const sizes = await page.locator('.social-feed-list').evaluate((element) => ({
+    listHeight: element.getBoundingClientRect().height,
+    cardHeights: Array.from(element.querySelectorAll('.social-feed-card')).map((card) => card.getBoundingClientRect().height),
+  }))
+  assert(sizes.listHeight > 500, `Viewport do feed inválido: ${sizes.listHeight}px.`)
+  for (const height of sizes.cardHeights) assert(Math.abs(height - sizes.listHeight) <= 1, `Card com ${height}px difere do viewport ${sizes.listHeight}px.`)
 
-  await list.evaluate((element) => {
+  await page.locator('.social-feed-list').evaluate((element) => {
     element.scrollTop = element.clientHeight * 0.62
     element.dispatchEvent(new Event('scroll'))
   })
 
   await page.waitForFunction(() => {
     const element = document.querySelector('.social-feed-list')
-    if (!(element instanceof HTMLElement)) return false
-    return Math.abs(element.scrollTop - element.clientHeight) <= 2
+    return element instanceof HTMLElement && Math.abs(element.scrollTop - element.clientHeight) <= 2
   }, null, { timeout: 2500 })
 
-  const aligned = await list.evaluate((element) => {
+  const aligned = await page.locator('.social-feed-list').evaluate((element) => {
     const card = element.querySelectorAll('.social-feed-card')[1]
     if (!(card instanceof HTMLElement)) return null
     const listRect = element.getBoundingClientRect()
@@ -89,15 +95,15 @@ test('feed mobile WebKit settles exactly one publication per viewport', async ({
       viewport: element.clientHeight,
     }
   })
-  expect(aligned).not.toBeNull()
-  expect(aligned.topDelta).toBeLessThanOrEqual(2)
-  expect(aligned.bottomDelta).toBeLessThanOrEqual(2)
-  expect(Math.abs(aligned.scrollTop - aligned.viewport)).toBeLessThanOrEqual(2)
+  assert(aligned, 'Segundo card não encontrado após o gesto de rolagem.')
+  assert(aligned.topDelta <= 2, `Topo do card não encaixou: delta ${aligned.topDelta}px.`)
+  assert(aligned.bottomDelta <= 2, `Rodapé do card não encaixou: delta ${aligned.bottomDelta}px.`)
+  assert(Math.abs(aligned.scrollTop - aligned.viewport) <= 2, `Scroll parou entre publicações: ${aligned.scrollTop}/${aligned.viewport}.`)
 
   await page.setViewportSize({ width: 390, height: 760 })
-  await page.waitForTimeout(150)
+  await page.waitForTimeout(180)
 
-  const resized = await list.evaluate((element) => {
+  const resized = await page.locator('.social-feed-list').evaluate((element) => {
     const card = element.querySelectorAll('.social-feed-card')[1]
     if (!(card instanceof HTMLElement)) return null
     const listRect = element.getBoundingClientRect()
@@ -109,8 +115,12 @@ test('feed mobile WebKit settles exactly one publication per viewport', async ({
       bottomDelta: Math.abs(cardRect.bottom - listRect.bottom),
     }
   })
-  expect(resized).not.toBeNull()
-  expect(Math.abs(resized.cardHeight - resized.listHeight)).toBeLessThanOrEqual(1)
-  expect(resized.topDelta).toBeLessThanOrEqual(2)
-  expect(resized.bottomDelta).toBeLessThanOrEqual(2)
-})
+  assert(resized, 'Card ativo desapareceu após alteração do viewport móvel.')
+  assert(Math.abs(resized.cardHeight - resized.listHeight) <= 1, `Resize deixou card ${resized.cardHeight}px e viewport ${resized.listHeight}px.`)
+  assert(resized.topDelta <= 2 && resized.bottomDelta <= 2, `Resize perdeu o encaixe do card: top=${resized.topDelta}, bottom=${resized.bottomDelta}.`)
+
+  await context.close()
+  console.log('[feed snap e2e] mobile browser runtime: ok')
+} finally {
+  await browser.close()
+}
