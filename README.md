@@ -16,13 +16,48 @@ O cliente descobre produtos no feed ou entra pelo link da loja/vendedora, escolh
 
 ## Painel do lojista
 
-- produtos, fotos/vídeos e variações;
+- produtos, múltiplas fotos/vídeos e variações;
 - estoque básico;
 - catálogos e preços por catálogo;
 - vendedoras e links individuais;
 - pedidos enviados ao WhatsApp;
 - métricas de intenção e funil;
 - configurações comerciais.
+
+## Modelo final do MVP
+
+Os códigos internos `bronze`, `prata` e `ouro` são mantidos por compatibilidade com contas existentes, mas comercialmente correspondem a **Plano 1, Plano 2 e Plano 3**.
+
+| Regra base | Plano 1 | Plano 2 | Plano 3 |
+| --- | ---: | ---: | ---: |
+| Mensal | R$ 49,90 | R$ 94,90 | R$ 144,90 |
+| Vendedoras | 2 | 4 | Ilimitadas |
+| Fotos por produto | 5 | 10 | 10 |
+| Catálogos | 1 | 3 | Ilimitados |
+| Franqueados | 0 | 2 | Ilimitados |
+| Tráfego interno | Baixa prioridade | Média prioridade | Alta prioridade |
+| Estoque | — | Sim | Sim |
+| Domínio próprio | — | Sim | Sim |
+| Avaliações | — | Sim | Sim |
+| Inteligência comercial | — | Sim | Sim |
+| Personalização da loja | — | Sim | Sim |
+| Comissão de vendedoras | — | — | Sim |
+
+Produtos não possuem mais o teto legado de 500/2.000 unidades nos planos padrão. Semestral usa 5% de desconto e anual 15% por padrão.
+
+**Vax Lar permanece como recurso futuro do Plano 3 e não deve ser tratado como funcionalidade pronta do MVP.**
+
+### Fase 1 de fechamento
+
+A fundação do MVP deve ser fechada nesta ordem:
+
+1. planos, limites e feature gating;
+2. produtos, grades/variações, preços e múltiplas fotos;
+3. catálogo, incluindo atacado/varejo e preço por catálogo;
+4. carrinho e pedido mínimo;
+5. pedido estruturado para WhatsApp.
+
+O backend deve continuar sendo a fonte de verdade de preço, visibilidade, variações, limites e pedido mínimo. O frontend nunca deve ser a única barreira para regras de plano.
 
 ## Administração da plataforma
 
@@ -36,16 +71,6 @@ A rota `/admin` é o painel operacional do Shopvax. Administradores podem:
 - adicionar/remover administradores;
 - excluir contas com reautenticação;
 - consultar auditoria das ações sensíveis.
-
-Planos padrão:
-
-| Plano | Mensal | Vendedoras | Produtos | Catálogos |
-| --- | ---: | ---: | ---: | ---: |
-| Bronze | R$ 49,90 | 5 | 500 | 1 |
-| Prata | R$ 94,90 | 15 | 2.000 | 3 |
-| Ouro | R$ 144,90 | Ilimitadas | Ilimitados | Ilimitados |
-
-Semestral usa 5% de desconto e anual 15% por padrão. Os planos podem ser editados pela administração.
 
 ## Segurança de lançamento
 
