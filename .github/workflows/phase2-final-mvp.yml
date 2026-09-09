@@ -1,0 +1,61 @@
+name: phase2-final-mvp
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  phase2:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: atacado
+          POSTGRES_PASSWORD: atacado
+          POSTGRES_DB: atacado_phase2
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U atacado -d atacado_phase2"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://atacado:atacado@127.0.0.1:5432/atacado_phase2
+      PORT: 3000
+      BASE_URL: http://127.0.0.1:3000
+      SCANNER_WORKER_DISABLED: '1'
+      SHOPVAX_PLAN_LIMITS_DISABLED: '0'
+      SHOPVAX_SECURITY_RATE_LIMIT_DISABLED: '1'
+      SHOPVAX_DOMAIN_CNAME_TARGET: stores.shopvax.test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install
+        run: npm install
+      - name: Build
+        run: npm run build
+      - name: Validate production Docker hooks
+        run: grep -q 'phase2-operation-hooks.mjs' Dockerfile
+      - name: Start Shopvax
+        run: |
+          npm start > /tmp/shopvax-phase2.log 2>&1 &
+          echo $! > /tmp/shopvax-phase2.pid
+          for i in {1..80}; do
+            if curl -fsS http://127.0.0.1:3000/health >/dev/null; then exit 0; fi
+            sleep .25
+          done
+          cat /tmp/shopvax-phase2.log
+          exit 1
+      - name: Final MVP Phase 2 integration
+        run: node server/phase2-final-mvp.integration.mjs
+      - name: Print server log on failure
+        if: failure()
+        run: cat /tmp/shopvax-phase2.log || true
