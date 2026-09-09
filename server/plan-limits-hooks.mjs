@@ -170,6 +170,17 @@ async function ensureSchema() {
           updated_at timestamptz NOT NULL DEFAULT now(),
           UNIQUE(store_id,slug)
         );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_catalog_default_per_store ON catalogs(store_id) WHERE is_default=true;
+        CREATE TABLE IF NOT EXISTS catalog_products (
+          catalog_id text NOT NULL REFERENCES catalogs(id) ON DELETE CASCADE,
+          product_id text NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+          price_override numeric(12,2),
+          visible boolean NOT NULL DEFAULT true,
+          updated_at timestamptz NOT NULL DEFAULT now(),
+          PRIMARY KEY(catalog_id,product_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_catalog_products_visible ON catalog_products(catalog_id,visible,product_id);
+        ALTER TABLE orders ADD COLUMN IF NOT EXISTS catalog_id text REFERENCES catalogs(id) ON DELETE SET NULL;
       `)
 
       for (const plan of finalSystemPlans) {
