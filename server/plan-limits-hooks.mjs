@@ -157,6 +157,7 @@ async function ensureSchema() {
         ALTER TABLE platform_plans ADD COLUMN IF NOT EXISTS franchisee_limit integer;
         ALTER TABLE platform_plans ADD COLUMN IF NOT EXISTS traffic_priority text NOT NULL DEFAULT 'baixa';
         ALTER TABLE platform_plans ADD COLUMN IF NOT EXISTS feature_flags jsonb NOT NULL DEFAULT '{}'::jsonb;
+        ALTER TABLE platform_plans ADD COLUMN IF NOT EXISTS mvp_schema_version integer NOT NULL DEFAULT 0;
         ALTER TABLE stores ADD COLUMN IF NOT EXISTS plan_tier text NOT NULL DEFAULT 'bronze';
         ALTER TABLE products ADD COLUMN IF NOT EXISTS images jsonb NOT NULL DEFAULT '[]'::jsonb;
 
@@ -178,8 +179,8 @@ async function ensureSchema() {
       for (const plan of finalSystemPlans) {
         await pool.query(
           `INSERT INTO platform_plans
-             (id,code,name,monthly_price,semester_discount,annual_discount,seller_limit,product_limit,catalog_limit,photo_limit,franchisee_limit,social_weight,traffic_priority,feature_flags,active,is_system)
-           VALUES ($1,$2,$3,$4,5,15,$5,$6,$7,$8,$9,$10,$11,$12,true,true)
+             (id,code,name,monthly_price,semester_discount,annual_discount,seller_limit,product_limit,catalog_limit,photo_limit,franchisee_limit,social_weight,traffic_priority,feature_flags,active,is_system,mvp_schema_version)
+           VALUES ($1,$2,$3,$4,5,15,$5,$6,$7,$8,$9,$10,$11,$12,true,true,1)
            ON CONFLICT (code) DO UPDATE SET
              name=EXCLUDED.name,
              monthly_price=EXCLUDED.monthly_price,
@@ -194,8 +195,9 @@ async function ensureSchema() {
              traffic_priority=EXCLUDED.traffic_priority,
              feature_flags=EXCLUDED.feature_flags,
              active=true,
+             mvp_schema_version=1,
              updated_at=now()
-           WHERE platform_plans.is_system=true`,
+           WHERE platform_plans.is_system=true AND platform_plans.mvp_schema_version<1`,
           [
             plan.id,
             plan.code,
