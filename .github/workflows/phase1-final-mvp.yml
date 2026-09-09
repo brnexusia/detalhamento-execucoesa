@@ -1,0 +1,58 @@
+name: phase1-final-mvp
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  phase1:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: atacado
+          POSTGRES_PASSWORD: atacado
+          POSTGRES_DB: atacado_phase1
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U atacado -d atacado_phase1"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://atacado:atacado@127.0.0.1:5432/atacado_phase1
+      PORT: 3000
+      BASE_URL: http://127.0.0.1:3000
+      SCANNER_WORKER_DISABLED: '1'
+      SHOPVAX_PLAN_LIMITS_DISABLED: '0'
+      SHOPVAX_SECURITY_RATE_LIMIT_DISABLED: '1'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install
+        run: npm install
+      - name: Build
+        run: npm run build
+      - name: Start Shopvax
+        run: |
+          npm start > /tmp/shopvax-phase1.log 2>&1 &
+          echo $! > /tmp/shopvax-phase1.pid
+          for i in {1..60}; do
+            if curl -fsS http://127.0.0.1:3000/health >/dev/null; then exit 0; fi
+            sleep .25
+          done
+          cat /tmp/shopvax-phase1.log
+          exit 1
+      - name: Final MVP Phase 1 integration
+        run: node server/phase1-final-mvp.integration.mjs
+      - name: Print server log on failure
+        if: failure()
+        run: cat /tmp/shopvax-phase1.log || true
