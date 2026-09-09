@@ -203,9 +203,9 @@ try {
   assert.equal(result.response.status, 409)
   assert.equal(result.payload.max, 2)
 
-  // O primeiro acesso pelo domínio comprova que o Host realmente aponta para a aplicação.
+  // Em produção o proxy entrega o domínio original em X-Forwarded-Host.
   result = await request('/', {
-    headers: { host: customDomain },
+    headers: { 'x-forwarded-host': customDomain },
     redirect: 'manual',
   })
   assert.equal(result.response.status, 302)
