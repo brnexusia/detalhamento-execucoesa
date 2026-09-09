@@ -24,6 +24,16 @@ function ensureNavigationMount(nav: HTMLElement | null) {
   return mount
 }
 
+function hideGeneratedValueMetric() {
+  const metrics = document.querySelector<HTMLElement>('.metric-row')
+  if (!metrics) return
+  for (const card of Array.from(metrics.children)) {
+    const element = card as HTMLElement
+    const label = element.querySelector('span')?.textContent?.trim().toLowerCase()
+    if (label === 'valor gerado') element.style.display = 'none'
+  }
+}
+
 export default function AdminAdditions() {
   const [navTarget, setNavTarget] = useState<HTMLElement | null>(null)
   const [storeTarget, setStoreTarget] = useState<HTMLElement | null>(null)
@@ -38,6 +48,8 @@ export default function AdminAdditions() {
         const nav = document.querySelector<HTMLElement>('.panel-nav')
         const nextNav = ensureNavigationMount(nav)
         if (nextNav) ownedMount = nextNav
+
+        hideGeneratedValueMetric()
 
         const isStore = window.location.pathname === '/painel/loja' || window.location.pathname.startsWith('/painel/loja/')
         const nextStore = isStore ? document.querySelector<HTMLElement>('.panel-main .panel-page') : null
