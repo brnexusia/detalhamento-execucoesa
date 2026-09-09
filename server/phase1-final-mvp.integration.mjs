@@ -97,14 +97,60 @@ try {
   assert.equal(result.payload.code, 'PLAN_PHOTO_LIMIT')
   assert.equal(result.payload.max, 5)
 
-  result = await request(`/api/public/store/${account.storeSlug}`, {})
+  result = await request('/api/admin/catalogs', { cookie: account.cookie })
   assert.equal(result.response.status, 200)
+  assert.equal(result.payload.catalogs.length, 1, 'Plano 1 deve começar com um único catálogo padrão')
+  const catalog = result.payload.catalogs[0]
+  assert.equal(catalog.isDefault, true)
+
+  result = await request(`/api/admin/catalogs/${catalog.id}`, {
+    method: 'PATCH', cookie: account.cookie,
+    body: {
+      minimumOrder: 100,
+      items: [{ productId, priceOverride: 60, visible: true }],
+    },
+  })
+  assert.equal(result.response.status, 200)
+
+  result = await request(`/api/public/store/${account.storeSlug}?catalog=${encodeURIComponent(catalog.slug)}`, {})
+  assert.equal(result.response.status, 200)
+  assert.equal(result.payload.store.minimumOrder, 100)
   const publicProduct = result.payload.products.find((product) => product.id === productId)
   assert.ok(publicProduct)
+  assert.equal(publicProduct.price, 60, 'preço público deve vir do catálogo, não do preço base')
   assert.equal(publicProduct.images.length, 5)
   assert.equal(publicProduct.variations[0].name, 'Cor')
 
-  console.log('[phase1 final MVP] plan + sellers + gallery + public catalog: ok')
+  result = await request('/api/business/orders', {
+    method: 'POST',
+    body: { storeSlug: account.storeSlug, catalogSlug: catalog.slug, items: [{ productId, quantity: 2, selections: {} }] },
+  })
+  assert.equal(result.response.status, 400)
+  assert.match(result.payload.error, /Escolha Cor/)
+
+  result = await request('/api/business/orders', {
+    method: 'POST',
+    body: { storeSlug: account.storeSlug, catalogSlug: catalog.slug, items: [{ productId, quantity: 1, selections: { Cor: 'Preto' } }] },
+  })
+  assert.equal(result.response.status, 400)
+  assert.match(result.payload.error, /pedido mínimo/i)
+
+  result = await request('/api/business/orders', {
+    method: 'POST',
+    body: { storeSlug: account.storeSlug, catalogSlug: catalog.slug, items: [{ productId, quantity: 2, selections: { Cor: 'Preto' } }] },
+  })
+  assert.equal(result.response.status, 201)
+  assert.ok(result.payload.orderId)
+  assert.ok(result.payload.code)
+  assert.equal(result.payload.catalog.slug, catalog.slug)
+  assert.match(result.payload.whatsappUrl, /^https:\/\/wa\.me\/5511999999999\?text=/)
+  const whatsappMessage = new URL(result.payload.whatsappUrl).searchParams.get('text') || ''
+  assert.match(whatsappMessage, /2x Produto Fase 1/)
+  assert.match(whatsappMessage, /Cor: Preto/)
+  assert.match(whatsappMessage, /120,00/)
+  assert.match(whatsappMessage, new RegExp(result.payload.code))
+
+  console.log('[phase1 final MVP] plans + gallery + catalog price + grid + minimum + WhatsApp: ok')
 } catch (error) {
   console.error(error)
   process.exitCode = 1
