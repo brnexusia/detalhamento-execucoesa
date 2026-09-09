@@ -5,6 +5,7 @@ const { Pool } = pg
 const databaseUrl = process.env.DATABASE_URL?.trim() || ''
 const pool = databaseUrl ? new Pool({ connectionString: databaseUrl, max: 2, connectionTimeoutMillis: 5000 }) : null
 const storeFallbackSeller = '__shopvax_store_whatsapp__'
+const planGatesDisabled = process.env.SHOPVAX_PLAN_LIMITS_DISABLED === '1'
 
 if (pool) pool.on('error', (error) => console.error('[phase2 compat] pool:', error.message))
 
@@ -31,6 +32,13 @@ async function ensureCompatibilitySchema() {
         ALTER TABLE products ADD COLUMN IF NOT EXISTS stock_quantity integer NOT NULL DEFAULT 0;
         ALTER TABLE products ADD COLUMN IF NOT EXISTS variant_stock jsonb NOT NULL DEFAULT '{}'::jsonb;
       `)
+
+      // Quando o próprio ambiente desliga os gates de plano, preservar o
+      // comportamento legado das integrações internas: estoque continua testável.
+      if (planGatesDisabled) {
+        await pool.query(`UPDATE platform_plans
+          SET feature_flags=COALESCE(feature_flags,'{}'::jsonb) || '{"stock":true}'::jsonb`)
+      }
     })().finally(() => { schemaPromise = null })
   }
   return schemaPromise
