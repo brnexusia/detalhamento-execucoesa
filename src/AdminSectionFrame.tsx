@@ -1,10 +1,10 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { BarChart3, Boxes, ExternalLink, Home, LogOut, Menu, Package, ReceiptText, Settings, Store as StoreIcon, Users, X } from 'lucide-react'
+import { BarChart3, Boxes, ExternalLink, Home, Images, LogOut, Menu, Package, ReceiptText, Settings, Store as StoreIcon, Users, X } from 'lucide-react'
 import { api } from './api'
 import type { AdminBootstrap } from './types'
 import './admin-section-frame.css'
 
-type ActiveSection = 'relatorios' | 'recursos'
+type ActiveSection = 'relatorios' | 'recursos' | 'midias'
 
 function go(path: string) {
   window.history.pushState({}, '', path)
@@ -31,6 +31,7 @@ export default function AdminSectionFrame({ active, children }: { active: Active
     await api.logout().catch(() => undefined)
     go('/entrar')
   }
+  const title = active === 'relatorios' ? 'Inteligência comercial' : active === 'midias' ? 'Fotos dos produtos' : 'Estoque e recursos'
 
   return <div className="panel-shell">
     <aside className={`panel-sidebar ${menuOpen ? 'is-open' : ''}`}>
@@ -38,6 +39,7 @@ export default function AdminSectionFrame({ active, children }: { active: Active
       <nav className="panel-nav">
         <FrameNavItem icon={<Home size={18}/>} label="Início" path="/painel" onNavigate={closeMenu}/>
         <FrameNavItem icon={<Package size={18}/>} label="Produtos" count={data?.products.length} path="/painel/produtos" onNavigate={closeMenu}/>
+        <FrameNavItem active={active === 'midias'} icon={<Images size={18}/>} label="Fotos dos produtos" path="/painel/midias" onNavigate={closeMenu}/>
         <FrameNavItem icon={<ReceiptText size={18}/>} label="Pedidos" count={data?.orders.length} path="/painel/pedidos" onNavigate={closeMenu}/>
         <FrameNavItem icon={<Users size={18}/>} label="Vendedoras" count={data?.sellers.length} path="/painel/vendedoras" onNavigate={closeMenu}/>
         <FrameNavItem active={active === 'relatorios'} icon={<BarChart3 size={18}/>} label="Inteligência comercial" path="/painel/relatorios" onNavigate={closeMenu}/>
@@ -47,7 +49,7 @@ export default function AdminSectionFrame({ active, children }: { active: Active
       <div className="panel-sidebar__foot">{storeUrl && <a href={storeUrl} target="_blank" rel="noreferrer"><ExternalLink size={17}/> Ver loja</a>}<button onClick={logout}><LogOut size={17}/> Sair</button></div>
     </aside>
     <main className="panel-main">
-      <header className="panel-topbar"><button className="panel-menu" onClick={() => setMenuOpen(true)}><Menu size={20}/></button><div><span>Painel</span><strong>{active === 'relatorios' ? 'Inteligência comercial' : 'Estoque e recursos'}</strong></div>{storeUrl && <a className="panel-store-link" href={storeUrl} target="_blank" rel="noreferrer"><StoreIcon size={17}/> Abrir loja <ExternalLink size={14}/></a>}</header>
+      <header className="panel-topbar"><button className="panel-menu" onClick={() => setMenuOpen(true)}><Menu size={20}/></button><div><span>Painel</span><strong>{title}</strong></div>{storeUrl && <a className="panel-store-link" href={storeUrl} target="_blank" rel="noreferrer"><StoreIcon size={17}/> Abrir loja <ExternalLink size={14}/></a>}</header>
       <div className="embedded-admin-section">{children}</div>
     </main>
   </div>
