@@ -55,9 +55,14 @@ try {
   const bronze = plans.find((plan) => plan.code === 'bronze')
   const prata = plans.find((plan) => plan.code === 'prata')
   const ouro = plans.find((plan) => plan.code === 'ouro')
-  if (!bronze || bronze.monthlyPrice !== 49.9 || bronze.sellerLimit !== 5 || bronze.productLimit !== 500 || bronze.catalogLimit !== 1) throw new Error('Plano Bronze padrão divergente.')
-  if (!prata || prata.monthlyPrice !== 94.9 || prata.sellerLimit !== 15 || prata.productLimit !== 2000 || prata.catalogLimit !== 3) throw new Error('Plano Prata padrão divergente.')
-  if (!ouro || ouro.monthlyPrice !== 144.9 || ouro.sellerLimit !== null || ouro.productLimit !== null || ouro.catalogLimit !== null) throw new Error('Plano Ouro padrão divergente.')
+  if (!bronze || bronze.monthlyPrice !== 49.9 || bronze.sellerLimit !== 2 || bronze.productLimit !== null || bronze.catalogLimit !== 1) throw new Error('Plano 1 padrão divergente.')
+  if (!prata || prata.monthlyPrice !== 94.9 || prata.sellerLimit !== 4 || prata.productLimit !== null || prata.catalogLimit !== 3) throw new Error('Plano 2 padrão divergente.')
+  if (!ouro || ouro.monthlyPrice !== 144.9 || ouro.sellerLimit !== null || ouro.productLimit !== null || ouro.catalogLimit !== null) throw new Error('Plano 3 padrão divergente.')
+
+  const context = await api('/api/admin/plan-context', { cookie: admin.cookie })
+  if (!context.response.ok) throw new Error(`Contexto do plano falhou: ${context.response.status} ${JSON.stringify(context.payload)}`)
+  if (context.payload?.plan?.name !== 'Plano 1' || context.payload?.plan?.limits?.sellers !== 2 || context.payload?.plan?.limits?.photosPerProduct !== 5) throw new Error('Contexto final do Plano 1 divergente.')
+  if (context.payload?.plan?.features?.sellerCommission !== false || context.payload?.plan?.features?.whatsappOrder !== true) throw new Error('Feature map do Plano 1 divergente.')
 
   const customCode = `ops-${Date.now()}`
   const created = await api('/api/platform/plans', {
