@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { BarChart3, Boxes, Images } from 'lucide-react'
+import { BarChart3, Boxes, Images, UsersRound } from 'lucide-react'
 import CommercialSettingsPanel from './CommercialSettingsPanel'
 
 function go(path: string) {
@@ -24,6 +24,16 @@ function ensureNavigationMount(nav: HTMLElement | null) {
   return mount
 }
 
+function hideGeneratedValueMetric() {
+  const metrics = document.querySelector<HTMLElement>('.metric-row')
+  if (!metrics) return
+  for (const card of Array.from(metrics.children)) {
+    const element = card as HTMLElement
+    const label = element.querySelector('span')?.textContent?.trim().toLowerCase()
+    if (label === 'valor gerado') element.style.display = 'none'
+  }
+}
+
 export default function AdminAdditions() {
   const [navTarget, setNavTarget] = useState<HTMLElement | null>(null)
   const [storeTarget, setStoreTarget] = useState<HTMLElement | null>(null)
@@ -38,6 +48,8 @@ export default function AdminAdditions() {
         const nav = document.querySelector<HTMLElement>('.panel-nav')
         const nextNav = ensureNavigationMount(nav)
         if (nextNav) ownedMount = nextNav
+
+        hideGeneratedValueMetric()
 
         const isStore = window.location.pathname === '/painel/loja' || window.location.pathname.startsWith('/painel/loja/')
         const nextStore = isStore ? document.querySelector<HTMLElement>('.panel-main .panel-page') : null
@@ -62,6 +74,7 @@ export default function AdminAdditions() {
   return <>
     {navTarget && createPortal(<>
       <button onClick={() => go('/painel/midias')}><Images size={18}/><span>Fotos dos produtos</span></button>
+      <button onClick={() => go('/painel/operacao')}><UsersRound size={18}/><span>Operação da loja</span></button>
       <button onClick={() => go('/painel/relatorios')}><BarChart3 size={18}/><span>Inteligência comercial</span></button>
       <button onClick={() => go('/painel/recursos')}><Boxes size={18}/><span>Estoque e recursos</span></button>
     </>, navTarget)}

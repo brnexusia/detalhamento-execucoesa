@@ -5,6 +5,7 @@ import ScannerPublishModule from './ScannerPublishModule'
 import BusinessFeaturesPanel from './BusinessFeaturesPanel'
 import AnalyticsPanel from './AnalyticsPanel'
 import ProductMediaPanel from './ProductMediaPanel'
+import Phase2Panel from './Phase2Panel'
 import AdminSectionFrame from './AdminSectionFrame'
 import AdminAdditions from './AdminAdditions'
 import './ux-polish.css'
@@ -35,6 +36,9 @@ export default function AdminRoute() {
 
   const media = path === '/painel/midias' || path.startsWith('/painel/midias/')
   if (media) return <AdminSectionFrame active="midias"><ProductMediaPanel/></AdminSectionFrame>
+
+  const operation = path === '/painel/operacao' || path.startsWith('/painel/operacao/')
+  if (operation) return <AdminSectionFrame active="operacao"><Phase2Panel/></AdminSectionFrame>
 
   const hiddenTeam = path === '/painel/equipe' || path.startsWith('/painel/equipe/')
   if (hiddenTeam) return <RedirectTo path="/painel"/>
