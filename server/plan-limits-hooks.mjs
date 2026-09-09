@@ -131,28 +131,24 @@ function sessionToken(req) {
   return ''
 }
 
+async function waitForPlatformPlans() {
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    const result = await pool.query("SELECT to_regclass('public.platform_plans') AS plans")
+    if (result.rows[0]?.plans) return
+    await new Promise((resolve) => setTimeout(resolve, 50))
+  }
+  throw new Error('Schema de planos da plataforma não ficou pronto.')
+}
+
 let schemaPromise = null
 async function ensureSchema() {
   if (!pool) throw new Error('DATABASE_URL não configurada.')
   if (!schemaPromise) {
     schemaPromise = (async () => {
+      // platform-hooks é o dono da criação de platform_plans. Esperar por ele evita
+      // duas sessões PostgreSQL tentando criar o mesmo tipo/tabela em instalações novas.
+      await waitForPlatformPlans()
       await pool.query(`
-        CREATE TABLE IF NOT EXISTS platform_plans (
-          id text PRIMARY KEY,
-          code text UNIQUE NOT NULL,
-          name text NOT NULL,
-          monthly_price numeric(12,2) NOT NULL,
-          semester_discount numeric(5,2) NOT NULL DEFAULT 5,
-          annual_discount numeric(5,2) NOT NULL DEFAULT 15,
-          seller_limit integer,
-          product_limit integer,
-          catalog_limit integer,
-          social_weight integer NOT NULL DEFAULT 1,
-          active boolean NOT NULL DEFAULT true,
-          is_system boolean NOT NULL DEFAULT false,
-          created_at timestamptz NOT NULL DEFAULT now(),
-          updated_at timestamptz NOT NULL DEFAULT now()
-        );
         ALTER TABLE platform_plans ADD COLUMN IF NOT EXISTS photo_limit integer;
         ALTER TABLE platform_plans ADD COLUMN IF NOT EXISTS franchisee_limit integer;
         ALTER TABLE platform_plans ADD COLUMN IF NOT EXISTS traffic_priority text NOT NULL DEFAULT 'baixa';
