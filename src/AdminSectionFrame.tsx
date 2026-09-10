@@ -1,10 +1,10 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { BarChart3, Boxes, ExternalLink, Home, Images, LogOut, Menu, Package, ReceiptText, Settings, Store as StoreIcon, Users, UsersRound, X } from 'lucide-react'
+import { BarChart3, Boxes, ExternalLink, Home, Images, LogOut, Menu, Package, ReceiptText, Settings, Store as StoreIcon, TrendingUp, Users, UsersRound, X } from 'lucide-react'
 import { api } from './api'
 import type { AdminBootstrap } from './types'
 import './admin-section-frame.css'
 
-type ActiveSection = 'relatorios' | 'recursos' | 'midias' | 'operacao'
+type ActiveSection = 'relatorios' | 'recursos' | 'midias' | 'operacao' | 'crescimento'
 
 function go(path: string) {
   window.history.pushState({}, '', path)
@@ -34,7 +34,8 @@ export default function AdminSectionFrame({ active, children }: { active: Active
   const title = active === 'relatorios' ? 'Inteligência comercial'
     : active === 'midias' ? 'Fotos dos produtos'
       : active === 'operacao' ? 'Operação da loja'
-        : 'Estoque e recursos'
+        : active === 'crescimento' ? 'Crescimento e confiança'
+          : 'Estoque e recursos'
 
   return <div className="panel-shell">
     <aside className={`panel-sidebar ${menuOpen ? 'is-open' : ''}`}>
@@ -47,6 +48,7 @@ export default function AdminSectionFrame({ active, children }: { active: Active
         <FrameNavItem icon={<Users size={18}/>} label="Vendedoras" count={data?.sellers.length} path="/painel/vendedoras" onNavigate={closeMenu}/>
         <FrameNavItem active={active === 'operacao'} icon={<UsersRound size={18}/>} label="Operação da loja" path="/painel/operacao" onNavigate={closeMenu}/>
         <FrameNavItem active={active === 'relatorios'} icon={<BarChart3 size={18}/>} label="Inteligência comercial" path="/painel/relatorios" onNavigate={closeMenu}/>
+        <FrameNavItem active={active === 'crescimento'} icon={<TrendingUp size={18}/>} label="Crescimento" path="/painel/crescimento" onNavigate={closeMenu}/>
         <FrameNavItem active={active === 'recursos'} icon={<Boxes size={18}/>} label="Estoque e recursos" path="/painel/recursos" onNavigate={closeMenu}/>
         <FrameNavItem icon={<Settings size={18}/>} label="Minha loja" path="/painel/loja" onNavigate={closeMenu}/>
       </nav>

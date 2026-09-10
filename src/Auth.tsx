@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowRight, Eye, EyeOff, Store, X } from 'lucide-react'
+import { ArrowRight, Eye, EyeOff, Gift, Store, X } from 'lucide-react'
 import { api } from './api'
 
 function go(path: string) {
@@ -12,11 +12,15 @@ function requestedDestination() {
   return next.startsWith('/') && !next.startsWith('//') ? next : '/painel'
 }
 
+function requestedReferral() {
+  return (new URLSearchParams(window.location.search).get('ref') || '').trim().toUpperCase().slice(0, 40)
+}
+
 export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const [showPassword, setShowPassword] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [form, setForm] = useState({ name: '', email: '', password: '', storeName: '', whatsapp: '' })
+  const [form, setForm] = useState({ name: '', email: '', password: '', storeName: '', whatsapp: '', referralCode: mode === 'register' ? requestedReferral() : '' })
 
   const update = (key: keyof typeof form, value: string) => setForm((current) => ({ ...current, [key]: value }))
 
@@ -57,6 +61,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
             <p>{mode === 'register' ? 'Criar conta' : 'Entrar'}</p>
             <h2>{mode === 'register' ? 'Monte sua loja em poucos minutos.' : 'Acesse seu painel.'}</h2>
           </div>
+          {mode === 'register' && form.referralCode && <div className="poster-note"><Gift size={15}/> Indicação {form.referralCode} · quem indicou recebe 1 mês grátis após seu cadastro válido.</div>}
           {mode === 'register' && (
             <>
               <label><span>Seu nome</span><input autoComplete="name" value={form.name} onChange={(e) => update('name', e.target.value)} placeholder="Felipe" required /></label>
