@@ -42,7 +42,10 @@ jobs:
       - name: Build
         run: npm run build
       - name: Validate production Docker hooks
-        run: grep -q 'phase3-growth-hooks.mjs' Dockerfile
+        run: |
+          grep -q 'phase3-route-bridge-hooks.mjs' Dockerfile
+          grep -q 'phase3-growth-hooks.mjs' Dockerfile
+          grep -q 'phase3-checkout-hooks.mjs' Dockerfile
       - name: Start Shopvax
         run: |
           npm start > /tmp/shopvax-phase3.log 2>&1 &
