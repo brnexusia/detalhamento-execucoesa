@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Check, MessageCircle, Star, Tag, X } from 'lucide-react'
+import { Check, Star, Tag, X } from 'lucide-react'
 import './phase3-public.css'
 
 type CartItem = {
@@ -70,23 +70,25 @@ export default function Phase3PublicRuntime() {
       .catch(() => undefined)
   }, [context.storeSlug])
 
-  // Injeta somente o cupom validado no payload do pedido, sem alterar a lógica do carrinho existente.
+  // A fachada da Fase 3 usa o core de pedido já validado e só então aplica benefícios/recuperação.
   useEffect(() => {
     if (!context.storeSlug || context.customer) return
     const originalFetch = window.fetch.bind(window)
     window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      let nextInput: RequestInfo | URL = input
       try {
         const rawUrl = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
         const pathname = new URL(rawUrl, window.location.origin).pathname
         if (pathname === '/api/business/orders' && String(init?.method || 'GET').toUpperCase() === 'POST' && typeof init?.body === 'string') {
-          const activeCoupon = localStorage.getItem(`shopvax-coupon:${context.storeSlug}`) || ''
-          if (activeCoupon) {
-            const body = JSON.parse(init.body)
-            if (body?.storeSlug === context.storeSlug) init = { ...init, body: JSON.stringify({ ...body, couponCode: activeCoupon }) }
+          const body = JSON.parse(init.body)
+          if (body?.storeSlug === context.storeSlug) {
+            const activeCoupon = localStorage.getItem(`shopvax-coupon:${context.storeSlug}`) || ''
+            init = { ...init, body: JSON.stringify(activeCoupon ? { ...body, couponCode: activeCoupon } : body) }
+            nextInput = '/api/business/orders/phase3'
           }
         }
       } catch {}
-      return originalFetch(input, init)
+      return originalFetch(nextInput, init)
     }
     return () => { window.fetch = originalFetch }
   }, [context.storeSlug, context.customer])
