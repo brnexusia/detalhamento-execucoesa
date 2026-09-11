@@ -12,7 +12,8 @@ O cliente descobre produtos no feed ou entra pelo link da loja/vendedora, escolh
 - produto → carrinho sem perder contexto;
 - continuidade da vendedora atribuída;
 - botão Perguntar para WhatsApp;
-- prioridade de distribuição por plano e diversidade entre lojas.
+- prioridade de distribuição por plano e diversidade entre lojas;
+- no Plano 3, cálculo de frete e finalização opcional por checkout hospedado do Asaas.
 
 ## Painel do lojista
 
@@ -22,7 +23,9 @@ O cliente descobre produtos no feed ou entra pelo link da loja/vendedora, escolh
 - vendedoras e links individuais;
 - pedidos enviados ao WhatsApp;
 - métricas de intenção e funil;
-- configurações comerciais.
+- crescimento: cupons, recuperação de carrinho, avaliações e indicação;
+- configurações comerciais;
+- no Plano 3, área de integrações para Asaas, frete, Meta Shopping e API/ERP.
 
 ## Modelo final do MVP
 
@@ -42,6 +45,10 @@ Os códigos internos `bronze`, `prata` e `ouro` são mantidos por compatibilidad
 | Inteligência comercial | — | Sim | Sim |
 | Personalização da loja | — | Sim | Sim |
 | Comissão de vendedoras | — | — | Sim |
+| Asaas / pagamento online | — | — | Sim |
+| Frete calculado | — | — | Sim |
+| Feed Meta Shopping | — | — | Sim |
+| API / ERP | — | — | Sim |
 
 Produtos não possuem mais o teto legado de 500/2.000 unidades nos planos padrão. Semestral usa 5% de desconto e anual 15% por padrão.
 
@@ -49,7 +56,7 @@ Produtos não possuem mais o teto legado de 500/2.000 unidades nos planos padrã
 
 ### Fase 1 de fechamento
 
-A fundação do MVP deve ser fechada nesta ordem:
+A fundação do MVP foi fechada nesta ordem:
 
 1. planos, limites e feature gating;
 2. produtos, grades/variações, preços e múltiplas fotos;
@@ -57,7 +64,37 @@ A fundação do MVP deve ser fechada nesta ordem:
 4. carrinho e pedido mínimo;
 5. pedido estruturado para WhatsApp.
 
-O backend deve continuar sendo a fonte de verdade de preço, visibilidade, variações, limites e pedido mínimo. O frontend nunca deve ser a única barreira para regras de plano.
+O backend continua sendo a fonte de verdade de preço, visibilidade, variações, limites e pedido mínimo. O frontend nunca deve ser a única barreira para regras de plano.
+
+### Fase 4 — integrações
+
+A área `/painel/integracoes` é exclusiva do Plano 3.
+
+**Asaas**
+
+- a chave da API é cadastrada por loja e cifrada em repouso;
+- o Shopvax não coleta número de cartão, CVV ou dados bancários sensíveis;
+- a cobrança é criada no backend e o cliente conclui Pix, boleto ou cartão na página hospedada do Asaas;
+- o webhook é autenticado por token próprio e processado de forma idempotente;
+- pagamento confirmado atualiza o status financeiro do pedido, mas **não confirma venda/comissão automaticamente**. A confirmação comercial continua sendo uma ação separada da Fase 3.
+
+**Frete**
+
+- regras por UF e/ou prefixo de CEP;
+- valor fixo, pedido mínimo da faixa, frete grátis acima de determinado subtotal e prazo mínimo/máximo;
+- cotações expiram em 30 minutos e são validadas novamente no backend antes de serem vinculadas ao pedido.
+
+**Meta Shopping**
+
+- feed CSV público por loja, contendo somente produtos ativos;
+- preço em BRL, link do produto, imagem e marca padrão configurável.
+
+**API / ERP**
+
+- tokens com escopos mínimos (`products:read`, `orders:read`, `customers:read`, `payments:read`, `stock:write`);
+- o segredo do token é mostrado uma única vez; no banco fica apenas o hash;
+- tokens podem ser revogados imediatamente;
+- webhooks de `order.created`, `payment.updated` e `stock.updated` usam assinatura HMAC SHA-256 no header `x-shopvax-signature`.
 
 ## Administração da plataforma
 
@@ -83,7 +120,9 @@ O servidor aplica:
 - proteção de origem para mutações da API;
 - rate limit de login, cadastro e mutações administrativas;
 - CSP, HSTS em HTTPS, anti-framing, `nosniff`, política de permissões e `no-store` em APIs privadas;
-- limites de plano aplicados no backend e também por gatilhos no PostgreSQL.
+- limites de plano aplicados no backend e também por gatilhos no PostgreSQL;
+- serialização temporária de escritas durante o boot para evitar deadlocks entre migrações concorrentes em instalações novas;
+- credenciais de integrações cifradas com AES-256-GCM e tokens ERP armazenados somente por hash.
 
 ### Primeiro administrador em instalação nova
 
@@ -102,11 +141,17 @@ O token só funciona quando ainda não existe nenhum administrador.
 
 ## Produção
 
-Variável obrigatória:
+Variáveis principais:
 
 ```env
 DATABASE_URL=postgresql://usuario:senha@host:5432/banco
+SHOPVAX_PUBLIC_URL=https://seu-dominio-shopvax.com.br
+SHOPVAX_INTEGRATION_SECRET=gere-um-segredo-longo-aleatorio-e-estavel
 ```
+
+`SHOPVAX_INTEGRATION_SECRET` deve permanecer estável entre deploys: ele cifra chaves Asaas e segredos de webhook salvos no banco. Trocar essa variável sem migração das credenciais torna os segredos existentes indecifráveis.
+
+`SHOPVAX_PUBLIC_URL` é usada para montar o callback público do Asaas e os links absolutos do feed Meta. As chaves Asaas são cadastradas dentro da própria loja em `/painel/integracoes`; não devem ser colocadas no código-fonte.
 
 O backend cria e atualiza o schema automaticamente. `SHOPVAX_ADMIN_BOOTSTRAP_TOKEN` é necessário apenas para ativação inicial caso a base ainda não possua um administrador.
 
@@ -125,5 +170,10 @@ O Dockerfile executa o build e inicia o backend; não configure comandos paralel
 ```bash
 npm install
 npm run build
-DATABASE_URL=postgresql://... npm start
+DATABASE_URL=postgresql://... \
+SHOPVAX_PUBLIC_URL=http://127.0.0.1:3000 \
+SHOPVAX_INTEGRATION_SECRET=segredo-local-longo \
+npm start
 ```
+
+O modo `SHOPVAX_ASAAS_MOCK=1` existe somente para testes automatizados da Fase 4 e não deve ser usado em produção.

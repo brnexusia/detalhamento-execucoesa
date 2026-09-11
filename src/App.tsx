@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import PublicRoute from './PublicRoute'
 import Phase3PublicRuntime from './Phase3PublicRuntime'
+import Phase4PublicRuntime from './Phase4PublicRuntime'
 import './intent-tracker'
 import './public-commercial-info'
 
@@ -37,7 +38,7 @@ export default function App() {
     return () => window.removeEventListener('popstate', onPop)
   }, [])
 
-  if (page === 'store') return <><PublicRoute /><Phase3PublicRuntime /></>
+  if (page === 'store') return <><PublicRoute /><Phase3PublicRuntime /><Phase4PublicRuntime /></>
 
   let content
   if (page === 'social') content = <SocialFeed />

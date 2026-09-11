@@ -1,0 +1,72 @@
+name: phase4-final-mvp
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  phase4:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: atacado
+          POSTGRES_PASSWORD: atacado
+          POSTGRES_DB: atacado_phase4
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U atacado -d atacado_phase4"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://atacado:atacado@127.0.0.1:5432/atacado_phase4
+      PORT: 3000
+      BASE_URL: http://127.0.0.1:3000
+      SHOPVAX_PUBLIC_URL: http://127.0.0.1:3000
+      SHOPVAX_INTEGRATION_SECRET: phase4-ci-secret-with-more-than-thirty-two-characters
+      SHOPVAX_ASAAS_MOCK: '1'
+      SCANNER_WORKER_DISABLED: '1'
+      SHOPVAX_PLAN_LIMITS_DISABLED: '0'
+      SHOPVAX_SECURITY_RATE_LIMIT_DISABLED: '1'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install
+        run: npm install
+      - name: Build
+        run: npm run build
+      - name: Validate production Docker hooks
+        run: |
+          grep -q 'startup-write-serialization-hooks.mjs' Dockerfile
+          grep -q 'phase4-schema-gate-hooks.mjs' Dockerfile
+          grep -q 'phase4-integrations-hooks.mjs' Dockerfile
+          grep -q 'phase4-public-config-hooks.mjs' Dockerfile
+          grep -q 'phase4-order-events-hooks.mjs' Dockerfile
+          grep -q 'startup-write-serialization-hooks.mjs' package.json
+          grep -q 'phase4-public-config-hooks.mjs' package.json
+      - name: Start Shopvax
+        run: |
+          npm start > /tmp/shopvax-phase4.log 2>&1 &
+          echo $! > /tmp/shopvax-phase4.pid
+          for i in {1..120}; do
+            if curl -fsS http://127.0.0.1:3000/health >/dev/null; then exit 0; fi
+            sleep .25
+          done
+          cat /tmp/shopvax-phase4.log
+          exit 1
+      - name: Final MVP Phase 4 integration
+        run: node server/phase4-final-mvp.integration.mjs
+      - name: Public checkout smoke
+        run: node server/phase4-public-smoke.integration.mjs
+      - name: Print server log on failure
+        if: failure()
+        run: cat /tmp/shopvax-phase4.log || true
