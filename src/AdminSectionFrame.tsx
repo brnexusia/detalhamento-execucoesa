@@ -4,7 +4,7 @@ import { api } from './api'
 import type { AdminBootstrap } from './types'
 import './admin-section-frame.css'
 
-type ActiveSection = 'relatorios' | 'recursos' | 'midias' | 'operacao' | 'crescimento'
+type ActiveSection = 'relatorios' | 'recursos' | 'midias' | 'operacao' | 'crescimento' | 'integracoes'
 
 function go(path: string) {
   window.history.pushState({}, '', path)
@@ -35,7 +35,8 @@ export default function AdminSectionFrame({ active, children }: { active: Active
     : active === 'midias' ? 'Fotos dos produtos'
       : active === 'operacao' ? 'Operação da loja'
         : active === 'crescimento' ? 'Crescimento e confiança'
-          : 'Estoque e recursos'
+          : active === 'integracoes' ? 'Integrações e checkout'
+            : 'Estoque e recursos'
 
   return <div className="panel-shell">
     <aside className={`panel-sidebar ${menuOpen ? 'is-open' : ''}`}>
@@ -50,6 +51,7 @@ export default function AdminSectionFrame({ active, children }: { active: Active
         <FrameNavItem active={active === 'relatorios'} icon={<BarChart3 size={18}/>} label="Inteligência comercial" path="/painel/relatorios" onNavigate={closeMenu}/>
         <FrameNavItem active={active === 'crescimento'} icon={<TrendingUp size={18}/>} label="Crescimento" path="/painel/crescimento" onNavigate={closeMenu}/>
         <FrameNavItem active={active === 'recursos'} icon={<Boxes size={18}/>} label="Estoque e recursos" path="/painel/recursos" onNavigate={closeMenu}/>
+        <FrameNavItem active={active === 'integracoes'} icon={<Settings size={18}/>} label="Integrações" path="/painel/integracoes" onNavigate={closeMenu}/>
         <FrameNavItem icon={<Settings size={18}/>} label="Minha loja" path="/painel/loja" onNavigate={closeMenu}/>
       </nav>
       <div className="panel-sidebar__foot">{storeUrl && <a href={storeUrl} target="_blank" rel="noreferrer"><ExternalLink size={17}/> Ver loja</a>}<button onClick={logout}><LogOut size={17}/> Sair</button></div>
