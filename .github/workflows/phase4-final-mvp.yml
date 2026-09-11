@@ -46,8 +46,13 @@ jobs:
         run: npm run build
       - name: Validate production Docker hooks
         run: |
+          grep -q 'startup-write-serialization-hooks.mjs' Dockerfile
+          grep -q 'phase4-schema-gate-hooks.mjs' Dockerfile
           grep -q 'phase4-integrations-hooks.mjs' Dockerfile
-          grep -q 'phase4-integrations-hooks.mjs' package.json
+          grep -q 'phase4-public-config-hooks.mjs' Dockerfile
+          grep -q 'phase4-order-events-hooks.mjs' Dockerfile
+          grep -q 'startup-write-serialization-hooks.mjs' package.json
+          grep -q 'phase4-public-config-hooks.mjs' package.json
       - name: Start Shopvax
         run: |
           npm start > /tmp/shopvax-phase4.log 2>&1 &
@@ -60,6 +65,8 @@ jobs:
           exit 1
       - name: Final MVP Phase 4 integration
         run: node server/phase4-final-mvp.integration.mjs
+      - name: Public checkout smoke
+        run: node server/phase4-public-smoke.integration.mjs
       - name: Print server log on failure
         if: failure()
         run: cat /tmp/shopvax-phase4.log || true
