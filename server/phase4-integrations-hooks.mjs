@@ -367,7 +367,10 @@ async function asaasRequest(integration, path, { method = 'GET', body } = {}) {
       billingType: body?.billingType,
       externalReference: body?.externalReference,
     }
-    if (path === '/v3/webhooks' && method === 'POST') return { id: `wbh_mock_${random}`, ...body }
+    if (path === '/v3/webhooks' && method === 'POST') {
+      if (!String(body?.email || '').trim()) throw new Error('Mock Asaas exige email no webhook.')
+      return { id: `wbh_mock_${random}`, ...body }
+    }
     throw new Error(`Mock Asaas não cobre ${method} ${path}`)
   }
 
@@ -441,6 +444,8 @@ async function provisionAsaasWebhook(req, res) {
   const integration = await integrationRow(store.id)
   if (!integration.asaas_enabled || !integration.asaas_api_key_encrypted) return res.status(409).json({ error: 'Ative e configure o Asaas antes de provisionar o webhook.' })
   if (!publicUrl) return res.status(503).json({ error: 'SHOPVAX_PUBLIC_URL precisa estar configurada para provisionar o webhook.' })
+  const ownerEmail = String(store.owner_email || '').trim()
+  if (!ownerEmail) return res.status(409).json({ error: 'A conta proprietária precisa ter e-mail para provisionar o webhook do Asaas.' })
   const authToken = decryptSecret(integration.asaas_webhook_token_encrypted)
   const url = `${publicUrl}/api/webhooks/asaas/${integration.asaas_webhook_public_id}`
   const payload = await asaasRequest(integration, '/v3/webhooks', {
@@ -448,6 +453,7 @@ async function provisionAsaasWebhook(req, res) {
     body: {
       name: `ShopVax · ${store.name}`.slice(0, 100),
       url,
+      email: ownerEmail,
       enabled: true,
       interrupted: false,
       apiVersion: 3,
