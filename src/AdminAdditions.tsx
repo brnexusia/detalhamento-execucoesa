@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { BarChart3, Boxes, Images, TrendingUp, UsersRound } from 'lucide-react'
+import { BarChart3, Boxes, Images, Settings, TrendingUp, UsersRound } from 'lucide-react'
 import CommercialSettingsPanel from './CommercialSettingsPanel'
 
 function go(path: string) {
@@ -78,6 +78,7 @@ export default function AdminAdditions() {
       <button onClick={() => go('/painel/relatorios')}><BarChart3 size={18}/><span>Inteligência comercial</span></button>
       <button onClick={() => go('/painel/crescimento')}><TrendingUp size={18}/><span>Crescimento</span></button>
       <button onClick={() => go('/painel/recursos')}><Boxes size={18}/><span>Estoque e recursos</span></button>
+      <button onClick={() => go('/painel/integracoes')}><Settings size={18}/><span>Integrações</span></button>
     </>, navTarget)}
     {storeTarget && createPortal(<CommercialSettingsPanel embedded/>, storeTarget)}
   </>
