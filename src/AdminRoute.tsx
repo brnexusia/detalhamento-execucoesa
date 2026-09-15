@@ -8,6 +8,7 @@ import ProductMediaPanel from './ProductMediaPanel'
 import Phase2Panel from './Phase2Panel'
 import Phase3Panel from './Phase3Panel'
 import Phase4Panel from './Phase4Panel'
+import Phase5Panel from './Phase5Panel'
 import AdminSectionFrame from './AdminSectionFrame'
 import AdminAdditions from './AdminAdditions'
 import './ux-polish.css'
@@ -47,6 +48,9 @@ export default function AdminRoute() {
 
   const integrations = path === '/painel/integracoes' || path.startsWith('/painel/integracoes/')
   if (integrations) return <AdminSectionFrame active="integracoes"><Phase4Panel/></AdminSectionFrame>
+
+  const subscription = path === '/painel/assinatura' || path.startsWith('/painel/assinatura/')
+  if (subscription) return <AdminSectionFrame active="assinatura"><Phase5Panel/></AdminSectionFrame>
 
   const hiddenTeam = path === '/painel/equipe' || path.startsWith('/painel/equipe/')
   if (hiddenTeam) return <RedirectTo path="/painel"/>
