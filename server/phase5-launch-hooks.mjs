@@ -47,6 +47,12 @@ function verifyPassword(password, stored) {
   } catch { return false }
 }
 
+function planExtraLimits(code) {
+  if (code === 'prata') return { photosPerProduct: 10, franchisees: 2 }
+  if (code === 'ouro') return { photosPerProduct: 10, franchisees: null }
+  return { photosPerProduct: 5, franchisees: 0 }
+}
+
 async function waitForBaseSchema() {
   if (!pool) throw new Error('DATABASE_URL não configurada.')
   for (let attempt = 0; attempt < 180; attempt += 1) {
@@ -133,7 +139,7 @@ async function currentOwner(req) {
   const result = await pool.query(`
     SELECT u.id AS user_id,u.name AS owner_name,u.email AS owner_email,
       s.*,pp.name AS plan_name,pp.monthly_price,pp.semester_discount,pp.annual_discount,
-      pp.seller_limit,pp.product_limit,pp.catalog_limit,pp.photo_limit,pp.franchisee_limit
+      pp.seller_limit,pp.product_limit,pp.catalog_limit
     FROM sessions se
     JOIN users u ON u.id=se.user_id
     JOIN stores s ON s.owner_id=u.id
@@ -195,10 +201,11 @@ function planPricing(row, cycle) {
 }
 
 async function storeForAdmin(storeId) {
+  await ensureSchema()
   const result = await pool.query(`
     SELECT s.*,u.name AS owner_name,u.email AS owner_email,
       pp.name AS plan_name,pp.code AS plan_code,pp.monthly_price,pp.semester_discount,pp.annual_discount,
-      pp.seller_limit,pp.product_limit,pp.catalog_limit,pp.photo_limit,pp.franchisee_limit
+      pp.seller_limit,pp.product_limit,pp.catalog_limit
     FROM stores s JOIN users u ON u.id=s.owner_id
     LEFT JOIN platform_plans pp ON pp.code=COALESCE(s.plan_tier,'bronze')
     WHERE s.id=$1 LIMIT 1
@@ -217,22 +224,20 @@ async function renewBilling(req, res) {
   const gross = money(pricing.monthly * pricing.months)
   const cycleDiscount = money(gross * pricing.discountRate / 100)
   const afterDiscount = money(gross - cycleDiscount)
-  const availableCredits = Math.max(0, Number(store.billing_credit_months || 0))
-  const creditsUsed = useCredits ? Math.min(availableCredits, pricing.months) : 0
   const effectiveMonthValue = pricing.months > 0 ? afterDiscount / pricing.months : 0
-  const creditDiscount = money(effectiveMonthValue * creditsUsed)
-  const charged = money(Math.max(0, afterDiscount - creditDiscount))
   const client = await pool.connect()
   let updated
+  let finalCreditsUsed = 0
+  let finalCharged = 0
   try {
     await client.query('BEGIN')
     const locked = await client.query('SELECT * FROM stores WHERE id=$1 FOR UPDATE', [store.id])
     if (!locked.rowCount) throw new Error('Loja não encontrada.')
     const current = locked.rows[0]
     const currentCredits = Math.max(0, Number(current.billing_credit_months || 0))
-    const finalCreditsUsed = useCredits ? Math.min(currentCredits, pricing.months) : 0
+    finalCreditsUsed = useCredits ? Math.min(currentCredits, pricing.months) : 0
     const finalCreditDiscount = money(effectiveMonthValue * finalCreditsUsed)
-    const finalCharged = money(Math.max(0, afterDiscount - finalCreditDiscount))
+    finalCharged = money(Math.max(0, afterDiscount - finalCreditDiscount))
     const baseResult = await client.query(`SELECT CASE
       WHEN $1::timestamptz IS NOT NULL AND $1::timestamptz>now() THEN $1::timestamptz
       ELSE now() END AS period_start`, [current.billing_period_ends_at])
@@ -243,22 +248,22 @@ async function renewBilling(req, res) {
     const storeResult = await client.query(`
       UPDATE stores SET billing_status='active',billing_cycle=$1,billing_period_started_at=$2,billing_period_ends_at=$3,
         billing_grace_ends_at=NULL,billing_last_renewed_at=now(),billing_last_amount=$4,billing_credit_months=$5,
-        billing_note=$6,billing_suspended_at=NULL,
-        is_active=CASE WHEN billing_suspended_at IS NOT NULL THEN true ELSE is_active END,updated_at=now()
+        billing_note=$6,is_active=CASE WHEN billing_suspended_at IS NOT NULL THEN true ELSE is_active END,
+        billing_suspended_at=NULL,updated_at=now()
       WHERE id=$7 RETURNING *
     `, [cycle, periodStart, periodEnd, finalCharged, nextCredits, note, store.id])
     updated = storeResult.rows[0]
     await client.query(`
       INSERT INTO platform_billing_ledger(id,store_id,actor_user_id,kind,cycle,months,gross_amount,discount_amount,credit_months_used,charged_amount,note,period_started_at,period_ends_at)
       VALUES ($1,$2,$3,'renewal',$4,$5,$6,$7,$8,$9,$10,$11,$12)
-    `, [id(), store.id, req.phase5Admin.id, cycle, pricing.months, gross, money(cycleDiscount + finalCreditDiscount), finalCreditsUsed, finalCharged, note, periodStart, periodEnd])
+    `, [id(), store.id, req.phase5Admin.id, cycle, pricing.months, gross, money(cycleDiscount + (afterDiscount - finalCharged)), finalCreditsUsed, finalCharged, note, periodStart, periodEnd])
     await client.query('COMMIT')
   } catch (error) {
     try { await client.query('ROLLBACK') } catch {}
     throw error
   } finally { client.release() }
-  await audit(req.phase5Admin.id, 'billing.renew', 'store', store.id, { cycle, chargedAmount: Number(updated.billing_last_amount || 0), creditMonthsRemaining: Number(updated.billing_credit_months || 0) })
-  return res.json({ billing: billingShape(updated), pricing: { cycle, months: pricing.months, gross, cycleDiscount, creditsUsed, chargedAmount: Number(updated.billing_last_amount || 0) } })
+  await audit(req.phase5Admin.id, 'billing.renew', 'store', store.id, { cycle, chargedAmount: finalCharged, creditMonthsRemaining: Number(updated.billing_credit_months || 0) })
+  return res.json({ billing: billingShape(updated), pricing: { cycle, months: pricing.months, gross, cycleDiscount, creditsUsed: finalCreditsUsed, chargedAmount: finalCharged } })
 }
 
 async function setBillingStatus(req, res) {
@@ -273,12 +278,18 @@ async function setBillingStatus(req, res) {
     UPDATE stores SET billing_status=$1,
       billing_grace_ends_at=CASE WHEN $1='past_due' THEN now()+($2::text || ' days')::interval ELSE NULL END,
       billing_note=$3,
-      billing_suspended_at=CASE WHEN $1 IN ('suspended','cancelled') THEN COALESCE(billing_suspended_at,now()) ELSE NULL END,
-      is_active=CASE WHEN $1 IN ('suspended','cancelled') THEN false ELSE is_active END,
+      is_active=CASE
+        WHEN $1 IN ('suspended','cancelled') THEN false
+        WHEN $1='active' AND billing_suspended_at IS NOT NULL THEN true
+        ELSE is_active END,
+      billing_suspended_at=CASE
+        WHEN $1 IN ('suspended','cancelled') THEN COALESCE(billing_suspended_at,now())
+        WHEN $1='active' THEN NULL
+        ELSE billing_suspended_at END,
       updated_at=now()
     WHERE id=$4 RETURNING *
   `, [status, graceDays, note, store.id])
-  await pool.query(`INSERT INTO platform_billing_ledger(id,store_id,actor_user_id,kind,note) VALUES ($1,$2,$3,$4,$5)`, [id(), store.id, req.phase5Admin.id, `status:${status}`, note])
+  await pool.query('INSERT INTO platform_billing_ledger(id,store_id,actor_user_id,kind,note) VALUES ($1,$2,$3,$4,$5)', [id(), store.id, req.phase5Admin.id, `status:${status}`, note])
   await audit(req.phase5Admin.id, 'billing.status.change', 'store', store.id, { status, graceDays })
   return res.json({ billing: billingShape(result.rows[0]), storeActive: Boolean(result.rows[0].is_active) })
 }
@@ -288,12 +299,9 @@ async function adjustCredits(req, res) {
   const delta = clampInt(req.body?.months, -120, 120)
   if (!delta) return res.status(400).json({ error: 'Informe uma quantidade de meses diferente de zero.' })
   const note = String(req.body?.note || '').trim().slice(0, 500)
-  const result = await pool.query(`
-    UPDATE stores SET billing_credit_months=GREATEST(0,billing_credit_months+$1),updated_at=now()
-    WHERE id=$2 RETURNING *
-  `, [delta, req.params.storeId])
+  const result = await pool.query(`UPDATE stores SET billing_credit_months=GREATEST(0,billing_credit_months+$1),updated_at=now() WHERE id=$2 RETURNING *`, [delta, req.params.storeId])
   if (!result.rowCount) return res.status(404).json({ error: 'Loja não encontrada.' })
-  await pool.query(`INSERT INTO platform_billing_ledger(id,store_id,actor_user_id,kind,months,note) VALUES ($1,$2,$3,'credit_adjustment',$4,$5)`, [id(), req.params.storeId, req.phase5Admin.id, delta, note])
+  await pool.query("INSERT INTO platform_billing_ledger(id,store_id,actor_user_id,kind,months,note) VALUES ($1,$2,$3,'credit_adjustment',$4,$5)", [id(), req.params.storeId, req.phase5Admin.id, delta, note])
   await audit(req.phase5Admin.id, 'billing.credit.adjust', 'store', req.params.storeId, { delta, creditMonths: Number(result.rows[0].billing_credit_months || 0) })
   return res.json({ billing: billingShape(result.rows[0]) })
 }
@@ -306,7 +314,15 @@ async function billingLedger(req, res) {
     FROM platform_billing_ledger l LEFT JOIN users u ON u.id=l.actor_user_id
     WHERE l.store_id=$1 ORDER BY l.created_at DESC LIMIT 100
   `, [store.id])
-  return res.json({ store: { id: store.id, name: store.name, ownerName: store.owner_name, ownerEmail: store.owner_email, planCode: store.plan_code || store.plan_tier }, billing: billingShape(store), ledger: ledger.rows.map((row) => ({ id: row.id, kind: row.kind, cycle: row.cycle, months: Number(row.months || 0), grossAmount: Number(row.gross_amount || 0), discountAmount: Number(row.discount_amount || 0), creditMonthsUsed: Number(row.credit_months_used || 0), chargedAmount: Number(row.charged_amount || 0), note: row.note || '', periodStartedAt: row.period_started_at, periodEndsAt: row.period_ends_at, createdAt: row.created_at, actorName: row.actor_name, actorEmail: row.actor_email })) })
+  return res.json({
+    store: { id: store.id, name: store.name, ownerName: store.owner_name, ownerEmail: store.owner_email, planCode: store.plan_code || store.plan_tier },
+    billing: billingShape(store),
+    ledger: ledger.rows.map((row) => ({
+      id: row.id, kind: row.kind, cycle: row.cycle, months: Number(row.months || 0), grossAmount: Number(row.gross_amount || 0),
+      discountAmount: Number(row.discount_amount || 0), creditMonthsUsed: Number(row.credit_months_used || 0), chargedAmount: Number(row.charged_amount || 0),
+      note: row.note || '', periodStartedAt: row.period_started_at, periodEndsAt: row.period_ends_at, createdAt: row.created_at, actorName: row.actor_name, actorEmail: row.actor_email,
+    })),
+  })
 }
 
 async function revokeSessions(req, res) {
@@ -321,7 +337,7 @@ async function revokeSessions(req, res) {
     ownerSessions = result.rowCount || 0
   }
   if (scope === 'customers' || scope === 'all') {
-    const result = await pool.query(`DELETE FROM store_customer_sessions WHERE customer_id IN (SELECT id FROM store_customers WHERE store_id=$1)`, [store.id])
+    const result = await pool.query('DELETE FROM store_customer_sessions WHERE customer_id IN (SELECT id FROM store_customers WHERE store_id=$1)', [store.id])
     customerSessions = result.rowCount || 0
   }
   await audit(req.phase5Admin.id, 'security.sessions.revoke', 'store', store.id, { scope, ownerSessions, customerSessions })
@@ -329,15 +345,12 @@ async function revokeSessions(req, res) {
 }
 
 async function ownerSecurity(req, res) {
-  const token = sessionToken(req)
-  const tokenHash = hash(token)
   const active = await pool.query('SELECT count(*)::int AS total,min(created_at) AS oldest,max(expires_at) AS latest_expiry FROM sessions WHERE user_id=$1 AND expires_at>now()', [req.phase5Owner.user_id])
-  return res.json({ sessions: { active: Number(active.rows[0]?.total || 0), oldestAt: active.rows[0]?.oldest, latestExpiryAt: active.rows[0]?.latest_expiry, currentTokenHashPrefix: tokenHash.slice(0, 8) } })
+  return res.json({ sessions: { active: Number(active.rows[0]?.total || 0), oldestAt: active.rows[0]?.oldest, latestExpiryAt: active.rows[0]?.latest_expiry } })
 }
 
 async function revokeOtherOwnerSessions(req, res) {
-  const token = sessionToken(req)
-  const currentHash = hash(token)
+  const currentHash = hash(sessionToken(req))
   const result = await pool.query('DELETE FROM sessions WHERE user_id=$1 AND token_hash<>$2 RETURNING token_hash', [req.phase5Owner.user_id, currentHash])
   return res.json({ ok: true, revoked: result.rowCount || 0 })
 }
@@ -355,15 +368,17 @@ async function ownerStatus(req, res) {
     (SELECT count(*)::int FROM catalogs WHERE store_id=$1) AS catalogs,
     (SELECT count(*)::int FROM franchisees WHERE store_id=$1 AND active=true) AS franchisees`, [store.id])
   const u = usage.rows[0] || {}
+  const extras = planExtraLimits(store.plan_tier || 'bronze')
   const limits = {
     products: store.product_limit == null ? null : Number(store.product_limit),
     sellers: store.seller_limit == null ? null : Number(store.seller_limit),
     catalogs: store.catalog_limit == null ? null : Number(store.catalog_limit),
-    franchisees: store.franchisee_limit == null ? null : Number(store.franchisee_limit),
-    photosPerProduct: store.photo_limit == null ? null : Number(store.photo_limit),
+    franchisees: extras.franchisees,
+    photosPerProduct: extras.photosPerProduct,
   }
   const ratios = {
-    products: usageRatio(u.products, limits.products), sellers: usageRatio(u.sellers, limits.sellers), catalogs: usageRatio(u.catalogs, limits.catalogs), franchisees: usageRatio(u.franchisees, limits.franchisees),
+    products: usageRatio(u.products, limits.products), sellers: usageRatio(u.sellers, limits.sellers),
+    catalogs: usageRatio(u.catalogs, limits.catalogs), franchisees: usageRatio(u.franchisees, limits.franchisees),
   }
   const warnings = []
   if (store.billing_status === 'past_due') warnings.push('Sua assinatura está em atraso dentro do período de tolerância.')
@@ -374,6 +389,23 @@ async function ownerStatus(req, res) {
     usage: { products: Number(u.products || 0), sellers: Number(u.sellers || 0), catalogs: Number(u.catalogs || 0), franchisees: Number(u.franchisees || 0), ratios },
     billing: billingShape(store), warnings,
   })
+}
+
+let sweepPromise = null
+async function sweepBilling() {
+  await ensureSchema()
+  if (sweepPromise) return sweepPromise
+  sweepPromise = (async () => {
+    await pool.query(`
+      UPDATE stores SET billing_status='past_due',billing_grace_ends_at=COALESCE(billing_grace_ends_at,now()+($1::text || ' days')::interval),updated_at=now()
+      WHERE billing_status='active' AND billing_period_ends_at IS NOT NULL AND billing_period_ends_at<now()
+    `, [defaultGraceDays])
+    await pool.query(`
+      UPDATE stores SET billing_status='suspended',billing_suspended_at=COALESCE(billing_suspended_at,now()),is_active=false,updated_at=now()
+      WHERE billing_status='past_due' AND billing_grace_ends_at IS NOT NULL AND billing_grace_ends_at<=now()
+    `)
+  })().finally(() => { sweepPromise = null })
+  return sweepPromise
 }
 
 async function launchOverview(req, res) {
@@ -415,26 +447,15 @@ async function launchOverview(req, res) {
     { key: 'plan_limits', label: 'Limites de plano ativos', ok: planLimitsEnabled, critical: true },
   ]
   return res.json({
-    stats: { ...stats.rows[0], ...operations.rows[0] },
-    checks,
+    stats: { ...stats.rows[0], ...operations.rows[0] }, checks,
     launchReady: checks.filter((item) => item.critical).every((item) => item.ok),
-    stores: stores.rows.map((row) => ({ id: row.id, slug: row.slug, name: row.name, isActive: Boolean(row.is_active), planCode: row.plan_tier || 'bronze', planName: row.plan_name || '', monthlyPrice: Number(row.monthly_price || 0), ownerName: row.owner_name, ownerEmail: row.owner_email, billing: billingShape(row), products: Number(row.products || 0), sellers: Number(row.sellers || 0), catalogs: Number(row.catalogs || 0), ownerSessions: Number(row.owner_sessions || 0), customerSessions: Number(row.customer_sessions || 0) })),
+    stores: stores.rows.map((row) => ({
+      id: row.id, slug: row.slug, name: row.name, isActive: Boolean(row.is_active), planCode: row.plan_tier || 'bronze', planName: row.plan_name || '',
+      monthlyPrice: Number(row.monthly_price || 0), ownerName: row.owner_name, ownerEmail: row.owner_email, billing: billingShape(row),
+      products: Number(row.products || 0), sellers: Number(row.sellers || 0), catalogs: Number(row.catalogs || 0),
+      ownerSessions: Number(row.owner_sessions || 0), customerSessions: Number(row.customer_sessions || 0),
+    })),
   })
-}
-
-let sweepPromise = null
-async function sweepBilling() {
-  await ensureSchema()
-  if (sweepPromise) return sweepPromise
-  sweepPromise = (async () => {
-    await pool.query(`
-      UPDATE stores SET billing_status='past_due',billing_grace_ends_at=COALESCE(billing_grace_ends_at,now()+($1::text || ' days')::interval),updated_at=now()
-      WHERE billing_status='active' AND billing_period_ends_at IS NOT NULL AND billing_period_ends_at<now();
-      UPDATE stores SET billing_status='suspended',billing_suspended_at=COALESCE(billing_suspended_at,now()),is_active=false,updated_at=now()
-      WHERE billing_status='past_due' AND billing_grace_ends_at IS NOT NULL AND billing_grace_ends_at<now();
-    `, [defaultGraceDays])
-  })().finally(() => { sweepPromise = null })
-  return sweepPromise
 }
 
 async function billingMutationGate(req, res, next) {
@@ -456,7 +477,6 @@ function install(app) {
   app.__shopvaxPhase5LaunchInstalled = true
 
   app.use((req, res, next) => Promise.resolve(billingMutationGate(req, res, next)).catch(next))
-
   app.get('/api/admin/phase5/status', requireOwner, (req, res, next) => Promise.resolve(ownerStatus(req, res)).catch(next))
   app.get('/api/auth/security/sessions', requireOwner, (req, res, next) => Promise.resolve(ownerSecurity(req, res)).catch(next))
   app.post('/api/auth/security/revoke-others', requireOwner, (req, res, next) => Promise.resolve(revokeOtherOwnerSessions(req, res)).catch(next))
