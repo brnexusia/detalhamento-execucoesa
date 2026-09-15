@@ -1,0 +1,79 @@
+name: phase5-final-mvp
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  phase5:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: atacado
+          POSTGRES_PASSWORD: atacado
+          POSTGRES_DB: atacado_phase5
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U atacado -d atacado_phase5"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://atacado:atacado@127.0.0.1:5432/atacado_phase5
+      PORT: 3000
+      BASE_URL: http://127.0.0.1:3000
+      SHOPVAX_PUBLIC_URL: https://shopvax-ci.example
+      SHOPVAX_INTEGRATION_SECRET: phase5-ci-secret-with-more-than-thirty-two-characters
+      SHOPVAX_ADMIN_BOOTSTRAP_TOKEN: phase5-bootstrap-token-with-more-than-twenty-four-characters
+      SHOPVAX_ASAAS_MOCK: '1'
+      SCANNER_WORKER_DISABLED: '1'
+      SHOPVAX_PLAN_LIMITS_DISABLED: '0'
+      SHOPVAX_SECURITY_RATE_LIMIT_DISABLED: '0'
+      SHOPVAX_BILLING_GRACE_DAYS: '7'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install
+        run: npm install
+      - name: Build
+        run: npm run build
+      - name: Validate Phase 5 production hooks
+        run: |
+          grep -Fq '"./server/brand-compat-hooks.mjs"' Dockerfile
+          grep -Fq '"./server/security-hooks.mjs"' Dockerfile
+          grep -Fq 'phase5-launch-hooks.mjs' Dockerfile
+          grep -Fq 'phase5-launch-hooks.mjs' package.json
+          grep -Fq '/painel/assinatura' src/AdminRoute.tsx
+          grep -Fq '/admin/lancamento' src/PlatformRoute.tsx
+          grep -Fq '@media(max-width:640px)' src/phase5-panel.css
+          grep -Fq '@media(max-width:640px)' src/platform-launch-ops.css
+      - name: Start Shopvax production profile
+        env:
+          NODE_ENV: production
+        run: |
+          npm start > /tmp/shopvax-phase5.log 2>&1 &
+          echo $! > /tmp/shopvax-phase5.pid
+          for i in {1..160}; do
+            if curl -fsS http://127.0.0.1:3000/health >/dev/null; then exit 0; fi
+            sleep .25
+          done
+          cat /tmp/shopvax-phase5.log
+          exit 1
+      - name: Final MVP Phase 5 integration
+        run: node server/phase5-final-mvp.integration.mjs
+      - name: Owner and platform route smoke
+        run: |
+          curl -fsS http://127.0.0.1:3000/painel/assinatura >/dev/null
+          curl -fsS http://127.0.0.1:3000/admin/lancamento >/dev/null
+      - name: Print server log on failure
+        if: failure()
+        run: cat /tmp/shopvax-phase5.log || true
