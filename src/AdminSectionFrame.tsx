@@ -1,10 +1,10 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { BarChart3, Boxes, ExternalLink, Home, Images, LogOut, Menu, Package, ReceiptText, Settings, Store as StoreIcon, TrendingUp, Users, UsersRound, X } from 'lucide-react'
+import { BarChart3, Boxes, CreditCard, ExternalLink, Home, Images, LogOut, Menu, Package, ReceiptText, Settings, Store as StoreIcon, TrendingUp, Users, UsersRound, X } from 'lucide-react'
 import { api } from './api'
 import type { AdminBootstrap } from './types'
 import './admin-section-frame.css'
 
-type ActiveSection = 'relatorios' | 'recursos' | 'midias' | 'operacao' | 'crescimento' | 'integracoes'
+type ActiveSection = 'relatorios' | 'recursos' | 'midias' | 'operacao' | 'crescimento' | 'integracoes' | 'assinatura'
 
 function go(path: string) {
   window.history.pushState({}, '', path)
@@ -36,7 +36,8 @@ export default function AdminSectionFrame({ active, children }: { active: Active
       : active === 'operacao' ? 'Operação da loja'
         : active === 'crescimento' ? 'Crescimento e confiança'
           : active === 'integracoes' ? 'Integrações e checkout'
-            : 'Estoque e recursos'
+            : active === 'assinatura' ? 'Assinatura e segurança'
+              : 'Estoque e recursos'
 
   return <div className="panel-shell">
     <aside className={`panel-sidebar ${menuOpen ? 'is-open' : ''}`}>
@@ -52,6 +53,7 @@ export default function AdminSectionFrame({ active, children }: { active: Active
         <FrameNavItem active={active === 'crescimento'} icon={<TrendingUp size={18}/>} label="Crescimento" path="/painel/crescimento" onNavigate={closeMenu}/>
         <FrameNavItem active={active === 'recursos'} icon={<Boxes size={18}/>} label="Estoque e recursos" path="/painel/recursos" onNavigate={closeMenu}/>
         <FrameNavItem active={active === 'integracoes'} icon={<Settings size={18}/>} label="Integrações" path="/painel/integracoes" onNavigate={closeMenu}/>
+        <FrameNavItem active={active === 'assinatura'} icon={<CreditCard size={18}/>} label="Assinatura" path="/painel/assinatura" onNavigate={closeMenu}/>
         <FrameNavItem icon={<Settings size={18}/>} label="Minha loja" path="/painel/loja" onNavigate={closeMenu}/>
       </nav>
       <div className="panel-sidebar__foot">{storeUrl && <a href={storeUrl} target="_blank" rel="noreferrer"><ExternalLink size={17}/> Ver loja</a>}<button onClick={logout}><LogOut size={17}/> Sair</button></div>
