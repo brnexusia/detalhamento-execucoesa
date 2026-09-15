@@ -353,7 +353,7 @@ async function ownerStatus(req, res) {
     (SELECT count(*)::int FROM products WHERE store_id=$1) AS products,
     (SELECT count(*)::int FROM sellers WHERE store_id=$1) AS sellers,
     (SELECT count(*)::int FROM catalogs WHERE store_id=$1) AS catalogs,
-    (SELECT count(*)::int FROM store_franchisees WHERE store_id=$1 AND active=true) AS franchisees`, [store.id])
+    (SELECT count(*)::int FROM franchisees WHERE store_id=$1 AND active=true) AS franchisees`, [store.id])
   const u = usage.rows[0] || {}
   const limits = {
     products: store.product_limit == null ? null : Number(store.product_limit),
