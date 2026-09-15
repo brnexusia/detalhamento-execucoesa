@@ -54,7 +54,7 @@ jobs:
           grep -Fq 'phase5-launch-hooks.mjs' package.json
           grep -Fq '/painel/assinatura' src/AdminRoute.tsx
           grep -Fq '/admin/lancamento' src/PlatformRoute.tsx
-          grep -Fq '@media(max-width:640px)' src/phase5-panel.css
+          grep -Fq '@media(max-width:820px)' src/phase5-panel.css
           grep -Fq '@media(max-width:640px)' src/platform-launch-ops.css
       - name: Start Shopvax production profile
         env:
