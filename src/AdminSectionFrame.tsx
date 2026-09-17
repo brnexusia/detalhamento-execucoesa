@@ -45,9 +45,9 @@ export default function AdminSectionFrame({ active, children }: { active: Active
       <nav className="panel-nav">
         <FrameNavItem icon={<Home size={18}/>} label="Início" path="/painel" onNavigate={closeMenu}/>
         <FrameNavItem icon={<Package size={18}/>} label="Produtos" count={data?.products.length} path="/painel/produtos" onNavigate={closeMenu}/>
-        <FrameNavItem active={active === 'midias'} icon={<Images size={18}/>} label="Fotos dos produtos" path="/painel/midias" onNavigate={closeMenu}/>
         <FrameNavItem icon={<ReceiptText size={18}/>} label="Pedidos" count={data?.orders.length} path="/painel/pedidos" onNavigate={closeMenu}/>
         <FrameNavItem icon={<Users size={18}/>} label="Vendedoras" count={data?.sellers.length} path="/painel/vendedoras" onNavigate={closeMenu}/>
+        <FrameNavItem active={active === 'midias'} icon={<Images size={18}/>} label="Fotos dos produtos" path="/painel/midias" onNavigate={closeMenu}/>
         <FrameNavItem active={active === 'operacao'} icon={<UsersRound size={18}/>} label="Operação da loja" path="/painel/operacao" onNavigate={closeMenu}/>
         <FrameNavItem active={active === 'relatorios'} icon={<BarChart3 size={18}/>} label="Inteligência comercial" path="/painel/relatorios" onNavigate={closeMenu}/>
         <FrameNavItem active={active === 'crescimento'} icon={<TrendingUp size={18}/>} label="Crescimento" path="/painel/crescimento" onNavigate={closeMenu}/>
