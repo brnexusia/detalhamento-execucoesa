@@ -13,10 +13,12 @@ type SignupPlan = {
   franchiseeLimit: number | null
 }
 
+const planName = (code: string, fallback = '') => ({ bronze: 'Bronze', prata: 'Prata', ouro: 'Ouro' } as Record<string, string>)[code] || fallback
+
 const fallbackPlans: SignupPlan[] = [
-  { code: 'bronze', name: 'Plano 1', monthlyPrice: 49.90, sellerLimit: 2, productLimit: null, catalogLimit: 1, photoLimit: 5, franchiseeLimit: 0 },
-  { code: 'prata', name: 'Plano 2', monthlyPrice: 94.90, sellerLimit: 4, productLimit: null, catalogLimit: 3, photoLimit: 10, franchiseeLimit: 2 },
-  { code: 'ouro', name: 'Plano 3', monthlyPrice: 144.90, sellerLimit: null, productLimit: null, catalogLimit: null, photoLimit: 10, franchiseeLimit: null },
+  { code: 'bronze', name: 'Bronze', monthlyPrice: 49.90, sellerLimit: 2, productLimit: null, catalogLimit: 1, photoLimit: 5, franchiseeLimit: 0 },
+  { code: 'prata', name: 'Prata', monthlyPrice: 94.90, sellerLimit: 4, productLimit: null, catalogLimit: 3, photoLimit: 10, franchiseeLimit: 2 },
+  { code: 'ouro', name: 'Ouro', monthlyPrice: 144.90, sellerLimit: null, productLimit: null, catalogLimit: null, photoLimit: 10, franchiseeLimit: null },
 ]
 
 const planMoney = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -72,7 +74,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
       .then(async (response) => response.ok ? response.json() : null)
       .then((payload) => {
         if (!Array.isArray(payload?.plans) || payload.plans.length === 0) return
-        const nextPlans = payload.plans as SignupPlan[]
+        const nextPlans = (payload.plans as SignupPlan[]).map((plan) => ({ ...plan, name: planName(plan.code, plan.name) }))
         setPlans(nextPlans)
         setForm((current) => nextPlans.some((plan) => plan.code === current.planCode) ? current : { ...current, planCode: '' })
       })
@@ -144,7 +146,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
                   style={{ width: '100%', border: '1px solid var(--line)', outline: 0, background: '#fff', padding: '11px 12px', fontSize: 12 }}
                 >
                   <option value="" disabled>Selecione seu plano</option>
-                  {plans.map((plan) => <option key={plan.code} value={plan.code}>{plan.name} · {plan.code.toUpperCase()} — {planMoney.format(plan.monthlyPrice)}/mês</option>)}
+                  {plans.map((plan) => <option key={plan.code} value={plan.code}>{plan.name} — {planMoney.format(plan.monthlyPrice)}/mês</option>)}
                 </select>
                 {selectedPlan && <small style={{ color: 'var(--muted)', fontSize: 9, lineHeight: 1.45 }}>{planSummary(selectedPlan)}</small>}
               </label>
