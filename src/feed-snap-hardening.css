@@ -1,0 +1,43 @@
+html.shopvax-feed-active,
+html.shopvax-feed-active body,
+html.shopvax-feed-active #root {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden !important;
+  overscroll-behavior: none;
+}
+
+.social-feed-page {
+  height: var(--shopvax-feed-height, 100dvh) !important;
+  min-height: 0 !important;
+  max-height: var(--shopvax-feed-height, 100dvh) !important;
+  overflow: hidden !important;
+}
+
+.social-feed-list {
+  height: var(--shopvax-feed-height, 100dvh) !important;
+  min-height: 0 !important;
+  max-height: var(--shopvax-feed-height, 100dvh) !important;
+  overflow-y: scroll !important;
+  overflow-x: hidden !important;
+  scroll-snap-type: y mandatory !important;
+  scroll-padding: 0 !important;
+  overscroll-behavior-y: none !important;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+.social-feed-card {
+  height: var(--shopvax-feed-height, 100dvh) !important;
+  min-height: var(--shopvax-feed-height, 100dvh) !important;
+  max-height: var(--shopvax-feed-height, 100dvh) !important;
+  flex: 0 0 var(--shopvax-feed-height, 100dvh);
+  scroll-snap-align: start !important;
+  scroll-snap-stop: always !important;
+}
+
+.social-feed-loading,
+.social-feed-sentinel {
+  scroll-snap-align: none !important;
+  scroll-snap-stop: normal !important;
+}
