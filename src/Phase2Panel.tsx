@@ -140,7 +140,7 @@ export default function Phase2Panel() {
     flash('Copiado.')
   }
 
-  if (loading || !data) return <div className="phase2-shell"><div className="phase2-loading"><RefreshCcw size={24}/><strong>{loading ? 'Carregando Fase 2…' : 'Não foi possível abrir a operação.'}</strong>{error && <p>{error}</p>}</div></div>
+  if (loading || !data) return <div className="phase2-shell"><div className="phase2-loading"><RefreshCcw size={24}/><strong>{loading ? 'Carregando operação…' : 'Não foi possível abrir a operação.'}</strong>{error && <p>{error}</p>}</div></div>
 
   return <div className="phase2-shell">
     <div className="phase2-title"><div><span>{data.plan.name}</span><h1>Operação da loja</h1><p>Equipe, clientes, domínio, estoque e acompanhamento dos pedidos em um único lugar.</p></div><button className="phase2-secondary" onClick={load}><RefreshCcw size={16}/> Atualizar</button></div>
@@ -158,7 +158,7 @@ export default function Phase2Panel() {
         <div className="phase2-card__head"><div><span>Cliente identificado</span><h2>Login e histórico</h2></div><strong>{data.customers.length}</strong></div>
         <label className="phase2-toggle"><input type="checkbox" checked={customerLogin} onChange={(event) => setCustomerLogin(event.target.checked)}/><span/> Permitir conta de cliente nesta loja</label>
         <p className="phase2-muted">Clientes autenticados passam a ter os próprios pedidos vinculados ao histórico da conta.</p>
-        <div className="phase2-customer-list">{data.customers.slice(0, 12).map((customer) => <div key={customer.id}><div><strong>{customer.name}</strong><span>{customer.email}</span></div><b>{customer.orders_count} pedido(s)</b></div>)}{!data.customers.length && <p>Nenhum cliente criou conta ainda.</p>}</div>
+        <div className="phase2-customer-list">{data.customers.slice(0, 12).map((customer) => <div key={customer.id}><div><strong>{customer.name}</strong><span>{customer.email}</span></div><b>{customer.orders_count} {customer.orders_count === 1 ? 'pedido' : 'pedidos'}</b></div>)}{!data.customers.length && <p>Nenhum cliente criou conta ainda.</p>}</div>
       </article>
 
       <article className={`phase2-card ${!stockEnabled ? 'is-locked' : ''}`}>
