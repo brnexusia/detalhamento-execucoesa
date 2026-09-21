@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ArrowLeft, Check, CreditCard, PackageCheck, Save } from 'lucide-react'
 import { apiRequest } from './api'
+import { useUnsavedChanges } from './unsaved-changes'
 import './commercial-settings.css'
 
 type Item = { key: string; label: string }
@@ -26,6 +27,8 @@ export default function CommercialSettingsPanel({ embedded = false }: { embedded
   const [saving, setSaving] = useState(false)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
+  const dirty = Boolean(data) && (JSON.stringify(payments) !== JSON.stringify(data!.paymentMethods.map((item) => item.key)) || JSON.stringify(deliveries) !== JSON.stringify(data!.deliveryMethods.map((item) => item.key)) || note !== data!.note)
+  useUnsavedChanges(dirty)
 
   const load = async () => {
     setError('')
