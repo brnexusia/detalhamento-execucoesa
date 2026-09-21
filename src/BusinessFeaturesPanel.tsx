@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, Boxes, Check, Copy, Plus, RefreshCcw, Save, Trash2, XCircle } from 'lucide-react'
+import { confirmAction } from './ui-dialogs'
 import { api, type AdminCatalog } from './api'
 import type { AdminBootstrap, AdminProduct, VariationGroup } from './types'
 import './business-features.css'
@@ -77,7 +78,7 @@ export default function BusinessFeaturesPanel() {
   }
 
   const cancel = async (orderId: string) => {
-    if (!window.confirm('Cancelar este pedido e devolver o estoque correspondente?')) return
+    if (!(await confirmAction('Cancelar este pedido e devolver o estoque correspondente?'))) return
     setSaving(orderId); setError('')
     try { const result = await api.cancelOrder(orderId); flash(result.idempotent ? 'Esse pedido já estava cancelado.' : 'Pedido cancelado e estoque devolvido.'); await load() }
     catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível cancelar o pedido.') }
