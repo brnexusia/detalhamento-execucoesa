@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { BarChart3, Check, CircleAlert, Copy, Download, Gift, MessageCircle, Percent, RefreshCcw, Save, ShoppingCart, Star, Trash2, TrendingUp } from 'lucide-react'
 import { apiRequest } from './api'
+import UiState from './UiState'
 import { confirmAction } from './ui-dialogs'
 import { useUnsavedChanges } from './unsaved-changes'
 import './phase3-panel.css'
@@ -150,7 +151,7 @@ export default function Phase3Panel() {
     flash('Copiado.')
   }
 
-  if (loading || !data) return <div className="phase3-shell"><div className="phase3-loading"><RefreshCcw size={24}/><strong>{loading ? 'Carregando crescimento…' : 'Não foi possível abrir esta área.'}</strong>{error && <p>{error}</p>}</div></div>
+  if (loading || !data) return <div className="phase3-shell"><UiState loading={loading} title={loading ? 'Carregando crescimento…' : 'Não foi possível abrir crescimento.'} message={error || undefined} onRetry={loading ? undefined : load}/></div>
 
   const referralUrl = referral ? `${window.location.origin}/criar-conta?ref=${encodeURIComponent(referral.code)}` : ''
 
