@@ -92,7 +92,7 @@ export default function PublicStoreV2() {
   }, [route.storeSlug, route.sellerSlug])
 
   useEffect(() => { void loadFirst() }, [loadFirst])
-  useEffect(() => { localStorage.setItem(cartStorageKey, JSON.stringify(cart)) }, [cart, cartStorageKey])
+  useEffect(() => { localStorage.setItem(cartStorageKey, JSON.stringify(cart)); window.dispatchEvent(new CustomEvent('shopvax:cart-change', { detail: { storeSlug: route.storeSlug } })) }, [cart, cartStorageKey, route.storeSlug])
 
   useEffect(() => {
     if (!payload || demo) return
