@@ -76,3 +76,13 @@ export async function promptSecret(message: string, title = 'Confirme sua identi
   const value = await openDialog({ title, message, confirmLabel: 'Continuar', secret: true })
   return typeof value === 'string' ? value : ''
 }
+
+
+export function showToast(message: string, kind: 'info' | 'error' = 'info') {
+  const toast = document.createElement('div')
+  toast.className = `shopvax-global-toast ${kind === 'error' ? 'is-error' : ''}`
+  toast.setAttribute('role', kind === 'error' ? 'alert' : 'status')
+  toast.textContent = message
+  document.body.append(toast)
+  window.setTimeout(() => toast.remove(), 3200)
+}
