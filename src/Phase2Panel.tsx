@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Check, CircleAlert, Copy, Globe2, PackageCheck, Plus, RefreshCcw, Save, Trash2, UserRound, UsersRound } from 'lucide-react'
 import { apiRequest } from './api'
+import UiState from './UiState'
 import { confirmAction } from './ui-dialogs'
 import { useUnsavedChanges } from './unsaved-changes'
 import './phase2-panel.css'
@@ -140,7 +141,7 @@ export default function Phase2Panel() {
     flash('Copiado.')
   }
 
-  if (loading || !data) return <div className="phase2-shell"><div className="phase2-loading"><RefreshCcw size={24}/><strong>{loading ? 'Carregando operação…' : 'Não foi possível abrir a operação.'}</strong>{error && <p>{error}</p>}</div></div>
+  if (loading || !data) return <div className="phase2-shell"><UiState loading={loading} title={loading ? 'Carregando operação…' : 'Não foi possível abrir a operação.'} message={error || undefined} onRetry={loading ? undefined : load}/></div>
 
   return <div className="phase2-shell">
     <div className="phase2-title"><div><span>{data.plan.name}</span><h1>Operação da loja</h1><p>Equipe, clientes, domínio, estoque e acompanhamento dos pedidos em um único lugar.</p></div><button className="phase2-secondary" onClick={load}><RefreshCcw size={16}/> Atualizar</button></div>
