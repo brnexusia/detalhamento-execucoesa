@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Check, CircleAlert, Copy, Globe2, PackageCheck, Plus, RefreshCcw, Save, Trash2, UserRound, UsersRound } from 'lucide-react'
+import { apiRequest } from './api'
 import { confirmAction } from './ui-dialogs'
 import './phase2-panel.css'
 
@@ -29,17 +30,6 @@ type Phase2Data = {
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 const date = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
 
-async function request<T>(url: string, options: RequestInit = {}) {
-  const response = await fetch(url, {
-    credentials: 'include',
-    ...options,
-    headers: options.body ? { 'content-type': 'application/json', ...(options.headers || {}) } : options.headers,
-  })
-  const payload = response.status === 204 ? null : await response.json().catch(() => null)
-  if (!response.ok) throw new Error(payload?.error || 'Não foi possível concluir a operação.')
-  return payload as T
-}
-
 function go(path: string) {
   window.history.pushState({}, '', path)
   window.dispatchEvent(new PopStateEvent('popstate'))
@@ -68,7 +58,7 @@ export default function Phase2Panel() {
   const load = async () => {
     setError('')
     try {
-      const next = await request<Phase2Data>('/api/admin/phase2')
+      const next = await apiRequest<Phase2Data>('/api/admin/phase2')
       setData(next)
       setDomain(next.store.customDomain || '')
       setBackground(next.store.theme.background || '#ffffff')
@@ -96,7 +86,7 @@ export default function Phase2Panel() {
       const body: Record<string, unknown> = { customerLoginEnabled: customerLogin }
       if (customDomainEnabled) body.customDomain = domain
       if (personalizationEnabled) body.theme = { background, textColor, font }
-      await request('/api/admin/phase2/store', { method: 'PATCH', body: JSON.stringify(body) })
+      await apiRequest('/api/admin/phase2/store', { method: 'PATCH', body: JSON.stringify(body) })
       flash('Configurações operacionais atualizadas.')
       await load()
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível salvar.') }
@@ -106,7 +96,7 @@ export default function Phase2Panel() {
   const addFranchisee = async () => {
     setSaving('franchisee'); setError('')
     try {
-      await request('/api/admin/phase2/franchisees', { method: 'POST', body: JSON.stringify({ ...franchisee, active: true }) })
+      await apiRequest('/api/admin/phase2/franchisees', { method: 'POST', body: JSON.stringify({ ...franchisee, active: true }) })
       setFranchisee({ name: '', phone: '' })
       flash('Franqueado cadastrado.')
       await load()
@@ -118,7 +108,7 @@ export default function Phase2Panel() {
     if (!(await confirmAction(`Excluir ${item.name}?`))) return
     setSaving(item.id)
     try {
-      await request(`/api/admin/phase2/franchisees/${encodeURIComponent(item.id)}`, { method: 'DELETE' })
+      await apiRequest(`/api/admin/phase2/franchisees/${encodeURIComponent(item.id)}`, { method: 'DELETE' })
       flash('Franqueado excluído.')
       await load()
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível excluir.') }
@@ -128,7 +118,7 @@ export default function Phase2Panel() {
   const setOrderStatus = async (order: Order, status: string) => {
     setSaving(order.id); setError('')
     try {
-      await request(`/api/admin/phase2/orders/${encodeURIComponent(order.id)}/status`, { method: 'PATCH', body: JSON.stringify({ status }) })
+      await apiRequest(`/api/admin/phase2/orders/${encodeURIComponent(order.id)}/status`, { method: 'PATCH', body: JSON.stringify({ status }) })
       flash(`Pedido ${order.code} atualizado.`)
       await load()
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível atualizar o pedido.') }
