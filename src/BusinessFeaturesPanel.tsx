@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, Boxes, Check, Copy, Plus, RefreshCcw, Save, Trash2, XCircle } from 'lucide-react'
 import { confirmAction } from './ui-dialogs'
 import { api, type AdminCatalog } from './api'
+import UiState from './UiState'
 import type { AdminBootstrap, AdminProduct, VariationGroup } from './types'
 import './business-features.css'
 
@@ -128,7 +129,7 @@ export default function BusinessFeaturesPanel() {
     flash(`Link de ${catalog.name} copiado.`)
   }
 
-  if (!data) return <div className="business-shell"><div className="business-loading"><Boxes size={30}/><strong>Carregando recursos…</strong>{error && <p>{error}</p>}</div></div>
+  if (!data) return <div className="business-shell"><UiState loading={!error} title={error ? 'Não foi possível abrir estoque e catálogos.' : 'Carregando estoque e catálogos…'} message={error || undefined} onRetry={error ? load : undefined}/></div>
 
   return <div className="business-shell">
     <header className="business-head"><button onClick={() => go('/painel')}><ArrowLeft size={18}/> Painel</button><div><span>Operação</span><h1>Catálogo e estoque</h1><p>Uma única base de produtos para diferentes vitrines e condições comerciais.</p></div><div className="business-summary"><strong>{catalogs.length}</strong><span>catálogo(s) ativos</span></div></header>
