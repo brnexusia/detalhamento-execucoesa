@@ -68,7 +68,7 @@ export default function CommercialSettingsPanel({ embedded = false }: { embedded
   if (!data) return <div className={`commercial-shell ${embedded ? 'commercial-shell--embedded' : ''}`}><div className="commercial-loading"><PackageCheck size={30}/><strong>Carregando opções comerciais…</strong>{error && <p>{error}</p>}</div></div>
 
   return <div className={`commercial-shell ${embedded ? 'commercial-shell--embedded' : ''}`}>
-    {!embedded ? <header className="commercial-head"><button onClick={() => go('/painel')}><ArrowLeft size={18}/> Painel</button><div><span>Operação comercial</span><h1>Pagamento e entrega</h1><p>Mostre ao comprador quais opções a empresa costuma trabalhar, sem transformar o Atacado Shop em gateway ou sistema logístico.</p></div></header> : <header className="commercial-embedded-head"><span>Venda</span><h2>Pagamento e entrega</h2><p>Defina o que a loja informa ao comprador antes de continuar o atendimento no WhatsApp.</p></header>}
+    {!embedded ? <header className="commercial-head"><button onClick={() => go('/painel')}><ArrowLeft size={18}/> Painel</button><div><span>Operação comercial</span><h1>Pagamento e entrega</h1><p>Mostre ao comprador quais opções a empresa costuma trabalhar, sem transformar o Shopvax em gateway ou sistema logístico.</p></div></header> : <header className="commercial-embedded-head"><span>Venda</span><h2>Pagamento e entrega</h2><p>Defina o que a loja informa ao comprador antes de continuar o atendimento no WhatsApp.</p></header>}
     {notice && <div className="commercial-toast"><Check size={16}/>{notice}</div>}
     {error && <div className="commercial-error">{error}</div>}
     <div className="commercial-rule"><strong>Somente informativo</strong><span>{data.disclaimer}</span></div>
