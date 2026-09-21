@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { ExternalLink, LogOut, Menu, Store as StoreIcon, X } from 'lucide-react'
 import { api } from './api'
 import AdminNavigation, { type PrimaryAdminSection } from './AdminNavigation'
+import { confirmNavigationIfDirty } from './unsaved-changes'
 import './admin-section-frame.css'
 
 type ActiveSection = 'relatorios' | 'recursos' | 'midias' | 'operacao' | 'crescimento' | 'integracoes' | 'assinatura'
@@ -45,6 +46,7 @@ export default function AdminSectionFrame({ active, children }: { active: Active
         active={primaryActive}
         planCode={data?.store.plan_tier}
         onNavigate={closeMenu}
+        beforeNavigate={confirmNavigationIfDirty}
       />
       <div className="panel-sidebar__foot">{storeUrl && <a href={storeUrl} target="_blank" rel="noreferrer"><ExternalLink size={17}/> Ver loja</a>}<button onClick={logout}><LogOut size={17}/> Sair</button></div>
     </aside>
