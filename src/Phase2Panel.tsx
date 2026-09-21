@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Check, CircleAlert, Copy, Globe2, PackageCheck, Plus, RefreshCcw, Save, Trash2, UserRound, UsersRound } from 'lucide-react'
+import { confirmAction } from './ui-dialogs'
 import './phase2-panel.css'
 
 type Seller = { id: string; slug: string; name: string; phone: string; is_active: boolean }
@@ -114,7 +115,7 @@ export default function Phase2Panel() {
   }
 
   const removeFranchisee = async (item: Franchisee) => {
-    if (!window.confirm(`Excluir ${item.name}?`)) return
+    if (!(await confirmAction(`Excluir ${item.name}?`))) return
     setSaving(item.id)
     try {
       await request(`/api/admin/phase2/franchisees/${encodeURIComponent(item.id)}`, { method: 'DELETE' })
