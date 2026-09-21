@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Check, CircleAlert, Copy, CreditCard, ExternalLink, KeyRound, Link2, PackageCheck, Plus, RefreshCcw, Save, ShieldCheck, Trash2, Truck, Webhook } from 'lucide-react'
+import { apiRequest } from './api'
 import { confirmAction } from './ui-dialogs'
 import './phase4-panel.css'
 
@@ -48,17 +49,6 @@ type SecretNotice = { title: string; value: string; note: string } | null
 
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
-async function request<T>(url: string, options: RequestInit = {}) {
-  const response = await fetch(url, {
-    credentials: 'include',
-    ...options,
-    headers: options.body ? { 'content-type': 'application/json', ...(options.headers || {}) } : options.headers,
-  })
-  const payload = response.status === 204 ? null : await response.json().catch(() => null)
-  if (!response.ok) throw new Error(payload?.error || 'Não foi possível concluir a operação.')
-  return payload as T
-}
-
 export default function Phase4Panel() {
   const [data, setData] = useState<Phase4Data | null>(null)
   const [loading, setLoading] = useState(true)
@@ -95,7 +85,7 @@ export default function Phase4Panel() {
   const load = async () => {
     setError('')
     try {
-      const next = await request<Phase4Data>('/api/admin/phase4')
+      const next = await apiRequest<Phase4Data>('/api/admin/phase4')
       setData(next)
       syncForms(next)
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível carregar as integrações.') }
@@ -119,7 +109,7 @@ export default function Phase4Panel() {
   const saveCore = async () => {
     setSaving('core'); setError('')
     try {
-      await request('/api/admin/phase4/settings', { method: 'PATCH', body: JSON.stringify({ shippingEnabled, metaEnabled, metaBrand, erpApiEnabled: erpEnabled }) })
+      await apiRequest('/api/admin/phase4/settings', { method: 'PATCH', body: JSON.stringify({ shippingEnabled, metaEnabled, metaBrand, erpApiEnabled: erpEnabled }) })
       flash('Integrações atualizadas.')
       await load()
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível salvar.') }
@@ -129,7 +119,7 @@ export default function Phase4Panel() {
   const saveAsaas = async () => {
     setSaving('asaas'); setError(''); setSecret(null)
     try {
-      const payload = await request<{ integration: Integration; webhookAuthToken?: string; warning?: string | null }>('/api/admin/phase4/asaas', {
+      const payload = await apiRequest<{ integration: Integration; webhookAuthToken?: string; warning?: string | null }>('/api/admin/phase4/asaas', {
         method: 'PATCH',
         body: JSON.stringify({ enabled: asaasEnabled, environment: asaasEnvironment, apiKey: asaasKey || undefined, paymentMethods }),
       })
@@ -144,7 +134,7 @@ export default function Phase4Panel() {
   const provisionWebhook = async () => {
     setSaving('asaas-webhook'); setError('')
     try {
-      await request('/api/admin/phase4/asaas/provision-webhook', { method: 'POST', body: '{}' })
+      await apiRequest('/api/admin/phase4/asaas/provision-webhook', { method: 'POST', body: '{}' })
       flash('Webhook provisionado no Asaas.')
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível provisionar o webhook.') }
     finally { setSaving('') }
@@ -153,7 +143,7 @@ export default function Phase4Panel() {
   const addShippingRule = async () => {
     setSaving('shipping'); setError('')
     try {
-      await request('/api/admin/phase4/shipping-rules', {
+      await apiRequest('/api/admin/phase4/shipping-rules', {
         method: 'POST',
         body: JSON.stringify({
           name: shipping.name,
@@ -178,7 +168,7 @@ export default function Phase4Panel() {
     if (!(await confirmAction(`Excluir a regra ${rule.name}?`))) return
     setSaving(rule.id)
     try {
-      await request(`/api/admin/phase4/shipping-rules/${encodeURIComponent(rule.id)}`, { method: 'DELETE' })
+      await apiRequest(`/api/admin/phase4/shipping-rules/${encodeURIComponent(rule.id)}`, { method: 'DELETE' })
       flash('Regra de frete excluída.')
       await load()
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível excluir.') }
@@ -189,7 +179,7 @@ export default function Phase4Panel() {
   const createToken = async () => {
     setSaving('token'); setError(''); setSecret(null)
     try {
-      const payload = await request<{ token: { secret: string; tokenPrefix: string }; warning: string }>('/api/admin/phase4/api-tokens', {
+      const payload = await apiRequest<{ token: { secret: string; tokenPrefix: string }; warning: string }>('/api/admin/phase4/api-tokens', {
         method: 'POST', body: JSON.stringify({ name: tokenName, scopes: tokenScopes }),
       })
       setSecret({ title: 'Token da API/ERP', value: payload.token.secret, note: payload.warning })
@@ -203,7 +193,7 @@ export default function Phase4Panel() {
     if (!(await confirmAction(`Revogar ${token.name}?`))) return
     setSaving(token.id)
     try {
-      await request(`/api/admin/phase4/api-tokens/${encodeURIComponent(token.id)}`, { method: 'DELETE' })
+      await apiRequest(`/api/admin/phase4/api-tokens/${encodeURIComponent(token.id)}`, { method: 'DELETE' })
       flash('Token revogado.')
       await load()
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível revogar o token.') }
@@ -213,7 +203,7 @@ export default function Phase4Panel() {
   const createErpWebhook = async () => {
     setSaving('erp-webhook'); setError(''); setSecret(null)
     try {
-      const payload = await request<{ webhook: { secret: string }; warning: string }>('/api/admin/phase4/erp-webhooks', {
+      const payload = await apiRequest<{ webhook: { secret: string }; warning: string }>('/api/admin/phase4/erp-webhooks', {
         method: 'POST', body: JSON.stringify(webhookForm),
       })
       setSecret({ title: 'Segredo do webhook ERP', value: payload.webhook.secret, note: payload.warning })
@@ -228,7 +218,7 @@ export default function Phase4Panel() {
     if (!(await confirmAction(`Excluir o webhook ${webhook.name}?`))) return
     setSaving(webhook.id)
     try {
-      await request(`/api/admin/phase4/erp-webhooks/${encodeURIComponent(webhook.id)}`, { method: 'DELETE' })
+      await apiRequest(`/api/admin/phase4/erp-webhooks/${encodeURIComponent(webhook.id)}`, { method: 'DELETE' })
       flash('Webhook excluído.')
       await load()
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível excluir o webhook.') }
