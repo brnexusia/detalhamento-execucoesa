@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, ArrowLeft, CheckCircle2, CreditCard, KeyRound, RefreshCw, Search, ShieldCheck, Store, XCircle } from 'lucide-react'
+import { apiRequest } from './api'
 import './platform-launch-ops.css'
 import { confirmAction, promptSecret } from './ui-dialogs'
 
@@ -19,14 +20,6 @@ type Overview = {
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 const date = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' })
 
-async function api<T>(path: string, options: RequestInit = {}) {
-  const response = await fetch(path, { credentials: 'include', ...options, headers: { 'Content-Type': 'application/json', ...(options.headers || {}) } })
-  const text = await response.text()
-  const payload = text ? JSON.parse(text) : null
-  if (!response.ok) throw new Error(payload?.error || 'Não foi possível concluir a operação.')
-  return payload as T
-}
-
 function go(path: string) {
   window.history.pushState({}, '', path)
   window.dispatchEvent(new PopStateEvent('popstate'))
@@ -45,7 +38,7 @@ export default function PlatformLaunchOps() {
 
   const load = async () => {
     setError('')
-    try { setData(await api<Overview>('/api/platform/phase5/overview')) }
+    try { setData(await apiRequest<Overview>('/api/platform/phase5/overview')) }
     catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível abrir a homologação.') }
   }
   useEffect(() => { void load() }, [])
@@ -57,7 +50,7 @@ export default function PlatformLaunchOps() {
     if (!pass) return
     setBusy(key); setError('')
     try {
-      await api(path, { method: 'POST', body: JSON.stringify({ ...body, password: pass }) })
+      await apiRequest(path, { method: 'POST', body: JSON.stringify({ ...body, password: pass }) })
       flash(success); await load()
     } catch (err) { setError(err instanceof Error ? err.message : 'Operação não concluída.') }
     finally { setBusy('') }
