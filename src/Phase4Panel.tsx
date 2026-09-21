@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Check, CircleAlert, Copy, CreditCard, ExternalLink, KeyRound, Link2, PackageCheck, Plus, RefreshCcw, Save, ShieldCheck, Trash2, Truck, Webhook } from 'lucide-react'
 import { apiRequest } from './api'
+import UiState from './UiState'
 import { confirmAction } from './ui-dialogs'
 import { useUnsavedChanges } from './unsaved-changes'
 import './phase4-panel.css'
@@ -234,7 +235,7 @@ export default function Phase4Panel() {
     finally { setSaving('') }
   }
 
-  if (loading || !data) return <div className="phase4-shell"><div className="phase4-loading"><RefreshCcw size={24}/><strong>{loading ? 'Carregando integrações…' : 'Não foi possível abrir as integrações.'}</strong>{error && <p>{error}</p>}</div></div>
+  if (loading || !data) return <div className="phase4-shell"><UiState loading={loading} title={loading ? 'Carregando integrações…' : 'Não foi possível abrir as integrações.'} message={error || undefined} onRetry={loading ? undefined : load}/></div>
 
   if (!data.eligible) return <div className="phase4-shell"><section className="phase4-locked"><ShieldCheck size={38}/><span>{data.plan.name}</span><h1>Integrações avançadas</h1><p>{data.reason || 'Disponível no Ouro.'}</p><div><CreditCard size={18}/> Asaas e pagamentos online</div><div><Truck size={18}/> Frete calculado por regras</div><div><Link2 size={18}/> Meta Shopping e API/ERP</div></section></div>
 
