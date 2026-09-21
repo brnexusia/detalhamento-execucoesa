@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ArrowLeft, Check, CreditCard, PackageCheck, Save } from 'lucide-react'
+import { apiRequest } from './api'
 import './commercial-settings.css'
 
 type Item = { key: string; label: string }
@@ -17,13 +18,6 @@ function go(path: string) {
   window.dispatchEvent(new PopStateEvent('popstate'))
 }
 
-async function request<T>(url: string, options: RequestInit = {}) {
-  const response = await fetch(url, { credentials: 'include', ...options, headers: { 'Content-Type': 'application/json', ...(options.headers || {}) } })
-  const body = await response.json().catch(() => null)
-  if (!response.ok) throw new Error(body?.error || 'Não foi possível concluir a operação.')
-  return body as T
-}
-
 export default function CommercialSettingsPanel({ embedded = false }: { embedded?: boolean }) {
   const [data, setData] = useState<Payload | null>(null)
   const [payments, setPayments] = useState<string[]>([])
@@ -36,7 +30,7 @@ export default function CommercialSettingsPanel({ embedded = false }: { embedded
   const load = async () => {
     setError('')
     try {
-      const result = await request<Payload>('/api/admin/commercial-config')
+      const result = await apiRequest<Payload>('/api/admin/commercial-config')
       setData(result)
       setPayments(result.paymentMethods.map((item) => item.key))
       setDeliveries(result.deliveryMethods.map((item) => item.key))
@@ -54,7 +48,7 @@ export default function CommercialSettingsPanel({ embedded = false }: { embedded
     if (!data || saving) return
     setSaving(true); setError('')
     try {
-      const result = await request<Payload>('/api/admin/commercial-config', { method: 'PUT', body: JSON.stringify({ paymentMethods: payments, deliveryMethods: deliveries, note }) })
+      const result = await apiRequest<Payload>('/api/admin/commercial-config', { method: 'PUT', body: JSON.stringify({ paymentMethods: payments, deliveryMethods: deliveries, note }) })
       setData(result)
       setPayments(result.paymentMethods.map((item) => item.key))
       setDeliveries(result.deliveryMethods.map((item) => item.key))
