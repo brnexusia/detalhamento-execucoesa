@@ -301,3 +301,5 @@
   .settings-save.settings-save--sticky { justify-content: space-between; }
   .app--feed .feed-shell::after { bottom: 132px; }
 }
+
+.panel-nav button[aria-current="page"]{background:#f5f2eb;color:#171714}.embedded-admin-section{min-width:0}
