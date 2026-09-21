@@ -15,12 +15,6 @@ type SignupPlan = {
 
 const planName = (code: string, fallback = '') => ({ bronze: 'Bronze', prata: 'Prata', ouro: 'Ouro' } as Record<string, string>)[code] || fallback
 
-const fallbackPlans: SignupPlan[] = [
-  { code: 'bronze', name: 'Bronze', monthlyPrice: 49.90, sellerLimit: 2, productLimit: null, catalogLimit: 1, photoLimit: 5, franchiseeLimit: 0 },
-  { code: 'prata', name: 'Prata', monthlyPrice: 94.90, sellerLimit: 4, productLimit: null, catalogLimit: 3, photoLimit: 10, franchiseeLimit: 2 },
-  { code: 'ouro', name: 'Ouro', monthlyPrice: 144.90, sellerLimit: null, productLimit: null, catalogLimit: null, photoLimit: 10, franchiseeLimit: null },
-]
-
 const planMoney = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
 function go(path: string) {
@@ -53,7 +47,9 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const [showPassword, setShowPassword] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [plans, setPlans] = useState<SignupPlan[]>(fallbackPlans)
+  const [plans, setPlans] = useState<SignupPlan[]>([])
+  const [plansLoading, setPlansLoading] = useState(mode === 'register')
+  const [plansError, setPlansError] = useState('')
   const [form, setForm] = useState({
     name: '',
     email: '',
@@ -70,15 +66,18 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     if (mode !== 'register') return
     const controller = new AbortController()
 
+    setPlansLoading(true)
+    setPlansError('')
     fetch('/api/public/plans', { signal: controller.signal })
       .then(async (response) => response.ok ? response.json() : null)
       .then((payload) => {
-        if (!Array.isArray(payload?.plans) || payload.plans.length === 0) return
+        if (!Array.isArray(payload?.plans) || payload.plans.length === 0) throw new Error('Planos indisponíveis.')
         const nextPlans = (payload.plans as SignupPlan[]).map((plan) => ({ ...plan, name: planName(plan.code, plan.name) }))
         setPlans(nextPlans)
         setForm((current) => nextPlans.some((plan) => plan.code === current.planCode) ? current : { ...current, planCode: '' })
       })
-      .catch(() => undefined)
+      .catch((err) => { if (err?.name !== 'AbortError') setPlansError('Não foi possível carregar os planos. Tente novamente.') })
+      .finally(() => setPlansLoading(false))
 
     return () => controller.abort()
   }, [mode])
@@ -96,14 +95,6 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
       } else {
         if (!form.planCode) throw new Error('Selecione o plano da sua loja.')
         await api.register(form)
-        const response = await fetch('/api/account/plan', {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ planCode: form.planCode }),
-        })
-        const payload = await response.json().catch(() => null)
-        if (!response.ok) throw new Error(payload?.error || 'A conta foi criada, mas não foi possível aplicar o plano selecionado.')
         go('/painel')
       }
     } catch (err) {
@@ -137,25 +128,24 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
               <label><span>Seu nome</span><input autoComplete="name" value={form.name} onChange={(e) => update('name', e.target.value)} placeholder="Felipe" required /></label>
               <label><span>Nome da loja</span><div className="input-icon"><Store size={17} /><input value={form.storeName} onChange={(e) => update('storeName', e.target.value)} placeholder="Suprema Line" required /></div></label>
               <label><span>WhatsApp principal</span><input inputMode="tel" value={form.whatsapp} onChange={(e) => update('whatsapp', e.target.value)} placeholder="55 11 99999-9999" /></label>
-              <label>
-                <span>Plano</span>
-                <select
-                  value={form.planCode}
-                  onChange={(e) => update('planCode', e.target.value)}
-                  required
-                  style={{ width: '100%', border: '1px solid var(--line)', outline: 0, background: '#fff', padding: '11px 12px', fontSize: 12 }}
-                >
-                  <option value="" disabled>Selecione seu plano</option>
-                  {plans.map((plan) => <option key={plan.code} value={plan.code}>{plan.name} — {planMoney.format(plan.monthlyPrice)}/mês</option>)}
-                </select>
-                {selectedPlan && <small style={{ color: 'var(--muted)', fontSize: 9, lineHeight: 1.45 }}>{planSummary(selectedPlan)}</small>}
-              </label>
+              <fieldset className="signup-plans">
+                <legend>Escolha seu plano</legend>
+                {plansLoading && <div className="signup-plans__state">Carregando planos…</div>}
+                {plansError && <div className="signup-plans__state signup-plans__state--error">{plansError}</div>}
+                {!plansLoading && !plansError && <div className="signup-plan-grid">
+                  {plans.map((plan) => <button type="button" key={plan.code} className={form.planCode === plan.code ? 'signup-plan is-selected' : 'signup-plan'} onClick={() => update('planCode', plan.code)} aria-pressed={form.planCode === plan.code}>
+                    <span>{plan.name}</span><strong>{planMoney.format(plan.monthlyPrice)}<small>/mês</small></strong><em>{planSummary(plan)}</em>
+                  </button>)}
+                </div>}
+                <input className="signup-plan-required" tabIndex={-1} aria-hidden="true" value={form.planCode} onChange={() => undefined} required />
+                {selectedPlan && <small className="signup-plan-choice">Selecionado: {selectedPlan.name}</small>}
+              </fieldset>
             </>
           )}
           <label><span>E-mail</span><input type="email" autoComplete="email" value={form.email} onChange={(e) => update('email', e.target.value)} placeholder="voce@empresa.com.br" required /></label>
           <label><span>Senha</span><div className="password-input"><input type={showPassword ? 'text' : 'password'} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength={8} value={form.password} onChange={(e) => update('password', e.target.value)} placeholder="Mínimo 8 caracteres" required /><button type="button" onClick={() => setShowPassword((value) => !value)}>{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button></div></label>
           {error && <p className="form-error">{error}</p>}
-          <button className="primary-action" disabled={busy}>{busy ? 'Aguarde…' : mode === 'register' ? 'Criar minha loja' : 'Entrar'}<ArrowRight size={18} /></button>
+          <button className="primary-action" disabled={busy || (mode === 'register' && (plansLoading || Boolean(plansError)))}>{busy ? 'Aguarde…' : mode === 'register' ? 'Criar minha loja' : 'Entrar'}<ArrowRight size={18} /></button>
           <p className="auth-switch">{mode === 'register' ? 'Já tem uma conta?' : 'Ainda não tem conta?'} <button type="button" onClick={() => go(mode === 'register' ? '/entrar' : '/criar-conta')}>{mode === 'register' ? 'Entrar' : 'Criar conta'}</button></p>
         </form>
       </main>
