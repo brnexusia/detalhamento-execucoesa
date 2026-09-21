@@ -17,6 +17,7 @@ import {
   Users,
   XCircle,
 } from 'lucide-react'
+import { confirmAction } from './ui-dialogs'
 
 type PlatformStats = { users: number; stores: number; active_stores: number; products: number; orders: number; order_value: number }
 type PlatformPlan = {
@@ -138,7 +139,7 @@ export default function PlatformAdmin() {
   }
 
   const deletePlan = async (plan: PlatformPlan) => {
-    if (plan.isSystem || !window.confirm(`Apagar o plano ${plan.name}?`)) return
+    if (plan.isSystem || !(await confirmAction(`Apagar o plano ${plan.name}?`, 'Apagar plano', 'Apagar'))) return
     try { await request(`/api/platform/plans/${plan.id}`, { method: 'DELETE' }); flash('Plano apagado.'); await load() }
     catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível apagar o plano.') }
   }
