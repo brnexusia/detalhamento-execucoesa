@@ -1,7 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { ExternalLink, LogOut, Menu, Store as StoreIcon, X } from 'lucide-react'
 import { api } from './api'
-import type { AdminBootstrap } from './types'
 import AdminNavigation, { type PrimaryAdminSection } from './AdminNavigation'
 import './admin-section-frame.css'
 
@@ -13,12 +12,12 @@ function go(path: string) {
 }
 
 export default function AdminSectionFrame({ active, children }: { active: ActiveSection; children: ReactNode }) {
-  const [data, setData] = useState<AdminBootstrap | null>(null)
+  const [data, setData] = useState<{ user: { id: string; name: string; email: string }; store: { slug: string; name: string; plan_tier?: string } } | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
 
   useEffect(() => {
     let mounted = true
-    api.bootstrap().then((result) => { if (mounted) setData(result) }).catch(() => undefined)
+    api.me().then((result) => { if (mounted) setData(result) }).catch(() => undefined)
     return () => { mounted = false }
   }, [])
 
@@ -44,7 +43,6 @@ export default function AdminSectionFrame({ active, children }: { active: Active
       <div className="panel-brand"><span className="brand__mark">SV</span><div><strong>Shopvax</strong><small>{data?.store.name || 'Painel'}</small></div><button className="panel-close-menu" onClick={closeMenu} aria-label="Fechar menu"><X size={18}/></button></div>
       <AdminNavigation
         active={primaryActive}
-        counts={{ products: data?.products.length, orders: data?.orders.length, sellers: data?.sellers.length }}
         planCode={data?.store.plan_tier}
         onNavigate={closeMenu}
       />
