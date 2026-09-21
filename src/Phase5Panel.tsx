@@ -58,7 +58,7 @@ export default function Phase5Panel() {
     setBusy(true); setError('')
     try {
       const result = await api<{ revoked: number }>('/api/auth/security/revoke-others', { method: 'POST', body: '{}' })
-      setNotice(`${result.revoked} sessão(ões) encerrada(s).`)
+      setNotice(result.revoked === 1 ? '1 sessão encerrada.' : `${result.revoked} sessões encerradas.`)
       await load()
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível encerrar as sessões.') }
     finally { setBusy(false) }
@@ -109,7 +109,7 @@ export default function Phase5Panel() {
 
     <section className="phase5-section">
       <div className="phase5-section__head"><div><span>Segurança</span><h2>Sessões da conta</h2></div><KeyRound size={20}/></div>
-      <div className="phase5-security-row"><div><strong>{security?.sessions.active ?? 1} sessão(ões) ativa(s)</strong><p>Se você não reconhecer outros acessos, encerre todas as outras sessões. Esta sessão continuará conectada.</p></div><button disabled={busy || (security?.sessions.active ?? 1) <= 1} onClick={() => void revokeOthers()}>{busy ? 'Encerrando…' : 'Encerrar outras sessões'}</button></div>
+      <div className="phase5-security-row"><div><strong>{(security?.sessions.active ?? 1) === 1 ? '1 sessão ativa' : `${security?.sessions.active ?? 1} sessões ativas`}</strong><p>Se você não reconhecer outros acessos, encerre todas as outras sessões. Esta sessão continuará conectada.</p></div><button disabled={busy || (security?.sessions.active ?? 1) <= 1} onClick={() => void revokeOthers()}>{busy ? 'Encerrando…' : 'Encerrar outras sessões'}</button></div>
     </section>
   </div>
 }
