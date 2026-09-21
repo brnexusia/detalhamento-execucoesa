@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { BarChart3, Check, CircleAlert, Copy, Download, Gift, MessageCircle, Percent, RefreshCcw, Save, ShoppingCart, Star, Trash2, TrendingUp } from 'lucide-react'
+import { apiRequest } from './api'
 import { confirmAction } from './ui-dialogs'
 import './phase3-panel.css'
 
@@ -17,17 +18,6 @@ type CommissionReport = { periodDays: number; sellers: Array<{ sellerId: string;
 
 const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 const date = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
-
-async function request<T>(url: string, options: RequestInit = {}) {
-  const response = await fetch(url, {
-    credentials: 'include',
-    ...options,
-    headers: options.body ? { 'content-type': 'application/json', ...(options.headers || {}) } : options.headers,
-  })
-  const payload = response.status === 204 ? null : await response.json().catch(() => null)
-  if (!response.ok) throw new Error(payload?.error || 'Não foi possível concluir a operação.')
-  return payload as T
-}
 
 function go(path: string) {
   window.history.pushState({}, '', path)
@@ -54,12 +44,12 @@ export default function Phase3Panel() {
     setError('')
     try {
       const [phase3, couponData, recoveryData, referralData, catalogData, bootstrap] = await Promise.all([
-        request<Phase3Data>('/api/admin/phase3'),
-        request<{ coupons: Coupon[] }>('/api/admin/phase3/coupons'),
-        request<{ recoveries: Recovery[] }>('/api/admin/phase3/cart-recovery'),
-        request<Referral>('/api/admin/phase3/referral'),
-        request<{ catalogs: Catalog[] }>('/api/admin/catalogs'),
-        request<Bootstrap>('/api/admin/bootstrap'),
+        apiRequest<Phase3Data>('/api/admin/phase3'),
+        apiRequest<{ coupons: Coupon[] }>('/api/admin/phase3/coupons'),
+        apiRequest<{ recoveries: Recovery[] }>('/api/admin/phase3/cart-recovery'),
+        apiRequest<Referral>('/api/admin/phase3/referral'),
+        apiRequest<{ catalogs: Catalog[] }>('/api/admin/catalogs'),
+        apiRequest<Bootstrap>('/api/admin/bootstrap'),
       ])
       setData(phase3)
       setCoupons(couponData.coupons)
@@ -69,11 +59,11 @@ export default function Phase3Panel() {
       setStoreSlug(bootstrap.store.slug)
       setRates(Object.fromEntries(phase3.sellers.map((seller) => [seller.id, String(seller.commissionRate || 0)])))
       if (bootstrap.store.slug) {
-        const summary = await request<ReviewSummary>(`/api/public/reviews/${encodeURIComponent(bootstrap.store.slug)}`).catch(() => null)
+        const summary = await apiRequest<ReviewSummary>(`/api/public/reviews/${encodeURIComponent(bootstrap.store.slug)}`).catch(() => null)
         setReviews(summary)
       }
       if (phase3.plan.features.sellerCommission) {
-        setCommissions(await request<CommissionReport>('/api/admin/phase3/commissions?days=30'))
+        setCommissions(await apiRequest<CommissionReport>('/api/admin/phase3/commissions?days=30'))
       } else setCommissions(null)
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível carregar crescimento.') }
     finally { setLoading(false) }
@@ -89,7 +79,7 @@ export default function Phase3Panel() {
   const createCoupon = async () => {
     setBusy('coupon'); setError('')
     try {
-      await request('/api/admin/phase3/coupons', {
+      await apiRequest('/api/admin/phase3/coupons', {
         method: 'POST',
         body: JSON.stringify({ code: newCoupon.code, type: newCoupon.type, value: Number(newCoupon.value), maxUses: newCoupon.maxUses ? Number(newCoupon.maxUses) : null }),
       })
@@ -103,7 +93,7 @@ export default function Phase3Panel() {
   const toggleCoupon = async (coupon: Coupon) => {
     setBusy(coupon.id)
     try {
-      await request(`/api/admin/phase3/coupons/${encodeURIComponent(coupon.id)}`, { method: 'PATCH', body: JSON.stringify({ active: !coupon.active }) })
+      await apiRequest(`/api/admin/phase3/coupons/${encodeURIComponent(coupon.id)}`, { method: 'PATCH', body: JSON.stringify({ active: !coupon.active }) })
       flash(coupon.active ? 'Cupom pausado.' : 'Cupom reativado.')
       await load()
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível atualizar o cupom.') }
@@ -114,7 +104,7 @@ export default function Phase3Panel() {
     if (!(await confirmAction(`Excluir o cupom ${coupon.code}?`))) return
     setBusy(coupon.id)
     try {
-      await request(`/api/admin/phase3/coupons/${encodeURIComponent(coupon.id)}`, { method: 'DELETE' })
+      await apiRequest(`/api/admin/phase3/coupons/${encodeURIComponent(coupon.id)}`, { method: 'DELETE' })
       flash('Cupom excluído.')
       await load()
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível excluir o cupom.') }
@@ -124,7 +114,7 @@ export default function Phase3Panel() {
   const dismissRecovery = async (item: Recovery) => {
     setBusy(item.id)
     try {
-      await request(`/api/admin/phase3/cart-recovery/${encodeURIComponent(item.id)}/dismiss`, { method: 'POST' })
+      await apiRequest(`/api/admin/phase3/cart-recovery/${encodeURIComponent(item.id)}/dismiss`, { method: 'POST' })
       flash('Carrinho removido da fila de recuperação.')
       await load()
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível remover o carrinho.') }
@@ -134,7 +124,7 @@ export default function Phase3Panel() {
   const saveRate = async (seller: Seller) => {
     setBusy(`rate-${seller.id}`)
     try {
-      await request(`/api/admin/phase3/sellers/${encodeURIComponent(seller.id)}/commission`, { method: 'PATCH', body: JSON.stringify({ rate: Number(rates[seller.id] || 0) }) })
+      await apiRequest(`/api/admin/phase3/sellers/${encodeURIComponent(seller.id)}/commission`, { method: 'PATCH', body: JSON.stringify({ rate: Number(rates[seller.id] || 0) }) })
       flash(`Comissão de ${seller.name} atualizada.`)
       await load()
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível atualizar a comissão.') }
@@ -144,7 +134,7 @@ export default function Phase3Panel() {
   const confirmSale = async (order: Order, undo = false) => {
     setBusy(order.id)
     try {
-      await request(`/api/admin/phase3/orders/${encodeURIComponent(order.id)}/${undo ? 'unconfirm-sale' : 'confirm-sale'}`, { method: 'POST' })
+      await apiRequest(`/api/admin/phase3/orders/${encodeURIComponent(order.id)}/${undo ? 'unconfirm-sale' : 'confirm-sale'}`, { method: 'POST' })
       flash(undo ? `Venda ${order.code} desconfirmada.` : `Venda ${order.code} confirmada.`)
       await load()
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível atualizar a venda.') }
