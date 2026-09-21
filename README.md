@@ -13,7 +13,7 @@ O cliente descobre produtos no feed ou entra pelo link da loja/vendedora, escolh
 - continuidade da vendedora atribuída;
 - botão Perguntar para WhatsApp;
 - prioridade de distribuição por plano e diversidade entre lojas;
-- no Plano 3, cálculo de frete e finalização opcional por checkout hospedado do Asaas.
+- no Ouro, cálculo de frete e finalização opcional por checkout hospedado do Asaas.
 
 ## Painel do lojista
 
@@ -25,13 +25,13 @@ O cliente descobre produtos no feed ou entra pelo link da loja/vendedora, escolh
 - métricas de intenção e funil;
 - crescimento: cupons, recuperação de carrinho, avaliações e indicação;
 - configurações comerciais;
-- no Plano 3, área de integrações para Asaas, frete, Meta Shopping e API/ERP.
+- no Ouro, área de integrações para Asaas, frete, Meta Shopping e API/ERP.
 
-## Modelo final do MVP
+## Planos do MVP
 
-Os códigos internos `bronze`, `prata` e `ouro` são mantidos por compatibilidade com contas existentes, mas comercialmente correspondem a **Plano 1, Plano 2 e Plano 3**.
+Os planos comerciais são **Bronze, Prata e Ouro**. Os mesmos nomes são usados no cadastro, painel, limites e administração da plataforma.
 
-| Regra base | Plano 1 | Plano 2 | Plano 3 |
+| Regra base | Bronze | Prata | Ouro |
 | --- | ---: | ---: | ---: |
 | Mensal | R$ 49,90 | R$ 94,90 | R$ 144,90 |
 | Vendedoras | 2 | 4 | Ilimitadas |
@@ -50,9 +50,9 @@ Os códigos internos `bronze`, `prata` e `ouro` são mantidos por compatibilidad
 | Feed Meta Shopping | — | — | Sim |
 | API / ERP | — | — | Sim |
 
-Produtos não possuem mais o teto legado de 500/2.000 unidades nos planos padrão. Semestral usa 5% de desconto e anual 15% por padrão.
+Produtos não possuem mais o teto legado de 500/2.000 unidades nos planos padrão. Semestral usa 5% de desconto e anual 15% por padrão na configuração comercial. O cadastro público mostra o valor mensal para não sugerir um ciclo de cobrança que ainda não é selecionável pelo lojista.
 
-**Vax Lar permanece como recurso futuro do Plano 3 e não deve ser tratado como funcionalidade pronta do MVP.**
+**Vax Lar permanece como recurso futuro do Ouro e não deve ser tratado como funcionalidade pronta do MVP.**
 
 ### Fase 1 de fechamento
 
@@ -68,7 +68,7 @@ O backend continua sendo a fonte de verdade de preço, visibilidade, variações
 
 ### Fase 4 — integrações
 
-A área `/painel/integracoes` é exclusiva do Plano 3.
+A área `/painel/integracoes` é exclusiva do Ouro.
 
 **Asaas**
 
