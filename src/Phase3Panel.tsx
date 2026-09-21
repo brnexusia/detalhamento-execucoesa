@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { BarChart3, Check, CircleAlert, Copy, Download, Gift, MessageCircle, Percent, RefreshCcw, Save, ShoppingCart, Star, Trash2, TrendingUp } from 'lucide-react'
+import { confirmAction } from './ui-dialogs'
 import './phase3-panel.css'
 
 type Plan = { code: string; name: string; features: Record<string, boolean> }
@@ -110,7 +111,7 @@ export default function Phase3Panel() {
   }
 
   const deleteCoupon = async (coupon: Coupon) => {
-    if (!window.confirm(`Excluir o cupom ${coupon.code}?`)) return
+    if (!(await confirmAction(`Excluir o cupom ${coupon.code}?`))) return
     setBusy(coupon.id)
     try {
       await request(`/api/admin/phase3/coupons/${encodeURIComponent(coupon.id)}`, { method: 'DELETE' })
