@@ -4,13 +4,11 @@ import ScannerModule1 from './ScannerModule1'
 import ScannerPublishModule from './ScannerPublishModule'
 import BusinessFeaturesPanel from './BusinessFeaturesPanel'
 import AnalyticsPanel from './AnalyticsPanel'
-import ProductMediaPanel from './ProductMediaPanel'
 import Phase2Panel from './Phase2Panel'
 import Phase3Panel from './Phase3Panel'
 import Phase4Panel from './Phase4Panel'
 import Phase5Panel from './Phase5Panel'
 import AdminSectionFrame from './AdminSectionFrame'
-import AdminAdditions from './AdminAdditions'
 import './ux-polish.css'
 import './yellow-ux-fixes.css'
 
@@ -38,7 +36,7 @@ export default function AdminRoute() {
   if (features) return <AdminSectionFrame active="recursos"><BusinessFeaturesPanel/></AdminSectionFrame>
 
   const media = path === '/painel/midias' || path.startsWith('/painel/midias/')
-  if (media) return <AdminSectionFrame active="midias"><ProductMediaPanel/></AdminSectionFrame>
+  if (media) return <RedirectTo path="/painel/produtos"/>
 
   const operation = path === '/painel/operacao' || path.startsWith('/painel/operacao/')
   if (operation) return <AdminSectionFrame active="operacao"><Phase2Panel/></AdminSectionFrame>
@@ -60,7 +58,6 @@ export default function AdminRoute() {
 
   return <>
     <AdminApp/>
-    <AdminAdditions/>
     <ScannerModule1/>
     <ScannerPublishModule/>
   </>
