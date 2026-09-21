@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { apiRequest } from './api'
 import {
   Activity,
   CheckCircle2,
@@ -46,14 +47,6 @@ type DangerTarget =
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 const date = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
 
-async function request<T>(url: string, options: RequestInit = {}) {
-  const response = await fetch(url, { credentials: 'include', ...options, headers: { 'Content-Type': 'application/json', ...(options.headers || {}) } })
-  const text = await response.text()
-  const payload = text ? JSON.parse(text) : null
-  if (!response.ok) throw new Error(payload?.error || 'Não foi possível concluir a operação.')
-  return payload as T
-}
-
 function go(path: string) {
   window.history.pushState({}, '', path)
   window.dispatchEvent(new PopStateEvent('popstate'))
@@ -94,7 +87,7 @@ export default function PlatformAdmin() {
 
   const load = async () => {
     setLoading(true); setError('')
-    try { setData(await request<Bootstrap>('/api/platform/bootstrap')) }
+    try { setData(await apiRequest<Bootstrap>('/api/platform/bootstrap')) }
     catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível abrir o administrativo.') }
     finally { setLoading(false) }
   }
@@ -103,7 +96,7 @@ export default function PlatformAdmin() {
     setAccountsLoading(true)
     try {
       const q = accountQuery.trim() ? `?q=${encodeURIComponent(accountQuery.trim())}&limit=100` : '?limit=100'
-      const result = await request<{ accounts: PlatformAccount[] }>(`/api/platform/accounts${q}`)
+      const result = await apiRequest<{ accounts: PlatformAccount[] }>(`/api/platform/accounts${q}`)
       setAccounts(result.accounts)
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível carregar as contas.') }
     finally { setAccountsLoading(false) }
@@ -119,35 +112,35 @@ export default function PlatformAdmin() {
 
   const claimAdmin = async (event: React.FormEvent) => {
     event.preventDefault(); setClaiming(true); setError('')
-    try { await request('/api/platform/claim-admin', { method: 'POST', body: JSON.stringify({ token: claimToken }) }); await load() }
+    try { await apiRequest('/api/platform/claim-admin', { method: 'POST', body: JSON.stringify({ token: claimToken }) }); await load() }
     catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível ativar o primeiro administrador.') }
     finally { setClaiming(false) }
   }
 
   const toggleStore = async (store: PlatformStore) => {
     try {
-      await request(`/api/platform/stores/${store.id}/status`, { method: 'PATCH', body: JSON.stringify({ active: !store.isActive }) })
+      await apiRequest(`/api/platform/stores/${store.id}/status`, { method: 'PATCH', body: JSON.stringify({ active: !store.isActive }) })
       flash(store.isActive ? 'Loja suspensa.' : 'Loja reativada.'); await load()
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível atualizar a loja.') }
   }
 
   const setStorePlan = async (store: PlatformStore, planCode: string) => {
     try {
-      await request(`/api/platform/stores/${store.id}/plan`, { method: 'PATCH', body: JSON.stringify({ planCode }) })
+      await apiRequest(`/api/platform/stores/${store.id}/plan`, { method: 'PATCH', body: JSON.stringify({ planCode }) })
       flash(`Plano da ${store.name} atualizado.`); await load()
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível alterar o plano.') }
   }
 
   const deletePlan = async (plan: PlatformPlan) => {
     if (plan.isSystem || !(await confirmAction(`Apagar o plano ${plan.name}?`, 'Apagar plano', 'Apagar'))) return
-    try { await request(`/api/platform/plans/${plan.id}`, { method: 'DELETE' }); flash('Plano apagado.'); await load() }
+    try { await apiRequest(`/api/platform/plans/${plan.id}`, { method: 'DELETE' }); flash('Plano apagado.'); await load() }
     catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível apagar o plano.') }
   }
 
   const executeDanger = async (password: string) => {
     if (!danger) return
     const path = danger.kind === 'account' ? `/api/platform/accounts/${danger.id}` : `/api/platform/admins/${danger.id}`
-    await request(path, { method: 'DELETE', body: JSON.stringify({ password }) })
+    await apiRequest(path, { method: 'DELETE', body: JSON.stringify({ password }) })
     const kind = danger.kind
     setDanger(null); flash(kind === 'account' ? 'Conta apagada.' : 'Administrador removido.')
     await load()
@@ -253,7 +246,7 @@ function Metric({ icon, label, value, note, wide = false }: { icon: React.ReactN
 
 function AdminModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
   const [form, setForm] = useState({ name: '', email: '', password: '' }); const [busy, setBusy] = useState(false); const [error, setError] = useState('')
-  const submit = async (event: React.FormEvent) => { event.preventDefault(); setBusy(true); setError(''); try { await request('/api/platform/admins', { method: 'POST', body: JSON.stringify(form) }); onSaved() } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível adicionar o administrador.') } finally { setBusy(false) } }
+  const submit = async (event: React.FormEvent) => { event.preventDefault(); setBusy(true); setError(''); try { await apiRequest('/api/platform/admins', { method: 'POST', body: JSON.stringify(form) }); onSaved() } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível adicionar o administrador.') } finally { setBusy(false) } }
   return <ModalFrame title="Adicionar administrador" kicker="Novo acesso" onClose={onClose}><form onSubmit={submit}><div className="platform-modal__body"><p>Se o e-mail já tiver conta, basta informar o e-mail. Para uma pessoa nova, use uma senha temporária com pelo menos 12 caracteres.</p><label><span>E-mail</span><input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required /></label><label><span>Nome</span><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label><label><span>Senha temporária</span><input type="password" minLength={12} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></label>{error && <p className="platform-form-error">{error}</p>}</div><footer><button type="button" className="platform-secondary" onClick={onClose}>Cancelar</button><button className="platform-primary" disabled={busy}>{busy ? 'Salvando…' : 'Adicionar admin'}</button></footer></form></ModalFrame>
 }
 
@@ -263,7 +256,7 @@ function PlanModal({ plan, onClose, onSaved }: { plan: PlatformPlan | null; onCl
     sellerLimit: plan?.sellerLimit == null ? '' : String(plan.sellerLimit), productLimit: plan?.productLimit == null ? '' : String(plan.productLimit), catalogLimit: plan?.catalogLimit == null ? '' : String(plan.catalogLimit), socialWeight: String(plan?.socialWeight ?? 1), active: plan?.active ?? true,
   })
   const [busy, setBusy] = useState(false); const [error, setError] = useState('')
-  const submit = async (event: React.FormEvent) => { event.preventDefault(); setBusy(true); setError(''); try { const payload = { ...form, monthlyPrice: Number(form.monthlyPrice), semesterDiscount: Number(form.semesterDiscount), annualDiscount: Number(form.annualDiscount), sellerLimit: form.sellerLimit === '' ? null : Number(form.sellerLimit), productLimit: form.productLimit === '' ? null : Number(form.productLimit), catalogLimit: form.catalogLimit === '' ? null : Number(form.catalogLimit), socialWeight: Number(form.socialWeight) }; await request(plan ? `/api/platform/plans/${plan.id}` : '/api/platform/plans', { method: plan ? 'PATCH' : 'POST', body: JSON.stringify(payload) }); onSaved() } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível salvar o plano.') } finally { setBusy(false) } }
+  const submit = async (event: React.FormEvent) => { event.preventDefault(); setBusy(true); setError(''); try { const payload = { ...form, monthlyPrice: Number(form.monthlyPrice), semesterDiscount: Number(form.semesterDiscount), annualDiscount: Number(form.annualDiscount), sellerLimit: form.sellerLimit === '' ? null : Number(form.sellerLimit), productLimit: form.productLimit === '' ? null : Number(form.productLimit), catalogLimit: form.catalogLimit === '' ? null : Number(form.catalogLimit), socialWeight: Number(form.socialWeight) }; await apiRequest(plan ? `/api/platform/plans/${plan.id}` : '/api/platform/plans', { method: plan ? 'PATCH' : 'POST', body: JSON.stringify(payload) }); onSaved() } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível salvar o plano.') } finally { setBusy(false) } }
   return <ModalFrame title={plan ? `Editar ${plan.name}` : 'Novo plano'} kicker="Planos" onClose={onClose}><form onSubmit={submit}><div className="platform-modal__body platform-plan-form"><div className="platform-form-grid"><label><span>Nome</span><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></label><label><span>Código</span><input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} disabled={Boolean(plan)} required /></label></div><div className="platform-form-grid"><label><span>Mensal (R$)</span><input type="number" min="0" step="0.01" value={form.monthlyPrice} onChange={(e) => setForm({ ...form, monthlyPrice: e.target.value })} required /></label><label><span>Semestral desconto %</span><input type="number" min="0" max="95" step="0.01" value={form.semesterDiscount} onChange={(e) => setForm({ ...form, semesterDiscount: e.target.value })} /></label><label><span>Anual desconto %</span><input type="number" min="0" max="95" step="0.01" value={form.annualDiscount} onChange={(e) => setForm({ ...form, annualDiscount: e.target.value })} /></label></div><div className="platform-form-grid"><label><span>Vendedoras</span><input type="number" min="1" value={form.sellerLimit} onChange={(e) => setForm({ ...form, sellerLimit: e.target.value })} placeholder="Ilimitado" /></label><label><span>Produtos</span><input type="number" min="1" value={form.productLimit} onChange={(e) => setForm({ ...form, productLimit: e.target.value })} placeholder="Ilimitado" /></label><label><span>Catálogos</span><input type="number" min="1" value={form.catalogLimit} onChange={(e) => setForm({ ...form, catalogLimit: e.target.value })} placeholder="Ilimitado" /></label></div><label><span>Prioridade no feed (1–3)</span><input type="number" min="1" max="3" value={form.socialWeight} onChange={(e) => setForm({ ...form, socialWeight: e.target.value })} /></label><label className="platform-check"><input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })}/><span>Plano ativo para novas atribuições</span></label>{error && <p className="platform-form-error">{error}</p>}</div><footer><button type="button" className="platform-secondary" onClick={onClose}>Cancelar</button><button className="platform-primary" disabled={busy}>{busy ? 'Salvando…' : 'Salvar plano'}</button></footer></form></ModalFrame>
 }
 
