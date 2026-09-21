@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ArrowRight, Check, Grid2X2, ShoppingBag, Smartphone } from 'lucide-react'
 import { apiRequest } from './api'
+import UiState from './UiState'
 
 function go(path: string) {
   window.history.pushState({}, '', path)
@@ -20,9 +21,15 @@ function planCopy(plan: HomePlan) {
 
 export default function Home() {
   const [plans, setPlans] = useState<HomePlan[]>([])
-  useEffect(() => {
-    apiRequest<{ plans: HomePlan[] }>('/api/public/plans').then((result) => setPlans(result.plans || [])).catch(() => undefined)
-  }, [])
+  const [plansLoading, setPlansLoading] = useState(true)
+  const [plansError, setPlansError] = useState('')
+  const loadPlans = async () => {
+    setPlansLoading(true); setPlansError('')
+    try { const result = await apiRequest<{ plans: HomePlan[] }>('/api/public/plans'); setPlans(result.plans || []) }
+    catch (err) { setPlansError(err instanceof Error ? err.message : 'Não foi possível carregar os planos.') }
+    finally { setPlansLoading(false) }
+  }
+  useEffect(() => { void loadPlans() }, [])
 
   return (
     <div className="home-shell">
@@ -46,7 +53,7 @@ export default function Home() {
         </section>
         <section className="home-pricing" id="planos">
           <div className="home-pricing__head"><div><p className="eyebrow">Planos</p><h2>Bronze, Prata ou Ouro.</h2><p>Escolha pelo tamanho da operação. O cadastro mostra o valor mensal e aplica o plano já na criação da loja.</p></div></div>
-          {plans.length ? <div className="home-pricing__grid">{plans.map((plan) => <article key={plan.code} className={plan.code === 'prata' ? 'is-featured' : ''}><header><span>{plan.name}</span><strong>{money.format(plan.monthlyPrice)}<small>/mês</small></strong></header><ul>{planCopy(plan).map((item) => <li key={item}><Check size={15}/>{item}</li>)}</ul><button className={plan.code === 'prata' ? 'primary-action' : 'secondary-action'} onClick={() => go(`/criar-conta?plan=${encodeURIComponent(plan.code)}`)}>Escolher {plan.name}<ArrowRight size={16}/></button></article>)}</div> : <div className="home-pricing__loading">Carregando planos…</div>}
+          {plansLoading ? <UiState loading title="Carregando planos…" compact/> : plansError ? <UiState title="Não foi possível carregar os planos." message={plansError} onRetry={() => void loadPlans()} compact/> : <div className="home-pricing__grid">{plans.map((plan) => <article key={plan.code} className={plan.code === 'prata' ? 'is-featured' : ''}><header><span>{plan.name}</span><strong>{money.format(plan.monthlyPrice)}<small>/mês</small></strong></header><ul>{planCopy(plan).map((item) => <li key={item}><Check size={15}/>{item}</li>)}</ul><button className={plan.code === 'prata' ? 'primary-action' : 'secondary-action'} onClick={() => go(`/criar-conta?plan=${encodeURIComponent(plan.code)}`)}>Escolher {plan.name}<ArrowRight size={16}/></button></article>)}</div>}
           <p className="home-pricing__note">O ciclo exibido aqui é mensal. Descontos semestrais e anuais ficam na configuração comercial e só devem aparecer ao lojista quando estiverem disponíveis para contratação.</p>
         </section>
       </main>
