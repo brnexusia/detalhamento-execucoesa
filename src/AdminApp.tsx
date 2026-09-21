@@ -4,6 +4,7 @@ import { api } from './api'
 import AdminNavigation from './AdminNavigation'
 import CommercialSettingsPanel from './CommercialSettingsPanel'
 import { confirmAction } from './ui-dialogs'
+import { confirmNavigationIfDirty } from './unsaved-changes'
 import type { AdminBootstrap, AdminProduct, AdminSeller, VariationGroup } from './types'
 
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -81,7 +82,7 @@ export default function AdminApp() {
           counts={{ products: data.products.length, orders: data.orders.length, sellers: data.sellers.length }}
           planCode={data.store.plan_tier}
           onNavigate={() => setMenuOpen(false)}
-          beforeNavigate={canLeaveStore}
+          beforeNavigate={async () => (await canLeaveStore()) && (await confirmNavigationIfDirty())}
         />
         <div className="panel-sidebar__foot"><a href={storeUrl} target="_blank" rel="noreferrer"><ExternalLink size={17} /> Ver loja</a><button onClick={logout}><LogOut size={17} /> Sair</button></div>
       </aside>
