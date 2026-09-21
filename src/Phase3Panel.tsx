@@ -75,7 +75,7 @@ export default function Phase3Panel() {
       if (phase3.plan.features.sellerCommission) {
         setCommissions(await request<CommissionReport>('/api/admin/phase3/commissions?days=30'))
       } else setCommissions(null)
-    } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível carregar a Fase 3.') }
+    } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível carregar crescimento.') }
     finally { setLoading(false) }
   }
 
@@ -186,7 +186,7 @@ export default function Phase3Panel() {
 
       <article className="phase3-card">
         <div className="phase3-card-head"><div><span>Recuperação</span><h2>Carrinhos</h2><p>{abandoned.length} carrinho(s) já passaram de 15 minutos.</p></div><ShoppingCart size={23}/></div>
-        <div className="phase3-list phase3-recoveries">{recoveries.slice(0, 20).map((item) => <div key={item.id}><div><strong>{item.customer?.name || 'Visitante não identificado'}</strong><span>{brl.format(item.subtotal)} · {item.items.reduce((sum, product) => sum + Number(product.quantity || 0), 0)} item(ns) · {item.ageMinutes} min</span></div><div className="phase3-actions">{item.whatsappUrl && <a href={item.whatsappUrl} target="_blank" rel="noreferrer"><MessageCircle size={15}/> Chamar</a>}<button disabled={busy === item.id} onClick={() => dismissRecovery(item)}>Ignorar</button></div></div>)}{!recoveries.length && <p>Nenhum carrinho em aberto.</p>}</div>
+        <div className="phase3-list phase3-recoveries">{recoveries.slice(0, 20).map((item) => <div key={item.id}><div><strong>{item.customer?.name || 'Visitante não identificado'}</strong><span>{brl.format(item.subtotal)} · {(() => { const total = item.items.reduce((sum, product) => sum + Number(product.quantity || 0), 0); return `${total} ${total === 1 ? 'item' : 'itens'}` })()} · {item.ageMinutes} min</span></div><div className="phase3-actions">{item.whatsappUrl && <a href={item.whatsappUrl} target="_blank" rel="noreferrer"><MessageCircle size={15}/> Chamar</a>}<button disabled={busy === item.id} onClick={() => dismissRecovery(item)}>Ignorar</button></div></div>)}{!recoveries.length && <p>Nenhum carrinho em aberto.</p>}</div>
       </article>
     </section>
 
