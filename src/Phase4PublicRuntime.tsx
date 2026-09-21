@@ -96,9 +96,20 @@ export default function Phase4PublicRuntime() {
       setTarget(document.querySelector('.cart-drawer__foot'))
       setCart(cartFor(route.storeSlug))
     }
+    const onCartChange = (event: Event) => {
+      const detail = (event as CustomEvent<{ storeSlug?: string }>).detail
+      if (!detail?.storeSlug || detail.storeSlug === route.storeSlug) sync()
+    }
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === `shopvax-cart-v1:${encodeURIComponent(route.storeSlug)}`) sync()
+    }
     sync()
-    const timer = window.setInterval(sync, 900)
-    return () => window.clearInterval(timer)
+    window.addEventListener('shopvax:cart-change', onCartChange)
+    window.addEventListener('storage', onStorage)
+    return () => {
+      window.removeEventListener('shopvax:cart-change', onCartChange)
+      window.removeEventListener('storage', onStorage)
+    }
   }, [route.storeSlug])
 
   const calculateShipping = async () => {
