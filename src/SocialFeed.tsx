@@ -70,7 +70,7 @@ function readCart(slug: string): FeedCartItem[] {
 }
 
 function writeCart(slug: string, items: FeedCartItem[]) {
-  try { localStorage.setItem(cartStorageKey(slug), JSON.stringify(items)) }
+  try { localStorage.setItem(cartStorageKey(slug), JSON.stringify(items)); window.dispatchEvent(new CustomEvent('shopvax:cart-change', { detail: { storeSlug: slug } })) }
   catch { /* armazenamento indisponível */ }
 }
 
