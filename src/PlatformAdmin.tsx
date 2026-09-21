@@ -23,7 +23,8 @@ import { confirmAction } from './ui-dialogs'
 type PlatformStats = { users: number; stores: number; active_stores: number; products: number; orders: number; order_value: number }
 type PlatformPlan = {
   id: string; code: string; name: string; monthlyPrice: number; semesterDiscount: number; annualDiscount: number
-  sellerLimit: number | null; productLimit: number | null; catalogLimit: number | null; socialWeight: number; active: boolean; isSystem: boolean
+  sellerLimit: number | null; productLimit: number | null; catalogLimit: number | null; photoLimit: number | null; franchiseeLimit: number | null
+  socialWeight: number; trafficPriority: 'baixa' | 'media' | 'alta'; features: Record<string, boolean>; active: boolean; isSystem: boolean
   createdAt: string; updatedAt: string
 }
 type PlatformStore = {
@@ -221,7 +222,7 @@ export default function PlatformAdmin() {
 
       {section === 'planos' && <div className="platform-page">
         <div className="platform-title platform-title--action"><div><span>Comercial</span><h1>Planos</h1><p>Bronze, Prata, Ouro e planos personalizados com limites aplicados no backend.</p></div><button className="platform-primary" onClick={() => setPlanOpen('new')}><CreditCard size={17}/> Novo plano</button></div>
-        <div className="platform-plan-grid">{data.plans.map((plan) => <article key={plan.id} className={!plan.active ? 'is-inactive' : ''}><header><div><span>{plan.code}</span><h2>{plan.name}</h2></div><strong>{money.format(plan.monthlyPrice)}<small>/mês</small></strong></header><div className="platform-plan-cycles"><span>Semestral <b>{money.format(semesterPrice(plan))}</b></span><span>Anual <b>{money.format(annualPrice(plan))}</b></span></div><ul><li>{limitLabel(plan.sellerLimit, 'vendedoras')}</li><li>{limitLabel(plan.productLimit, 'produtos')}</li><li>{limitLabel(plan.catalogLimit, 'catálogos')}</li><li>Prioridade de feed: {plan.socialWeight}</li></ul><footer><button className="platform-secondary" onClick={() => setPlanOpen(plan)}><Pencil size={15}/> Editar</button>{!plan.isSystem && <button className="platform-icon-danger" onClick={() => void deletePlan(plan)}><Trash2 size={16}/></button>}</footer></article>)}</div>
+        <div className="platform-plan-grid">{data.plans.map((plan) => <article key={plan.id} className={!plan.active ? 'is-inactive' : ''}><header><div><span>{plan.code}</span><h2>{plan.name}</h2></div><strong>{money.format(plan.monthlyPrice)}<small>/mês</small></strong></header><div className="platform-plan-cycles"><span>Semestral <b>{money.format(semesterPrice(plan))}</b></span><span>Anual <b>{money.format(annualPrice(plan))}</b></span></div><ul><li>{limitLabel(plan.sellerLimit, 'vendedoras')}</li><li>{limitLabel(plan.productLimit, 'produtos')}</li><li>{limitLabel(plan.catalogLimit, 'catálogos')}</li><li>{plan.photoLimit == null ? 'Fotos por produto ilimitadas' : `${plan.photoLimit} fotos por produto`}</li><li>{limitLabel(plan.franchiseeLimit, 'franqueados')}</li><li>Prioridade de feed: {plan.trafficPriority || 'baixa'}</li></ul><footer><button className="platform-secondary" onClick={() => setPlanOpen(plan)}><Pencil size={15}/> Editar</button>{!plan.isSystem && <button className="platform-icon-danger" onClick={() => void deletePlan(plan)}><Trash2 size={16}/></button>}</footer></article>)}</div>
       </div>}
 
       {section === 'admins' && <div className="platform-page">
@@ -251,13 +252,62 @@ function AdminModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => 
 }
 
 function PlanModal({ plan, onClose, onSaved }: { plan: PlatformPlan | null; onClose: () => void; onSaved: () => void }) {
+  const defaultFeatures: Record<string, boolean> = {
+    catalog: true, products: true, cart: true, minimumOrder: true, productVideo: true, customerLogin: true,
+    whatsappOrder: true, temporaryStoreDisable: true, wholesaleRetail: true, productGrid: true, meetingPoints: true,
+    stock: false, customDomain: false, reviews: false, commercialIntelligence: false, storePersonalization: false,
+    franchisees: false, sellerCommission: false, vaxLar: false,
+  }
+  const featureLabels: Array<[string, string]> = [
+    ['stock', 'Estoque'],
+    ['customDomain', 'Domínio próprio'],
+    ['reviews', 'Avaliações'],
+    ['commercialIntelligence', 'Inteligência comercial'],
+    ['storePersonalization', 'Personalização avançada'],
+    ['franchisees', 'Franqueados'],
+    ['sellerCommission', 'Comissão de vendedoras'],
+  ]
   const [form, setForm] = useState({
     name: plan?.name || '', code: plan?.code || '', monthlyPrice: String(plan?.monthlyPrice ?? ''), semesterDiscount: String(plan?.semesterDiscount ?? 5), annualDiscount: String(plan?.annualDiscount ?? 15),
-    sellerLimit: plan?.sellerLimit == null ? '' : String(plan.sellerLimit), productLimit: plan?.productLimit == null ? '' : String(plan.productLimit), catalogLimit: plan?.catalogLimit == null ? '' : String(plan.catalogLimit), socialWeight: String(plan?.socialWeight ?? 1), active: plan?.active ?? true,
+    sellerLimit: plan?.sellerLimit == null ? '' : String(plan.sellerLimit), productLimit: plan?.productLimit == null ? '' : String(plan.productLimit), catalogLimit: plan?.catalogLimit == null ? '' : String(plan.catalogLimit),
+    photoLimit: plan?.photoLimit == null ? '' : String(plan.photoLimit), franchiseeLimit: plan?.franchiseeLimit == null ? '' : String(plan.franchiseeLimit),
+    socialWeight: String(plan?.socialWeight ?? 1), trafficPriority: plan?.trafficPriority || 'baixa', active: plan?.active ?? true,
+    features: { ...defaultFeatures, ...(plan?.features || {}) },
   })
-  const [busy, setBusy] = useState(false); const [error, setError] = useState('')
-  const submit = async (event: React.FormEvent) => { event.preventDefault(); setBusy(true); setError(''); try { const payload = { ...form, monthlyPrice: Number(form.monthlyPrice), semesterDiscount: Number(form.semesterDiscount), annualDiscount: Number(form.annualDiscount), sellerLimit: form.sellerLimit === '' ? null : Number(form.sellerLimit), productLimit: form.productLimit === '' ? null : Number(form.productLimit), catalogLimit: form.catalogLimit === '' ? null : Number(form.catalogLimit), socialWeight: Number(form.socialWeight) }; await apiRequest(plan ? `/api/platform/plans/${plan.id}` : '/api/platform/plans', { method: plan ? 'PATCH' : 'POST', body: JSON.stringify(payload) }); onSaved() } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível salvar o plano.') } finally { setBusy(false) } }
-  return <ModalFrame title={plan ? `Editar ${plan.name}` : 'Novo plano'} kicker="Planos" onClose={onClose}><form onSubmit={submit}><div className="platform-modal__body platform-plan-form"><div className="platform-form-grid"><label><span>Nome</span><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></label><label><span>Código</span><input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} disabled={Boolean(plan)} required /></label></div><div className="platform-form-grid"><label><span>Mensal (R$)</span><input type="number" min="0" step="0.01" value={form.monthlyPrice} onChange={(e) => setForm({ ...form, monthlyPrice: e.target.value })} required /></label><label><span>Semestral desconto %</span><input type="number" min="0" max="95" step="0.01" value={form.semesterDiscount} onChange={(e) => setForm({ ...form, semesterDiscount: e.target.value })} /></label><label><span>Anual desconto %</span><input type="number" min="0" max="95" step="0.01" value={form.annualDiscount} onChange={(e) => setForm({ ...form, annualDiscount: e.target.value })} /></label></div><div className="platform-form-grid"><label><span>Vendedoras</span><input type="number" min="1" value={form.sellerLimit} onChange={(e) => setForm({ ...form, sellerLimit: e.target.value })} placeholder="Ilimitado" /></label><label><span>Produtos</span><input type="number" min="1" value={form.productLimit} onChange={(e) => setForm({ ...form, productLimit: e.target.value })} placeholder="Ilimitado" /></label><label><span>Catálogos</span><input type="number" min="1" value={form.catalogLimit} onChange={(e) => setForm({ ...form, catalogLimit: e.target.value })} placeholder="Ilimitado" /></label></div><label><span>Prioridade no feed (1–3)</span><input type="number" min="1" max="3" value={form.socialWeight} onChange={(e) => setForm({ ...form, socialWeight: e.target.value })} /></label><label className="platform-check"><input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })}/><span>Plano ativo para novas atribuições</span></label>{error && <p className="platform-form-error">{error}</p>}</div><footer><button type="button" className="platform-secondary" onClick={onClose}>Cancelar</button><button className="platform-primary" disabled={busy}>{busy ? 'Salvando…' : 'Salvar plano'}</button></footer></form></ModalFrame>
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const setFeature = (key: string, value: boolean) => setForm((current) => ({ ...current, features: { ...current.features, [key]: value } }))
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault(); setBusy(true); setError('')
+    try {
+      const payload = {
+        ...form,
+        monthlyPrice: Number(form.monthlyPrice),
+        semesterDiscount: Number(form.semesterDiscount),
+        annualDiscount: Number(form.annualDiscount),
+        sellerLimit: form.sellerLimit === '' ? null : Number(form.sellerLimit),
+        productLimit: form.productLimit === '' ? null : Number(form.productLimit),
+        catalogLimit: form.catalogLimit === '' ? null : Number(form.catalogLimit),
+        photoLimit: form.photoLimit === '' ? null : Number(form.photoLimit),
+        franchiseeLimit: form.franchiseeLimit === '' ? null : Number(form.franchiseeLimit),
+        socialWeight: Number(form.socialWeight),
+      }
+      await apiRequest(plan ? `/api/platform/plans/${plan.id}` : '/api/platform/plans', { method: plan ? 'PATCH' : 'POST', body: JSON.stringify(payload) })
+      onSaved()
+    } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível salvar o plano.') }
+    finally { setBusy(false) }
+  }
+  return <ModalFrame title={plan ? `Editar ${plan.name}` : 'Novo plano'} kicker="Planos" onClose={onClose}><form onSubmit={submit}><div className="platform-modal__body platform-plan-form">
+    <div className="platform-form-grid"><label><span>Nome</span><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} disabled={Boolean(plan?.isSystem)} required /></label><label><span>Código</span><input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} disabled={Boolean(plan)} required /></label></div>
+    {plan?.isSystem && <p className="platform-form-note">Bronze, Prata e Ouro mantêm nome e código fixos. Preço, limites e recursos podem ser ajustados.</p>}
+    <div className="platform-form-grid"><label><span>Mensal (R$)</span><input type="number" min="0" step="0.01" value={form.monthlyPrice} onChange={(e) => setForm({ ...form, monthlyPrice: e.target.value })} required /></label><label><span>Semestral desconto %</span><input type="number" min="0" max="95" step="0.01" value={form.semesterDiscount} onChange={(e) => setForm({ ...form, semesterDiscount: e.target.value })} /></label><label><span>Anual desconto %</span><input type="number" min="0" max="95" step="0.01" value={form.annualDiscount} onChange={(e) => setForm({ ...form, annualDiscount: e.target.value })} /></label></div>
+    <div className="platform-form-grid"><label><span>Vendedoras</span><input type="number" min="1" value={form.sellerLimit} onChange={(e) => setForm({ ...form, sellerLimit: e.target.value })} placeholder="Ilimitado" /></label><label><span>Produtos</span><input type="number" min="1" value={form.productLimit} onChange={(e) => setForm({ ...form, productLimit: e.target.value })} placeholder="Ilimitado" /></label><label><span>Catálogos</span><input type="number" min="1" value={form.catalogLimit} onChange={(e) => setForm({ ...form, catalogLimit: e.target.value })} placeholder="Ilimitado" /></label></div>
+    <div className="platform-form-grid"><label><span>Fotos por produto</span><input type="number" min="1" value={form.photoLimit} onChange={(e) => setForm({ ...form, photoLimit: e.target.value })} placeholder="Ilimitado" /></label><label><span>Franqueados</span><input type="number" min="1" value={form.franchiseeLimit} onChange={(e) => setForm({ ...form, franchiseeLimit: e.target.value })} placeholder="Ilimitado" /></label><label><span>Peso no feed (1–3)</span><input type="number" min="1" max="3" value={form.socialWeight} onChange={(e) => setForm({ ...form, socialWeight: e.target.value })} /></label></div>
+    <label><span>Prioridade no feed</span><select value={form.trafficPriority} onChange={(e) => setForm({ ...form, trafficPriority: e.target.value as 'baixa' | 'media' | 'alta' })}><option value="baixa">Baixa</option><option value="media">Média</option><option value="alta">Alta</option></select></label>
+    <div className="platform-feature-editor"><strong>Recursos do plano</strong><p>Recursos básicos de catálogo, carrinho e WhatsApp permanecem ativos. Ajuste abaixo apenas os módulos opcionais.</p><div>{featureLabels.map(([key, label]) => <label className="platform-check" key={key}><input type="checkbox" checked={Boolean(form.features[key])} onChange={(e) => setFeature(key, e.target.checked)}/><span>{label}</span></label>)}</div></div>
+    <label className="platform-check"><input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })}/><span>Plano ativo para novas atribuições</span></label>
+    {error && <p className="platform-form-error">{error}</p>}
+  </div><footer><button type="button" className="platform-secondary" onClick={onClose}>Cancelar</button><button className="platform-primary" disabled={busy}>{busy ? 'Salvando…' : 'Salvar plano'}</button></footer></form></ModalFrame>
 }
 
 function DangerModal({ target, onClose, onConfirm }: { target: DangerTarget; onClose: () => void; onConfirm: (password: string) => Promise<void> }) {
