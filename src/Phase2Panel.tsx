@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Check, CircleAlert, Copy, Globe2, PackageCheck, Plus, RefreshCcw, Save, Trash2, UserRound, UsersRound } from 'lucide-react'
 import { apiRequest } from './api'
 import { confirmAction } from './ui-dialogs'
+import { useUnsavedChanges } from './unsaved-changes'
 import './phase2-panel.css'
 
 type Seller = { id: string; slug: string; name: string; phone: string; is_active: boolean }
@@ -54,6 +55,15 @@ export default function Phase2Panel() {
   const [font, setFont] = useState('system')
   const [customerLogin, setCustomerLogin] = useState(true)
   const [franchisee, setFranchisee] = useState({ name: '', phone: '' })
+  const dirty = Boolean(data) && (
+    domain !== (data?.store.customDomain || '') ||
+    background !== (data?.store.theme.background || '#ffffff') ||
+    textColor !== (data?.store.theme.textColor || '#17211b') ||
+    font !== (data?.store.theme.font || 'system') ||
+    customerLogin !== Boolean(data?.store.customerLoginEnabled) ||
+    Boolean(franchisee.name.trim() || franchisee.phone.trim())
+  )
+  useUnsavedChanges(dirty)
 
   const load = async () => {
     setError('')
