@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Check, CircleAlert, Copy, CreditCard, ExternalLink, KeyRound, Link2, PackageCheck, Plus, RefreshCcw, Save, ShieldCheck, Trash2, Truck, Webhook } from 'lucide-react'
 import { apiRequest } from './api'
 import { confirmAction } from './ui-dialogs'
+import { useUnsavedChanges } from './unsaved-changes'
 import './phase4-panel.css'
 
 type Integration = {
@@ -61,6 +62,8 @@ export default function Phase4Panel() {
   const [saving, setSaving] = useState('')
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [dirty, setDirty] = useState(false)
+  useUnsavedChanges(dirty)
   const [secret, setSecret] = useState<SecretNotice>(null)
 
   const [asaasEnabled, setAsaasEnabled] = useState(false)
@@ -95,7 +98,7 @@ export default function Phase4Panel() {
       setData(next)
       syncForms(next)
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível carregar as integrações.') }
-    finally { setLoading(false) }
+    finally { setLoading(false); setDirty(false) }
   }
 
   useEffect(() => { void load() }, [])
@@ -235,7 +238,7 @@ export default function Phase4Panel() {
 
   if (!data.eligible) return <div className="phase4-shell"><section className="phase4-locked"><ShieldCheck size={38}/><span>{data.plan.name}</span><h1>Integrações avançadas</h1><p>{data.reason || 'Disponível no Ouro.'}</p><div><CreditCard size={18}/> Asaas e pagamentos online</div><div><Truck size={18}/> Frete calculado por regras</div><div><Link2 size={18}/> Meta Shopping e API/ERP</div></section></div>
 
-  return <div className="phase4-shell">
+  return <div className="phase4-shell" onChangeCapture={() => setDirty(true)}>
     <div className="phase4-title"><div><span>{data.plan.name}</span><h1>Integrações e checkout</h1><p>Pagamentos, frete, catálogo Meta e integração com ERP. Dados de cartão nunca passam pelo ShopVax.</p></div><button className="phase4-secondary" onClick={load}><RefreshCcw size={16}/> Atualizar</button></div>
     {notice && <div className="phase4-notice"><Check size={16}/>{notice}</div>}
     {error && <div className="phase4-error"><CircleAlert size={17}/>{error}</div>}
