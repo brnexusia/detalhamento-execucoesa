@@ -38,6 +38,24 @@ export default function App() {
     return () => window.removeEventListener('popstate', onPop)
   }, [])
 
+  useEffect(() => {
+    if (page === 'store' || page === 'profile') return
+    const segment = window.location.pathname.split('/').filter(Boolean)[1] || ''
+    const panelTitles: Record<string, string> = {
+      produtos: 'Produtos', pedidos: 'Pedidos', vendedoras: 'Vendedoras', relatorios: 'Inteligência',
+      operacao: 'Clientes e domínio', crescimento: 'Crescimento', recursos: 'Estoque e catálogos',
+      integracoes: 'Integrações', assinatura: 'Plano e uso', loja: 'Minha loja',
+    }
+    const title = page === 'admin' ? (panelTitles[segment] || 'Painel')
+      : page === 'platform' ? 'Administração'
+        : page === 'login' ? 'Entrar'
+          : page === 'register' ? 'Criar loja'
+            : page === 'customer' ? 'Minha conta'
+              : page === 'social' ? 'Descobrir'
+                : 'Shopvax'
+    document.title = `${title} · Shopvax`
+  }, [page])
+
   if (page === 'store') return <><PublicRoute /><Phase3PublicRuntime /><Phase4PublicRuntime /></>
 
   let content
