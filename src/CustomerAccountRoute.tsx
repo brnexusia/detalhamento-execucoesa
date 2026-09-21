@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, CheckCircle2, LogOut, PackageCheck, UserRound } from 'lucide-react'
+import { apiRequest } from './api'
 import './customer-account.css'
 
 type Customer = { id: string; name: string; email: string; phone: string }
@@ -18,21 +19,6 @@ type StoreConfig = {
 
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 const date = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium', timeStyle: 'short' })
-
-async function request<T>(url: string, options: RequestInit = {}) {
-  const response = await fetch(url, {
-    credentials: 'include',
-    ...options,
-    headers: options.body ? { 'content-type': 'application/json', ...(options.headers || {}) } : options.headers,
-  })
-  const payload = response.status === 204 ? null : await response.json().catch(() => null)
-  if (!response.ok) {
-    const error = new Error(payload?.error || 'Não foi possível concluir a operação.') as Error & { status?: number }
-    error.status = response.status
-    throw error
-  }
-  return payload as T
-}
 
 function go(path: string) {
   window.history.pushState({}, '', path)
@@ -58,7 +44,7 @@ export default function CustomerAccountRoute() {
 
   const loadAccount = async () => {
     try {
-      const result = await request<AccountPayload>(`/api/public/store/${encodeURIComponent(storeSlug)}/customers/me`)
+      const result = await apiRequest<AccountPayload>(`/api/public/store/${encodeURIComponent(storeSlug)}/customers/me`)
       setAccount(result)
       return true
     } catch (err) {
@@ -72,7 +58,7 @@ export default function CustomerAccountRoute() {
   useEffect(() => {
     let mounted = true
     Promise.all([
-      request<StoreConfig>(`/api/public/store/${encodeURIComponent(storeSlug)}/phase2-config`),
+      apiRequest<StoreConfig>(`/api/public/store/${encodeURIComponent(storeSlug)}/phase2-config`),
       loadAccount(),
     ]).then(([next]) => { if (mounted) setConfig(next) })
       .catch((err) => { if (mounted) setError(err instanceof Error ? err.message : 'Loja não encontrada.') })
@@ -87,14 +73,14 @@ export default function CustomerAccountRoute() {
       const body = mode === 'login'
         ? { email: form.email, password: form.password }
         : { name: form.name, email: form.email, phone: form.phone, password: form.password }
-      await request(`/api/public/store/${encodeURIComponent(storeSlug)}/customers/${endpoint}`, { method: 'POST', body: JSON.stringify(body) })
+      await apiRequest(`/api/public/store/${encodeURIComponent(storeSlug)}/customers/${endpoint}`, { method: 'POST', body: JSON.stringify(body) })
       await loadAccount()
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível entrar.') }
     finally { setBusy(false) }
   }
 
   const logout = async () => {
-    await request('/api/public/customers/logout', { method: 'POST' }).catch(() => undefined)
+    await apiRequest('/api/public/customers/logout', { method: 'POST' }).catch(() => undefined)
     setAccount(null)
     setMode('login')
   }
