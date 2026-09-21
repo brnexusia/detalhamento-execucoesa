@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ArrowLeft, BarChart3, Boxes, Eye, ExternalLink, Filter, Heart, Link2, MessageCircleQuestion, Share2, ShoppingCart, UserPlus, Users } from 'lucide-react'
+import { apiRequest } from './api'
 import './analytics-panel.css'
 
 type ReportPayload = {
@@ -29,17 +30,11 @@ const pct = (value: number) => `${Number(value || 0).toLocaleString('pt-BR', { m
 const num = (value: number) => Number(value || 0).toLocaleString('pt-BR')
 
 async function loadReports(days: number) {
-  const response = await fetch(`/api/admin/intent-reports?days=${days}`, { credentials: 'include' })
-  const body = await response.json().catch(() => null)
-  if (!response.ok) throw new Error(body?.error || 'Não foi possível carregar os relatórios.')
-  return body as ReportPayload
+  return apiRequest<ReportPayload>(`/api/admin/intent-reports?days=${days}`)
 }
 
 async function loadSocialReports(days: number) {
-  const response = await fetch(`/api/admin/social-metrics?days=${days}`, { credentials: 'include' })
-  const body = await response.json().catch(() => null)
-  if (!response.ok) throw new Error(body?.error || 'Não foi possível carregar as métricas da rede Shopvax.')
-  return body as SocialReportPayload
+  return apiRequest<SocialReportPayload>(`/api/admin/social-metrics?days=${days}`)
 }
 
 export default function AnalyticsPanel() {
