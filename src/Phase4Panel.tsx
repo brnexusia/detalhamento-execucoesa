@@ -48,6 +48,12 @@ type Phase4Data = {
 type SecretNotice = { title: string; value: string; note: string } | null
 
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
+const paymentMethodLabel = (value: string) => ({ PIX: 'Pix', BOLETO: 'Boleto', CREDIT_CARD: 'Cartão' } as Record<string, string>)[String(value || '').toUpperCase()] || value
+const paymentStatusLabel = (value: string) => ({
+  paid: 'Pago', received: 'Pago', confirmed: 'Confirmado', pending: 'Pendente', overdue: 'Vencido',
+  refunded: 'Estornado', cancelled: 'Cancelado', received_in_cash: 'Recebido',
+} as Record<string, string>)[String(value || '').toLowerCase()] || value
+const isPaidPayment = (value: string) => ['paid', 'received', 'confirmed', 'received_in_cash'].includes(String(value || '').toLowerCase())
 
 export default function Phase4Panel() {
   const [data, setData] = useState<Phase4Data | null>(null)
@@ -99,7 +105,7 @@ export default function Phase4Panel() {
   const apiTokens = data?.apiTokens || []
   const erpWebhooks = data?.erpWebhooks || []
   const recentPayments = data?.payments || []
-  const paidCount = useMemo(() => recentPayments.filter((item) => item.status === 'paid').length, [recentPayments])
+  const paidCount = useMemo(() => recentPayments.filter((item) => isPaidPayment(item.status)).length, [recentPayments])
 
   const copy = async (value: string) => {
     await navigator.clipboard.writeText(value)
@@ -270,21 +276,26 @@ export default function Phase4Panel() {
 
     <div className="phase4-save"><button className="phase4-primary" disabled={saving === 'core'} onClick={saveCore}><Save size={17}/>{saving === 'core' ? 'Salvando…' : 'Salvar frete, Meta e API'}</button></div>
 
-    {erpEnabled && <section className="phase4-card">
-      <div className="phase4-card__head"><div><span>Autenticação</span><h2>Tokens da API</h2></div><strong>{apiTokens.filter((item) => item.active).length}</strong></div>
-      <div className="phase4-token-form"><input value={tokenName} onChange={(event) => setTokenName(event.target.value)} placeholder="Nome do token"/><div className="phase4-scope-grid">{['products:read','orders:read','customers:read','payments:read','stock:write'].map((scope) => <label key={scope}><input type="checkbox" checked={tokenScopes.includes(scope)} onChange={() => toggleScope(scope)}/><span>{scope}</span></label>)}</div><button className="phase4-primary" disabled={saving === 'token' || !tokenScopes.length} onClick={createToken}><KeyRound size={16}/> Gerar token</button></div>
-      <div className="phase4-token-list">{apiTokens.map((token) => <article key={token.id}><div><strong>{token.name}</strong><span><code>{token.tokenPrefix}…</code> · {token.scopes.join(', ')}</span></div><button disabled={!token.active || saving === token.id} onClick={() => revokeToken(token)}>{token.active ? 'Revogar' : 'Revogado'}</button></article>)}{!apiTokens.length && <p className="phase4-empty">Nenhum token criado.</p>}</div>
-    </section>}
-
-    {erpEnabled && <section className="phase4-card">
-      <div className="phase4-card__head"><div><span>Eventos assinados</span><h2>Webhooks ERP</h2><p>O ShopVax envia assinatura HMAC SHA-256 no header <code>x-shopvax-signature</code>.</p></div><Webhook size={24}/></div>
-      <div className="phase4-webhook-form"><input value={webhookForm.name} onChange={(e) => setWebhookForm((v) => ({...v,name:e.target.value}))} placeholder="Nome"/><input value={webhookForm.url} onChange={(e) => setWebhookForm((v) => ({...v,url:e.target.value}))} placeholder="https://erp.exemplo.com/webhooks/shopvax"/><button className="phase4-primary" disabled={saving === 'erp-webhook' || !webhookForm.url.trim()} onClick={createErpWebhook}><Plus size={16}/> Adicionar webhook</button></div>
-      <div className="phase4-rules">{erpWebhooks.map((webhook) => <article key={webhook.id}><Webhook size={18}/><div><strong>{webhook.name}</strong><span>{webhook.url} · {webhook.events.join(', ')}</span></div><button disabled={saving === webhook.id} onClick={() => deleteErpWebhook(webhook)}><Trash2 size={16}/></button></article>)}{!erpWebhooks.length && <p className="phase4-empty">Nenhum webhook ERP criado.</p>}</div>
-    </section>}
+    {erpEnabled && <details className="phase4-technical">
+      <summary><KeyRound size={18}/><span><strong>Configuração técnica da API / ERP</strong><small>Tokens, permissões e webhooks para integrações externas.</small></span></summary>
+      <div className="phase4-technical__body">
+        <section className="phase4-card">
+          <div className="phase4-card__head"><div><span>Acesso técnico</span><h2>Tokens da API</h2><p>Crie credenciais apenas para o sistema que fará a integração.</p></div><strong>{apiTokens.filter((item) => item.active).length}</strong></div>
+          <div className="phase4-token-form"><input value={tokenName} onChange={(event) => setTokenName(event.target.value)} placeholder="Nome do token"/><div className="phase4-scope-grid">{['products:read','orders:read','customers:read','payments:read','stock:write'].map((scope) => <label key={scope}><input type="checkbox" checked={tokenScopes.includes(scope)} onChange={() => toggleScope(scope)}/><span>{scope}</span></label>)}</div><button className="phase4-primary" disabled={saving === 'token' || !tokenScopes.length} onClick={createToken}><KeyRound size={16}/> Gerar token</button></div>
+          <div className="phase4-token-list">{apiTokens.map((token) => <article key={token.id}><div><strong>{token.name}</strong><span><code>{token.tokenPrefix}…</code> · {token.scopes.join(', ')}</span></div><button disabled={!token.active || saving === token.id} onClick={() => revokeToken(token)}>{token.active ? 'Revogar' : 'Revogado'}</button></article>)}{!apiTokens.length && <p className="phase4-empty">Nenhum token criado.</p>}</div>
+        </section>
+        <section className="phase4-card">
+          <div className="phase4-card__head"><div><span>Eventos da integração</span><h2>Webhooks ERP</h2><p>Use esta área somente quando o ERP precisar receber atualizações automáticas do Shopvax.</p></div><Webhook size={24}/></div>
+          <div className="phase4-webhook-form"><input value={webhookForm.name} onChange={(e) => setWebhookForm((v) => ({...v,name:e.target.value}))} placeholder="Nome"/><input value={webhookForm.url} onChange={(e) => setWebhookForm((v) => ({...v,url:e.target.value}))} placeholder="https://erp.exemplo.com/webhooks/shopvax"/><button className="phase4-primary" disabled={saving === 'erp-webhook' || !webhookForm.url.trim()} onClick={createErpWebhook}><Plus size={16}/> Adicionar webhook</button></div>
+          <div className="phase4-rules">{erpWebhooks.map((webhook) => <article key={webhook.id}><Webhook size={18}/><div><strong>{webhook.name}</strong><span>{webhook.url} · {webhook.events.join(', ')}</span></div><button disabled={saving === webhook.id} onClick={() => deleteErpWebhook(webhook)}><Trash2 size={16}/></button></article>)}{!erpWebhooks.length && <p className="phase4-empty">Nenhum webhook ERP criado.</p>}</div>
+          <div className="phase4-technical-note"><strong>Assinatura de segurança</strong><span>As notificações usam HMAC SHA-256 no cabeçalho <code>x-shopvax-signature</code>.</span></div>
+        </section>
+      </div>
+    </details>}
 
     <section className="phase4-card">
-      <div className="phase4-card__head"><div><span>Financeiro</span><h2>Cobranças recentes</h2><p>Pagamento confirmado não confirma a venda/comissão automaticamente.</p></div><strong>{paidCount} paga(s)</strong></div>
-      <div className="phase4-payments">{recentPayments.slice(0, 12).map((payment) => <article key={payment.id}><div><strong>{money.format(payment.value)}</strong><span>{payment.billing_type} · {payment.status}</span></div>{payment.invoice_url && <a href={payment.invoice_url} target="_blank" rel="noreferrer">Abrir cobrança <ExternalLink size={13}/></a>}</article>)}{!recentPayments.length && <p className="phase4-empty">Nenhuma cobrança criada ainda.</p>}</div>
+      <div className="phase4-card__head"><div><span>Financeiro</span><h2>Cobranças recentes</h2><p>Pagamento confirmado não confirma a venda/comissão automaticamente.</p></div><strong>{paidCount === 1 ? '1 paga' : `${paidCount} pagas`}</strong></div>
+      <div className="phase4-payments">{recentPayments.slice(0, 12).map((payment) => <article key={payment.id}><div><strong>{money.format(payment.value)}</strong><span>{paymentMethodLabel(payment.billing_type)} · {paymentStatusLabel(payment.status)}</span></div>{payment.invoice_url && <a href={payment.invoice_url} target="_blank" rel="noreferrer">Abrir cobrança <ExternalLink size={13}/></a>}</article>)}{!recentPayments.length && <p className="phase4-empty">Nenhuma cobrança criada ainda.</p>}</div>
     </section>
   </div>
 }
