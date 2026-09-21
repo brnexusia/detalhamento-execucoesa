@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ArrowLeft, BarChart3, Boxes, Eye, ExternalLink, Filter, Heart, Link2, MessageCircleQuestion, Share2, ShoppingCart, UserPlus, Users } from 'lucide-react'
 import { apiRequest } from './api'
+import UiState from './UiState'
 import './analytics-panel.css'
 
 type ReportPayload = {
@@ -64,7 +65,7 @@ export default function AnalyticsPanel() {
     {error && <div className="analytics-error">{error}</div>}
     {social?.interpretation && <div className="analytics-rule"><strong>Regra da rede</strong><span>{social.interpretation}</span></div>}
     {data?.interpretation && <div className="analytics-rule"><strong>Regra comercial</strong><span>{data.interpretation}</span></div>}
-    {loading && (!data || !social) ? <div className="analytics-loading"><BarChart3 size={30}/><strong>Montando relatórios…</strong></div> : data && social && <>
+    {loading && (!data || !social) ? <UiState loading title="Montando relatórios…" compact/> : data && social && <>
       <section className="analytics-card analytics-card--social">
         <div className="analytics-card__head"><div><Heart size={19}/><span>S</span><h2>Rede Shopvax</h2></div><p>Alcance, interação e perguntas geradas pelo feed social.</p></div>
         <div className="analytics-social-summary">
