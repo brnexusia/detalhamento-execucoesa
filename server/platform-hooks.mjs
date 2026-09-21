@@ -1,3 +1,4 @@
+import { systemPlans } from './system-plans.mjs'
 import crypto from 'node:crypto'
 import express from 'express'
 import pg from 'pg'
@@ -65,6 +66,10 @@ function planShape(row) {
     productLimit: row.product_limit == null ? null : Number(row.product_limit),
     catalogLimit: row.catalog_limit == null ? null : Number(row.catalog_limit),
     socialWeight: Number(row.social_weight || 1),
+    photoLimit: row.photo_limit == null ? null : Number(row.photo_limit),
+    franchiseeLimit: row.franchisee_limit == null ? null : Number(row.franchisee_limit),
+    trafficPriority: row.traffic_priority || 'baixa',
+    features: row.feature_flags && typeof row.feature_flags === 'object' ? row.feature_flags : {},
     active: Boolean(row.active),
     isSystem: Boolean(row.is_system),
     createdAt: row.created_at,
@@ -94,6 +99,11 @@ async function ensurePlatformSchema() {
         product_limit integer,
         catalog_limit integer,
         social_weight integer NOT NULL DEFAULT 1,
+        photo_limit integer,
+        franchisee_limit integer,
+        traffic_priority text NOT NULL DEFAULT 'baixa',
+        feature_flags jsonb NOT NULL DEFAULT '{}'::jsonb,
+        mvp_schema_version integer NOT NULL DEFAULT 1,
         active boolean NOT NULL DEFAULT true,
         is_system boolean NOT NULL DEFAULT false,
         created_at timestamptz NOT NULL DEFAULT now(),
@@ -112,17 +122,41 @@ async function ensurePlatformSchema() {
       CREATE INDEX IF NOT EXISTS idx_platform_audit_created ON platform_audit_log(created_at DESC);
       ALTER TABLE stores ADD COLUMN IF NOT EXISTS plan_tier text NOT NULL DEFAULT 'bronze';
     `)
-    const defaults = [
-      ['bronze', 'Bronze', 49.90, 5, 15, 5, 500, 1, 1],
-      ['prata', 'Prata', 94.90, 5, 15, 15, 2000, 3, 2],
-      ['ouro', 'Ouro', 144.90, 5, 15, null, null, null, 3],
-    ]
-    for (const [code, name, price, semester, annual, sellers, products, catalogs, weight] of defaults) {
+    await pool.query(`
+      ALTER TABLE platform_plans ADD COLUMN IF NOT EXISTS photo_limit integer;
+      ALTER TABLE platform_plans ADD COLUMN IF NOT EXISTS franchisee_limit integer;
+      ALTER TABLE platform_plans ADD COLUMN IF NOT EXISTS traffic_priority text NOT NULL DEFAULT 'baixa';
+      ALTER TABLE platform_plans ADD COLUMN IF NOT EXISTS feature_flags jsonb NOT NULL DEFAULT '{}'::jsonb;
+      ALTER TABLE platform_plans ADD COLUMN IF NOT EXISTS mvp_schema_version integer NOT NULL DEFAULT 1;
+    `)
+    for (const plan of systemPlans) {
       await pool.query(
-        `INSERT INTO platform_plans (id,code,name,monthly_price,semester_discount,annual_discount,seller_limit,product_limit,catalog_limit,social_weight,active,is_system)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,true,true)
-         ON CONFLICT (code) DO NOTHING`,
-        [`plan-${code}`, code, name, price, semester, annual, sellers, products, catalogs, weight],
+        `INSERT INTO platform_plans
+          (id,code,name,monthly_price,semester_discount,annual_discount,seller_limit,product_limit,catalog_limit,social_weight,photo_limit,franchisee_limit,traffic_priority,feature_flags,active,is_system,mvp_schema_version)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,true,true,1)
+         ON CONFLICT (code) DO UPDATE SET
+           name=EXCLUDED.name,
+           monthly_price=EXCLUDED.monthly_price,
+           semester_discount=EXCLUDED.semester_discount,
+           annual_discount=EXCLUDED.annual_discount,
+           seller_limit=EXCLUDED.seller_limit,
+           product_limit=EXCLUDED.product_limit,
+           catalog_limit=EXCLUDED.catalog_limit,
+           social_weight=EXCLUDED.social_weight,
+           photo_limit=EXCLUDED.photo_limit,
+           franchisee_limit=EXCLUDED.franchisee_limit,
+           traffic_priority=EXCLUDED.traffic_priority,
+           feature_flags=EXCLUDED.feature_flags,
+           active=true,
+           is_system=true,
+           mvp_schema_version=1,
+           updated_at=now()
+         WHERE platform_plans.is_system=true`,
+        [
+          plan.id, plan.code, plan.name, plan.monthlyPrice, plan.semesterDiscount, plan.annualDiscount,
+          plan.sellerLimit, plan.productLimit, plan.catalogLimit, plan.socialWeight, plan.photoLimit,
+          plan.franchiseeLimit, plan.trafficPriority, JSON.stringify(plan.features),
+        ],
       )
     }
   })()
