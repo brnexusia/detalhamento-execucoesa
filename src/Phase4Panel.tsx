@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Check, CircleAlert, Copy, CreditCard, ExternalLink, KeyRound, Link2, PackageCheck, Plus, RefreshCcw, Save, ShieldCheck, Trash2, Truck, Webhook } from 'lucide-react'
+import { confirmAction } from './ui-dialogs'
 import './phase4-panel.css'
 
 type Integration = {
@@ -174,7 +175,7 @@ export default function Phase4Panel() {
   }
 
   const deleteShipping = async (rule: ShippingRule) => {
-    if (!window.confirm(`Excluir a regra ${rule.name}?`)) return
+    if (!(await confirmAction(`Excluir a regra ${rule.name}?`))) return
     setSaving(rule.id)
     try {
       await request(`/api/admin/phase4/shipping-rules/${encodeURIComponent(rule.id)}`, { method: 'DELETE' })
@@ -199,7 +200,7 @@ export default function Phase4Panel() {
   }
 
   const revokeToken = async (token: ApiToken) => {
-    if (!window.confirm(`Revogar ${token.name}?`)) return
+    if (!(await confirmAction(`Revogar ${token.name}?`))) return
     setSaving(token.id)
     try {
       await request(`/api/admin/phase4/api-tokens/${encodeURIComponent(token.id)}`, { method: 'DELETE' })
@@ -224,7 +225,7 @@ export default function Phase4Panel() {
   }
 
   const deleteErpWebhook = async (webhook: ErpWebhook) => {
-    if (!window.confirm(`Excluir o webhook ${webhook.name}?`)) return
+    if (!(await confirmAction(`Excluir o webhook ${webhook.name}?`))) return
     setSaving(webhook.id)
     try {
       await request(`/api/admin/phase4/erp-webhooks/${encodeURIComponent(webhook.id)}`, { method: 'DELETE' })
