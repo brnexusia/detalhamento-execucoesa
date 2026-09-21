@@ -9,6 +9,7 @@ type Props = {
   counts?: Counts
   planCode?: string
   onNavigate?: () => void
+  beforeNavigate?: () => boolean | Promise<boolean>
 }
 
 const items = [
@@ -30,7 +31,7 @@ function hasPlan(planCode: string | undefined, minimum: 'prata') {
   return planCode === 'prata' || planCode === 'ouro'
 }
 
-export default function AdminNavigation({ active, counts = {}, planCode, onNavigate }: Props) {
+export default function AdminNavigation({ active, counts = {}, planCode, onNavigate, beforeNavigate }: Props) {
   return <nav className="panel-nav" aria-label="Navegação do painel">
     {items.filter((item) => !('minPlan' in item) || hasPlan(planCode, item.minPlan)).map((item) => {
       const Icon = item.icon
@@ -41,7 +42,7 @@ export default function AdminNavigation({ active, counts = {}, planCode, onNavig
         key={item.key}
         className={selected ? 'is-active' : ''}
         aria-current={selected ? 'page' : undefined}
-        onClick={() => { onNavigate?.(); go(item.path) }}
+        onClick={async () => { if (beforeNavigate && await beforeNavigate() === false) return; onNavigate?.(); go(item.path) }}
       >
         <Icon size={18}/><span>{item.label}</span>{typeof count === 'number' && <b>{count}</b>}
       </button>
