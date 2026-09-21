@@ -235,7 +235,7 @@ export default function Phase4Panel() {
     finally { setSaving('') }
   }
 
-  if (loading || !data) return <div className="phase4-shell"><div className="phase4-loading"><RefreshCcw size={24}/><strong>{loading ? 'Carregando integrações…' : 'Não foi possível abrir a Fase 4.'}</strong>{error && <p>{error}</p>}</div></div>
+  if (loading || !data) return <div className="phase4-shell"><div className="phase4-loading"><RefreshCcw size={24}/><strong>{loading ? 'Carregando integrações…' : 'Não foi possível abrir as integrações.'}</strong>{error && <p>{error}</p>}</div></div>
 
   if (!data.eligible) return <div className="phase4-shell"><section className="phase4-locked"><ShieldCheck size={38}/><span>{data.plan.name}</span><h1>Integrações avançadas</h1><p>{data.reason || 'Disponível no Ouro.'}</p><div><CreditCard size={18}/> Asaas e pagamentos online</div><div><Truck size={18}/> Frete calculado por regras</div><div><Link2 size={18}/> Meta Shopping e API/ERP</div></section></div>
 
