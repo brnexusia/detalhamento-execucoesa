@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, ArrowLeft, CheckCircle2, CreditCard, KeyRound, RefreshCw, Search, ShieldCheck, Store, XCircle } from 'lucide-react'
 import './platform-launch-ops.css'
+import { confirmAction, promptSecret } from './ui-dialogs'
 
 type Check = { key: string; label: string; ok: boolean; critical: boolean }
 type Billing = { status: string; cycle: string; periodEndsAt?: string | null; graceEndsAt?: string | null; lastAmount: number; creditMonths: number; note: string }
@@ -50,10 +51,9 @@ export default function PlatformLaunchOps() {
   useEffect(() => { void load() }, [])
 
   const flash = (message: string) => { setNotice(message); window.setTimeout(() => setNotice(''), 3000) }
-  const password = () => window.prompt('Confirme sua senha administrativa para esta ação:') || ''
 
   const run = async (key: string, path: string, body: Record<string, unknown>, success: string) => {
-    const pass = password()
+    const pass = await promptSecret('Confirme sua senha administrativa para esta ação.')
     if (!pass) return
     setBusy(key); setError('')
     try {
@@ -78,7 +78,7 @@ export default function PlatformLaunchOps() {
       {error && <div className="launchops-error"><AlertTriangle size={17}/>{error}</div>}
 
       <section className="launchops-hero">
-        <div><span>Fase 5</span><h1>Homologação operacional</h1><p>Billing, sessões, segurança e dependências críticas antes do lançamento.</p></div>
+        <div><span>Lançamento</span><h1>Homologação operacional</h1><p>Billing, sessões, segurança e dependências críticas antes do lançamento.</p></div>
         <div className={`launchops-ready ${data.launchReady ? 'is-ready' : ''}`}>{data.launchReady ? <CheckCircle2 size={20}/> : <AlertTriangle size={20}/>}<div><small>Status crítico</small><strong>{data.launchReady ? 'Pronto' : 'Pendências'}</strong></div></div>
       </section>
 
@@ -106,8 +106,8 @@ export default function PlatformLaunchOps() {
             <button disabled={Boolean(busy)} onClick={() => void run(`${store.id}-a`, `/api/platform/phase5/stores/${store.id}/billing/renew`, { cycle: 'annual', useCredits: true }, 'Renovação anual registrada.')}>12 meses</button>
             <button disabled={Boolean(busy)} onClick={() => void run(`${store.id}-c`, `/api/platform/phase5/stores/${store.id}/billing/credits`, { months: 1, note: 'Ajuste operacional' }, 'Crédito adicionado.')}>+1 crédito</button>
             {store.billing.status === 'active' ? <button className="is-warn" disabled={Boolean(busy)} onClick={() => void run(`${store.id}-p`, `/api/platform/phase5/stores/${store.id}/billing/status`, { status: 'past_due', graceDays: 7 }, 'Loja marcada em atraso.')}>Marcar atraso</button> : <button disabled={Boolean(busy)} onClick={() => void run(`${store.id}-ok`, `/api/platform/phase5/stores/${store.id}/billing/status`, { status: 'active' }, 'Cobrança reativada.')}>Reativar cobrança</button>}
-            <button className="is-danger" disabled={Boolean(busy)} onClick={() => { if (window.confirm(`Suspender a cobrança e a loja ${store.name}?`)) void run(`${store.id}-x`, `/api/platform/phase5/stores/${store.id}/billing/status`, { status: 'suspended' }, 'Loja suspensa por cobrança.') }}>Suspender</button>
-            <button disabled={Boolean(busy)} onClick={() => { if (window.confirm(`Encerrar todas as sessões de ${store.name}?`)) void run(`${store.id}-r`, `/api/platform/phase5/stores/${store.id}/security/revoke-sessions`, { scope: 'all' }, 'Sessões revogadas.') }}>Revogar sessões</button>
+            <button className="is-danger" disabled={Boolean(busy)} onClick={async () => { if (await confirmAction(`Suspender a cobrança e a loja ${store.name}?`, 'Suspender loja', 'Suspender')) void run(`${store.id}-x`, `/api/platform/phase5/stores/${store.id}/billing/status`, { status: 'suspended' }, 'Loja suspensa por cobrança.') }}>Suspender</button>
+            <button disabled={Boolean(busy)} onClick={async () => { if (await confirmAction(`Encerrar todas as sessões de ${store.name}?`, 'Revogar sessões', 'Revogar')) void run(`${store.id}-r`, `/api/platform/phase5/stores/${store.id}/security/revoke-sessions`, { scope: 'all' }, 'Sessões revogadas.') }}>Revogar sessões</button>
           </div>
         </article>)}</div>
       </section>
