@@ -236,10 +236,10 @@ export default function Phase4Panel() {
 
   if (loading || !data) return <div className="phase4-shell"><div className="phase4-loading"><RefreshCcw size={24}/><strong>{loading ? 'Carregando integrações…' : 'Não foi possível abrir a Fase 4.'}</strong>{error && <p>{error}</p>}</div></div>
 
-  if (!data.eligible) return <div className="phase4-shell"><section className="phase4-locked"><ShieldCheck size={38}/><span>Fase 4 · {data.plan.name}</span><h1>Integrações avançadas</h1><p>{data.reason || 'Disponível no Plano 3.'}</p><div><CreditCard size={18}/> Asaas e pagamentos online</div><div><Truck size={18}/> Frete calculado por regras</div><div><Link2 size={18}/> Meta Shopping e API/ERP</div></section></div>
+  if (!data.eligible) return <div className="phase4-shell"><section className="phase4-locked"><ShieldCheck size={38}/><span>{data.plan.name}</span><h1>Integrações avançadas</h1><p>{data.reason || 'Disponível no Ouro.'}</p><div><CreditCard size={18}/> Asaas e pagamentos online</div><div><Truck size={18}/> Frete calculado por regras</div><div><Link2 size={18}/> Meta Shopping e API/ERP</div></section></div>
 
   return <div className="phase4-shell">
-    <div className="phase4-title"><div><span>Fase 4 · {data.plan.name}</span><h1>Integrações e checkout</h1><p>Pagamentos, frete, catálogo Meta e integração com ERP. Dados de cartão nunca passam pelo ShopVax.</p></div><button className="phase4-secondary" onClick={load}><RefreshCcw size={16}/> Atualizar</button></div>
+    <div className="phase4-title"><div><span>{data.plan.name}</span><h1>Integrações e checkout</h1><p>Pagamentos, frete, catálogo Meta e integração com ERP. Dados de cartão nunca passam pelo ShopVax.</p></div><button className="phase4-secondary" onClick={load}><RefreshCcw size={16}/> Atualizar</button></div>
     {notice && <div className="phase4-notice"><Check size={16}/>{notice}</div>}
     {error && <div className="phase4-error"><CircleAlert size={17}/>{error}</div>}
     {secret && <div className="phase4-secret"><div><KeyRound size={19}/><div><strong>{secret.title}</strong><p>{secret.note}</p></div></div><code>{secret.value}</code><button onClick={() => copy(secret.value)}><Copy size={15}/> Copiar segredo</button></div>}
