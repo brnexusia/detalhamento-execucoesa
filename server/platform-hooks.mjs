@@ -17,6 +17,21 @@ const clampInt = (value, min, max) => Math.max(min, Math.min(max, Math.floor(Num
 const nullableLimit = (value) => value === '' || value == null ? null : clampInt(value, 1, 1_000_000)
 const money = (value) => Math.max(0, Math.round((Number(value) || 0) * 100) / 100)
 const percentage = (value) => Math.max(0, Math.min(95, Math.round((Number(value) || 0) * 100) / 100))
+const trafficPriorities = new Set(['baixa', 'media', 'alta'])
+const planFeatureKeys = [
+  'catalog', 'products', 'cart', 'minimumOrder', 'productVideo', 'customerLogin', 'whatsappOrder',
+  'temporaryStoreDisable', 'wholesaleRetail', 'productGrid', 'meetingPoints', 'stock', 'customDomain',
+  'reviews', 'commercialIntelligence', 'storePersonalization', 'franchisees', 'sellerCommission', 'vaxLar',
+]
+const normalizeTrafficPriority = (value, fallback = 'baixa') => {
+  const next = String(value || '').trim().toLowerCase()
+  return trafficPriorities.has(next) ? next : fallback
+}
+const normalizeFeatures = (value, fallback = {}) => {
+  const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {}
+  const base = fallback && typeof fallback === 'object' && !Array.isArray(fallback) ? fallback : {}
+  return Object.fromEntries(planFeatureKeys.map((key) => [key, source[key] === undefined ? Boolean(base[key]) : Boolean(source[key])]))
+}
 const slugify = (value) => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)
 
 function parseCookies(req) {
@@ -103,7 +118,7 @@ async function ensurePlatformSchema() {
         franchisee_limit integer,
         traffic_priority text NOT NULL DEFAULT 'baixa',
         feature_flags jsonb NOT NULL DEFAULT '{}'::jsonb,
-        mvp_schema_version integer NOT NULL DEFAULT 1,
+        mvp_schema_version integer NOT NULL DEFAULT 2,
         active boolean NOT NULL DEFAULT true,
         is_system boolean NOT NULL DEFAULT false,
         created_at timestamptz NOT NULL DEFAULT now(),
@@ -127,13 +142,13 @@ async function ensurePlatformSchema() {
       ALTER TABLE platform_plans ADD COLUMN IF NOT EXISTS franchisee_limit integer;
       ALTER TABLE platform_plans ADD COLUMN IF NOT EXISTS traffic_priority text NOT NULL DEFAULT 'baixa';
       ALTER TABLE platform_plans ADD COLUMN IF NOT EXISTS feature_flags jsonb NOT NULL DEFAULT '{}'::jsonb;
-      ALTER TABLE platform_plans ADD COLUMN IF NOT EXISTS mvp_schema_version integer NOT NULL DEFAULT 1;
+      ALTER TABLE platform_plans ADD COLUMN IF NOT EXISTS mvp_schema_version integer NOT NULL DEFAULT 2;
     `)
     for (const plan of systemPlans) {
       await pool.query(
         `INSERT INTO platform_plans
           (id,code,name,monthly_price,semester_discount,annual_discount,seller_limit,product_limit,catalog_limit,social_weight,photo_limit,franchisee_limit,traffic_priority,feature_flags,active,is_system,mvp_schema_version)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,true,true,1)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,true,true,2)
          ON CONFLICT (code) DO UPDATE SET
            name=EXCLUDED.name,
            monthly_price=EXCLUDED.monthly_price,
@@ -149,9 +164,9 @@ async function ensurePlatformSchema() {
            feature_flags=EXCLUDED.feature_flags,
            active=true,
            is_system=true,
-           mvp_schema_version=1,
+           mvp_schema_version=2,
            updated_at=now()
-         WHERE platform_plans.is_system=true`,
+         WHERE platform_plans.is_system=true AND platform_plans.mvp_schema_version<2`,
         [
           plan.id, plan.code, plan.name, plan.monthlyPrice, plan.semesterDiscount, plan.annualDiscount,
           plan.sellerLimit, plan.productLimit, plan.catalogLimit, plan.socialWeight, plan.photoLimit,
@@ -193,11 +208,16 @@ async function currentPlatformAdmin(req) {
 }
 
 async function storeUsage(storeId) {
+  const franchiseTable = await pool.query("SELECT to_regclass('public.franchisees') AS table_name")
+  const franchiseSelect = franchiseTable.rows[0]?.table_name
+    ? '(SELECT count(*)::int FROM franchisees WHERE store_id=$1)'
+    : '0'
   const result = await pool.query(`SELECT
     (SELECT count(*)::int FROM products WHERE store_id=$1) AS products,
     (SELECT count(*)::int FROM sellers WHERE store_id=$1) AS sellers,
-    (SELECT count(*)::int FROM catalogs WHERE store_id=$1) AS catalogs`, [storeId])
-  return result.rows[0] || { products: 0, sellers: 0, catalogs: 0 }
+    (SELECT count(*)::int FROM catalogs WHERE store_id=$1) AS catalogs,
+    ${franchiseSelect} AS franchisees`, [storeId])
+  return result.rows[0] || { products: 0, sellers: 0, catalogs: 0, franchisees: 0 }
 }
 
 function capacityError(plan, usage) {
@@ -205,6 +225,7 @@ function capacityError(plan, usage) {
     ['seller_limit', 'sellers', 'vendedoras'],
     ['product_limit', 'products', 'produtos'],
     ['catalog_limit', 'catalogs', 'catálogos'],
+    ['franchisee_limit', 'franchisees', 'franqueados'],
   ]
   for (const [limitKey, usageKey, label] of checks) {
     const max = plan[limitKey] == null ? null : Number(plan[limitKey])
@@ -355,11 +376,14 @@ function installPlatformRoutes(app) {
     const name = String(req.body?.name || '').trim().slice(0, 80)
     const code = slugify(req.body?.code || name)
     if (!name || !code) return res.status(400).json({ error: 'Informe nome e código do plano.' })
+    const features = normalizeFeatures(req.body?.features)
     const row = await pool.query(`INSERT INTO platform_plans
-      (id,code,name,monthly_price,semester_discount,annual_discount,seller_limit,product_limit,catalog_limit,social_weight,active,is_system)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,false) RETURNING *`, [
+      (id,code,name,monthly_price,semester_discount,annual_discount,seller_limit,product_limit,catalog_limit,social_weight,photo_limit,franchisee_limit,traffic_priority,feature_flags,active,is_system,mvp_schema_version)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,false,2) RETURNING *`, [
       id(), code, name, money(req.body?.monthlyPrice), percentage(req.body?.semesterDiscount ?? 5), percentage(req.body?.annualDiscount ?? 15),
-      nullableLimit(req.body?.sellerLimit), nullableLimit(req.body?.productLimit), nullableLimit(req.body?.catalogLimit), clampInt(req.body?.socialWeight || 1, 1, 3), req.body?.active !== false,
+      nullableLimit(req.body?.sellerLimit), nullableLimit(req.body?.productLimit), nullableLimit(req.body?.catalogLimit), clampInt(req.body?.socialWeight || 1, 1, 3),
+      nullableLimit(req.body?.photoLimit), nullableLimit(req.body?.franchiseeLimit), normalizeTrafficPriority(req.body?.trafficPriority),
+      JSON.stringify(features), req.body?.active !== false,
     ])
     await audit(req.platformUser.id, 'plan.create', 'plan', row.rows[0].id, { code })
     res.status(201).json({ plan: planShape(row.rows[0]) })
@@ -377,14 +401,20 @@ function installPlatformRoutes(app) {
       seller_limit: req.body?.sellerLimit === undefined ? old.seller_limit : nullableLimit(req.body.sellerLimit),
       product_limit: req.body?.productLimit === undefined ? old.product_limit : nullableLimit(req.body.productLimit),
       catalog_limit: req.body?.catalogLimit === undefined ? old.catalog_limit : nullableLimit(req.body.catalogLimit),
+      photo_limit: req.body?.photoLimit === undefined ? old.photo_limit : nullableLimit(req.body.photoLimit),
+      franchisee_limit: req.body?.franchiseeLimit === undefined ? old.franchisee_limit : nullableLimit(req.body.franchiseeLimit),
+      traffic_priority: req.body?.trafficPriority === undefined ? old.traffic_priority : normalizeTrafficPriority(req.body.trafficPriority, old.traffic_priority || 'baixa'),
+      feature_flags: req.body?.features === undefined ? (old.feature_flags || {}) : normalizeFeatures(req.body.features, old.feature_flags || {}),
     }
     const violation = await assignedPlanViolation(old.code, proposed)
     if (violation) return res.status(409).json({ error: `Não é possível reduzir esse plano agora. ${violation}` })
     const updated = await pool.query(`UPDATE platform_plans SET name=$1,monthly_price=$2,semester_discount=$3,annual_discount=$4,
-      seller_limit=$5,product_limit=$6,catalog_limit=$7,social_weight=$8,active=$9,updated_at=now() WHERE id=$10 RETURNING *`, [
+      seller_limit=$5,product_limit=$6,catalog_limit=$7,social_weight=$8,photo_limit=$9,franchisee_limit=$10,
+      traffic_priority=$11,feature_flags=$12,active=$13,updated_at=now() WHERE id=$14 RETURNING *`, [
       name, money(req.body?.monthlyPrice ?? old.monthly_price), percentage(req.body?.semesterDiscount ?? old.semester_discount), percentage(req.body?.annualDiscount ?? old.annual_discount),
       proposed.seller_limit, proposed.product_limit, proposed.catalog_limit,
-      clampInt(req.body?.socialWeight ?? old.social_weight, 1, 3), req.body?.active === undefined ? old.active : Boolean(req.body.active), req.params.planId,
+      clampInt(req.body?.socialWeight ?? old.social_weight, 1, 3), proposed.photo_limit, proposed.franchisee_limit,
+      proposed.traffic_priority, JSON.stringify(proposed.feature_flags), req.body?.active === undefined ? old.active : Boolean(req.body.active), req.params.planId,
     ])
     await audit(req.platformUser.id, 'plan.update', 'plan', req.params.planId, { code: old.code })
     res.json({ plan: planShape(updated.rows[0]) })
