@@ -83,6 +83,8 @@ jobs:
         run: node server/scanner-module7.test.mjs
       - name: Scanner module 7 dedicated collectors
         run: node server/scanner-module7-dedicated.test.mjs
+      - name: Product polish regression checks
+        run: npm run test:polish
       - name: Build
         run: npm run build
       - name: Show production bundles
