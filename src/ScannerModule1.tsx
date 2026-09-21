@@ -13,6 +13,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
+import { confirmAction } from './ui-dialogs'
 import { api, type ImportJob, type ImportReviewData, type ImportReviewProduct, type ImportReviewSummary } from './api'
 import './scanner-module1.css'
 
@@ -200,7 +201,7 @@ export default function ScannerModule1() {
     const label = job.status === 'completed'
       ? 'Isso apaga somente o histórico e os dados temporários da importação. Produtos já publicados continuam no catálogo.'
       : 'Isso apaga esta importação e todos os dados temporários coletados. Essa ação não pode ser desfeita.'
-    if (!window.confirm(`Descartar importação de ${job.source_host}?\n\n${label}`)) return
+    if (!(await confirmAction(`Descartar importação de ${job.source_host}?\n\n${label}`))) return
     setDiscardingId(job.id)
     setError('')
     setSuccess('')
