@@ -299,8 +299,27 @@ function ProductEditor({ draft, setDraft, onClose, onSaved }: { draft: ProductDr
 }
 
 function SellerEditor({ draft, setDraft, storeSlug, onClose, onSaved }: { draft: Partial<AdminSeller>; setDraft: (draft: Partial<AdminSeller> | null) => void; storeSlug: string; onClose: () => void; onSaved: () => void }) {
-  const [busy, setBusy] = useState(false); const [error, setError] = useState('')
+  const [initialSnapshot] = useState(() => JSON.stringify(draft))
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const dirty = JSON.stringify(draft) !== initialSnapshot
   const update = (key: keyof AdminSeller, value: string | boolean) => setDraft({ ...draft, [key]: value })
-  const save = async (event: React.FormEvent) => { event.preventDefault(); setBusy(true); setError(''); const body = { name: draft.name, phone: draft.phone, slug: draft.slug, isActive: draft.is_active !== false }; try { if (draft.id) await api.updateSeller(draft.id, body); else await api.createSeller(body); onSaved() } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível salvar.') } finally { setBusy(false) } }
-  return <div className="modal-layer"><button className="modal-backdrop" onClick={onClose} /><form className="seller-modal" onSubmit={save}><header><div><span>Equipe comercial</span><h2>{draft.id ? 'Editar vendedora' : 'Nova vendedora'}</h2></div><button type="button" onClick={onClose}><X size={20} /></button></header><div className="editor-scroll"><label><span>Nome</span><input value={draft.name || ''} onChange={(e) => update('name', e.target.value)} required /></label><label><span>WhatsApp</span><input value={draft.phone || ''} onChange={(e) => update('phone', e.target.value)} placeholder="5511999999999" required /></label><label><span>Link individual</span><div className="url-input"><em>/{storeSlug}/</em><input value={draft.slug || ''} onChange={(e) => update('slug', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'))} placeholder="karina" /></div></label><div className="toggle-row"><label><input type="checkbox" checked={draft.is_active !== false} onChange={(e) => update('is_active', e.target.checked)} /><span>Vendedora ativa</span></label></div>{error && <p className="form-error">{error}</p>}</div><footer><button type="button" className="secondary-action" onClick={onClose}>Cancelar</button><button className="primary-action" disabled={busy}>{busy ? 'Salvando…' : 'Salvar vendedora'}<ArrowRight size={17} /></button></footer></form></div>
+  useEffect(() => {
+    const beforeUnload = (event: BeforeUnloadEvent) => { if (!dirty) return; event.preventDefault(); event.returnValue = '' }
+    window.addEventListener('beforeunload', beforeUnload)
+    return () => window.removeEventListener('beforeunload', beforeUnload)
+  }, [dirty])
+  const requestClose = async () => {
+    if (dirty && !(await confirmAction('Há alterações ainda não salvas nesta vendedora.', 'Descartar alterações', 'Descartar'))) return
+    onClose()
+  }
+  const save = async (event: React.FormEvent) => {
+    event.preventDefault(); setBusy(true); setError('')
+    const body = { name: draft.name, phone: draft.phone, slug: draft.slug, isActive: draft.is_active !== false }
+    try { if (draft.id) await api.updateSeller(draft.id, body); else await api.createSeller(body); onSaved() }
+    catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível salvar.') }
+    finally { setBusy(false) }
+  }
+  return <div className="modal-layer"><button className="modal-backdrop" onClick={() => void requestClose()} aria-label="Fechar editor" /><form className="seller-modal" onSubmit={save}><header><div><span>Equipe comercial</span><h2>{draft.id ? 'Editar vendedora' : 'Nova vendedora'}</h2></div><button type="button" onClick={() => void requestClose()} aria-label="Fechar"><X size={20} /></button></header><div className="editor-scroll"><label><span>Nome</span><input value={draft.name || ''} onChange={(e) => update('name', e.target.value)} required /></label><label><span>WhatsApp</span><input value={draft.phone || ''} onChange={(e) => update('phone', e.target.value)} placeholder="5511999999999" required /></label><label><span>Link individual</span><div className="url-input"><em>/{storeSlug}/</em><input value={draft.slug || ''} onChange={(e) => update('slug', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'))} placeholder="karina" /></div></label><div className="toggle-row"><label><input type="checkbox" checked={draft.is_active !== false} onChange={(e) => update('is_active', e.target.checked)} /><span>Vendedora ativa</span></label></div>{error && <p className="form-error">{error}</p>}</div><footer><button type="button" className="secondary-action" onClick={() => void requestClose()}>Cancelar</button><button className="primary-action" disabled={busy}>{busy ? 'Salvando…' : 'Salvar vendedora'}<ArrowRight size={17} /></button></footer></form></div>
 }
+
