@@ -78,7 +78,12 @@ export async function apiRequest<T>(url: string, options: RequestInit = {}): Pro
     headers: options.body instanceof FormData ? options.headers : { 'Content-Type': 'application/json', ...(options.headers || {}) },
   })
   const payload = response.status === 204 ? null : await response.json().catch(() => null)
-  if (!response.ok) throw new Error(payload?.error || 'Não foi possível concluir a operação.')
+  if (!response.ok) {
+    const error = new Error(payload?.error || 'Não foi possível concluir a operação.') as Error & { status?: number; code?: string }
+    error.status = response.status
+    if (payload?.code) error.code = String(payload.code)
+    throw error
+  }
   return payload as T
 }
 
