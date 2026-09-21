@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { BarChart3, Check, CircleAlert, Copy, Download, Gift, MessageCircle, Percent, RefreshCcw, Save, ShoppingCart, Star, Trash2, TrendingUp } from 'lucide-react'
 import { apiRequest } from './api'
 import { confirmAction } from './ui-dialogs'
+import { useUnsavedChanges } from './unsaved-changes'
 import './phase3-panel.css'
 
 type Plan = { code: string; name: string; features: Record<string, boolean> }
@@ -39,6 +40,9 @@ export default function Phase3Panel() {
   const [notice, setNotice] = useState('')
   const [newCoupon, setNewCoupon] = useState({ code: '', type: 'percent' as 'percent' | 'fixed', value: '10', maxUses: '' })
   const [rates, setRates] = useState<Record<string, string>>({})
+  const defaultCoupon = newCoupon.code === '' && newCoupon.type === 'percent' && newCoupon.value === '10' && newCoupon.maxUses === ''
+  const ratesDirty = Boolean(data) && data!.sellers.some((seller) => String(seller.commissionRate || 0) !== String(rates[seller.id] ?? '0'))
+  useUnsavedChanges(!defaultCoupon || ratesDirty)
 
   const load = async () => {
     setError('')
