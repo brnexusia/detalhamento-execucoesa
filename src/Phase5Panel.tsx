@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { AlertTriangle, CheckCircle2, CreditCard, Gauge, KeyRound, RefreshCw, ShieldCheck } from 'lucide-react'
 import { apiRequest } from './api'
+import UiState from './UiState'
 import { confirmAction } from './ui-dialogs'
 import './phase5-panel.css'
 
@@ -57,8 +58,8 @@ export default function Phase5Panel() {
     finally { setBusy(false) }
   }
 
-  if (loading) return <div className="phase5-state"><RefreshCw className="phase5-spin" size={22}/> Carregando assinatura…</div>
-  if (!status) return <div className="phase5-state phase5-state--error">{error || 'Informações indisponíveis.'}</div>
+  if (loading) return <UiState loading title="Carregando plano e uso…"/>
+  if (!status) return <UiState title="Informações indisponíveis." message={error || undefined} onRetry={load}/>
 
   const resources = [
     ['Produtos', status.usage.products, status.plan.limits.products, status.usage.ratios.products],
