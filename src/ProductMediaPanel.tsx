@@ -133,7 +133,7 @@ export default function ProductMediaPanel() {
 
   return <div className="media-manager-shell">
     <header className="media-manager-head">
-      <div><span>Fase 1 · Produtos</span><h1>Fotos dos produtos</h1><p>Gerencie todas as imagens do mesmo produto. A primeira foto é usada como capa da loja.</p></div>
+      <div><span>Produtos</span><h1>Fotos dos produtos</h1><p>Gerencie todas as imagens do mesmo produto. A primeira foto é usada como capa da loja.</p></div>
       <div className="media-plan-card"><small>Plano atual</small><strong>{plan.plan.name}</strong><span>{limit == null ? 'Fotos sem limite definido' : `Até ${limit} fotos por produto`}</span></div>
     </header>
 
