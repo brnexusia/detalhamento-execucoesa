@@ -75,7 +75,7 @@ export default function Phase5Panel() {
 
   return <div className="phase5-panel">
     <header className="phase5-hero">
-      <div><span>Fase 5 · Conta</span><h1>Assinatura e segurança</h1><p>Confira seu plano, créditos, limites e sessões ativas sem misturar cobrança do Shopvax com os pagamentos dos seus clientes.</p></div>
+      <div><span>Conta</span><h1>Plano e uso</h1><p>Confira seu plano, limites de uso, créditos e sessões ativas.</p></div>
       <div className={`phase5-status phase5-status--${status.billing.status}`}><ShieldCheck size={18}/>{statusLabel(status.billing.status)}</div>
     </header>
 
@@ -87,7 +87,6 @@ export default function Phase5Panel() {
       <article className="phase5-card">
         <div className="phase5-card__icon"><CreditCard size={20}/></div>
         <span>Plano atual</span><h2>{status.plan.name}</h2><strong>{brl.format(status.plan.monthlyPrice)}<small>/mês</small></strong>
-        <p>Código: {status.plan.code.toUpperCase()}</p>
       </article>
       <article className="phase5-card">
         <div className="phase5-card__icon"><CheckCircle2 size={20}/></div>
