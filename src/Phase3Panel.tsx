@@ -160,7 +160,7 @@ export default function Phase3Panel() {
   const referralUrl = referral ? `${window.location.origin}/criar-conta?ref=${encodeURIComponent(referral.code)}` : ''
 
   return <div className="phase3-shell">
-    <header className="phase3-title"><div><span>Fase 3 · {data.plan.name}</span><h1>Crescimento e confiança</h1><p>Conversão, recompra e gestão comercial sem confundir intenção de pedido com faturamento confirmado.</p></div><button className="phase3-secondary" onClick={load}><RefreshCcw size={16}/> Atualizar</button></header>
+    <header className="phase3-title"><div><span>{data.plan.name}</span><h1>Crescimento e confiança</h1><p>Conversão, recompra e gestão comercial sem confundir intenção de pedido com faturamento confirmado.</p></div><button className="phase3-secondary" onClick={load}><RefreshCcw size={16}/> Atualizar</button></header>
     {notice && <div className="phase3-notice"><Check size={16}/>{notice}</div>}
     {error && <div className="phase3-error"><CircleAlert size={17}/>{error}</div>}
 
@@ -173,7 +173,7 @@ export default function Phase3Panel() {
 
     <section className={`phase3-card ${!intelligence ? 'is-locked' : ''}`}>
       <div className="phase3-card-head"><div><span>Funil comercial</span><h2>Inteligência comercial</h2><p>Cliques, carrinhos, checkout e WhatsApp continuam sendo sinais de intenção; não são faturamento.</p></div><BarChart3 size={25}/></div>
-      <button className="phase3-primary" disabled={!intelligence} onClick={() => go('/painel/relatorios')}>{intelligence ? 'Abrir inteligência' : 'Disponível a partir do Plano 2'}</button>
+      <button className="phase3-primary" disabled={!intelligence} onClick={() => go('/painel/relatorios')}>{intelligence ? 'Abrir inteligência' : 'Disponível a partir do Prata'}</button>
     </section>
 
     <section className="phase3-grid">
@@ -207,8 +207,8 @@ export default function Phase3Panel() {
     </section>
 
     <section className={`phase3-card ${!commissionEnabled ? 'is-locked' : ''}`}>
-      <div className="phase3-card-head"><div><span>Plano 3</span><h2>Comissão de vendedoras</h2><p>Comissão só é gerada depois que você confirma explicitamente que o pedido virou venda.</p></div><TrendingUp size={24}/></div>
-      {!commissionEnabled ? <p className="phase3-muted">Recurso exclusivo do Plano 3.</p> : <>
+      <div className="phase3-card-head"><div><span>Ouro</span><h2>Comissão de vendedoras</h2><p>Comissão só é gerada depois que você confirma explicitamente que o pedido virou venda.</p></div><TrendingUp size={24}/></div>
+      {!commissionEnabled ? <p className="phase3-muted">Recurso exclusivo do Ouro.</p> : <>
         <div className="phase3-seller-rates">{data.sellers.map((seller) => <div key={seller.id}><strong>{seller.name}</strong><label><input type="number" min="0" max="100" step="0.01" value={rates[seller.id] ?? '0'} onChange={(event) => setRates((value) => ({ ...value, [seller.id]: event.target.value }))}/><span>%</span></label><button disabled={busy === `rate-${seller.id}`} onClick={() => saveRate(seller)}><Save size={15}/> Salvar</button></div>)}</div>
         {commissions && <div className="phase3-commission-summary">{commissions.sellers.map((seller) => <article key={seller.sellerId}><span>{seller.name}</span><strong>{brl.format(seller.commissionTotal)}</strong><small>{seller.confirmedSales} venda(s) confirmada(s) · {brl.format(seller.confirmedTotal)}</small></article>)}</div>}
         <div className="phase3-orders"><div className="phase3-orders-head"><span>Pedido</span><span>Quando</span><span>Valor</span><span>Status</span><span>Ação</span></div>{data.orders.slice(0, 40).map((order) => <div key={order.id}><strong>{order.code}</strong><span>{date.format(new Date(order.created_at))}</span><b>{brl.format(order.total)}</b><span>{order.status === 'confirmado' ? `Venda confirmada · comissão ${brl.format(order.commissionAmount)}` : order.status === 'cancelled' ? 'Cancelado' : 'Ainda não confirmado como venda'}</span><div>{order.status === 'confirmado' ? <button disabled={busy === order.id} onClick={() => confirmSale(order, true)}>Desfazer</button> : order.status === 'cancelled' ? null : <button className="confirm" disabled={busy === order.id} onClick={() => confirmSale(order)}>Confirmar venda</button>}</div></div>)}</div>
