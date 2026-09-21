@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { AlertTriangle, CheckCircle2, CreditCard, Gauge, KeyRound, RefreshCw, ShieldCheck } from 'lucide-react'
+import { apiRequest } from './api'
 import { confirmAction } from './ui-dialogs'
 import './phase5-panel.css'
 
@@ -14,14 +15,6 @@ type Security = { sessions: { active: number; oldestAt?: string | null; latestEx
 
 const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 const date = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' })
-
-async function api<T>(path: string, options: RequestInit = {}) {
-  const response = await fetch(path, { credentials: 'include', ...options, headers: { 'Content-Type': 'application/json', ...(options.headers || {}) } })
-  const text = await response.text()
-  const payload = text ? JSON.parse(text) : null
-  if (!response.ok) throw new Error(payload?.error || 'Não foi possível concluir a operação.')
-  return payload as T
-}
 
 function limitText(current: number, max: number | null) {
   return max == null ? `${current} / ilimitado` : `${current} / ${max}`
@@ -43,8 +36,8 @@ export default function Phase5Panel() {
     setLoading(true); setError('')
     try {
       const [state, sessions] = await Promise.all([
-        api<Status>('/api/admin/phase5/status'),
-        api<Security>('/api/auth/security/sessions'),
+        apiRequest<Status>('/api/admin/phase5/status'),
+        apiRequest<Security>('/api/auth/security/sessions'),
       ])
       setStatus(state); setSecurity(sessions)
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível carregar assinatura e segurança.') }
@@ -57,7 +50,7 @@ export default function Phase5Panel() {
     if (!(await confirmAction('Encerrar todas as outras sessões da sua conta e manter apenas esta?'))) return
     setBusy(true); setError('')
     try {
-      const result = await api<{ revoked: number }>('/api/auth/security/revoke-others', { method: 'POST', body: '{}' })
+      const result = await apiRequest<{ revoked: number }>('/api/auth/security/revoke-others', { method: 'POST', body: '{}' })
       setNotice(result.revoked === 1 ? '1 sessão encerrada.' : `${result.revoked} sessões encerradas.`)
       await load()
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível encerrar as sessões.') }
