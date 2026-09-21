@@ -142,7 +142,7 @@ export default function Phase2Panel() {
   if (loading || !data) return <div className="phase2-shell"><div className="phase2-loading"><RefreshCcw size={24}/><strong>{loading ? 'Carregando Fase 2…' : 'Não foi possível abrir a operação.'}</strong>{error && <p>{error}</p>}</div></div>
 
   return <div className="phase2-shell">
-    <div className="phase2-title"><div><span>Fase 2 · {data.plan.name}</span><h1>Operação da loja</h1><p>Equipe, clientes, domínio, estoque e acompanhamento dos pedidos em um único lugar.</p></div><button className="phase2-secondary" onClick={load}><RefreshCcw size={16}/> Atualizar</button></div>
+    <div className="phase2-title"><div><span>{data.plan.name}</span><h1>Operação da loja</h1><p>Equipe, clientes, domínio, estoque e acompanhamento dos pedidos em um único lugar.</p></div><button className="phase2-secondary" onClick={load}><RefreshCcw size={16}/> Atualizar</button></div>
     {notice && <div className="phase2-notice"><Check size={16}/>{notice}</div>}
     {error && <div className="phase2-error"><CircleAlert size={17}/>{error}</div>}
 
@@ -162,27 +162,27 @@ export default function Phase2Panel() {
 
       <article className={`phase2-card ${!stockEnabled ? 'is-locked' : ''}`}>
         <div className="phase2-card__head"><div><span>Disponibilidade</span><h2>Estoque</h2></div><PackageCheck size={24}/></div>
-        <p>{stockEnabled ? 'Seu plano pode controlar saldo geral e por grade. A baixa continua automática quando o pedido é criado.' : 'O Plano 1 não ativa controle de estoque. O recurso começa no Plano 2.'}</p>
+        <p>{stockEnabled ? 'Seu plano pode controlar saldo geral e por grade. A baixa continua automática quando o pedido é criado.' : 'O Bronze não ativa controle de estoque. O recurso começa no Prata.'}</p>
         <button className="phase2-primary" disabled={!stockEnabled} onClick={() => go('/painel/recursos')}>Abrir controle de estoque</button>
       </article>
     </section>
 
     <section className={`phase2-card ${!franchiseesEnabled ? 'is-locked' : ''}`}>
       <div className="phase2-card__head"><div><span>Rede comercial</span><h2>Franqueados</h2><p>Cadastro separado das vendedoras. O rodízio do link geral continua exclusivo para vendedoras.</p></div><strong>{data.franchisees.length}{franchiseeLimit == null ? '' : ` / ${franchiseeLimit}`}</strong></div>
-      {franchiseesEnabled ? <><div className="phase2-form-row"><input value={franchisee.name} onChange={(e) => setFranchisee((value) => ({ ...value, name: e.target.value }))} placeholder="Nome do franqueado"/><input value={franchisee.phone} onChange={(e) => setFranchisee((value) => ({ ...value, phone: e.target.value }))} placeholder="WhatsApp com DDD"/><button className="phase2-primary" disabled={saving === 'franchisee'} onClick={addFranchisee}><Plus size={16}/> Adicionar</button></div><div className="phase2-franchisees">{data.franchisees.map((item) => <div key={item.id}><UsersRound size={19}/><div><strong>{item.name}</strong><span>{item.phone}</span></div><button className="phase2-icon-danger" disabled={saving === item.id} onClick={() => removeFranchisee(item)}><Trash2 size={16}/></button></div>)}</div></> : <div className="phase2-lock-copy">Disponível a partir do Plano 2.</div>}
+      {franchiseesEnabled ? <><div className="phase2-form-row"><input value={franchisee.name} onChange={(e) => setFranchisee((value) => ({ ...value, name: e.target.value }))} placeholder="Nome do franqueado"/><input value={franchisee.phone} onChange={(e) => setFranchisee((value) => ({ ...value, phone: e.target.value }))} placeholder="WhatsApp com DDD"/><button className="phase2-primary" disabled={saving === 'franchisee'} onClick={addFranchisee}><Plus size={16}/> Adicionar</button></div><div className="phase2-franchisees">{data.franchisees.map((item) => <div key={item.id}><UsersRound size={19}/><div><strong>{item.name}</strong><span>{item.phone}</span></div><button className="phase2-icon-danger" disabled={saving === item.id} onClick={() => removeFranchisee(item)}><Trash2 size={16}/></button></div>)}</div></> : <div className="phase2-lock-copy">Disponível a partir do Prata.</div>}
     </section>
 
     <section className="phase2-grid">
       <article className={`phase2-card ${!customDomainEnabled ? 'is-locked' : ''}`}>
         <div className="phase2-card__head"><div><span>Endereço próprio</span><h2>Domínio</h2></div><Globe2 size={23}/></div>
         <label className="phase2-field"><span>Domínio da loja</span><input disabled={!customDomainEnabled} value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="loja.com.br"/></label>
-        {customDomainEnabled ? <div className="phase2-domain-status"><b className={`status-${data.store.customDomainStatus}`}>{data.store.customDomainStatus === 'verified' ? 'Verificado' : data.store.customDomainStatus === 'pending' ? 'Aguardando DNS' : 'Não configurado'}</b>{data.store.cnameTarget && <span>CNAME → <code>{data.store.cnameTarget}</code> <button onClick={() => copy(data.store.cnameTarget)}><Copy size={13}/></button></span>}</div> : <p className="phase2-muted">Domínio próprio começa no Plano 2.</p>}
+        {customDomainEnabled ? <div className="phase2-domain-status"><b className={`status-${data.store.customDomainStatus}`}>{data.store.customDomainStatus === 'verified' ? 'Verificado' : data.store.customDomainStatus === 'pending' ? 'Aguardando DNS' : 'Não configurado'}</b>{data.store.cnameTarget && <span>CNAME → <code>{data.store.cnameTarget}</code> <button onClick={() => copy(data.store.cnameTarget)}><Copy size={13}/></button></span>}</div> : <p className="phase2-muted">Domínio próprio começa no Prata.</p>}
       </article>
 
       <article className={`phase2-card ${!personalizationEnabled ? 'is-locked' : ''}`}>
         <div className="phase2-card__head"><div><span>Identidade da loja</span><h2>Personalização avançada</h2></div></div>
         <div className="phase2-theme"><label><span>Fundo</span><input type="color" disabled={!personalizationEnabled} value={background} onChange={(e) => setBackground(e.target.value)}/></label><label><span>Texto</span><input type="color" disabled={!personalizationEnabled} value={textColor} onChange={(e) => setTextColor(e.target.value)}/></label><label><span>Fonte</span><select disabled={!personalizationEnabled} value={font} onChange={(e) => setFont(e.target.value)}><option value="system">Sistema</option><option value="rounded">Arredondada</option><option value="modern">Moderna</option><option value="serif">Serifada</option></select></label></div>
-        {!personalizationEnabled && <p className="phase2-muted">Plano de fundo, fonte e cores avançadas começam no Plano 2. Logo, textos básicos e cor principal continuam na configuração da loja.</p>}
+        {!personalizationEnabled && <p className="phase2-muted">Plano de fundo, fonte e cores avançadas começam no Prata. Logo, textos básicos e cor principal continuam na configuração da loja.</p>}
       </article>
     </section>
 
