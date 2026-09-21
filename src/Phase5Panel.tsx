@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { AlertTriangle, CheckCircle2, CreditCard, Gauge, KeyRound, RefreshCw, ShieldCheck } from 'lucide-react'
+import { confirmAction } from './ui-dialogs'
 import './phase5-panel.css'
 
 type Status = {
@@ -53,7 +54,7 @@ export default function Phase5Panel() {
   useEffect(() => { void load() }, [])
 
   const revokeOthers = async () => {
-    if (!window.confirm('Encerrar todas as outras sessões da sua conta e manter apenas esta?')) return
+    if (!(await confirmAction('Encerrar todas as outras sessões da sua conta e manter apenas esta?'))) return
     setBusy(true); setError('')
     try {
       const result = await api<{ revoked: number }>('/api/auth/security/revoke-others', { method: 'POST', body: '{}' })
