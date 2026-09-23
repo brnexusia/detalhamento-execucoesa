@@ -26,7 +26,7 @@ async function register() {
       email: `stock-${Date.now()}-${Math.random()}@example.test`,
       password: 'scanner1234',
       storeName: `Loja Estoque ${Date.now()}`,
-      whatsapp: '5511999999999',
+      whatsapp: '5511999999999', planCode: 'bronze',
     }),
   })
   assert.equal(response.status, 201)
