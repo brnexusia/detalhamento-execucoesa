@@ -11,7 +11,7 @@ async function register(label) {
       email: `scanner-${label}-${Date.now()}@example.test`,
       password: 'scanner1234',
       storeName: `Loja Scanner ${label}`,
-      whatsapp: '5511999999999',
+      whatsapp: '5511999999999', planCode: 'bronze',
     }),
   })
   assert.equal(response.status, 201, `cadastro ${label} deve funcionar`)
