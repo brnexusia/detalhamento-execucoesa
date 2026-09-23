@@ -8,7 +8,7 @@ if (unauthorized.status !== 401) throw new Error(`Métricas sociais deveriam exi
 
 const register = await fetch(`${base}/api/auth/register`, {
   method: 'POST', headers: { 'content-type': 'application/json' },
-  body: JSON.stringify({ name: 'Métricas', email: `metricas-${unique}@example.com`, password: 'senha-social-123', storeName: `Métricas ${unique}`, whatsapp: '5511988800000' }),
+  body: JSON.stringify({ name: 'Métricas', email: `metricas-${unique}@example.com`, password: 'senha-social-123', storeName: `Métricas ${unique}`, whatsapp: '5511988800000', planCode: 'bronze' }),
 })
 const owner = await register.json().catch(() => ({}))
 const ownerCookie = register.headers.get('set-cookie')?.split(';')[0] || ''
