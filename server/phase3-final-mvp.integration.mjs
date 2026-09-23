@@ -59,7 +59,7 @@ async function registerOwner(suffix, referralCode = '') {
       email: `phase3-${suffix}-${unique}@example.test`,
       password: 'phase3-owner-1234',
       storeName: `Loja Fase 3 ${suffix} ${unique}`,
-      whatsapp: '5511900000000',
+      whatsapp: '5511900000000', planCode: 'bronze',
       ...(referralCode ? { referralCode } : {}),
     },
   })
