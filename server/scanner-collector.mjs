@@ -119,7 +119,8 @@ export async function safeRequest(input, options = {}) {
             return
           }
         }
-        const body = buffer.toString('utf8')
+        const binaryResponse = options.responseType === 'buffer'
+        const body = binaryResponse ? '' : buffer.toString('utf8')
         resolve({
           status,
           ok: status >= 200 && status < 300,
@@ -127,6 +128,7 @@ export async function safeRequest(input, options = {}) {
           contentType: String(response.headers['content-type'] || '').toLowerCase(),
           headers: response.headers,
           body,
+          buffer: binaryResponse ? buffer : undefined,
         })
       })
     })
