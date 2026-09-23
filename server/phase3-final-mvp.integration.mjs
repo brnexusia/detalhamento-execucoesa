@@ -77,7 +77,7 @@ try {
   assert.equal(result.response.status, 200)
   assert.equal(result.payload.plan.code, 'bronze')
 
-  // Plano 1: inteligência, avaliações e comissão permanecem bloqueadas.
+  // Bronze: inteligência, avaliações e comissão permanecem bloqueadas.
   result = await request('/api/admin/intent-reports?days=30', { cookie: owner.cookie })
   assert.equal(result.response.status, 403)
   assert.equal(result.payload.code, 'PLAN_FEATURE')
@@ -201,7 +201,7 @@ try {
   assert.equal(storeRow.rowCount, 1)
   const storeId = storeRow.rows[0].id
 
-  // Plano 2: inteligência e avaliações passam a funcionar; comissão continua bloqueada.
+  // Prata: inteligência e avaliações passam a funcionar; comissão continua bloqueada.
   await pool.query("UPDATE stores SET plan_tier='prata' WHERE id=$1", [storeId])
 
   result = await request('/api/admin/intent-reports?days=30', { cookie: owner.cookie })
@@ -228,7 +228,7 @@ try {
   })
   assert.equal(result.response.status, 403)
 
-  // Plano 3: comissão configurável, mas só após confirmação explícita da venda.
+  // Ouro: comissão configurável, mas só após confirmação explícita da venda.
   await pool.query("UPDATE stores SET plan_tier='ouro' WHERE id=$1", [storeId])
   result = await request(`/api/admin/phase3/sellers/${seller.id}/commission`, {
     method: 'PATCH', cookie: owner.cookie, body: { rate: 10 },
