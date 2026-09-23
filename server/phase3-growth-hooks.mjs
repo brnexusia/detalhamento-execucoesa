@@ -881,6 +881,7 @@ function install(app) {
   // O enriquecimento de pedido precisa executar antes da rota de catálogo/estoque.
   app.post('/api/business/orders', express.json({ limit: '256kb' }), orderEnhancer)
   app.post('/api/auth/register', express.json({ limit: '64kb' }), referralRegistration)
+  app.post('/api/auth/google', express.json({ limit: '64kb' }), referralRegistration)
 
   app.get('/api/admin/phase3', requireOwner, (req, res, next) => Promise.resolve(phase3Context(req, res)).catch(next))
   app.get('/api/admin/phase3/commissions', requireOwner, (req, res, next) => Promise.resolve(commissions(req, res)).catch(next))
