@@ -17,7 +17,8 @@
     "test:scanner:module4": "node server/scanner-module4.integration.mjs",
     "test:scanner:module5": "node server/scanner-module5.integration.mjs",
     "test:scanner:module6": "node server/scanner-module6.integration.mjs",
-    "test:polish": "node server/product-polish.integration.mjs"
+    "test:polish": "node server/product-polish.integration.mjs",
+    "test:google-auth": "node server/google-auth.integration.mjs"
   },
   "dependencies": {
     "cheerio": "^1.1.2",
