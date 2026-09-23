@@ -25,7 +25,9 @@ CREATE TABLE IF NOT EXISTS users (
   id text PRIMARY KEY,
   email text UNIQUE NOT NULL,
   name text NOT NULL,
-  password_hash text NOT NULL,
+  password_hash text,
+  google_sub text,
+  avatar_url text NOT NULL DEFAULT '',
   created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE TABLE IF NOT EXISTS stores (
@@ -109,6 +111,10 @@ CREATE INDEX IF NOT EXISTS idx_sellers_store ON sellers(store_id);
 CREATE INDEX IF NOT EXISTS idx_media_store ON media_assets(store_id);
 CREATE INDEX IF NOT EXISTS idx_orders_store_created ON orders(store_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_events_store_created ON events(store_id, created_at DESC);
+ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS google_sub text;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url text NOT NULL DEFAULT '';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub_unique ON users(google_sub) WHERE google_sub IS NOT NULL;
 ALTER TABLE stores ADD COLUMN IF NOT EXISTS plan_tier text NOT NULL DEFAULT 'bronze';
 ALTER TABLE stores ADD COLUMN IF NOT EXISTS signup_plan_selected_at timestamptz;
 `
