@@ -3,7 +3,7 @@ const unique = `${Date.now()}-${Math.random().toString(16).slice(2)}`
 
 const register = await fetch(`${base}/api/auth/register`, {
   method: 'POST', headers: { 'content-type': 'application/json' },
-  body: JSON.stringify({ name: 'Interações', email: `interacoes-${unique}@example.com`, password: 'senha-social-123', storeName: `Interações ${unique}`, whatsapp: '5511999999999' }),
+  body: JSON.stringify({ name: 'Interações', email: `interacoes-${unique}@example.com`, password: 'senha-social-123', storeName: `Interações ${unique}`, whatsapp: '5511999999999', planCode: 'bronze' }),
 })
 const registration = await register.json().catch(() => ({}))
 const ownerCookie = register.headers.get('set-cookie')?.split(';')[0] || ''
