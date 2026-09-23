@@ -3,6 +3,7 @@ import express from 'express'
 import pg from 'pg'
 import { prepareReview } from './scanner-review.mjs'
 import { importParentHash, mergeImportParentProducts } from './scanner-import-grouping.mjs'
+import { localizeImportedProductMedia } from './import-media-localizer.mjs'
 
 const { Pool } = pg
 const databaseUrl = process.env.DATABASE_URL?.trim() || ''
@@ -37,6 +38,9 @@ async function ensurePublisherSchema() {
     ALTER TABLE import_normalized_products ADD COLUMN IF NOT EXISTS publish_group_key text NOT NULL DEFAULT '';
     ALTER TABLE products ADD COLUMN IF NOT EXISTS images jsonb NOT NULL DEFAULT '[]'::jsonb;
     ALTER TABLE products ADD COLUMN IF NOT EXISTS variant_images jsonb NOT NULL DEFAULT '[]'::jsonb;
+    ALTER TABLE media_assets ADD COLUMN IF NOT EXISTS source_url text;
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_media_assets_store_source_unique
+      ON media_assets(store_id,source_url) WHERE source_url IS NOT NULL;
     CREATE INDEX IF NOT EXISTS idx_import_normalized_publish_result ON import_normalized_products(job_id,publish_result);
     CREATE INDEX IF NOT EXISTS idx_import_normalized_publish_group ON import_normalized_products(job_id,selected,publish_group_key);
   `)
@@ -112,6 +116,72 @@ function groupedRows(rows) {
     groups.get(row.publish_group_key).push(row)
   }
   return groups
+}
+
+async function materializeRows(query, rows) {
+  let localized = 0
+  let failed = 0
+  let changed = 0
+  for (const row of rows) {
+    const result = await localizeImportedProductMedia({
+      query,
+      storeId: row.store_id,
+      sourceUrl: row.source_url || '',
+      product: row,
+    })
+    localized += result.localized
+    failed += result.failed
+    if (!result.changed) continue
+    await query(
+      `UPDATE products
+       SET media_url=$1,images=$2,variant_images=$3,updated_at=now()
+       WHERE id=$4 AND store_id=$5`,
+      [result.mediaUrl, JSON.stringify(result.images), JSON.stringify(result.variantImages), row.id, row.store_id],
+    )
+    changed += 1
+  }
+  return { localized, failed, changed }
+}
+
+async function materializeJobMedia(query, jobId, storeId) {
+  const result = await query(
+    `SELECT DISTINCT ON (p.id)
+       p.id,p.store_id,p.media_url,p.media_type,p.images,p.variant_images,
+       COALESCE(n.review_data,n.normalized_data)->>'source_url' AS source_url
+     FROM import_normalized_products n
+     JOIN products p ON p.id=n.published_product_id
+     WHERE n.job_id=$1 AND n.store_id=$2
+     ORDER BY p.id,n.id ASC`,
+    [jobId, storeId],
+  )
+  return materializeRows(query, result.rows)
+}
+
+async function repairExistingImportedMedia() {
+  if (!pool) return
+  await ensurePublisherSchema()
+  let cursor = ''
+  while (true) {
+    const result = await pool.query(
+      `SELECT DISTINCT ON (p.id)
+         p.id,p.store_id,p.media_url,p.media_type,p.images,p.variant_images,
+         COALESCE(n.review_data,n.normalized_data)->>'source_url' AS source_url
+       FROM products p
+       JOIN import_normalized_products n ON n.published_product_id=p.id
+       WHERE p.id>$1
+         AND (
+           p.media_url ~ '^https?://'
+           OR p.images::text ~ 'https?://'
+           OR p.variant_images::text ~ 'https?://'
+         )
+       ORDER BY p.id,n.id ASC
+       LIMIT 50`,
+      [cursor],
+    )
+    if (!result.rowCount) break
+    await materializeRows(pool.query.bind(pool), result.rows)
+    cursor = result.rows.at(-1).id
+  }
 }
 
 async function publishJob(req, res) {
@@ -296,7 +366,13 @@ async function publishJob(req, res) {
       [created, skippedExisting, job.id, store.store_id],
     )
     await client.query('COMMIT')
-    return res.json(publicResult(updated.rows[0], false))
+    let media = { localized: 0, failed: 0, changed: 0 }
+    try {
+      media = await materializeJobMedia(client.query.bind(client), job.id, store.store_id)
+    } catch (error) {
+      console.warn('[scanner publish] media localization:', error?.message || error)
+    }
+    return res.json({ ...publicResult(updated.rows[0], false), media })
   } catch (error) {
     try { await client.query('ROLLBACK') } catch {}
     throw error
@@ -311,6 +387,13 @@ function installPublisherRoute(app) {
   app.post('/api/admin/imports/:jobId/publish', express.json({ limit: '16kb' }), (req, res, next) => {
     Promise.resolve(publishJob(req, res)).catch(next)
   })
+
+  if (pool && process.env.SHOPVAX_IMPORT_MEDIA_REPAIR_DISABLED !== '1') {
+    const timer = setTimeout(() => {
+      void repairExistingImportedMedia().catch((error) => console.warn('[scanner publish] imported media repair:', error?.message || error))
+    }, 15_000)
+    timer.unref()
+  }
 }
 
 const originalInit = express.application.init
