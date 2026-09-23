@@ -10,7 +10,7 @@ async function register(name, email) {
   const response = await fetch(`${base}/api/auth/register`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ name, email, password: adminPassword, storeName: `${name} ${unique}`, whatsapp: '5511999999999' }),
+    body: JSON.stringify({ name, email, password: adminPassword, storeName: `${name} ${unique}`, whatsapp: '5511999999999', planCode: 'bronze' }),
   })
   const body = await response.json().catch(() => ({}))
   const cookie = response.headers.get('set-cookie')?.split(';')[0] || ''
