@@ -48,7 +48,7 @@ async function registerOwner() {
       email: `phase4-${unique}@example.test`,
       password: 'phase4-owner-1234',
       storeName: `Loja Fase 4 ${unique}`,
-      whatsapp: '5511900000000',
+      whatsapp: '5511900000000', planCode: 'bronze',
     },
   })
   assert.equal(result.response.status, 201)
