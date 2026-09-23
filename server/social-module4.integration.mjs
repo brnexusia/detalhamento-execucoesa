@@ -10,7 +10,7 @@ async function createStore(suffix) {
       email: `feed-${suffix}-${unique}@example.com`,
       password: 'senha-social-123',
       storeName: `Feed ${suffix} ${unique}`,
-      whatsapp: '5511999999999',
+      whatsapp: '5511999999999', planCode: 'bronze',
     }),
   })
   const body = await response.json().catch(() => ({}))

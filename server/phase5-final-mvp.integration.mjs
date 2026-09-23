@@ -58,7 +58,7 @@ async function waitForPhase5Schema() {
 async function registerOwner(name, email, password) {
   const result = await request('/api/auth/register', {
     method: 'POST',
-    body: { name, email, password, storeName: `${name} ${unique}`, whatsapp: '5511999999915' },
+    body: { name, email, password, storeName: `${name} ${unique}`, whatsapp: '5511999999915', planCode: 'bronze' },
   })
   assert.equal(result.response.status, 201, `cadastro ${name}: ${JSON.stringify(result.payload)}`)
   const cookie = ownerCookie(result.cookies)

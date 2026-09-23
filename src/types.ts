@@ -107,6 +107,7 @@ export type AdminStore = {
   logo_url: string
   accent: string
   is_active: boolean
+  plan_tier?: 'bronze' | 'prata' | 'ouro' | string
 }
 
 export type AdminSeller = {

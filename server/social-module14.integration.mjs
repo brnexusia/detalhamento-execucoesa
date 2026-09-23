@@ -8,7 +8,7 @@ if (source.includes("localStorage.getItem('atacado-shop-cart-v3')") || source.in
 const base = process.env.BASE_URL || 'http://127.0.0.1:3000'
 const unique = `${Date.now()}-${Math.random().toString(16).slice(2)}`
 async function register(label) {
-  const response = await fetch(`${base}/api/auth/register`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: label, email: `${label}-${unique}@example.com`, password: 'senha-social-123', storeName: `${label} ${unique}`, whatsapp: '5511999999999' }) })
+  const response = await fetch(`${base}/api/auth/register`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: label, email: `${label}-${unique}@example.com`, password: 'senha-social-123', storeName: `${label} ${unique}`, whatsapp: '5511999999999', planCode: 'bronze' }) })
   const body = await response.json().catch(() => ({})); const cookie = response.headers.get('set-cookie')?.split(';')[0] || ''
   if (!response.ok || !cookie) throw new Error(`Cadastro ${label}: ${response.status}`)
   return { ...body, cookie }

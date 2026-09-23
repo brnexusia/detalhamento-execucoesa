@@ -8,7 +8,7 @@ const unique = `${Date.now()}-${Math.random().toString(16).slice(2)}`
 async function createStore(tier, suffix) {
   const response = await fetch(`${base}/api/auth/register`, {
     method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ name: `${tier}-${suffix}`, email: `${tier}-${suffix}-${unique}@example.com`, password: 'senha-social-123', storeName: `${tier}-${suffix}-${unique}`, whatsapp: '5511999999999' }),
+    body: JSON.stringify({ name: `${tier}-${suffix}`, email: `${tier}-${suffix}-${unique}@example.com`, password: 'senha-social-123', storeName: `${tier}-${suffix}-${unique}`, whatsapp: '5511999999999', planCode: 'bronze' }),
   })
   const body = await response.json().catch(() => ({}))
   const cookie = response.headers.get('set-cookie')?.split(';')[0] || ''

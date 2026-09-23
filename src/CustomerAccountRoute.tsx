@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, CheckCircle2, LogOut, PackageCheck, UserRound } from 'lucide-react'
+import { apiRequest } from './api'
 import './customer-account.css'
 
 type Customer = { id: string; name: string; email: string; phone: string }
@@ -18,21 +19,6 @@ type StoreConfig = {
 
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 const date = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium', timeStyle: 'short' })
-
-async function request<T>(url: string, options: RequestInit = {}) {
-  const response = await fetch(url, {
-    credentials: 'include',
-    ...options,
-    headers: options.body ? { 'content-type': 'application/json', ...(options.headers || {}) } : options.headers,
-  })
-  const payload = response.status === 204 ? null : await response.json().catch(() => null)
-  if (!response.ok) {
-    const error = new Error(payload?.error || 'Não foi possível concluir a operação.') as Error & { status?: number }
-    error.status = response.status
-    throw error
-  }
-  return payload as T
-}
 
 function go(path: string) {
   window.history.pushState({}, '', path)
@@ -58,7 +44,7 @@ export default function CustomerAccountRoute() {
 
   const loadAccount = async () => {
     try {
-      const result = await request<AccountPayload>(`/api/public/store/${encodeURIComponent(storeSlug)}/customers/me`)
+      const result = await apiRequest<AccountPayload>(`/api/public/store/${encodeURIComponent(storeSlug)}/customers/me`)
       setAccount(result)
       return true
     } catch (err) {
@@ -72,7 +58,7 @@ export default function CustomerAccountRoute() {
   useEffect(() => {
     let mounted = true
     Promise.all([
-      request<StoreConfig>(`/api/public/store/${encodeURIComponent(storeSlug)}/phase2-config`),
+      apiRequest<StoreConfig>(`/api/public/store/${encodeURIComponent(storeSlug)}/phase2-config`),
       loadAccount(),
     ]).then(([next]) => { if (mounted) setConfig(next) })
       .catch((err) => { if (mounted) setError(err instanceof Error ? err.message : 'Loja não encontrada.') })
@@ -87,14 +73,14 @@ export default function CustomerAccountRoute() {
       const body = mode === 'login'
         ? { email: form.email, password: form.password }
         : { name: form.name, email: form.email, phone: form.phone, password: form.password }
-      await request(`/api/public/store/${encodeURIComponent(storeSlug)}/customers/${endpoint}`, { method: 'POST', body: JSON.stringify(body) })
+      await apiRequest(`/api/public/store/${encodeURIComponent(storeSlug)}/customers/${endpoint}`, { method: 'POST', body: JSON.stringify(body) })
       await loadAccount()
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível entrar.') }
     finally { setBusy(false) }
   }
 
   const logout = async () => {
-    await request('/api/public/customers/logout', { method: 'POST' }).catch(() => undefined)
+    await apiRequest('/api/public/customers/logout', { method: 'POST' }).catch(() => undefined)
     setAccount(null)
     setMode('login')
   }
@@ -110,7 +96,7 @@ export default function CustomerAccountRoute() {
 
       {!config.customerLoginEnabled ? <section className="customer-card"><h1>Conta de cliente indisponível</h1><p>Esta loja desativou temporariamente o acesso por conta.</p></section> : account ? <>
         <section className="customer-card customer-profile"><div><small>Olá,</small><h1>{account.customer.name}</h1><p>{account.customer.email}</p></div><button onClick={logout}><LogOut size={16}/> Sair</button></section>
-        <section className="customer-card"><div className="customer-section-head"><div><small>Histórico</small><h2>Seus pedidos</h2></div><strong>{account.orders.length}</strong></div><p className="customer-semantics">{account.semantics}</p><div className="customer-orders">{account.orders.map((order) => <article key={order.id}><div className="customer-order-top"><div><small>{date.format(new Date(order.created_at))}</small><strong>{order.code}</strong></div><span className={`customer-status status-${order.status}`}><CheckCircle2 size={14}/>{statusLabel(order.status)}</span></div><div className="customer-order-info"><span>{order.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0)} item(ns)</span><span>{order.seller_name ? `Atendimento: ${order.seller_name}` : 'Atendimento da loja'}</span><b>{money.format(order.total)}</b></div></article>)}{!account.orders.length && <div className="customer-empty"><PackageCheck size={30}/><strong>Nenhum pedido ainda.</strong><p>Quando você enviar um carrinho para o atendimento, ele aparecerá aqui.</p></div>}</div></section>
+        <section className="customer-card"><div className="customer-section-head"><div><small>Histórico</small><h2>Seus pedidos</h2></div><strong>{account.orders.length}</strong></div><p className="customer-semantics">{account.semantics}</p><div className="customer-orders">{account.orders.map((order) => <article key={order.id}><div className="customer-order-top"><div><small>{date.format(new Date(order.created_at))}</small><strong>{order.code}</strong></div><span className={`customer-status status-${order.status}`}><CheckCircle2 size={14}/>{statusLabel(order.status)}</span></div><div className="customer-order-info"><span>{(() => { const total = order.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0); return `${total} ${total === 1 ? 'item' : 'itens'}` })()}</span><span>{order.seller_name ? `Atendimento: ${order.seller_name}` : 'Atendimento da loja'}</span><b>{money.format(order.total)}</b></div></article>)}{!account.orders.length && <div className="customer-empty"><PackageCheck size={30}/><strong>Nenhum pedido ainda.</strong><p>Quando você enviar um carrinho para o atendimento, ele aparecerá aqui.</p></div>}</div></section>
       </> : <section className="customer-card customer-auth">
         <div className="customer-tabs"><button className={mode === 'login' ? 'is-active' : ''} onClick={() => setMode('login')}>Entrar</button><button className={mode === 'register' ? 'is-active' : ''} onClick={() => setMode('register')}>Criar conta</button></div>
         <div><small>Cliente {config.store.name}</small><h1>{mode === 'login' ? 'Acesse seus pedidos' : 'Crie sua conta'}</h1><p>Use sua conta para acompanhar os pedidos registrados nesta loja.</p></div>

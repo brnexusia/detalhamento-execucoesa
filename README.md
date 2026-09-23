@@ -13,7 +13,7 @@ O cliente descobre produtos no feed ou entra pelo link da loja/vendedora, escolh
 - continuidade da vendedora atribuída;
 - botão Perguntar para WhatsApp;
 - prioridade de distribuição por plano e diversidade entre lojas;
-- no Plano 3, cálculo de frete e finalização opcional por checkout hospedado do Asaas.
+- no Ouro, cálculo de frete e finalização opcional por checkout hospedado do Asaas.
 
 ## Painel do lojista
 
@@ -25,13 +25,13 @@ O cliente descobre produtos no feed ou entra pelo link da loja/vendedora, escolh
 - métricas de intenção e funil;
 - crescimento: cupons, recuperação de carrinho, avaliações e indicação;
 - configurações comerciais;
-- no Plano 3, área de integrações para Asaas, frete, Meta Shopping e API/ERP.
+- no Ouro, área de integrações para Asaas, frete, Meta Shopping e API/ERP.
 
-## Modelo final do MVP
+## Planos do MVP
 
-Os códigos internos `bronze`, `prata` e `ouro` são mantidos por compatibilidade com contas existentes, mas comercialmente correspondem a **Plano 1, Plano 2 e Plano 3**.
+Os planos comerciais são **Bronze, Prata e Ouro**. Os mesmos nomes são usados no cadastro, painel, limites e administração da plataforma.
 
-| Regra base | Plano 1 | Plano 2 | Plano 3 |
+| Regra base | Bronze | Prata | Ouro |
 | --- | ---: | ---: | ---: |
 | Mensal | R$ 49,90 | R$ 94,90 | R$ 144,90 |
 | Vendedoras | 2 | 4 | Ilimitadas |
@@ -50,9 +50,9 @@ Os códigos internos `bronze`, `prata` e `ouro` são mantidos por compatibilidad
 | Feed Meta Shopping | — | — | Sim |
 | API / ERP | — | — | Sim |
 
-Produtos não possuem mais o teto legado de 500/2.000 unidades nos planos padrão. Semestral usa 5% de desconto e anual 15% por padrão.
+Produtos não possuem mais o teto legado de 500/2.000 unidades nos planos padrão. Semestral usa 5% de desconto e anual 15% por padrão na configuração comercial. O cadastro público mostra o valor mensal para não sugerir um ciclo de cobrança que ainda não é selecionável pelo lojista.
 
-**Vax Lar permanece como recurso futuro do Plano 3 e não deve ser tratado como funcionalidade pronta do MVP.**
+**Vax Lar permanece como recurso futuro do Ouro e não deve ser tratado como funcionalidade pronta do MVP.**
 
 ### Fase 1 de fechamento
 
@@ -68,7 +68,7 @@ O backend continua sendo a fonte de verdade de preço, visibilidade, variações
 
 ### Fase 4 — integrações
 
-A área `/painel/integracoes` é exclusiva do Plano 3.
+A área `/painel/integracoes` é exclusiva do Ouro.
 
 **Asaas**
 
@@ -113,6 +113,9 @@ A rota `/admin` é o painel operacional do Shopvax. Administradores podem:
 
 O servidor aplica:
 
+- login por e-mail/senha e, quando configurado, **Entrar com Google** via Google Identity Services;
+- tokens de identidade do Google validados no backend com audiência, emissor, expiração e e-mail verificado antes de criar a sessão;
+- contas existentes com o mesmo e-mail verificado podem vincular o Google sem duplicar a loja;
 - cookies de sessão `HttpOnly` e `Secure` quando HTTPS está ativo;
 - sessões administrativas limitadas a 7 dias para acesso ao `/admin`;
 - reautenticação por senha em exclusão de conta e remoção de administrador;
@@ -147,9 +150,22 @@ Variáveis principais:
 DATABASE_URL=postgresql://usuario:senha@host:5432/banco
 SHOPVAX_PUBLIC_URL=https://seu-dominio-shopvax.com.br
 SHOPVAX_INTEGRATION_SECRET=gere-um-segredo-longo-aleatorio-e-estavel
+GOOGLE_CLIENT_ID=000000000000-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com
 ```
 
 `SHOPVAX_INTEGRATION_SECRET` deve permanecer estável entre deploys: ele cifra chaves Asaas e segredos de webhook salvos no banco. Trocar essa variável sem migração das credenciais torna os segredos existentes indecifráveis.
+
+### Login com Google
+
+Crie um **OAuth Client ID do tipo Web application** no Google Cloud e cadastre os domínios do Shopvax em **Authorized JavaScript origins**. Como o Shopvax usa o fluxo popup/callback do Google Identity Services, o frontend recebe um ID token e o backend o valida antes de abrir a sessão.
+
+Em produção, configure:
+
+```env
+GOOGLE_CLIENT_ID=seu-client-id.apps.googleusercontent.com
+```
+
+Para desenvolvimento, adicione também a origem local usada no navegador, por exemplo `http://localhost:5173`. O Client ID é público por definição; não é necessário colocar Client Secret no frontend ou no Shopvax para este fluxo. Sem `GOOGLE_CLIENT_ID`, o botão Google fica oculto e o login tradicional continua funcionando.
 
 `SHOPVAX_PUBLIC_URL` é usada para montar o callback público do Asaas e os links absolutos do feed Meta. As chaves Asaas são cadastradas dentro da própria loja em `/painel/integracoes`; não devem ser colocadas no código-fonte.
 

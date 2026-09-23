@@ -1,4 +1,4 @@
-import type { AdminBootstrap, Catalog, PublicPayload } from './types'
+import type { AdminBootstrap, AdminProduct, Catalog, PublicPayload } from './types'
 
 export type ImportJob = {
   id: string
@@ -71,16 +71,23 @@ export type AdminCatalog = Catalog & {
   items: Array<{ productId: string; priceOverride: number | null; visible: boolean }>
 }
 
-async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
+export async function apiRequest<T>(url: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(url, {
     credentials: 'include',
     ...options,
     headers: options.body instanceof FormData ? options.headers : { 'Content-Type': 'application/json', ...(options.headers || {}) },
   })
   const payload = response.status === 204 ? null : await response.json().catch(() => null)
-  if (!response.ok) throw new Error(payload?.error || 'Não foi possível concluir a operação.')
+  if (!response.ok) {
+    const error = new Error(payload?.error || 'Não foi possível concluir a operação.') as Error & { status?: number; code?: string }
+    error.status = response.status
+    if (payload?.code) error.code = String(payload.code)
+    throw error
+  }
   return payload as T
 }
+
+const request = apiRequest
 
 function currentCatalogSlug() {
   if (typeof window === 'undefined') return ''
@@ -102,13 +109,20 @@ export const api = {
   track: (body: { storeSlug: string; sellerSlug?: string; kind: 'view' | 'cart' | 'whatsapp' }) => request<void>('/api/public/events', { method: 'POST', body: JSON.stringify(body) }).catch(() => undefined),
   createOrder: (body: { storeSlug: string; sellerSlug?: string; catalogSlug?: string; items: Array<{ productId: string; quantity: number; selections: Record<string, string> }> }) => request<{ code: string; orderId?: string; catalog?: Catalog; whatsappUrl: string }>('/api/business/orders', { method: 'POST', body: JSON.stringify({ ...body, catalogSlug: body.catalogSlug ?? currentCatalogSlug() }) }),
   login: (body: { email: string; password: string }) => request<{ ok: true }>('/api/auth/login', { method: 'POST', body: JSON.stringify(body) }),
-  register: (body: { name: string; email: string; password: string; storeName: string; whatsapp: string }) => request<{ ok: true; storeSlug: string }>('/api/auth/register', { method: 'POST', body: JSON.stringify(body) }),
+  googleConfig: () => request<{ enabled: boolean; clientId: string | null }>('/api/public/auth/google-config'),
+  googleAuth: (body: { credential: string; intent: 'login' | 'register'; storeName?: string; whatsapp?: string; planCode?: string; referralCode?: string }) => request<
+    | { ok: true; created: boolean; storeSlug?: string; profile: { name: string; email: string; picture?: string } }
+    | { ok: false; needsSignup: true; profile: { name: string; email: string; picture?: string } }
+  >('/api/auth/google', { method: 'POST', body: JSON.stringify(body) }),
+  register: (body: { name: string; email: string; password: string; storeName: string; whatsapp: string; planCode: string; referralCode?: string }) => request<{ ok: true; storeSlug: string; planCode: string }>('/api/auth/register', { method: 'POST', body: JSON.stringify(body) }),
   logout: () => request<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
-  me: () => request<{ user: { id: string; name: string; email: string }; store: unknown }>('/api/auth/me'),
+  me: () => request<{ user: { id: string; name: string; email: string }; store: { id: string; slug: string; name: string; plan_tier?: string } }>('/api/auth/me'),
   bootstrap: () => request<AdminBootstrap>('/api/admin/bootstrap'),
+  planContext: () => request<{ plan: { code: string; name: string; monthlyPrice: number; limits: { sellers: number | null; products: number | null; catalogs: number | null; photosPerProduct: number | null; franchisees: number | null }; features: Record<string, boolean> }; usage: { products: number; sellers: number; catalogs: number } }>('/api/admin/plan-context'),
   updateStore: (body: Record<string, unknown>) => request('/api/admin/store', { method: 'PUT', body: JSON.stringify(body) }),
-  createProduct: (body: Record<string, unknown>) => request('/api/admin/products', { method: 'POST', body: JSON.stringify(body) }),
-  updateProduct: (id: string, body: Record<string, unknown>) => request(`/api/admin/products/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  createProduct: (body: Record<string, unknown>) => request<{ product: AdminProduct }>('/api/admin/products', { method: 'POST', body: JSON.stringify(body) }),
+  updateProduct: (id: string, body: Record<string, unknown>) => request<{ product: AdminProduct }>(`/api/admin/products/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  updateProductGallery: (id: string, images: string[]) => request<{ product: { id: string; images: string[] }; limit: number | null }>(`/api/admin/products/${encodeURIComponent(id)}/gallery`, { method: 'PATCH', body: JSON.stringify({ images }) }),
   deleteProduct: (id: string) => request(`/api/admin/products/${id}`, { method: 'DELETE' }),
   updateStock: (productId: string, body: { enabled: boolean; quantity: number; variantStock: Record<string, number> }) => request<{ product: { id: string; stock_enabled: boolean; stock_quantity: number; variant_stock: Record<string, number> } }>(`/api/admin/features/products/${encodeURIComponent(productId)}/stock`, { method: 'PATCH', body: JSON.stringify(body) }),
   cancelOrder: (orderId: string) => request<{ order: { id: string; status: string; stock_reverted: boolean }; idempotent: boolean }>(`/api/admin/features/orders/${encodeURIComponent(orderId)}/cancel`, { method: 'POST', body: '{}' }),

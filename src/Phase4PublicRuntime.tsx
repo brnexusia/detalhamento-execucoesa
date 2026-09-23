@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, CreditCard, ExternalLink, MapPin, PackageCheck, RefreshCcw, Truck } from 'lucide-react'
+import { apiRequest } from './api'
 import './phase4-public.css'
 
 type PublicConfig = {
@@ -35,21 +36,6 @@ function subtotalOf(items: CartItem[]) {
   return Math.round(items.reduce((sum, item) => sum + Number(item.product?.price || 0) * Math.max(1, Number(item.quantity || 1)), 0) * 100) / 100
 }
 
-async function request<T>(url: string, options: RequestInit = {}) {
-  const response = await fetch(url, {
-    credentials: 'include',
-    ...options,
-    headers: options.body ? { 'content-type': 'application/json', ...(options.headers || {}) } : options.headers,
-  })
-  const payload = response.status === 204 ? null : await response.json().catch(() => null)
-  if (!response.ok) {
-    const error = new Error(payload?.error || 'Não foi possível concluir a operação.') as Error & { status?: number }
-    error.status = response.status
-    throw error
-  }
-  return payload as T
-}
-
 function go(path: string) {
   window.history.pushState({}, '', path)
   window.dispatchEvent(new PopStateEvent('popstate'))
@@ -75,13 +61,13 @@ export default function Phase4PublicRuntime() {
   useEffect(() => {
     if (!route.storeSlug) return
     let mounted = true
-    request<PublicConfig>(`/api/public/phase4/config/${encodeURIComponent(route.storeSlug)}`)
+    apiRequest<PublicConfig>(`/api/public/phase4/config/${encodeURIComponent(route.storeSlug)}`)
       .then((next) => {
         if (!mounted) return
         setConfig(next)
         if (next.payment.methods.length && !next.payment.methods.includes(billingType)) setBillingType(next.payment.methods[0])
         if (next.payment.enabled) {
-          request(`/api/public/store/${encodeURIComponent(route.storeSlug)}/customers/me`)
+          apiRequest(`/api/public/store/${encodeURIComponent(route.storeSlug)}/customers/me`)
             .then(() => { if (mounted) setCustomerLogged(true) })
             .catch(() => { if (mounted) setCustomerLogged(false) })
         }
@@ -96,15 +82,26 @@ export default function Phase4PublicRuntime() {
       setTarget(document.querySelector('.cart-drawer__foot'))
       setCart(cartFor(route.storeSlug))
     }
+    const onCartChange = (event: Event) => {
+      const detail = (event as CustomEvent<{ storeSlug?: string }>).detail
+      if (!detail?.storeSlug || detail.storeSlug === route.storeSlug) sync()
+    }
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === `shopvax-cart-v1:${encodeURIComponent(route.storeSlug)}`) sync()
+    }
     sync()
-    const timer = window.setInterval(sync, 900)
-    return () => window.clearInterval(timer)
+    window.addEventListener('shopvax:cart-change', onCartChange)
+    window.addEventListener('storage', onStorage)
+    return () => {
+      window.removeEventListener('shopvax:cart-change', onCartChange)
+      window.removeEventListener('storage', onStorage)
+    }
   }, [route.storeSlug])
 
   const calculateShipping = async () => {
     setBusy('shipping'); setMessage(''); setSelectedQuote(null)
     try {
-      const payload = await request<{ quotes: Quote[] }>('/api/public/phase4/shipping/quote', {
+      const payload = await apiRequest<{ quotes: Quote[] }>('/api/public/phase4/shipping/quote', {
         method: 'POST', body: JSON.stringify({ storeSlug: route.storeSlug, postalCode, state, subtotal }),
       })
       setQuotes(payload.quotes)
@@ -126,19 +123,19 @@ export default function Phase4PublicRuntime() {
         quantity: Math.max(1, Number(item.quantity || 1)),
         selections: item.selections || {},
       })).filter((item) => item.productId)
-      const order = await request<OrderResponse>('/api/business/orders', {
+      const order = await apiRequest<OrderResponse>('/api/business/orders', {
         method: 'POST',
         body: JSON.stringify({ storeSlug: route.storeSlug, sellerSlug: route.sellerSlug || undefined, catalogSlug: route.catalogSlug || undefined, items }),
       })
       if (!order.orderId) throw new Error('O pedido foi criado sem identificador para pagamento.')
 
       if (selectedQuote) {
-        await request(`/api/public/phase4/orders/${encodeURIComponent(order.orderId)}/shipping`, {
+        await apiRequest(`/api/public/phase4/orders/${encodeURIComponent(order.orderId)}/shipping`, {
           method: 'POST', body: JSON.stringify({ storeSlug: route.storeSlug, quoteId: selectedQuote.id }),
         })
       }
 
-      const payment = await request<{ payment: { invoiceUrl: string; value: number }; order: { code?: string } }>('/api/public/phase4/payments', {
+      const payment = await apiRequest<{ payment: { invoiceUrl: string; value: number }; order: { code?: string } }>('/api/public/phase4/payments', {
         method: 'POST', body: JSON.stringify({ storeSlug: route.storeSlug, orderId: order.orderId, billingType, cpfCnpj }),
       })
       setLastPayment({ invoiceUrl: payment.payment.invoiceUrl, value: payment.payment.value, code: payment.order.code || order.code })

@@ -59,6 +59,8 @@ jobs:
           grep -Fq '"./server/business-features-hooks.mjs"' Dockerfile
           grep -Fq '"./server/platform-hooks.mjs"' Dockerfile
           grep -Fq '"./server/plan-limits-hooks.mjs"' Dockerfile
+          grep -Fq '"./server/google-auth-hooks.mjs"' Dockerfile
+          grep -Fq 'google-auth-hooks.mjs' package.json
           grep -Fq '"./server/scanner-hooks.mjs"' Dockerfile
           grep -Fq '"./server/scanner-publish-hooks.mjs"' Dockerfile
           grep -Fq '"./server/social-network-hooks.mjs"' Dockerfile
@@ -83,6 +85,10 @@ jobs:
         run: node server/scanner-module7.test.mjs
       - name: Scanner module 7 dedicated collectors
         run: node server/scanner-module7-dedicated.test.mjs
+      - name: Product polish regression checks
+        run: npm run test:polish
+      - name: Google authentication regression checks
+        run: npm run test:google-auth
       - name: Build
         run: npm run build
       - name: Show production bundles
@@ -91,6 +97,21 @@ jobs:
         run: |
           npm start > /tmp/shopvax.log 2>&1 &
           echo $! > /tmp/shopvax.pid
+      - name: Google auth disabled-by-default endpoint
+        run: |
+          node - <<'NODE'
+          let response
+          for (let attempt = 0; attempt < 40; attempt += 1) {
+            try {
+              response = await fetch('http://127.0.0.1:3000/api/public/auth/google-config')
+              if (response.ok) break
+            } catch {}
+            await new Promise((resolve) => setTimeout(resolve, 250))
+          }
+          if (!response?.ok) throw new Error('Google config endpoint failed')
+          const body = await response.json()
+          if (body.enabled !== false || body.clientId !== null) throw new Error('Google auth should be disabled when GOOGLE_CLIENT_ID is absent')
+          NODE
       - name: Social module 1 network foundation
         run: node server/social-module1.integration.mjs
       - name: Social module 2 public store profile

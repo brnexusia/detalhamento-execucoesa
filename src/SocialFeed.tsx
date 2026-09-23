@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { showToast } from './ui-dialogs'
 import { ChevronRight, Eye, Heart, MessageCircleQuestion, Minus, Play, Plus, Share2, ShoppingBag, Store, Volume2, VolumeX, X } from 'lucide-react'
 import './social-feed.css'
 
@@ -69,7 +70,7 @@ function readCart(slug: string): FeedCartItem[] {
 }
 
 function writeCart(slug: string, items: FeedCartItem[]) {
-  try { localStorage.setItem(cartStorageKey(slug), JSON.stringify(items)) }
+  try { localStorage.setItem(cartStorageKey(slug), JSON.stringify(items)); window.dispatchEvent(new CustomEvent('shopvax:cart-change', { detail: { storeSlug: slug } })) }
   catch { /* armazenamento indisponível */ }
 }
 
@@ -157,7 +158,7 @@ function SocialPostCard({ post, cartCount, onProfile, onAdd, onCart }: { post: S
       const response = await fetch(`/api/social/posts/${post.id}/ask`, { method: 'POST' })
       const body = await response.json().catch(() => null)
       if (response.ok && body?.whatsappUrl) window.open(body.whatsappUrl, '_blank', 'noopener,noreferrer')
-      else if (body?.error) window.alert(body.error)
+      else if (body?.error) showToast(body.error, 'error')
     } finally { setAsking(false) }
   }
 
@@ -308,7 +309,7 @@ export default function SocialFeed() {
   const cartTotal = cartItems.reduce((sum, item) => sum + Number(item.product.price || 0) * Number(item.quantity || 0), 0)
 
   return <div className="social-feed-page">
-    <header className="social-feed-nav"><strong>SHOPVAX</strong><span>Descobrir</span><a href="/entrar">Entrar</a></header>
+    <header className="social-feed-nav"><strong>SHOPVAX</strong><span>Descobrir</span><div className="social-feed-nav__right"><a href="/para-lojas">Para lojas</a><a href="/entrar">Entrar</a></div></header>
     <main className="social-feed-list" ref={listRef} onScroll={(event) => { scrollTopRef.current = event.currentTarget.scrollTop }}>
       {posts.map((post) => <SocialPostCard post={post} key={post.id} cartCount={cartCount(post.store.slug)} onProfile={openProfile} onAdd={requestAdd} onCart={setActiveCart}/>) }
       {!posts.length && !loading && !error && <div className="social-feed-state"><h1>O feed está começando.</h1><p>As publicações das lojas aparecerão aqui.</p></div>}

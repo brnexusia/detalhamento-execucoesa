@@ -32,7 +32,7 @@ async function register() {
       email: `phase1-${unique}@example.test`,
       password: 'phase1-mvp-1234',
       storeName: `Loja Fase 1 ${unique}`,
-      whatsapp: '5511999999999',
+      whatsapp: '5511999999999', planCode: 'bronze',
     },
   })
   assert.equal(result.response.status, 201)
@@ -48,7 +48,7 @@ try {
   let result = await request('/api/admin/plan-context', { cookie: account.cookie })
   assert.equal(result.response.status, 200)
   assert.equal(result.payload.plan.code, 'bronze')
-  assert.equal(result.payload.plan.name, 'Plano 1')
+  assert.equal(result.payload.plan.name, 'Bronze')
   assert.equal(result.payload.plan.limits.sellers, 2)
   assert.equal(result.payload.plan.limits.products, null)
   assert.equal(result.payload.plan.limits.photosPerProduct, 5)
@@ -99,7 +99,7 @@ try {
 
   result = await request('/api/admin/catalogs', { cookie: account.cookie })
   assert.equal(result.response.status, 200)
-  assert.equal(result.payload.catalogs.length, 1, 'Plano 1 deve começar com um único catálogo padrão')
+  assert.equal(result.payload.catalogs.length, 1, 'Bronze deve começar com um único catálogo padrão')
   const catalog = result.payload.catalogs[0]
   assert.equal(catalog.isDefault, true)
 

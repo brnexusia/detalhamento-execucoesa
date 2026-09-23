@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "start": "node --import ./server/brand-compat-hooks.mjs --import ./server/security-hooks.mjs --import ./server/performance-hooks.mjs --import ./server/startup-write-serialization-hooks.mjs --import ./server/api-json-hooks.mjs --import ./server/phase4-schema-gate-hooks.mjs --import ./server/phase4-integrations-hooks.mjs --import ./server/phase4-public-config-hooks.mjs --import ./server/phase4-order-events-hooks.mjs --import ./server/phase5-launch-hooks.mjs --import ./server/phase3-route-bridge-hooks.mjs --import ./server/phase3-growth-hooks.mjs --import ./server/phase3-checkout-hooks.mjs --import ./server/analytics-features-hooks.mjs --import ./server/team-features-hooks.mjs --import ./server/commercial-config-hooks.mjs --import ./server/catalog-order-lock-fix.mjs --import ./server/phase2-compat-hooks.mjs --import ./server/phase2-operation-hooks.mjs --import ./server/phase2-public-config-hooks.mjs --import ./server/catalog-features-hooks.mjs --import ./server/business-features-hooks.mjs --import ./server/platform-hooks.mjs --import ./server/plan-limits-hooks.mjs --import ./server/signup-plan-hooks.mjs --import ./server/phase1-product-media-hooks.mjs --import ./server/scanner-hooks.mjs --import ./server/scanner-publish-hooks.mjs --import ./server/social-network-hooks.mjs --import ./server/social-feed-ranking-hooks.mjs --import ./server/social-commerce-hooks.mjs --import ./server/social-analytics-hooks.mjs --import ./server/public-protection-hooks.mjs --import ./server/page-metadata-hooks.mjs server/app.mjs",
+    "start": "node --import ./server/brand-compat-hooks.mjs --import ./server/security-hooks.mjs --import ./server/performance-hooks.mjs --import ./server/startup-write-serialization-hooks.mjs --import ./server/api-json-hooks.mjs --import ./server/phase4-schema-gate-hooks.mjs --import ./server/phase4-integrations-hooks.mjs --import ./server/phase4-public-config-hooks.mjs --import ./server/phase4-order-events-hooks.mjs --import ./server/phase5-launch-hooks.mjs --import ./server/phase3-route-bridge-hooks.mjs --import ./server/phase3-growth-hooks.mjs --import ./server/phase3-checkout-hooks.mjs --import ./server/analytics-features-hooks.mjs --import ./server/team-features-hooks.mjs --import ./server/commercial-config-hooks.mjs --import ./server/catalog-order-lock-fix.mjs --import ./server/phase2-compat-hooks.mjs --import ./server/phase2-operation-hooks.mjs --import ./server/phase2-public-config-hooks.mjs --import ./server/catalog-features-hooks.mjs --import ./server/business-features-hooks.mjs --import ./server/platform-hooks.mjs --import ./server/plan-limits-hooks.mjs --import ./server/signup-plan-hooks.mjs --import ./server/google-auth-hooks.mjs --import ./server/phase1-product-media-hooks.mjs --import ./server/scanner-hooks.mjs --import ./server/scanner-publish-hooks.mjs --import ./server/social-network-hooks.mjs --import ./server/social-feed-ranking-hooks.mjs --import ./server/social-commerce-hooks.mjs --import ./server/social-analytics-hooks.mjs --import ./server/public-protection-hooks.mjs --import ./server/page-metadata-hooks.mjs server/app.mjs",
     "preview": "vite preview",
     "test:scanner": "node server/scanner-url.test.mjs",
     "test:scanner:collector": "node server/scanner-collector.test.mjs",
@@ -16,12 +16,15 @@
     "test:scanner:module3": "node server/scanner-module3.integration.mjs",
     "test:scanner:module4": "node server/scanner-module4.integration.mjs",
     "test:scanner:module5": "node server/scanner-module5.integration.mjs",
-    "test:scanner:module6": "node server/scanner-module6.integration.mjs"
+    "test:scanner:module6": "node server/scanner-module6.integration.mjs",
+    "test:polish": "node server/product-polish.integration.mjs",
+    "test:google-auth": "node server/google-auth.integration.mjs"
   },
   "dependencies": {
     "cheerio": "^1.1.2",
     "compression": "^1.8.1",
     "express": "^4.21.2",
+    "google-auth-library": "^11.1.0",
     "lucide-react": "^0.575.0",
     "multer": "2.3.0",
     "pg": "^8.13.1",

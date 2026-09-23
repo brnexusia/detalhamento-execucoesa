@@ -36,7 +36,7 @@ try {
   const register = await fetch(`${baseUrl}/api/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: 'Compat Teste', email, password, storeName, whatsapp: '5511999999999' }),
+    body: JSON.stringify({ name: 'Compat Teste', email, password, storeName, whatsapp: '5511999999999', planCode: 'bronze' }),
   })
   const registerBody = await register.json().catch(() => ({}))
   if (register.status !== 201) throw new Error(`Cadastro de teste falhou: ${register.status} ${JSON.stringify(registerBody)}`)

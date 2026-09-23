@@ -4,7 +4,7 @@ const unique = `${Date.now()}-${Math.random().toString(16).slice(2)}`
 async function registerStore(label, whatsapp) {
   const response = await fetch(`${base}/api/auth/register`, {
     method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ name: label, email: `${label.toLowerCase()}-${unique}@example.com`, password: 'senha-social-123', storeName: `${label} ${unique}`, whatsapp }),
+    body: JSON.stringify({ name: label, email: `${label.toLowerCase()}-${unique}@example.com`, password: 'senha-social-123', storeName: `${label} ${unique}`, whatsapp, planCode: 'bronze' }),
   })
   const body = await response.json().catch(() => ({}))
   const cookie = response.headers.get('set-cookie')?.split(';')[0] || ''

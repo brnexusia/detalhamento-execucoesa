@@ -116,7 +116,7 @@ export default function TeamPanel() {
     </section>
 
     <section className="team-card">
-      <div className="team-card__head"><div><span>Módulo 5</span><h2>Equipe comercial</h2></div><p>Gerente acompanha operação e relatórios. Vendedora trabalha com seus links e pedidos atribuíveis.</p></div>
+      <div className="team-card__head"><div><span>Equipe</span><h2>Equipe comercial</h2></div><p>Gerente acompanha operação e relatórios. Vendedora trabalha com seus links e pedidos atribuíveis.</p></div>
       <div className="team-list">{data.sellers.map((seller) => {
         const draft = drafts[seller.id] || { role: seller.role, commissionType: seller.commissionType, commissionValue: String(seller.commissionValue || '') }
         return <article className="team-member" key={seller.id}>

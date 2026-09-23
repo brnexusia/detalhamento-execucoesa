@@ -5,7 +5,7 @@ const { Pool } = pg
 const pool = new Pool({ connectionString: process.env.DATABASE_URL })
 const base = process.env.BASE_URL || 'http://127.0.0.1:3000'
 async function register(label) {
-  const r=await fetch(`${base}/api/auth/register`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:`Discard ${label}`,email:`discard-${label}-${Date.now()}-${Math.random()}@example.test`,password:'scanner1234',storeName:`Discard ${label}`,whatsapp:'5511999999999'})})
+  const r=await fetch(`${base}/api/auth/register`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:`Discard ${label}`,email:`discard-${label}-${Date.now()}-${Math.random()}@example.test`,password:'scanner1234',storeName:`Discard ${label}`,whatsapp:'5511999999999', planCode: 'bronze'})})
   assert.equal(r.status,201); return r.headers.get('set-cookie')?.split(';')[0]
 }
 async function api(path,cookie,options={}) { return fetch(`${base}${path}`,{...options,headers:{'Content-Type':'application/json',Cookie:cookie,...(options.headers||{})}}) }

@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react'
 import { ArrowLeft, Check, CreditCard, PackageCheck, Save } from 'lucide-react'
+import { apiRequest } from './api'
+import UiState from './UiState'
+import { useUnsavedChanges } from './unsaved-changes'
 import './commercial-settings.css'
 
 type Item = { key: string; label: string }
@@ -17,13 +20,6 @@ function go(path: string) {
   window.dispatchEvent(new PopStateEvent('popstate'))
 }
 
-async function request<T>(url: string, options: RequestInit = {}) {
-  const response = await fetch(url, { credentials: 'include', ...options, headers: { 'Content-Type': 'application/json', ...(options.headers || {}) } })
-  const body = await response.json().catch(() => null)
-  if (!response.ok) throw new Error(body?.error || 'Não foi possível concluir a operação.')
-  return body as T
-}
-
 export default function CommercialSettingsPanel({ embedded = false }: { embedded?: boolean }) {
   const [data, setData] = useState<Payload | null>(null)
   const [payments, setPayments] = useState<string[]>([])
@@ -32,11 +28,13 @@ export default function CommercialSettingsPanel({ embedded = false }: { embedded
   const [saving, setSaving] = useState(false)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
+  const dirty = Boolean(data) && (JSON.stringify(payments) !== JSON.stringify(data!.paymentMethods.map((item) => item.key)) || JSON.stringify(deliveries) !== JSON.stringify(data!.deliveryMethods.map((item) => item.key)) || note !== data!.note)
+  useUnsavedChanges(dirty)
 
   const load = async () => {
     setError('')
     try {
-      const result = await request<Payload>('/api/admin/commercial-config')
+      const result = await apiRequest<Payload>('/api/admin/commercial-config')
       setData(result)
       setPayments(result.paymentMethods.map((item) => item.key))
       setDeliveries(result.deliveryMethods.map((item) => item.key))
@@ -54,7 +52,7 @@ export default function CommercialSettingsPanel({ embedded = false }: { embedded
     if (!data || saving) return
     setSaving(true); setError('')
     try {
-      const result = await request<Payload>('/api/admin/commercial-config', { method: 'PUT', body: JSON.stringify({ paymentMethods: payments, deliveryMethods: deliveries, note }) })
+      const result = await apiRequest<Payload>('/api/admin/commercial-config', { method: 'PUT', body: JSON.stringify({ paymentMethods: payments, deliveryMethods: deliveries, note }) })
       setData(result)
       setPayments(result.paymentMethods.map((item) => item.key))
       setDeliveries(result.deliveryMethods.map((item) => item.key))
@@ -65,10 +63,10 @@ export default function CommercialSettingsPanel({ embedded = false }: { embedded
     finally { setSaving(false) }
   }
 
-  if (!data) return <div className={`commercial-shell ${embedded ? 'commercial-shell--embedded' : ''}`}><div className="commercial-loading"><PackageCheck size={30}/><strong>Carregando opções comerciais…</strong>{error && <p>{error}</p>}</div></div>
+  if (!data) return <div className={`commercial-shell ${embedded ? 'commercial-shell--embedded' : ''}`}><UiState loading={!error} title={error ? 'Não foi possível carregar pagamento e entrega.' : 'Carregando pagamento e entrega…'} message={error || undefined} onRetry={error ? load : undefined} compact={embedded}/></div>
 
   return <div className={`commercial-shell ${embedded ? 'commercial-shell--embedded' : ''}`}>
-    {!embedded ? <header className="commercial-head"><button onClick={() => go('/painel')}><ArrowLeft size={18}/> Painel</button><div><span>Operação comercial</span><h1>Pagamento e entrega</h1><p>Mostre ao comprador quais opções a empresa costuma trabalhar, sem transformar o Atacado Shop em gateway ou sistema logístico.</p></div></header> : <header className="commercial-embedded-head"><span>Venda</span><h2>Pagamento e entrega</h2><p>Defina o que a loja informa ao comprador antes de continuar o atendimento no WhatsApp.</p></header>}
+    {!embedded ? <header className="commercial-head"><button onClick={() => go('/painel')}><ArrowLeft size={18}/> Painel</button><div><span>Operação comercial</span><h1>Pagamento e entrega</h1><p>Mostre ao comprador quais opções a empresa costuma trabalhar, sem transformar o Shopvax em gateway ou sistema logístico.</p></div></header> : <header className="commercial-embedded-head"><span>Venda</span><h2>Pagamento e entrega</h2><p>Defina o que a loja informa ao comprador antes de continuar o atendimento no WhatsApp.</p></header>}
     {notice && <div className="commercial-toast"><Check size={16}/>{notice}</div>}
     {error && <div className="commercial-error">{error}</div>}
     <div className="commercial-rule"><strong>Somente informativo</strong><span>{data.disclaimer}</span></div>

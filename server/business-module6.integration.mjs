@@ -16,7 +16,7 @@ async function waitForServer() {
 async function register() {
   const response = await fetch(`${base}/api/auth/register`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: 'Admin Comercial', email: `commercial-${Date.now()}-${Math.random()}@example.test`, password: 'scanner1234', storeName: `Loja Comercial ${Date.now()}`, whatsapp: '5511999999999' }),
+    body: JSON.stringify({ name: 'Admin Comercial', email: `commercial-${Date.now()}-${Math.random()}@example.test`, password: 'scanner1234', storeName: `Loja Comercial ${Date.now()}`, whatsapp: '5511999999999', planCode: 'bronze' }),
   })
   assert.equal(response.status, 201)
   const body = await response.json()

@@ -25,7 +25,9 @@ CREATE TABLE IF NOT EXISTS users (
   id text PRIMARY KEY,
   email text UNIQUE NOT NULL,
   name text NOT NULL,
-  password_hash text NOT NULL,
+  password_hash text,
+  google_sub text,
+  avatar_url text NOT NULL DEFAULT '',
   created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE TABLE IF NOT EXISTS stores (
@@ -40,6 +42,8 @@ CREATE TABLE IF NOT EXISTS stores (
   logo_url text NOT NULL DEFAULT '',
   accent text NOT NULL DEFAULT '#c94c2d',
   is_active boolean NOT NULL DEFAULT true,
+  plan_tier text NOT NULL DEFAULT 'bronze',
+  signup_plan_selected_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
@@ -107,6 +111,12 @@ CREATE INDEX IF NOT EXISTS idx_sellers_store ON sellers(store_id);
 CREATE INDEX IF NOT EXISTS idx_media_store ON media_assets(store_id);
 CREATE INDEX IF NOT EXISTS idx_orders_store_created ON orders(store_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_events_store_created ON events(store_id, created_at DESC);
+ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS google_sub text;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url text NOT NULL DEFAULT '';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub_unique ON users(google_sub) WHERE google_sub IS NOT NULL;
+ALTER TABLE stores ADD COLUMN IF NOT EXISTS plan_tier text NOT NULL DEFAULT 'bronze';
+ALTER TABLE stores ADD COLUMN IF NOT EXISTS signup_plan_selected_at timestamptz;
 `
 
 async function initDb() {
@@ -364,10 +374,14 @@ app.post(
     const password = String(req.body?.password || '')
     const storeName = String(req.body?.storeName || '').trim()
     const whatsapp = digits(req.body?.whatsapp)
+    const planCode = String(req.body?.planCode || '').trim().toLowerCase()
     if (!name || !email || !storeName || password.length < 8) {
       return res
         .status(400)
         .json({ error: 'Preencha nome, e-mail, loja e uma senha de pelo menos 8 caracteres.' })
+    }
+    if (!['bronze', 'prata', 'ouro'].includes(planCode)) {
+      return res.status(400).json({ error: 'Selecione Bronze, Prata ou Ouro.' })
     }
 
     const exists = await pool.query('SELECT id FROM users WHERE email=$1', [email])
@@ -386,8 +400,8 @@ app.post(
         hashPassword(password),
       ])
       await client.query(
-        'INSERT INTO stores (id,owner_id,slug,name,whatsapp) VALUES ($1,$2,$3,$4,$5)',
-        [storeId, userId, storeSlug, storeName, whatsapp],
+        'INSERT INTO stores (id,owner_id,slug,name,whatsapp,plan_tier,signup_plan_selected_at) VALUES ($1,$2,$3,$4,$5,$6,now())',
+        [storeId, userId, storeSlug, storeName, whatsapp, planCode],
       )
       await client.query('COMMIT')
     } catch (error) {
@@ -403,7 +417,7 @@ app.post(
       [hashToken(token), userId],
     )
     setSessionCookie(req, res, token)
-    res.status(201).json({ ok: true, storeSlug })
+    res.status(201).json({ ok: true, storeSlug, planCode })
   }),
 )
 

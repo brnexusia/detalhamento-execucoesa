@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Check, CircleAlert, Copy, CreditCard, ExternalLink, KeyRound, Link2, PackageCheck, Plus, RefreshCcw, Save, ShieldCheck, Trash2, Truck, Webhook } from 'lucide-react'
+import { apiRequest } from './api'
+import UiState from './UiState'
+import { confirmAction } from './ui-dialogs'
+import { useUnsavedChanges } from './unsaved-changes'
 import './phase4-panel.css'
 
 type Integration = {
@@ -46,17 +50,12 @@ type Phase4Data = {
 type SecretNotice = { title: string; value: string; note: string } | null
 
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
-
-async function request<T>(url: string, options: RequestInit = {}) {
-  const response = await fetch(url, {
-    credentials: 'include',
-    ...options,
-    headers: options.body ? { 'content-type': 'application/json', ...(options.headers || {}) } : options.headers,
-  })
-  const payload = response.status === 204 ? null : await response.json().catch(() => null)
-  if (!response.ok) throw new Error(payload?.error || 'Não foi possível concluir a operação.')
-  return payload as T
-}
+const paymentMethodLabel = (value: string) => ({ PIX: 'Pix', BOLETO: 'Boleto', CREDIT_CARD: 'Cartão' } as Record<string, string>)[String(value || '').toUpperCase()] || value
+const paymentStatusLabel = (value: string) => ({
+  paid: 'Pago', received: 'Pago', confirmed: 'Confirmado', pending: 'Pendente', overdue: 'Vencido',
+  refunded: 'Estornado', cancelled: 'Cancelado', received_in_cash: 'Recebido',
+} as Record<string, string>)[String(value || '').toLowerCase()] || value
+const isPaidPayment = (value: string) => ['paid', 'received', 'confirmed', 'received_in_cash'].includes(String(value || '').toLowerCase())
 
 export default function Phase4Panel() {
   const [data, setData] = useState<Phase4Data | null>(null)
@@ -64,6 +63,8 @@ export default function Phase4Panel() {
   const [saving, setSaving] = useState('')
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [dirty, setDirty] = useState(false)
+  useUnsavedChanges(dirty)
   const [secret, setSecret] = useState<SecretNotice>(null)
 
   const [asaasEnabled, setAsaasEnabled] = useState(false)
@@ -94,11 +95,11 @@ export default function Phase4Panel() {
   const load = async () => {
     setError('')
     try {
-      const next = await request<Phase4Data>('/api/admin/phase4')
+      const next = await apiRequest<Phase4Data>('/api/admin/phase4')
       setData(next)
       syncForms(next)
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível carregar as integrações.') }
-    finally { setLoading(false) }
+    finally { setLoading(false); setDirty(false) }
   }
 
   useEffect(() => { void load() }, [])
@@ -108,7 +109,7 @@ export default function Phase4Panel() {
   const apiTokens = data?.apiTokens || []
   const erpWebhooks = data?.erpWebhooks || []
   const recentPayments = data?.payments || []
-  const paidCount = useMemo(() => recentPayments.filter((item) => item.status === 'paid').length, [recentPayments])
+  const paidCount = useMemo(() => recentPayments.filter((item) => isPaidPayment(item.status)).length, [recentPayments])
 
   const copy = async (value: string) => {
     await navigator.clipboard.writeText(value)
@@ -118,7 +119,7 @@ export default function Phase4Panel() {
   const saveCore = async () => {
     setSaving('core'); setError('')
     try {
-      await request('/api/admin/phase4/settings', { method: 'PATCH', body: JSON.stringify({ shippingEnabled, metaEnabled, metaBrand, erpApiEnabled: erpEnabled }) })
+      await apiRequest('/api/admin/phase4/settings', { method: 'PATCH', body: JSON.stringify({ shippingEnabled, metaEnabled, metaBrand, erpApiEnabled: erpEnabled }) })
       flash('Integrações atualizadas.')
       await load()
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível salvar.') }
@@ -128,7 +129,7 @@ export default function Phase4Panel() {
   const saveAsaas = async () => {
     setSaving('asaas'); setError(''); setSecret(null)
     try {
-      const payload = await request<{ integration: Integration; webhookAuthToken?: string; warning?: string | null }>('/api/admin/phase4/asaas', {
+      const payload = await apiRequest<{ integration: Integration; webhookAuthToken?: string; warning?: string | null }>('/api/admin/phase4/asaas', {
         method: 'PATCH',
         body: JSON.stringify({ enabled: asaasEnabled, environment: asaasEnvironment, apiKey: asaasKey || undefined, paymentMethods }),
       })
@@ -143,7 +144,7 @@ export default function Phase4Panel() {
   const provisionWebhook = async () => {
     setSaving('asaas-webhook'); setError('')
     try {
-      await request('/api/admin/phase4/asaas/provision-webhook', { method: 'POST', body: '{}' })
+      await apiRequest('/api/admin/phase4/asaas/provision-webhook', { method: 'POST', body: '{}' })
       flash('Webhook provisionado no Asaas.')
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível provisionar o webhook.') }
     finally { setSaving('') }
@@ -152,7 +153,7 @@ export default function Phase4Panel() {
   const addShippingRule = async () => {
     setSaving('shipping'); setError('')
     try {
-      await request('/api/admin/phase4/shipping-rules', {
+      await apiRequest('/api/admin/phase4/shipping-rules', {
         method: 'POST',
         body: JSON.stringify({
           name: shipping.name,
@@ -174,10 +175,10 @@ export default function Phase4Panel() {
   }
 
   const deleteShipping = async (rule: ShippingRule) => {
-    if (!window.confirm(`Excluir a regra ${rule.name}?`)) return
+    if (!(await confirmAction(`Excluir a regra ${rule.name}?`))) return
     setSaving(rule.id)
     try {
-      await request(`/api/admin/phase4/shipping-rules/${encodeURIComponent(rule.id)}`, { method: 'DELETE' })
+      await apiRequest(`/api/admin/phase4/shipping-rules/${encodeURIComponent(rule.id)}`, { method: 'DELETE' })
       flash('Regra de frete excluída.')
       await load()
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível excluir.') }
@@ -188,7 +189,7 @@ export default function Phase4Panel() {
   const createToken = async () => {
     setSaving('token'); setError(''); setSecret(null)
     try {
-      const payload = await request<{ token: { secret: string; tokenPrefix: string }; warning: string }>('/api/admin/phase4/api-tokens', {
+      const payload = await apiRequest<{ token: { secret: string; tokenPrefix: string }; warning: string }>('/api/admin/phase4/api-tokens', {
         method: 'POST', body: JSON.stringify({ name: tokenName, scopes: tokenScopes }),
       })
       setSecret({ title: 'Token da API/ERP', value: payload.token.secret, note: payload.warning })
@@ -199,10 +200,10 @@ export default function Phase4Panel() {
   }
 
   const revokeToken = async (token: ApiToken) => {
-    if (!window.confirm(`Revogar ${token.name}?`)) return
+    if (!(await confirmAction(`Revogar ${token.name}?`))) return
     setSaving(token.id)
     try {
-      await request(`/api/admin/phase4/api-tokens/${encodeURIComponent(token.id)}`, { method: 'DELETE' })
+      await apiRequest(`/api/admin/phase4/api-tokens/${encodeURIComponent(token.id)}`, { method: 'DELETE' })
       flash('Token revogado.')
       await load()
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível revogar o token.') }
@@ -212,7 +213,7 @@ export default function Phase4Panel() {
   const createErpWebhook = async () => {
     setSaving('erp-webhook'); setError(''); setSecret(null)
     try {
-      const payload = await request<{ webhook: { secret: string }; warning: string }>('/api/admin/phase4/erp-webhooks', {
+      const payload = await apiRequest<{ webhook: { secret: string }; warning: string }>('/api/admin/phase4/erp-webhooks', {
         method: 'POST', body: JSON.stringify(webhookForm),
       })
       setSecret({ title: 'Segredo do webhook ERP', value: payload.webhook.secret, note: payload.warning })
@@ -224,22 +225,22 @@ export default function Phase4Panel() {
   }
 
   const deleteErpWebhook = async (webhook: ErpWebhook) => {
-    if (!window.confirm(`Excluir o webhook ${webhook.name}?`)) return
+    if (!(await confirmAction(`Excluir o webhook ${webhook.name}?`))) return
     setSaving(webhook.id)
     try {
-      await request(`/api/admin/phase4/erp-webhooks/${encodeURIComponent(webhook.id)}`, { method: 'DELETE' })
+      await apiRequest(`/api/admin/phase4/erp-webhooks/${encodeURIComponent(webhook.id)}`, { method: 'DELETE' })
       flash('Webhook excluído.')
       await load()
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível excluir o webhook.') }
     finally { setSaving('') }
   }
 
-  if (loading || !data) return <div className="phase4-shell"><div className="phase4-loading"><RefreshCcw size={24}/><strong>{loading ? 'Carregando integrações…' : 'Não foi possível abrir a Fase 4.'}</strong>{error && <p>{error}</p>}</div></div>
+  if (loading || !data) return <div className="phase4-shell"><UiState loading={loading} title={loading ? 'Carregando integrações…' : 'Não foi possível abrir as integrações.'} message={error || undefined} onRetry={loading ? undefined : load}/></div>
 
-  if (!data.eligible) return <div className="phase4-shell"><section className="phase4-locked"><ShieldCheck size={38}/><span>Fase 4 · {data.plan.name}</span><h1>Integrações avançadas</h1><p>{data.reason || 'Disponível no Plano 3.'}</p><div><CreditCard size={18}/> Asaas e pagamentos online</div><div><Truck size={18}/> Frete calculado por regras</div><div><Link2 size={18}/> Meta Shopping e API/ERP</div></section></div>
+  if (!data.eligible) return <div className="phase4-shell"><section className="phase4-locked"><ShieldCheck size={38}/><span>{data.plan.name}</span><h1>Integrações avançadas</h1><p>{data.reason || 'Disponível no Ouro.'}</p><div><CreditCard size={18}/> Asaas e pagamentos online</div><div><Truck size={18}/> Frete calculado por regras</div><div><Link2 size={18}/> Meta Shopping e API/ERP</div></section></div>
 
-  return <div className="phase4-shell">
-    <div className="phase4-title"><div><span>Fase 4 · {data.plan.name}</span><h1>Integrações e checkout</h1><p>Pagamentos, frete, catálogo Meta e integração com ERP. Dados de cartão nunca passam pelo ShopVax.</p></div><button className="phase4-secondary" onClick={load}><RefreshCcw size={16}/> Atualizar</button></div>
+  return <div className="phase4-shell" onChangeCapture={() => setDirty(true)}>
+    <div className="phase4-title"><div><span>{data.plan.name}</span><h1>Integrações e checkout</h1><p>Pagamentos, frete, catálogo Meta e integração com ERP. Dados de cartão nunca passam pelo ShopVax.</p></div><button className="phase4-secondary" onClick={load}><RefreshCcw size={16}/> Atualizar</button></div>
     {notice && <div className="phase4-notice"><Check size={16}/>{notice}</div>}
     {error && <div className="phase4-error"><CircleAlert size={17}/>{error}</div>}
     {secret && <div className="phase4-secret"><div><KeyRound size={19}/><div><strong>{secret.title}</strong><p>{secret.note}</p></div></div><code>{secret.value}</code><button onClick={() => copy(secret.value)}><Copy size={15}/> Copiar segredo</button></div>}
@@ -279,21 +280,26 @@ export default function Phase4Panel() {
 
     <div className="phase4-save"><button className="phase4-primary" disabled={saving === 'core'} onClick={saveCore}><Save size={17}/>{saving === 'core' ? 'Salvando…' : 'Salvar frete, Meta e API'}</button></div>
 
-    {erpEnabled && <section className="phase4-card">
-      <div className="phase4-card__head"><div><span>Autenticação</span><h2>Tokens da API</h2></div><strong>{apiTokens.filter((item) => item.active).length}</strong></div>
-      <div className="phase4-token-form"><input value={tokenName} onChange={(event) => setTokenName(event.target.value)} placeholder="Nome do token"/><div className="phase4-scope-grid">{['products:read','orders:read','customers:read','payments:read','stock:write'].map((scope) => <label key={scope}><input type="checkbox" checked={tokenScopes.includes(scope)} onChange={() => toggleScope(scope)}/><span>{scope}</span></label>)}</div><button className="phase4-primary" disabled={saving === 'token' || !tokenScopes.length} onClick={createToken}><KeyRound size={16}/> Gerar token</button></div>
-      <div className="phase4-token-list">{apiTokens.map((token) => <article key={token.id}><div><strong>{token.name}</strong><span><code>{token.tokenPrefix}…</code> · {token.scopes.join(', ')}</span></div><button disabled={!token.active || saving === token.id} onClick={() => revokeToken(token)}>{token.active ? 'Revogar' : 'Revogado'}</button></article>)}{!apiTokens.length && <p className="phase4-empty">Nenhum token criado.</p>}</div>
-    </section>}
-
-    {erpEnabled && <section className="phase4-card">
-      <div className="phase4-card__head"><div><span>Eventos assinados</span><h2>Webhooks ERP</h2><p>O ShopVax envia assinatura HMAC SHA-256 no header <code>x-shopvax-signature</code>.</p></div><Webhook size={24}/></div>
-      <div className="phase4-webhook-form"><input value={webhookForm.name} onChange={(e) => setWebhookForm((v) => ({...v,name:e.target.value}))} placeholder="Nome"/><input value={webhookForm.url} onChange={(e) => setWebhookForm((v) => ({...v,url:e.target.value}))} placeholder="https://erp.exemplo.com/webhooks/shopvax"/><button className="phase4-primary" disabled={saving === 'erp-webhook' || !webhookForm.url.trim()} onClick={createErpWebhook}><Plus size={16}/> Adicionar webhook</button></div>
-      <div className="phase4-rules">{erpWebhooks.map((webhook) => <article key={webhook.id}><Webhook size={18}/><div><strong>{webhook.name}</strong><span>{webhook.url} · {webhook.events.join(', ')}</span></div><button disabled={saving === webhook.id} onClick={() => deleteErpWebhook(webhook)}><Trash2 size={16}/></button></article>)}{!erpWebhooks.length && <p className="phase4-empty">Nenhum webhook ERP criado.</p>}</div>
-    </section>}
+    {erpEnabled && <details className="phase4-technical">
+      <summary><KeyRound size={18}/><span><strong>Configuração técnica da API / ERP</strong><small>Tokens, permissões e webhooks para integrações externas.</small></span></summary>
+      <div className="phase4-technical__body">
+        <section className="phase4-card">
+          <div className="phase4-card__head"><div><span>Acesso técnico</span><h2>Tokens da API</h2><p>Crie credenciais apenas para o sistema que fará a integração.</p></div><strong>{apiTokens.filter((item) => item.active).length}</strong></div>
+          <div className="phase4-token-form"><input value={tokenName} onChange={(event) => setTokenName(event.target.value)} placeholder="Nome do token"/><div className="phase4-scope-grid">{['products:read','orders:read','customers:read','payments:read','stock:write'].map((scope) => <label key={scope}><input type="checkbox" checked={tokenScopes.includes(scope)} onChange={() => toggleScope(scope)}/><span>{scope}</span></label>)}</div><button className="phase4-primary" disabled={saving === 'token' || !tokenScopes.length} onClick={createToken}><KeyRound size={16}/> Gerar token</button></div>
+          <div className="phase4-token-list">{apiTokens.map((token) => <article key={token.id}><div><strong>{token.name}</strong><span><code>{token.tokenPrefix}…</code> · {token.scopes.join(', ')}</span></div><button disabled={!token.active || saving === token.id} onClick={() => revokeToken(token)}>{token.active ? 'Revogar' : 'Revogado'}</button></article>)}{!apiTokens.length && <p className="phase4-empty">Nenhum token criado.</p>}</div>
+        </section>
+        <section className="phase4-card">
+          <div className="phase4-card__head"><div><span>Eventos da integração</span><h2>Webhooks ERP</h2><p>Use esta área somente quando o ERP precisar receber atualizações automáticas do Shopvax.</p></div><Webhook size={24}/></div>
+          <div className="phase4-webhook-form"><input value={webhookForm.name} onChange={(e) => setWebhookForm((v) => ({...v,name:e.target.value}))} placeholder="Nome"/><input value={webhookForm.url} onChange={(e) => setWebhookForm((v) => ({...v,url:e.target.value}))} placeholder="https://erp.exemplo.com/webhooks/shopvax"/><button className="phase4-primary" disabled={saving === 'erp-webhook' || !webhookForm.url.trim()} onClick={createErpWebhook}><Plus size={16}/> Adicionar webhook</button></div>
+          <div className="phase4-rules">{erpWebhooks.map((webhook) => <article key={webhook.id}><Webhook size={18}/><div><strong>{webhook.name}</strong><span>{webhook.url} · {webhook.events.join(', ')}</span></div><button disabled={saving === webhook.id} onClick={() => deleteErpWebhook(webhook)}><Trash2 size={16}/></button></article>)}{!erpWebhooks.length && <p className="phase4-empty">Nenhum webhook ERP criado.</p>}</div>
+          <div className="phase4-technical-note"><strong>Assinatura de segurança</strong><span>As notificações usam HMAC SHA-256 no cabeçalho <code>x-shopvax-signature</code>.</span></div>
+        </section>
+      </div>
+    </details>}
 
     <section className="phase4-card">
-      <div className="phase4-card__head"><div><span>Financeiro</span><h2>Cobranças recentes</h2><p>Pagamento confirmado não confirma a venda/comissão automaticamente.</p></div><strong>{paidCount} paga(s)</strong></div>
-      <div className="phase4-payments">{recentPayments.slice(0, 12).map((payment) => <article key={payment.id}><div><strong>{money.format(payment.value)}</strong><span>{payment.billing_type} · {payment.status}</span></div>{payment.invoice_url && <a href={payment.invoice_url} target="_blank" rel="noreferrer">Abrir cobrança <ExternalLink size={13}/></a>}</article>)}{!recentPayments.length && <p className="phase4-empty">Nenhuma cobrança criada ainda.</p>}</div>
+      <div className="phase4-card__head"><div><span>Financeiro</span><h2>Cobranças recentes</h2><p>Pagamento confirmado não confirma a venda/comissão automaticamente.</p></div><strong>{paidCount === 1 ? '1 paga' : `${paidCount} pagas`}</strong></div>
+      <div className="phase4-payments">{recentPayments.slice(0, 12).map((payment) => <article key={payment.id}><div><strong>{money.format(payment.value)}</strong><span>{paymentMethodLabel(payment.billing_type)} · {paymentStatusLabel(payment.status)}</span></div>{payment.invoice_url && <a href={payment.invoice_url} target="_blank" rel="noreferrer">Abrir cobrança <ExternalLink size={13}/></a>}</article>)}{!recentPayments.length && <p className="phase4-empty">Nenhuma cobrança criada ainda.</p>}</div>
     </section>
   </div>
 }

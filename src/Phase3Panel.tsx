@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { BarChart3, Check, CircleAlert, Copy, Download, Gift, MessageCircle, Percent, RefreshCcw, Save, ShoppingCart, Star, Trash2, TrendingUp } from 'lucide-react'
+import { apiRequest } from './api'
+import UiState from './UiState'
+import { confirmAction } from './ui-dialogs'
+import { useUnsavedChanges } from './unsaved-changes'
 import './phase3-panel.css'
 
 type Plan = { code: string; name: string; features: Record<string, boolean> }
@@ -16,17 +20,6 @@ type CommissionReport = { periodDays: number; sellers: Array<{ sellerId: string;
 
 const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 const date = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
-
-async function request<T>(url: string, options: RequestInit = {}) {
-  const response = await fetch(url, {
-    credentials: 'include',
-    ...options,
-    headers: options.body ? { 'content-type': 'application/json', ...(options.headers || {}) } : options.headers,
-  })
-  const payload = response.status === 204 ? null : await response.json().catch(() => null)
-  if (!response.ok) throw new Error(payload?.error || 'Não foi possível concluir a operação.')
-  return payload as T
-}
 
 function go(path: string) {
   window.history.pushState({}, '', path)
@@ -48,17 +41,20 @@ export default function Phase3Panel() {
   const [notice, setNotice] = useState('')
   const [newCoupon, setNewCoupon] = useState({ code: '', type: 'percent' as 'percent' | 'fixed', value: '10', maxUses: '' })
   const [rates, setRates] = useState<Record<string, string>>({})
+  const defaultCoupon = newCoupon.code === '' && newCoupon.type === 'percent' && newCoupon.value === '10' && newCoupon.maxUses === ''
+  const ratesDirty = Boolean(data) && data!.sellers.some((seller) => String(seller.commissionRate || 0) !== String(rates[seller.id] ?? '0'))
+  useUnsavedChanges(!defaultCoupon || ratesDirty)
 
   const load = async () => {
     setError('')
     try {
       const [phase3, couponData, recoveryData, referralData, catalogData, bootstrap] = await Promise.all([
-        request<Phase3Data>('/api/admin/phase3'),
-        request<{ coupons: Coupon[] }>('/api/admin/phase3/coupons'),
-        request<{ recoveries: Recovery[] }>('/api/admin/phase3/cart-recovery'),
-        request<Referral>('/api/admin/phase3/referral'),
-        request<{ catalogs: Catalog[] }>('/api/admin/catalogs'),
-        request<Bootstrap>('/api/admin/bootstrap'),
+        apiRequest<Phase3Data>('/api/admin/phase3'),
+        apiRequest<{ coupons: Coupon[] }>('/api/admin/phase3/coupons'),
+        apiRequest<{ recoveries: Recovery[] }>('/api/admin/phase3/cart-recovery'),
+        apiRequest<Referral>('/api/admin/phase3/referral'),
+        apiRequest<{ catalogs: Catalog[] }>('/api/admin/catalogs'),
+        apiRequest<Bootstrap>('/api/admin/bootstrap'),
       ])
       setData(phase3)
       setCoupons(couponData.coupons)
@@ -68,13 +64,13 @@ export default function Phase3Panel() {
       setStoreSlug(bootstrap.store.slug)
       setRates(Object.fromEntries(phase3.sellers.map((seller) => [seller.id, String(seller.commissionRate || 0)])))
       if (bootstrap.store.slug) {
-        const summary = await request<ReviewSummary>(`/api/public/reviews/${encodeURIComponent(bootstrap.store.slug)}`).catch(() => null)
+        const summary = await apiRequest<ReviewSummary>(`/api/public/reviews/${encodeURIComponent(bootstrap.store.slug)}`).catch(() => null)
         setReviews(summary)
       }
       if (phase3.plan.features.sellerCommission) {
-        setCommissions(await request<CommissionReport>('/api/admin/phase3/commissions?days=30'))
+        setCommissions(await apiRequest<CommissionReport>('/api/admin/phase3/commissions?days=30'))
       } else setCommissions(null)
-    } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível carregar a Fase 3.') }
+    } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível carregar crescimento.') }
     finally { setLoading(false) }
   }
 
@@ -88,7 +84,7 @@ export default function Phase3Panel() {
   const createCoupon = async () => {
     setBusy('coupon'); setError('')
     try {
-      await request('/api/admin/phase3/coupons', {
+      await apiRequest('/api/admin/phase3/coupons', {
         method: 'POST',
         body: JSON.stringify({ code: newCoupon.code, type: newCoupon.type, value: Number(newCoupon.value), maxUses: newCoupon.maxUses ? Number(newCoupon.maxUses) : null }),
       })
@@ -102,7 +98,7 @@ export default function Phase3Panel() {
   const toggleCoupon = async (coupon: Coupon) => {
     setBusy(coupon.id)
     try {
-      await request(`/api/admin/phase3/coupons/${encodeURIComponent(coupon.id)}`, { method: 'PATCH', body: JSON.stringify({ active: !coupon.active }) })
+      await apiRequest(`/api/admin/phase3/coupons/${encodeURIComponent(coupon.id)}`, { method: 'PATCH', body: JSON.stringify({ active: !coupon.active }) })
       flash(coupon.active ? 'Cupom pausado.' : 'Cupom reativado.')
       await load()
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível atualizar o cupom.') }
@@ -110,10 +106,10 @@ export default function Phase3Panel() {
   }
 
   const deleteCoupon = async (coupon: Coupon) => {
-    if (!window.confirm(`Excluir o cupom ${coupon.code}?`)) return
+    if (!(await confirmAction(`Excluir o cupom ${coupon.code}?`))) return
     setBusy(coupon.id)
     try {
-      await request(`/api/admin/phase3/coupons/${encodeURIComponent(coupon.id)}`, { method: 'DELETE' })
+      await apiRequest(`/api/admin/phase3/coupons/${encodeURIComponent(coupon.id)}`, { method: 'DELETE' })
       flash('Cupom excluído.')
       await load()
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível excluir o cupom.') }
@@ -123,7 +119,7 @@ export default function Phase3Panel() {
   const dismissRecovery = async (item: Recovery) => {
     setBusy(item.id)
     try {
-      await request(`/api/admin/phase3/cart-recovery/${encodeURIComponent(item.id)}/dismiss`, { method: 'POST' })
+      await apiRequest(`/api/admin/phase3/cart-recovery/${encodeURIComponent(item.id)}/dismiss`, { method: 'POST' })
       flash('Carrinho removido da fila de recuperação.')
       await load()
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível remover o carrinho.') }
@@ -133,7 +129,7 @@ export default function Phase3Panel() {
   const saveRate = async (seller: Seller) => {
     setBusy(`rate-${seller.id}`)
     try {
-      await request(`/api/admin/phase3/sellers/${encodeURIComponent(seller.id)}/commission`, { method: 'PATCH', body: JSON.stringify({ rate: Number(rates[seller.id] || 0) }) })
+      await apiRequest(`/api/admin/phase3/sellers/${encodeURIComponent(seller.id)}/commission`, { method: 'PATCH', body: JSON.stringify({ rate: Number(rates[seller.id] || 0) }) })
       flash(`Comissão de ${seller.name} atualizada.`)
       await load()
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível atualizar a comissão.') }
@@ -143,7 +139,7 @@ export default function Phase3Panel() {
   const confirmSale = async (order: Order, undo = false) => {
     setBusy(order.id)
     try {
-      await request(`/api/admin/phase3/orders/${encodeURIComponent(order.id)}/${undo ? 'unconfirm-sale' : 'confirm-sale'}`, { method: 'POST' })
+      await apiRequest(`/api/admin/phase3/orders/${encodeURIComponent(order.id)}/${undo ? 'unconfirm-sale' : 'confirm-sale'}`, { method: 'POST' })
       flash(undo ? `Venda ${order.code} desconfirmada.` : `Venda ${order.code} confirmada.`)
       await load()
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível atualizar a venda.') }
@@ -155,12 +151,12 @@ export default function Phase3Panel() {
     flash('Copiado.')
   }
 
-  if (loading || !data) return <div className="phase3-shell"><div className="phase3-loading"><RefreshCcw size={24}/><strong>{loading ? 'Carregando crescimento…' : 'Não foi possível abrir esta área.'}</strong>{error && <p>{error}</p>}</div></div>
+  if (loading || !data) return <div className="phase3-shell"><UiState loading={loading} title={loading ? 'Carregando crescimento…' : 'Não foi possível abrir crescimento.'} message={error || undefined} onRetry={loading ? undefined : load}/></div>
 
   const referralUrl = referral ? `${window.location.origin}/criar-conta?ref=${encodeURIComponent(referral.code)}` : ''
 
   return <div className="phase3-shell">
-    <header className="phase3-title"><div><span>Fase 3 · {data.plan.name}</span><h1>Crescimento e confiança</h1><p>Conversão, recompra e gestão comercial sem confundir intenção de pedido com faturamento confirmado.</p></div><button className="phase3-secondary" onClick={load}><RefreshCcw size={16}/> Atualizar</button></header>
+    <header className="phase3-title"><div><span>{data.plan.name}</span><h1>Crescimento e confiança</h1><p>Conversão, recompra e gestão comercial sem confundir intenção de pedido com faturamento confirmado.</p></div><button className="phase3-secondary" onClick={load}><RefreshCcw size={16}/> Atualizar</button></header>
     {notice && <div className="phase3-notice"><Check size={16}/>{notice}</div>}
     {error && <div className="phase3-error"><CircleAlert size={17}/>{error}</div>}
 
@@ -173,7 +169,7 @@ export default function Phase3Panel() {
 
     <section className={`phase3-card ${!intelligence ? 'is-locked' : ''}`}>
       <div className="phase3-card-head"><div><span>Funil comercial</span><h2>Inteligência comercial</h2><p>Cliques, carrinhos, checkout e WhatsApp continuam sendo sinais de intenção; não são faturamento.</p></div><BarChart3 size={25}/></div>
-      <button className="phase3-primary" disabled={!intelligence} onClick={() => go('/painel/relatorios')}>{intelligence ? 'Abrir inteligência' : 'Disponível a partir do Plano 2'}</button>
+      <button className="phase3-primary" disabled={!intelligence} onClick={() => go('/painel/relatorios')}>{intelligence ? 'Abrir inteligência' : 'Disponível a partir do Prata'}</button>
     </section>
 
     <section className="phase3-grid">
@@ -185,7 +181,7 @@ export default function Phase3Panel() {
 
       <article className="phase3-card">
         <div className="phase3-card-head"><div><span>Recuperação</span><h2>Carrinhos</h2><p>{abandoned.length} carrinho(s) já passaram de 15 minutos.</p></div><ShoppingCart size={23}/></div>
-        <div className="phase3-list phase3-recoveries">{recoveries.slice(0, 20).map((item) => <div key={item.id}><div><strong>{item.customer?.name || 'Visitante não identificado'}</strong><span>{brl.format(item.subtotal)} · {item.items.reduce((sum, product) => sum + Number(product.quantity || 0), 0)} item(ns) · {item.ageMinutes} min</span></div><div className="phase3-actions">{item.whatsappUrl && <a href={item.whatsappUrl} target="_blank" rel="noreferrer"><MessageCircle size={15}/> Chamar</a>}<button disabled={busy === item.id} onClick={() => dismissRecovery(item)}>Ignorar</button></div></div>)}{!recoveries.length && <p>Nenhum carrinho em aberto.</p>}</div>
+        <div className="phase3-list phase3-recoveries">{recoveries.slice(0, 20).map((item) => <div key={item.id}><div><strong>{item.customer?.name || 'Visitante não identificado'}</strong><span>{brl.format(item.subtotal)} · {(() => { const total = item.items.reduce((sum, product) => sum + Number(product.quantity || 0), 0); return `${total} ${total === 1 ? 'item' : 'itens'}` })()} · {item.ageMinutes} min</span></div><div className="phase3-actions">{item.whatsappUrl && <a href={item.whatsappUrl} target="_blank" rel="noreferrer"><MessageCircle size={15}/> Chamar</a>}<button disabled={busy === item.id} onClick={() => dismissRecovery(item)}>Ignorar</button></div></div>)}{!recoveries.length && <p>Nenhum carrinho em aberto.</p>}</div>
       </article>
     </section>
 
@@ -207,8 +203,8 @@ export default function Phase3Panel() {
     </section>
 
     <section className={`phase3-card ${!commissionEnabled ? 'is-locked' : ''}`}>
-      <div className="phase3-card-head"><div><span>Plano 3</span><h2>Comissão de vendedoras</h2><p>Comissão só é gerada depois que você confirma explicitamente que o pedido virou venda.</p></div><TrendingUp size={24}/></div>
-      {!commissionEnabled ? <p className="phase3-muted">Recurso exclusivo do Plano 3.</p> : <>
+      <div className="phase3-card-head"><div><span>Ouro</span><h2>Comissão de vendedoras</h2><p>Comissão só é gerada depois que você confirma explicitamente que o pedido virou venda.</p></div><TrendingUp size={24}/></div>
+      {!commissionEnabled ? <p className="phase3-muted">Recurso exclusivo do Ouro.</p> : <>
         <div className="phase3-seller-rates">{data.sellers.map((seller) => <div key={seller.id}><strong>{seller.name}</strong><label><input type="number" min="0" max="100" step="0.01" value={rates[seller.id] ?? '0'} onChange={(event) => setRates((value) => ({ ...value, [seller.id]: event.target.value }))}/><span>%</span></label><button disabled={busy === `rate-${seller.id}`} onClick={() => saveRate(seller)}><Save size={15}/> Salvar</button></div>)}</div>
         {commissions && <div className="phase3-commission-summary">{commissions.sellers.map((seller) => <article key={seller.sellerId}><span>{seller.name}</span><strong>{brl.format(seller.commissionTotal)}</strong><small>{seller.confirmedSales} venda(s) confirmada(s) · {brl.format(seller.confirmedTotal)}</small></article>)}</div>}
         <div className="phase3-orders"><div className="phase3-orders-head"><span>Pedido</span><span>Quando</span><span>Valor</span><span>Status</span><span>Ação</span></div>{data.orders.slice(0, 40).map((order) => <div key={order.id}><strong>{order.code}</strong><span>{date.format(new Date(order.created_at))}</span><b>{brl.format(order.total)}</b><span>{order.status === 'confirmado' ? `Venda confirmada · comissão ${brl.format(order.commissionAmount)}` : order.status === 'cancelled' ? 'Cancelado' : 'Ainda não confirmado como venda'}</span><div>{order.status === 'confirmado' ? <button disabled={busy === order.id} onClick={() => confirmSale(order, true)}>Desfazer</button> : order.status === 'cancelled' ? null : <button className="confirm" disabled={busy === order.id} onClick={() => confirmSale(order)}>Confirmar venda</button>}</div></div>)}</div>

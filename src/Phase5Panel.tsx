@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react'
 import { AlertTriangle, CheckCircle2, CreditCard, Gauge, KeyRound, RefreshCw, ShieldCheck } from 'lucide-react'
+import { apiRequest } from './api'
+import UiState from './UiState'
+import { confirmAction } from './ui-dialogs'
 import './phase5-panel.css'
 
 type Status = {
@@ -13,14 +16,6 @@ type Security = { sessions: { active: number; oldestAt?: string | null; latestEx
 
 const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 const date = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' })
-
-async function api<T>(path: string, options: RequestInit = {}) {
-  const response = await fetch(path, { credentials: 'include', ...options, headers: { 'Content-Type': 'application/json', ...(options.headers || {}) } })
-  const text = await response.text()
-  const payload = text ? JSON.parse(text) : null
-  if (!response.ok) throw new Error(payload?.error || 'Não foi possível concluir a operação.')
-  return payload as T
-}
 
 function limitText(current: number, max: number | null) {
   return max == null ? `${current} / ilimitado` : `${current} / ${max}`
@@ -42,8 +37,8 @@ export default function Phase5Panel() {
     setLoading(true); setError('')
     try {
       const [state, sessions] = await Promise.all([
-        api<Status>('/api/admin/phase5/status'),
-        api<Security>('/api/auth/security/sessions'),
+        apiRequest<Status>('/api/admin/phase5/status'),
+        apiRequest<Security>('/api/auth/security/sessions'),
       ])
       setStatus(state); setSecurity(sessions)
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível carregar assinatura e segurança.') }
@@ -53,18 +48,18 @@ export default function Phase5Panel() {
   useEffect(() => { void load() }, [])
 
   const revokeOthers = async () => {
-    if (!window.confirm('Encerrar todas as outras sessões da sua conta e manter apenas esta?')) return
+    if (!(await confirmAction('Encerrar todas as outras sessões da sua conta e manter apenas esta?'))) return
     setBusy(true); setError('')
     try {
-      const result = await api<{ revoked: number }>('/api/auth/security/revoke-others', { method: 'POST', body: '{}' })
-      setNotice(`${result.revoked} sessão(ões) encerrada(s).`)
+      const result = await apiRequest<{ revoked: number }>('/api/auth/security/revoke-others', { method: 'POST', body: '{}' })
+      setNotice(result.revoked === 1 ? '1 sessão encerrada.' : `${result.revoked} sessões encerradas.`)
       await load()
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível encerrar as sessões.') }
     finally { setBusy(false) }
   }
 
-  if (loading) return <div className="phase5-state"><RefreshCw className="phase5-spin" size={22}/> Carregando assinatura…</div>
-  if (!status) return <div className="phase5-state phase5-state--error">{error || 'Informações indisponíveis.'}</div>
+  if (loading) return <UiState loading title="Carregando plano e uso…"/>
+  if (!status) return <UiState title="Informações indisponíveis." message={error || undefined} onRetry={load}/>
 
   const resources = [
     ['Produtos', status.usage.products, status.plan.limits.products, status.usage.ratios.products],
@@ -75,7 +70,7 @@ export default function Phase5Panel() {
 
   return <div className="phase5-panel">
     <header className="phase5-hero">
-      <div><span>Fase 5 · Conta</span><h1>Assinatura e segurança</h1><p>Confira seu plano, créditos, limites e sessões ativas sem misturar cobrança do Shopvax com os pagamentos dos seus clientes.</p></div>
+      <div><span>Conta</span><h1>Plano e uso</h1><p>Confira seu plano, limites de uso, créditos e sessões ativas.</p></div>
       <div className={`phase5-status phase5-status--${status.billing.status}`}><ShieldCheck size={18}/>{statusLabel(status.billing.status)}</div>
     </header>
 
@@ -87,7 +82,6 @@ export default function Phase5Panel() {
       <article className="phase5-card">
         <div className="phase5-card__icon"><CreditCard size={20}/></div>
         <span>Plano atual</span><h2>{status.plan.name}</h2><strong>{brl.format(status.plan.monthlyPrice)}<small>/mês</small></strong>
-        <p>Código: {status.plan.code.toUpperCase()}</p>
       </article>
       <article className="phase5-card">
         <div className="phase5-card__icon"><CheckCircle2 size={20}/></div>
@@ -109,7 +103,7 @@ export default function Phase5Panel() {
 
     <section className="phase5-section">
       <div className="phase5-section__head"><div><span>Segurança</span><h2>Sessões da conta</h2></div><KeyRound size={20}/></div>
-      <div className="phase5-security-row"><div><strong>{security?.sessions.active ?? 1} sessão(ões) ativa(s)</strong><p>Se você não reconhecer outros acessos, encerre todas as outras sessões. Esta sessão continuará conectada.</p></div><button disabled={busy || (security?.sessions.active ?? 1) <= 1} onClick={() => void revokeOthers()}>{busy ? 'Encerrando…' : 'Encerrar outras sessões'}</button></div>
+      <div className="phase5-security-row"><div><strong>{(security?.sessions.active ?? 1) === 1 ? '1 sessão ativa' : `${security?.sessions.active ?? 1} sessões ativas`}</strong><p>Se você não reconhecer outros acessos, encerre todas as outras sessões. Esta sessão continuará conectada.</p></div><button disabled={busy || (security?.sessions.active ?? 1) <= 1} onClick={() => void revokeOthers()}>{busy ? 'Encerrando…' : 'Encerrar outras sessões'}</button></div>
     </section>
   </div>
 }

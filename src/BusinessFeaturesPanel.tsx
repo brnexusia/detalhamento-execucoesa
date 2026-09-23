@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, Boxes, Check, Copy, Plus, RefreshCcw, Save, Trash2, XCircle } from 'lucide-react'
+import { confirmAction } from './ui-dialogs'
 import { api, type AdminCatalog } from './api'
+import UiState from './UiState'
 import type { AdminBootstrap, AdminProduct, VariationGroup } from './types'
 import './business-features.css'
 
@@ -77,7 +79,7 @@ export default function BusinessFeaturesPanel() {
   }
 
   const cancel = async (orderId: string) => {
-    if (!window.confirm('Cancelar este pedido e devolver o estoque correspondente?')) return
+    if (!(await confirmAction('Cancelar este pedido e devolver o estoque correspondente?'))) return
     setSaving(orderId); setError('')
     try { const result = await api.cancelOrder(orderId); flash(result.idempotent ? 'Esse pedido já estava cancelado.' : 'Pedido cancelado e estoque devolvido.'); await load() }
     catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível cancelar o pedido.') }
@@ -113,7 +115,7 @@ export default function BusinessFeaturesPanel() {
   }
 
   const removeCatalog = async (catalog: AdminCatalog) => {
-    if (catalog.isDefault || !window.confirm(`Excluir o catálogo ${catalog.name}?`)) return
+    if (catalog.isDefault || !(await confirmAction(`Excluir o catálogo ${catalog.name}?`, 'Excluir catálogo', 'Excluir'))) return
     setSaving(catalog.id)
     try { await api.deleteCatalog(catalog.id); flash('Catálogo excluído.'); await load() }
     catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível excluir o catálogo.') }
@@ -127,14 +129,14 @@ export default function BusinessFeaturesPanel() {
     flash(`Link de ${catalog.name} copiado.`)
   }
 
-  if (!data) return <div className="business-shell"><div className="business-loading"><Boxes size={30}/><strong>Carregando recursos…</strong>{error && <p>{error}</p>}</div></div>
+  if (!data) return <div className="business-shell"><UiState loading={!error} title={error ? 'Não foi possível abrir estoque e catálogos.' : 'Carregando estoque e catálogos…'} message={error || undefined} onRetry={error ? load : undefined}/></div>
 
   return <div className="business-shell">
     <header className="business-head"><button onClick={() => go('/painel')}><ArrowLeft size={18}/> Painel</button><div><span>Operação</span><h1>Catálogo e estoque</h1><p>Uma única base de produtos para diferentes vitrines e condições comerciais.</p></div><div className="business-summary"><strong>{catalogs.length}</strong><span>catálogo(s) ativos</span></div></header>
     {notice && <div className="business-toast"><Check size={16}/>{notice}</div>}
     {error && <div className="business-error">{error}</div>}
 
-    <section className="business-card"><div className="business-card__head"><div><span>Módulo 3</span><h2>Múltiplos catálogos</h2></div><button className="business-secondary" onClick={load}><RefreshCcw size={16}/> Atualizar</button></div>
+    <section className="business-card"><div className="business-card__head"><div><span>Catálogos</span><h2>Múltiplos catálogos</h2></div><button className="business-secondary" onClick={load}><RefreshCcw size={16}/> Atualizar</button></div>
       <div className="catalog-create"><label><span>Nome</span><input value={newCatalog.name} onChange={(e) => setNewCatalog((v) => ({ ...v, name: e.target.value }))} placeholder="Ex.: Atacado"/></label><label><span>Tipo</span><select value={newCatalog.kind} onChange={(e) => setNewCatalog((v) => ({ ...v, kind: e.target.value as typeof v.kind }))}><option value="atacado">Atacado</option><option value="varejo">Varejo</option><option value="geral">Geral</option></select></label><label><span>Pedido mínimo</span><input type="number" min="0" value={newCatalog.minimumOrder} onChange={(e) => setNewCatalog((v) => ({ ...v, minimumOrder: e.target.value }))} placeholder="herdar da loja"/></label><button disabled={saving === 'new-catalog'} onClick={createCatalog}><Plus size={16}/> Criar catálogo</button></div>
       <div className="catalog-list">{catalogs.map((catalog) => {
         const draft = catalogDrafts[catalog.id] || catalogDraft(catalog, data.products)
@@ -145,12 +147,12 @@ export default function BusinessFeaturesPanel() {
       })}</div>
     </section>
 
-    <section className="business-card"><div className="business-card__head"><div><span>Módulo 2</span><h2>Estoque dos produtos</h2></div><span>{controlled} com controle ativo</span></div><div className="stock-list">{data.products.map((product) => {
+    <section className="business-card"><div className="business-card__head"><div><span>Estoque</span><h2>Estoque dos produtos</h2></div><span>{controlled} com controle ativo</span></div><div className="stock-list">{data.products.map((product) => {
       const draft = drafts[product.id] || initialDraft(product)
       const combos = combinations(product.variations)
       return <article className="stock-product" key={product.id}><div className="stock-product__title"><div><small>{product.sku || 'SEM SKU'} · {product.category}</small><strong>{product.name}</strong></div><label className="business-switch"><input type="checkbox" checked={draft.enabled} onChange={(event) => setDrafts((current) => ({ ...current, [product.id]: { ...draft, enabled: event.target.checked } }))}/><span/>Controlar estoque</label></div>{combos.length === 0 ? <label className="stock-base"><span>Quantidade disponível</span><input type="number" min="0" step="1" value={draft.quantity} disabled={!draft.enabled} onChange={(event) => setDrafts((current) => ({ ...current, [product.id]: { ...draft, quantity: Math.max(0, Number(event.target.value) || 0) } }))}/></label> : <div className="stock-variants"><div className="stock-variants__note"><strong>Estoque por variação</strong><span>Saldo compartilhado entre catálogos.</span></div>{combos.map((selection) => { const key = keyOf(selection); const qty = draft.variantStock[key] ?? 0; return <label key={key}><span>{Object.entries(selection).map(([name, option]) => `${name}: ${option}`).join(' · ')}</span><input type="number" min="0" step="1" value={qty} disabled={!draft.enabled} onChange={(event) => setDrafts((current) => ({ ...current, [product.id]: { ...draft, variantStock: { ...draft.variantStock, [key]: Math.max(0, Number(event.target.value) || 0) } } }))}/></label> })}</div>}<div className="stock-product__actions"><span>{draft.enabled ? 'Baixa automática quando o pedido é criado.' : 'Sem controle: disponibilidade ilimitada.'}</span><button disabled={saving === product.id} onClick={() => saveStock(product)}><Save size={16}/>{saving === product.id ? 'Salvando…' : 'Salvar estoque'}</button></div></article>
     })}</div></section>
 
-    <section className="business-card"><div className="business-card__head"><div><span>Retorno de estoque</span><h2>Pedidos recentes</h2></div></div><div className="business-orders">{data.orders.slice(0, 30).map((order) => <div key={order.id}><div><strong>{order.code}</strong><span>{order.items.length} item(ns) · {order.status === 'cancelled' ? 'Cancelado' : 'Enviado ao WhatsApp'}</span></div>{order.status !== 'cancelled' ? <button className="business-danger" disabled={saving === order.id} onClick={() => cancel(order.id)}><XCircle size={16}/> Cancelar e devolver</button> : <span className="business-done"><Check size={15}/> estoque devolvido</span>}</div>)}</div></section>
+    <section className="business-card"><div className="business-card__head"><div><span>Retorno de estoque</span><h2>Pedidos recentes</h2></div></div><div className="business-orders">{data.orders.slice(0, 30).map((order) => <div key={order.id}><div><strong>{order.code}</strong><span>{order.items.length} {order.items.length === 1 ? 'item' : 'itens'} · {order.status === 'cancelled' ? 'Cancelado' : 'Enviado ao WhatsApp'}</span></div>{order.status !== 'cancelled' ? <button className="business-danger" disabled={saving === order.id} onClick={() => cancel(order.id)}><XCircle size={16}/> Cancelar e devolver</button> : <span className="business-done"><Check size={15}/> estoque devolvido</span>}</div>)}</div></section>
   </div>
 }

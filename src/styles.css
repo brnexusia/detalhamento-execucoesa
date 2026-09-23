@@ -325,3 +325,8 @@ main:not(.feed-shell) { max-width: 1460px; margin: 0 auto; padding: 0 28px 80px;
   .cart-item img { width: 52px; height: 64px; }
   .quantity-control { grid-column: 2; width: max-content; }
 }
+
+
+/* Keyboard accessibility */
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{outline:2px solid #171714!important;outline-offset:2px!important}
+.social-feed-page button:focus-visible,.social-feed-page a:focus-visible{outline-color:#fff!important}
