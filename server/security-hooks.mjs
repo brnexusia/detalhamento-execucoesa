@@ -43,8 +43,8 @@ function setSecurityHeaders(req, res) {
   res.setHeader('X-Frame-Options', 'DENY')
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()')
-  const googleAuthPage = req.path === '/entrar' || req.path === '/criar-conta'
-  res.setHeader('Cross-Origin-Opener-Policy', googleAuthPage ? 'same-origin-allow-popups' : 'same-origin')
+  const googleIdentityEnabled = Boolean(String(process.env.GOOGLE_CLIENT_ID || '').trim())
+  res.setHeader('Cross-Origin-Opener-Policy', googleIdentityEnabled ? 'same-origin-allow-popups' : 'same-origin')
   res.setHeader('Content-Security-Policy', [
     "default-src 'self'",
     "base-uri 'self'",
