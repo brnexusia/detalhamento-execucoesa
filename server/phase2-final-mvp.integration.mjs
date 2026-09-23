@@ -105,7 +105,7 @@ try {
   assert.equal(visitorBResult.response.status, 200)
   assert.equal(visitorBResult.payload.seller.name, 'Bia')
 
-  // Plano 1 não pode ativar estoque nem domínio próprio/personalização avançada.
+  // Bronze não pode ativar estoque nem domínio próprio/personalização avançada.
   result = await request('/api/admin/products', {
     method: 'POST', cookie: owner.cookie,
     body: { sku: 'F2-1', name: 'Produto Fase 2', description: '', price: 80, category: 'Teste', mediaUrl: '', mediaType: 'image', pack: '', variations: [], active: true },
@@ -164,7 +164,7 @@ try {
   assert.equal(result.response.status, 200)
   assert.equal(result.payload.order.status, 'em_atendimento')
 
-  // Faz upgrade técnico para o Plano 2 e valida os recursos que passam a ser permitidos.
+  // Faz upgrade técnico para o Prata e valida os recursos que passam a ser permitidos.
   const storeRow = await pool.query('SELECT id FROM stores WHERE slug=$1 LIMIT 1', [owner.slug])
   assert.equal(storeRow.rowCount, 1)
   await pool.query("UPDATE stores SET plan_tier='prata' WHERE id=$1", [storeRow.rows[0].id])
