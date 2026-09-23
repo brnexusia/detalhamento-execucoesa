@@ -99,7 +99,7 @@ try {
 
   result = await request('/api/admin/catalogs', { cookie: account.cookie })
   assert.equal(result.response.status, 200)
-  assert.equal(result.payload.catalogs.length, 1, 'Plano 1 deve começar com um único catálogo padrão')
+  assert.equal(result.payload.catalogs.length, 1, 'Bronze deve começar com um único catálogo padrão')
   const catalog = result.payload.catalogs[0]
   assert.equal(catalog.isDefault, true)
 
