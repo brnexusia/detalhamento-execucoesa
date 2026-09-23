@@ -43,19 +43,21 @@ function setSecurityHeaders(req, res) {
   res.setHeader('X-Frame-Options', 'DENY')
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()')
-  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin')
+  const googleAuthPage = req.path === '/entrar' || req.path === '/criar-conta'
+  res.setHeader('Cross-Origin-Opener-Policy', googleAuthPage ? 'same-origin-allow-popups' : 'same-origin')
   res.setHeader('Content-Security-Policy', [
     "default-src 'self'",
     "base-uri 'self'",
     "frame-ancestors 'none'",
     "form-action 'self'",
     "object-src 'none'",
-    "script-src 'self'",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "script-src 'self' https://accounts.google.com/gsi/client",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com/gsi/style",
     "font-src 'self' https://fonts.gstatic.com data:",
     "img-src 'self' data: blob: https:",
     "media-src 'self' blob: https:",
-    "connect-src 'self'",
+    "connect-src 'self' https://accounts.google.com/gsi/",
+    "frame-src https://accounts.google.com/gsi/",
   ].join('; '))
   if (req.secure || req.get('x-forwarded-proto') === 'https') {
     res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
@@ -78,9 +80,10 @@ function installSecurity(app) {
       return res.status(403).json({ error: 'Origem da requisição não autorizada.' })
     }
 
-    if (!rateLimitDisabled && req.method === 'POST' && (req.path === '/api/auth/login' || req.path === '/api/auth/register')) {
-      const limit = req.path.endsWith('/register') ? 6 : 12
-      const result = take(authBuckets, `${req.path}:${clientIp(req)}`, limit, req.path.endsWith('/register') ? 60 * 60 * 1000 : windowMs)
+    if (!rateLimitDisabled && req.method === 'POST' && ['/api/auth/login', '/api/auth/register', '/api/auth/google'].includes(req.path)) {
+      const isRegister = req.path === '/api/auth/register'
+      const limit = isRegister ? 6 : 12
+      const result = take(authBuckets, `${req.path}:${clientIp(req)}`, limit, isRegister ? 60 * 60 * 1000 : windowMs)
       if (!result.ok) {
         res.setHeader('Retry-After', String(result.retryAfter))
         return res.status(429).json({ error: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.' })
@@ -95,7 +98,7 @@ function installSecurity(app) {
       }
     }
 
-    if (req.method === 'POST' && req.path === '/api/auth/register') {
+    if (req.method === 'POST' && (req.path === '/api/auth/register' || req.path === '/api/auth/google')) {
       const length = Number(req.get('content-length') || 0)
       if (length > 64 * 1024) return res.status(413).json({ error: 'Cadastro maior que o permitido.' })
     }
