@@ -59,6 +59,8 @@ jobs:
           grep -Fq '"./server/business-features-hooks.mjs"' Dockerfile
           grep -Fq '"./server/platform-hooks.mjs"' Dockerfile
           grep -Fq '"./server/plan-limits-hooks.mjs"' Dockerfile
+          grep -Fq '"./server/google-auth-hooks.mjs"' Dockerfile
+          grep -Fq 'google-auth-hooks.mjs' package.json
           grep -Fq '"./server/scanner-hooks.mjs"' Dockerfile
           grep -Fq '"./server/scanner-publish-hooks.mjs"' Dockerfile
           grep -Fq '"./server/social-network-hooks.mjs"' Dockerfile
