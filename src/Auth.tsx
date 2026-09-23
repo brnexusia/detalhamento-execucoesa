@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ArrowRight, Eye, EyeOff, Gift, Store, X } from 'lucide-react'
 import { api } from './api'
+import GoogleSignInButton from './GoogleSignInButton'
 
 type SignupPlan = {
   code: string
@@ -50,6 +51,8 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const [plans, setPlans] = useState<SignupPlan[]>([])
   const [plansLoading, setPlansLoading] = useState(mode === 'register')
   const [plansError, setPlansError] = useState('')
+  const [googleBusy, setGoogleBusy] = useState(false)
+  const [googleSignup, setGoogleSignup] = useState<{ credential: string; name: string; email: string; picture?: string } | null>(null)
   const [form, setForm] = useState({
     name: '',
     email: '',
@@ -61,9 +64,10 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   })
 
   const update = (key: keyof typeof form, value: string) => setForm((current) => ({ ...current, [key]: value }))
+  const registrationMode = mode === 'register' || Boolean(googleSignup)
 
   useEffect(() => {
-    if (mode !== 'register') return
+    if (!registrationMode) return
     const controller = new AbortController()
 
     setPlansLoading(true)
@@ -80,16 +84,49 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
       .finally(() => setPlansLoading(false))
 
     return () => controller.abort()
-  }, [mode])
+  }, [registrationMode])
 
   const selectedPlan = plans.find((plan) => plan.code === form.planCode)
+
+  const googleCredential = async (credential: string) => {
+    setGoogleBusy(true)
+    setError('')
+    try {
+      const result = await api.googleAuth({ credential, intent: 'login' })
+      if (result.ok) {
+        go(mode === 'login' ? requestedDestination() : '/painel')
+        return
+      }
+      if (result.needsSignup) {
+        setGoogleSignup({ credential, ...result.profile })
+        setForm((current) => ({ ...current, name: result.profile.name || current.name, email: result.profile.email || current.email }))
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível entrar com o Google.')
+    } finally {
+      setGoogleBusy(false)
+    }
+  }
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
     setBusy(true)
     setError('')
     try {
-      if (mode === 'login') {
+      if (googleSignup) {
+        if (!form.storeName.trim()) throw new Error('Informe o nome da sua loja.')
+        if (!form.planCode) throw new Error('Selecione o plano da sua loja.')
+        const result = await api.googleAuth({
+          credential: googleSignup.credential,
+          intent: 'register',
+          storeName: form.storeName,
+          whatsapp: form.whatsapp,
+          planCode: form.planCode,
+          referralCode: form.referralCode,
+        })
+        if (!result.ok) throw new Error('Não foi possível concluir o cadastro com Google.')
+        go('/painel')
+      } else if (mode === 'login') {
         await api.login({ email: form.email, password: form.password })
         go(requestedDestination())
       } else {
@@ -110,7 +147,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
         <button className="wordmark" onClick={() => go('/')}><span>SV</span> Shopvax</button>
         <div className="auth-poster__copy">
           <p>Venda assistida para atacado.</p>
-          <h1>{mode === 'register' ? 'Sua loja no ar. Sua vendedora no fechamento.' : 'Volte para a sua operação.'}</h1>
+          <h1>{registrationMode ? 'Sua loja no ar. Sua vendedora no fechamento.' : 'Volte para a sua operação.'}</h1>
           <div className="poster-note">Catálogo + Feed + Carrinho + WhatsApp</div>
         </div>
       </aside>
@@ -119,13 +156,21 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
         <form className="auth-form" onSubmit={submit}>
           <div className="auth-form__head">
             <span className="brand__mark">SV</span>
-            <p>{mode === 'register' ? 'Criar conta' : 'Entrar'}</p>
-            <h2>{mode === 'register' ? 'Monte sua loja em poucos minutos.' : 'Acesse seu painel.'}</h2>
+            <p>{registrationMode ? 'Criar conta' : 'Entrar'}</p>
+            <h2>{googleSignup ? 'Complete os dados da sua loja.' : registrationMode ? 'Monte sua loja em poucos minutos.' : 'Acesse seu painel.'}</h2>
           </div>
-          {mode === 'register' && form.referralCode && <div className="poster-note"><Gift size={15}/> Indicação {form.referralCode} · quem indicou recebe 1 mês grátis após seu cadastro válido.</div>}
-          {mode === 'register' && (
+          {registrationMode && form.referralCode && <div className="poster-note"><Gift size={15}/> Indicação {form.referralCode} · quem indicou recebe 1 mês grátis após seu cadastro válido.</div>}
+          {!googleSignup && <>
+            <GoogleSignInButton mode={mode} disabled={googleBusy || busy} onCredential={googleCredential} />
+            <div className="auth-divider"><span>ou</span></div>
+          </>}
+          {googleSignup && <div className="auth-google-profile">
+            {googleSignup.picture ? <img src={googleSignup.picture} alt="" referrerPolicy="no-referrer"/> : <span>G</span>}
+            <div><small>Conta Google confirmada</small><strong>{googleSignup.name}</strong><em>{googleSignup.email}</em></div>
+          </div>}
+          {registrationMode && (
             <>
-              <label><span>Seu nome</span><input autoComplete="name" value={form.name} onChange={(e) => update('name', e.target.value)} placeholder="Felipe" required /></label>
+              {!googleSignup && <label><span>Seu nome</span><input autoComplete="name" value={form.name} onChange={(e) => update('name', e.target.value)} placeholder="Felipe" required /></label>}
               <label><span>Nome da loja</span><div className="input-icon"><Store size={17} /><input value={form.storeName} onChange={(e) => update('storeName', e.target.value)} placeholder="Suprema Line" required /></div></label>
               <label><span>WhatsApp principal</span><input inputMode="tel" value={form.whatsapp} onChange={(e) => update('whatsapp', e.target.value)} placeholder="55 11 99999-9999" /></label>
               <fieldset className="signup-plans">
@@ -142,11 +187,13 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
               </fieldset>
             </>
           )}
-          <label><span>E-mail</span><input type="email" autoComplete="email" value={form.email} onChange={(e) => update('email', e.target.value)} placeholder="voce@empresa.com.br" required /></label>
-          <label><span>Senha</span><div className="password-input"><input type={showPassword ? 'text' : 'password'} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength={8} value={form.password} onChange={(e) => update('password', e.target.value)} placeholder="Mínimo 8 caracteres" required /><button type="button" onClick={() => setShowPassword((value) => !value)}>{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button></div></label>
+          {!googleSignup && <>
+            <label><span>E-mail</span><input type="email" autoComplete="email" value={form.email} onChange={(e) => update('email', e.target.value)} placeholder="voce@empresa.com.br" required /></label>
+            <label><span>Senha</span><div className="password-input"><input type={showPassword ? 'text' : 'password'} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength={8} value={form.password} onChange={(e) => update('password', e.target.value)} placeholder="Mínimo 8 caracteres" required /><button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}>{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button></div></label>
+          </>}
           {error && <p className="form-error">{error}</p>}
-          <button className="primary-action" disabled={busy || (mode === 'register' && (plansLoading || Boolean(plansError)))}>{busy ? 'Aguarde…' : mode === 'register' ? 'Criar minha loja' : 'Entrar'}<ArrowRight size={18} /></button>
-          <p className="auth-switch">{mode === 'register' ? 'Já tem uma conta?' : 'Ainda não tem conta?'} <button type="button" onClick={() => go(mode === 'register' ? '/entrar' : '/criar-conta')}>{mode === 'register' ? 'Entrar' : 'Criar conta'}</button></p>
+          <button className="primary-action" disabled={busy || googleBusy || (registrationMode && (plansLoading || Boolean(plansError)))}>{busy || googleBusy ? 'Aguarde…' : googleSignup ? 'Criar minha loja com Google' : mode === 'register' ? 'Criar minha loja' : 'Entrar'}<ArrowRight size={18} /></button>
+          <p className="auth-switch">{registrationMode ? 'Já tem uma conta?' : 'Ainda não tem conta?'} <button type="button" onClick={() => { setGoogleSignup(null); go(registrationMode ? '/entrar' : '/criar-conta') }}>{registrationMode ? 'Entrar' : 'Criar conta'}</button></p>
         </form>
       </main>
     </div>
