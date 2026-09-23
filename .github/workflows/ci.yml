@@ -87,6 +87,8 @@ jobs:
         run: node server/scanner-module7-dedicated.test.mjs
       - name: Product polish regression checks
         run: npm run test:polish
+      - name: Google authentication regression checks
+        run: npm run test:google-auth
       - name: Build
         run: npm run build
       - name: Show production bundles
@@ -95,6 +97,14 @@ jobs:
         run: |
           npm start > /tmp/shopvax.log 2>&1 &
           echo $! > /tmp/shopvax.pid
+      - name: Google auth disabled-by-default endpoint
+        run: |
+          node - <<'NODE'
+          const response = await fetch('http://127.0.0.1:3000/api/public/auth/google-config')
+          if (!response.ok) throw new Error('Google config endpoint failed')
+          const body = await response.json()
+          if (body.enabled !== false || body.clientId !== null) throw new Error('Google auth should be disabled when GOOGLE_CLIENT_ID is absent')
+          NODE
       - name: Social module 1 network foundation
         run: node server/social-module1.integration.mjs
       - name: Social module 2 public store profile
