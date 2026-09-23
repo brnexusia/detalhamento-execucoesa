@@ -109,6 +109,11 @@ export const api = {
   track: (body: { storeSlug: string; sellerSlug?: string; kind: 'view' | 'cart' | 'whatsapp' }) => request<void>('/api/public/events', { method: 'POST', body: JSON.stringify(body) }).catch(() => undefined),
   createOrder: (body: { storeSlug: string; sellerSlug?: string; catalogSlug?: string; items: Array<{ productId: string; quantity: number; selections: Record<string, string> }> }) => request<{ code: string; orderId?: string; catalog?: Catalog; whatsappUrl: string }>('/api/business/orders', { method: 'POST', body: JSON.stringify({ ...body, catalogSlug: body.catalogSlug ?? currentCatalogSlug() }) }),
   login: (body: { email: string; password: string }) => request<{ ok: true }>('/api/auth/login', { method: 'POST', body: JSON.stringify(body) }),
+  googleConfig: () => request<{ enabled: boolean; clientId: string | null }>('/api/public/auth/google-config'),
+  googleAuth: (body: { credential: string; intent: 'login' | 'register'; storeName?: string; whatsapp?: string; planCode?: string; referralCode?: string }) => request<
+    | { ok: true; created: boolean; storeSlug?: string; profile: { name: string; email: string; picture?: string } }
+    | { ok: false; needsSignup: true; profile: { name: string; email: string; picture?: string } }
+  >('/api/auth/google', { method: 'POST', body: JSON.stringify(body) }),
   register: (body: { name: string; email: string; password: string; storeName: string; whatsapp: string; planCode: string; referralCode?: string }) => request<{ ok: true; storeSlug: string; planCode: string }>('/api/auth/register', { method: 'POST', body: JSON.stringify(body) }),
   logout: () => request<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
   me: () => request<{ user: { id: string; name: string; email: string }; store: { id: string; slug: string; name: string; plan_tier?: string } }>('/api/auth/me'),
