@@ -68,6 +68,16 @@ try {
      WHERE id=ANY($1::text[])`,
     [productIds],
   )
+  await db.query(
+    `UPDATE products
+     SET images=$1::jsonb,variant_images=$2::jsonb,media_url='/media/public-gallery-cover'
+     WHERE id=$3`,
+    [
+      JSON.stringify(['/media/public-gallery-cover', '/media/public-gallery-side']),
+      JSON.stringify([{ selections: { Tamanho: 'M' }, images: ['/media/public-gallery-medium'] }]),
+      productIds[54],
+    ],
+  )
 
   let response = await fetch(`${base}/api/public/store/${account.storeSlug}?limit=500`, { headers: browserHeaders })
   assert.equal(response.status, 200)
@@ -110,6 +120,8 @@ try {
   let search = await response.json()
   assert.equal(search.products.length, 1)
   assert.equal(search.products[0].sku, 'MOD6-055')
+  assert.deepEqual(search.products[0].images, ['/media/public-gallery-cover', '/media/public-gallery-side'])
+  assert.deepEqual(search.products[0].variantImages, [{ selections: { Tamanho: 'M' }, images: ['/media/public-gallery-medium'] }])
 
   response = await fetch(`${base}/api/public/store/${account.storeSlug}?category=${encodeURIComponent('Camisas')}`, {
     headers: { ...browserHeaders, Cookie: visitor },

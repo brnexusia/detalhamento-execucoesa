@@ -30,6 +30,7 @@ jobs:
       SCANNER_WORKER_DISABLED: '1'
       SHOPVAX_PLAN_LIMITS_DISABLED: '1'
       SHOPVAX_SECURITY_RATE_LIMIT_DISABLED: '1'
+      SHOPVAX_IMPORT_MEDIA_REPAIR_DISABLED: '1'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -87,6 +88,8 @@ jobs:
         run: node server/scanner-module7-dedicated.test.mjs
       - name: Product polish regression checks
         run: npm run test:polish
+      - name: Imported media localization regression checks
+        run: node server/import-media-localizer.test.mjs
       - name: Google authentication regression checks
         run: npm run test:google-auth
       - name: Build

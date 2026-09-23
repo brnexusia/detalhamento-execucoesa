@@ -95,6 +95,8 @@ function publicProduct(product) {
     category: product.category,
     mediaUrl: product.media_url,
     mediaType: product.media_type,
+    images: Array.isArray(product.images) ? product.images : [],
+    variantImages: Array.isArray(product.variant_images) ? product.variant_images : [],
     pack: product.pack,
     variations: Array.isArray(product.variations) ? product.variations : [],
     featured: Boolean(product.featured),
@@ -173,7 +175,7 @@ async function protectedStore(req, res) {
   }
   params.push(limit + 1)
   const productsResult = await pool.query(
-    `SELECT id,sku,name,description,price,category,media_url,media_type,pack,variations,featured,created_at,
+    `SELECT id,sku,name,description,price,category,media_url,media_type,images,variant_images,pack,variations,featured,created_at,
             created_at::text AS created_at_cursor
      FROM products
      WHERE ${conditions.join(' AND ')}
