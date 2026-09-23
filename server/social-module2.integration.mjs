@@ -9,7 +9,7 @@ const response = await fetch(`${base}/api/auth/register`, {
     email: `social-${unique}@example.com`,
     password: 'senha-social-123',
     storeName: `Loja Social ${unique}`,
-    whatsapp: '5511999999999',
+    whatsapp: '5511999999999', planCode: 'bronze',
   }),
 })
 const registration = await response.json().catch(() => ({}))
