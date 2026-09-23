@@ -1,4 +1,4 @@
-import type { AdminBootstrap, Catalog, PublicPayload } from './types'
+import type { AdminBootstrap, AdminProduct, Catalog, PublicPayload } from './types'
 
 export type ImportJob = {
   id: string
