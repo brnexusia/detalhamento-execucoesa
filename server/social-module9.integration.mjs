@@ -12,7 +12,7 @@ if (!appSource.includes("pathname === '/para-lojas') return 'home'")) throw new 
 async function createStore(label) {
   const response = await fetch(`${base}/api/auth/register`, {
     method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ name: label, email: `${label.toLowerCase()}-${unique}@example.com`, password: 'senha-social-123', storeName: `${label}-${unique}`, whatsapp: '5511999999999' }),
+    body: JSON.stringify({ name: label, email: `${label.toLowerCase()}-${unique}@example.com`, password: 'senha-social-123', storeName: `${label}-${unique}`, whatsapp: '5511999999999', planCode: 'bronze' }),
   })
   const body = await response.json().catch(() => ({}))
   const cookie = response.headers.get('set-cookie')?.split(';')[0] || ''
