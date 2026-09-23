@@ -12,7 +12,7 @@ async function register(label) {
       email: `normalizer-${label}-${Date.now()}-${Math.random()}@example.test`,
       password: 'scanner1234',
       storeName: `Loja Normalizer ${label}`,
-      whatsapp: '5511999999999',
+      whatsapp: '5511999999999', planCode: 'bronze',
     }),
   })
   assert.equal(response.status, 201)
