@@ -113,6 +113,9 @@ A rota `/admin` é o painel operacional do Shopvax. Administradores podem:
 
 O servidor aplica:
 
+- login por e-mail/senha e, quando configurado, **Entrar com Google** via Google Identity Services;
+- tokens de identidade do Google validados no backend com audiência, emissor, expiração e e-mail verificado antes de criar a sessão;
+- contas existentes com o mesmo e-mail verificado podem vincular o Google sem duplicar a loja;
 - cookies de sessão `HttpOnly` e `Secure` quando HTTPS está ativo;
 - sessões administrativas limitadas a 7 dias para acesso ao `/admin`;
 - reautenticação por senha em exclusão de conta e remoção de administrador;
@@ -147,9 +150,22 @@ Variáveis principais:
 DATABASE_URL=postgresql://usuario:senha@host:5432/banco
 SHOPVAX_PUBLIC_URL=https://seu-dominio-shopvax.com.br
 SHOPVAX_INTEGRATION_SECRET=gere-um-segredo-longo-aleatorio-e-estavel
+GOOGLE_CLIENT_ID=000000000000-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com
 ```
 
 `SHOPVAX_INTEGRATION_SECRET` deve permanecer estável entre deploys: ele cifra chaves Asaas e segredos de webhook salvos no banco. Trocar essa variável sem migração das credenciais torna os segredos existentes indecifráveis.
+
+### Login com Google
+
+Crie um **OAuth Client ID do tipo Web application** no Google Cloud e cadastre os domínios do Shopvax em **Authorized JavaScript origins**. Como o Shopvax usa o fluxo popup/callback do Google Identity Services, o frontend recebe um ID token e o backend o valida antes de abrir a sessão.
+
+Em produção, configure:
+
+```env
+GOOGLE_CLIENT_ID=seu-client-id.apps.googleusercontent.com
+```
+
+Para desenvolvimento, adicione também a origem local usada no navegador, por exemplo `http://localhost:5173`. O Client ID é público por definição; não é necessário colocar Client Secret no frontend ou no Shopvax para este fluxo. Sem `GOOGLE_CLIENT_ID`, o botão Google fica oculto e o login tradicional continua funcionando.
 
 `SHOPVAX_PUBLIC_URL` é usada para montar o callback público do Asaas e os links absolutos do feed Meta. As chaves Asaas são cadastradas dentro da própria loja em `/painel/integracoes`; não devem ser colocadas no código-fonte.
 
