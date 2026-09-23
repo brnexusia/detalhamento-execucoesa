@@ -100,8 +100,15 @@ jobs:
       - name: Google auth disabled-by-default endpoint
         run: |
           node - <<'NODE'
-          const response = await fetch('http://127.0.0.1:3000/api/public/auth/google-config')
-          if (!response.ok) throw new Error('Google config endpoint failed')
+          let response
+          for (let attempt = 0; attempt < 40; attempt += 1) {
+            try {
+              response = await fetch('http://127.0.0.1:3000/api/public/auth/google-config')
+              if (response.ok) break
+            } catch {}
+            await new Promise((resolve) => setTimeout(resolve, 250))
+          }
+          if (!response?.ok) throw new Error('Google config endpoint failed')
           const body = await response.json()
           if (body.enabled !== false || body.clientId !== null) throw new Error('Google auth should be disabled when GOOGLE_CLIENT_ID is absent')
           NODE
