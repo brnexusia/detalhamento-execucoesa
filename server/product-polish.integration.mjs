@@ -14,7 +14,9 @@ for (const legacy of ['Plano 1', 'Plano 2', 'Plano 3']) assert.doesNotMatch(sour
 
 const auth = read('src/Auth.tsx')
 assert.match(auth, /signup-plan-grid/)
-assert.match(auth, /api\.register\(form\)/)
+assert.match(auth, /const SHOW_SIGNUP_PLANS = false/)
+assert.match(auth, /const DEFAULT_SIGNUP_PLAN = 'bronze'/)
+assert.match(auth, /api\.register\(\{ \.\.\.form, planCode: form\.planCode \|\| DEFAULT_SIGNUP_PLAN \}\)/)
 assert.doesNotMatch(auth, /\/api\/account\/plan/)
 assert.doesNotMatch(auth, /fallbackPlans/)
 
