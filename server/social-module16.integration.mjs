@@ -18,7 +18,7 @@ if (!store.includes('brand__mark">SV</span>')) throw new Error('Loja pública n�
 
 const admin = await fs.readFile('src/AdminApp.tsx', 'utf8')
 if (!admin.includes('<strong>Shopvax</strong>')) throw new Error('Painel do lojista não exibe Shopvax.')
-if (!admin.includes('store-preview-logo">{form.logoUrl ? <img src={form.logoUrl} alt="" /> : <span>SV</span>}')) throw new Error('Prévia da loja ainda não usa SV.')
+if (!admin.includes('store-preview-logo">{form.logoUrl ? <img src={optimizedMediaUrl(form.logoUrl, \'thumb\')} alt="" /> : <span>SV</span>}')) throw new Error('Prévia da loja ainda não usa SV.')
 
 const platform = await fs.readFile('src/PlatformAdmin.tsx', 'utf8')
 if (!platform.includes('<div><strong>Shopvax</strong><small>Administração</small></div>')) throw new Error('Administração da plataforma não exibe Shopvax.')

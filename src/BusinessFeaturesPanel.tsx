@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, Boxes, Check, Copy, Plus, RefreshCcw, Save, Trash2, XCircle } from 'lucide-react'
+import { ArrowLeft, Boxes, Check, Copy, Download, Plus, RefreshCcw, Save, Trash2, XCircle } from 'lucide-react'
 import { confirmAction } from './ui-dialogs'
 import { api, type AdminCatalog } from './api'
 import UiState from './UiState'
@@ -129,6 +129,27 @@ export default function BusinessFeaturesPanel() {
     flash(`Link de ${catalog.name} copiado.`)
   }
 
+  const downloadCatalogPdf = async (catalog: AdminCatalog) => {
+    setSaving(`pdf-${catalog.id}`)
+    setError('')
+    try {
+      const result = await api.downloadCatalogPdf(catalog.id)
+      const url = URL.createObjectURL(result.blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = result.filename
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      window.setTimeout(() => URL.revokeObjectURL(url), 1500)
+      flash(`PDF de ${catalog.name} gerado.`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível gerar o PDF.')
+    } finally {
+      setSaving('')
+    }
+  }
+
   if (!data) return <div className="business-shell"><UiState loading={!error} title={error ? 'Não foi possível abrir estoque e catálogos.' : 'Carregando estoque e catálogos…'} message={error || undefined} onRetry={error ? load : undefined}/></div>
 
   return <div className="business-shell">
@@ -140,7 +161,7 @@ export default function BusinessFeaturesPanel() {
       <div className="catalog-create"><label><span>Nome</span><input value={newCatalog.name} onChange={(e) => setNewCatalog((v) => ({ ...v, name: e.target.value }))} placeholder="Ex.: Atacado"/></label><label><span>Tipo</span><select value={newCatalog.kind} onChange={(e) => setNewCatalog((v) => ({ ...v, kind: e.target.value as typeof v.kind }))}><option value="atacado">Atacado</option><option value="varejo">Varejo</option><option value="geral">Geral</option></select></label><label><span>Pedido mínimo</span><input type="number" min="0" value={newCatalog.minimumOrder} onChange={(e) => setNewCatalog((v) => ({ ...v, minimumOrder: e.target.value }))} placeholder="herdar da loja"/></label><button disabled={saving === 'new-catalog'} onClick={createCatalog}><Plus size={16}/> Criar catálogo</button></div>
       <div className="catalog-list">{catalogs.map((catalog) => {
         const draft = catalogDrafts[catalog.id] || catalogDraft(catalog, data.products)
-        return <article className="catalog-card" key={catalog.id}><div className="catalog-card__head"><div><span>{catalog.isDefault ? 'Principal' : draft.kind}</span><input value={draft.name} onChange={(e) => setCatalogDrafts((current) => ({ ...current, [catalog.id]: { ...draft, name: e.target.value } }))}/></div><div className="catalog-card__actions"><button onClick={() => copyCatalogLink(catalog)}><Copy size={15}/> Copiar link</button>{!catalog.isDefault && <button className="business-danger" onClick={() => removeCatalog(catalog)}><Trash2 size={15}/></button>}</div></div><div className="catalog-settings"><label><span>Tipo</span><select value={draft.kind} onChange={(e) => setCatalogDrafts((current) => ({ ...current, [catalog.id]: { ...draft, kind: e.target.value as CatalogDraft['kind'] } }))}><option value="geral">Geral</option><option value="atacado">Atacado</option><option value="varejo">Varejo</option></select></label><label><span>Pedido mínimo</span><input type="number" min="0" value={draft.minimumOrder} onChange={(e) => setCatalogDrafts((current) => ({ ...current, [catalog.id]: { ...draft, minimumOrder: e.target.value } }))} placeholder={`herdar R$ ${data.store.minimum_order}`}/></label>{!catalog.isDefault && <label className="business-switch"><input type="checkbox" checked={draft.active} onChange={(e) => setCatalogDrafts((current) => ({ ...current, [catalog.id]: { ...draft, active: e.target.checked } }))}/><span/>Publicado</label>}</div><div className="catalog-products"><div className="catalog-products__head"><strong>Produtos deste catálogo</strong><span>O estoque físico continua compartilhado entre todos.</span></div>{data.products.map((product) => {
+        return <article className="catalog-card" key={catalog.id}><div className="catalog-card__head"><div><span>{catalog.isDefault ? 'Principal' : draft.kind}</span><input value={draft.name} onChange={(e) => setCatalogDrafts((current) => ({ ...current, [catalog.id]: { ...draft, name: e.target.value } }))}/></div><div className="catalog-card__actions"><button disabled={saving === `pdf-${catalog.id}`} onClick={() => void downloadCatalogPdf(catalog)}><Download size={15}/>{saving === `pdf-${catalog.id}` ? 'Gerando…' : 'Gerar PDF'}</button><button onClick={() => copyCatalogLink(catalog)}><Copy size={15}/> Copiar link</button>{!catalog.isDefault && <button className="business-danger" onClick={() => removeCatalog(catalog)}><Trash2 size={15}/></button>}</div></div><div className="catalog-settings"><label><span>Tipo</span><select value={draft.kind} onChange={(e) => setCatalogDrafts((current) => ({ ...current, [catalog.id]: { ...draft, kind: e.target.value as CatalogDraft['kind'] } }))}><option value="geral">Geral</option><option value="atacado">Atacado</option><option value="varejo">Varejo</option></select></label><label><span>Pedido mínimo</span><input type="number" min="0" value={draft.minimumOrder} onChange={(e) => setCatalogDrafts((current) => ({ ...current, [catalog.id]: { ...draft, minimumOrder: e.target.value } }))} placeholder={`herdar R$ ${data.store.minimum_order}`}/></label>{!catalog.isDefault && <label className="business-switch"><input type="checkbox" checked={draft.active} onChange={(e) => setCatalogDrafts((current) => ({ ...current, [catalog.id]: { ...draft, active: e.target.checked } }))}/><span/>Publicado</label>}</div><div className="catalog-products"><div className="catalog-products__head"><strong>Produtos deste catálogo</strong><span>O estoque físico continua compartilhado entre todos.</span></div>{data.products.map((product) => {
           const item = draft.items[product.id] || { visible: true, priceOverride: '' }
           return <div className="catalog-product" key={product.id}><label className="catalog-visible"><input type="checkbox" checked={item.visible} onChange={(e) => setCatalogDrafts((current) => ({ ...current, [catalog.id]: { ...draft, items: { ...draft.items, [product.id]: { ...item, visible: e.target.checked } } } }))}/><span>{product.name}</span><small>{product.sku || 'SEM SKU'} · base R$ {Number(product.price).toFixed(2).replace('.', ',')}</small></label><label><span>Preço neste catálogo</span><input type="number" min="0" step="0.01" value={item.priceOverride} placeholder={String(product.price)} onChange={(e) => setCatalogDrafts((current) => ({ ...current, [catalog.id]: { ...draft, items: { ...draft.items, [product.id]: { ...item, priceOverride: e.target.value } } } }))}/></label></div>
         })}</div><div className="stock-product__actions"><span>Link: /{data.store.slug}?catalog={catalog.slug}</span><button disabled={saving === catalog.id} onClick={() => saveCatalog(catalog)}><Save size={16}/>{saving === catalog.id ? 'Salvando…' : 'Salvar catálogo'}</button></div></article>

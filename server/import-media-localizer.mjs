@@ -1,5 +1,6 @@
 import crypto from 'node:crypto'
 import { extractProductsFromHtml, safeRequest } from './scanner-collector.mjs'
+import { optimizeImageBuffer, saveImageVariants } from './media-optimizer.mjs'
 
 const MAX_REMOTE_IMAGE_BYTES = 12 * 1024 * 1024
 const MAX_LOCALIZED_ASSETS_PER_PRODUCT = 40
@@ -116,7 +117,14 @@ async function persistRemoteImage(query, { storeId, url, referer, request }) {
      RETURNING id`,
     [assetId, storeId, fetched.mimeType, originalName(source), fetched.buffer.length, fetched.buffer, source],
   )
-  return `/media/${inserted.rows[0]?.id || assetId}`
+  const storedId = inserted.rows[0]?.id || assetId
+  try {
+    const optimized = await optimizeImageBuffer(fetched.buffer)
+    await saveImageVariants(query, storedId, optimized.variants)
+  } catch {
+    // A imagem original continua válida mesmo se a otimização não for possível.
+  }
+  return `/media/${storedId}`
 }
 
 function unique(values) {
