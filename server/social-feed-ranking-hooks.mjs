@@ -18,6 +18,7 @@ function ensureSchema() {
       ALTER TABLE stores ADD COLUMN IF NOT EXISTS plan_tier text NOT NULL DEFAULT 'bronze';
       ALTER TABLE products ADD COLUMN IF NOT EXISTS social_published boolean NOT NULL DEFAULT true;
       ALTER TABLE products ADD COLUMN IF NOT EXISTS social_published_at timestamptz NOT NULL DEFAULT now();
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS images jsonb NOT NULL DEFAULT '[]'::jsonb;
       CREATE TABLE IF NOT EXISTS platform_plans (
         id text PRIMARY KEY,
         code text UNIQUE NOT NULL,
@@ -114,8 +115,9 @@ function publication(row) {
       description: row.description,
       price: Number(row.price),
       category: row.category,
-      mediaUrl: row.media_url,
+      mediaUrl: row.media_url || (Array.isArray(row.images) ? row.images[0] || '' : ''),
       mediaType: row.media_type === 'video' ? 'video' : 'image',
+      images: Array.isArray(row.images) ? row.images.map(String).filter(Boolean).slice(0, 40) : [],
       pack: row.pack,
       variations: Array.isArray(row.variations) ? row.variations : [],
       featured: Boolean(row.featured),
@@ -147,7 +149,7 @@ async function rankedFeed(req, res) {
   const key = visitorKey(req, res)
   const result = await pool.query(`
     WITH eligible AS (
-      SELECT p.id,p.sku,p.name,p.description,p.price,p.category,p.media_url,p.media_type,p.pack,p.variations,p.featured,p.social_published_at,
+      SELECT p.id,p.sku,p.name,p.description,p.price,p.category,p.media_url,p.media_type,p.images,p.pack,p.variations,p.featured,p.social_published_at,
         s.id AS store_id,s.slug AS store_slug,s.name AS store_name,s.logo_url AS store_logo_url,s.accent AS store_accent,
         CASE
           WHEN COALESCE(pp.social_weight, CASE WHEN s.plan_tier='ouro' THEN 3 WHEN s.plan_tier='prata' THEN 2 ELSE 1 END) >= 3 THEN 'ouro'

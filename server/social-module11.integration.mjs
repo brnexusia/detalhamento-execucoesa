@@ -5,7 +5,8 @@ const css = fs.readFileSync(new URL('../src/social-feed.css', import.meta.url), 
 
 if (!feed.includes('videoRef.current?.pause()') || !feed.includes('videoRef.current.play()')) throw new Error('Feed não pausa/reproduz vídeo conforme visibilidade.')
 if (!feed.includes('onDoubleClick={() => { if (!interactions.liked) void like() }}')) throw new Error('Gesto de curtir por duplo toque/clique não está ativo.')
-if (!feed.includes("const feedSessionKey = 'shopvax_social_feed_state_v2'")) throw new Error('Feed não preserva a sessão de navegação atual.')
+if (!feed.includes("const feedSessionKey = 'shopvax_social_feed_state_v3'")) throw new Error('Feed não preserva a sessão de navegação atual.')
+if (!feed.includes('initialLoadStarted') || !feed.includes('void load(null)')) throw new Error('Feed restaurado não busca dados frescos ao abrir.')
 if (!feed.includes('profilePath(post.store.slug, post.product.id)')) throw new Error('Compartilhamento/navegação social não aponta para o perfil da loja.')
 if (!feed.includes('ref={listRef}') || !feed.includes('scrollTopRef.current = event.currentTarget.scrollTop')) throw new Error('Feed ainda depende do scroll da página em vez do próprio container.')
 if (feed.includes('window.location.assign(')) throw new Error('Navegação antiga por location.assign ainda está ativa.')

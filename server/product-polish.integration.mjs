@@ -72,6 +72,12 @@ for (const label of ['Fechar carrinho', 'Foto anterior', 'Próxima foto', 'Dimin
   assert.match(publicStore, new RegExp(label))
 }
 
+const socialFeed = read('src/SocialFeed.tsx')
+assert.match(socialFeed, /shopvax_social_feed_state_v3/)
+assert.match(socialFeed, /productMediaCandidates/)
+assert.match(socialFeed, /initialLoadStarted/)
+assert.match(socialFeed, /void load\(null\)/)
+
 const socialNetwork = read('server/social-network-hooks.mjs')
 assert.match(socialNetwork, /p\.active=true AND p\.social_published=true/, 'feed social deve excluir produtos escondidos')
 

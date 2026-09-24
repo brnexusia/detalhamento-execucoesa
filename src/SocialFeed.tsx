@@ -13,6 +13,7 @@ type FeedProduct = {
   category: string
   mediaUrl: string
   mediaType: 'image' | 'video'
+  images?: string[]
   pack?: string
   variations: VariationGroup[]
   featured?: boolean
@@ -30,8 +31,7 @@ type FeedCartItem = { key: string; product: FeedProduct; quantity: number; selec
 type PickerState = { post: SocialPost; selections: Record<string, string>; quantity: number }
 
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
-const feedSessionKey = 'shopvax_social_feed_state_v2'
-const legacyFeedSessionKey = 'shopvax_social_feed_state_v1'
+const feedSessionKey = 'shopvax_social_feed_state_v3'
 const feedSessionTtl = 30 * 60 * 1000
 
 function compact(value: number) { return new Intl.NumberFormat('pt-BR', { notation: 'compact', maximumFractionDigits: 1 }).format(value || 0) }
@@ -50,7 +50,7 @@ function go(path: string) {
 
 function readFeedSession(): FeedSession | null {
   try {
-    const raw = sessionStorage.getItem(feedSessionKey) || sessionStorage.getItem(legacyFeedSessionKey) || 'null'
+    const raw = sessionStorage.getItem(feedSessionKey) || 'null'
     const parsed = JSON.parse(raw) as (FeedSession & { scrollY?: number }) | null
     if (!parsed || !Array.isArray(parsed.posts) || Date.now() - Number(parsed.savedAt || 0) > feedSessionTtl) return null
     return { posts: parsed.posts, cursor: parsed.cursor || null, hasMore: parsed.hasMore !== false, scrollTop: Number(parsed.scrollTop ?? parsed.scrollY ?? 0), savedAt: Number(parsed.savedAt || Date.now()) }
@@ -76,6 +76,19 @@ function writeCart(slug: string, items: FeedCartItem[]) {
 
 function cartItemKey(product: FeedProduct, selections: Record<string, string>) {
   return `${product.id}:${Object.entries(selections).sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => `${key}=${value}`).join('|')}`
+}
+
+function productMediaCandidates(product: FeedProduct) {
+  return Array.from(new Set([product.mediaUrl, ...(Array.isArray(product.images) ? product.images : [])].map((value) => String(value || '').trim()).filter(Boolean)))
+}
+
+function FeedImage({ product, className = '' }: { product: FeedProduct; className?: string }) {
+  const candidates = productMediaCandidates(product)
+  const [index, setIndex] = useState(0)
+  useEffect(() => { setIndex(0) }, [product.id, product.mediaUrl, JSON.stringify(product.images || [])])
+  const src = candidates[index] || ''
+  if (!src) return <div className={className}><Play size={34}/></div>
+  return <img className={className} src={src} alt={product.name} loading="lazy" decoding="async" onError={() => setIndex((current) => current + 1)} />
 }
 
 async function copyText(value: string) {
@@ -165,9 +178,9 @@ function SocialPostCard({ post, cartCount, onProfile, onAdd, onCart }: { post: S
   return <article className="social-feed-card" ref={cardRef}>
     <div className="social-feed-media" onDoubleClick={() => { if (!interactions.liked) void like() }}>
       {post.product.mediaType === 'video'
-        ? <video ref={videoRef} src={post.product.mediaUrl} loop muted={muted} playsInline preload="metadata" />
-        : post.product.mediaUrl
-          ? <img src={post.product.mediaUrl} alt={post.product.name} loading="lazy" decoding="async" />
+        ? <video ref={videoRef} src={post.product.mediaUrl} poster={post.product.images?.[0] || undefined} loop muted={muted} playsInline preload="metadata" />
+        : productMediaCandidates(post.product).length
+          ? <FeedImage product={post.product} />
           : <div className="social-feed-media__empty"><Play size={34}/></div>}
       <div className="social-feed-shade" />
       {post.product.mediaType === 'video' && <button className="social-feed-sound" onClick={() => setMuted((value) => !value)} aria-label={muted ? 'Ativar som' : 'Silenciar vídeo'}>{muted ? <VolumeX size={18}/> : <Volume2 size={18}/>}</button>}
@@ -206,6 +219,7 @@ export default function SocialFeed() {
   const listRef = useRef<HTMLElement | null>(null)
   const scrollTopRef = useRef(restored.current?.scrollTop || 0)
   const loadingRef = useRef(false)
+  const initialLoadStarted = useRef(false)
   const sentinel = useRef<HTMLDivElement | null>(null)
   const [posts, setPosts] = useState<SocialPost[]>(() => restored.current?.posts || [])
   const [cursor, setCursor] = useState<string | null>(() => restored.current?.cursor || null)
@@ -240,11 +254,13 @@ export default function SocialFeed() {
   }, [hasMore])
 
   useEffect(() => {
-    if (restored.current?.posts?.length) {
-      const y = Number(restored.current.scrollTop || 0)
+    if (initialLoadStarted.current) return
+    initialLoadStarted.current = true
+    const cached = restored.current
+    restored.current = null
+    if (cached?.posts?.length) {
+      const y = Number(cached.scrollTop || 0)
       requestAnimationFrame(() => requestAnimationFrame(() => { if (listRef.current) listRef.current.scrollTop = y }))
-      restored.current = null
-      return
     }
     void load(null)
   }, [load])
@@ -337,7 +353,7 @@ export default function SocialFeed() {
         <header><div><span>Carrinho</span><h2>{activeCart.name}</h2></div><button onClick={() => setActiveCart(null)}><X size={20}/></button></header>
         <div className="feed-sheet-body">
           {cartItems.length ? cartItems.map((item) => <article className="feed-cart-item" key={item.key}>
-            <div className="feed-cart-thumb">{item.product.mediaType === 'image' && item.product.mediaUrl ? <img src={item.product.mediaUrl} alt=""/> : <Play size={18}/>}</div>
+            <div className="feed-cart-thumb">{item.product.mediaType === 'image' && productMediaCandidates(item.product).length ? <FeedImage product={item.product}/> : <Play size={18}/>}</div>
             <div><strong>{item.product.name}</strong><small>{Object.entries(item.selections).map(([key, value]) => `${key}: ${value}`).join(' · ') || 'Sem variação'}</small><span>{money.format(item.product.price)}</span></div>
             <div className="feed-cart-qty"><button onClick={() => changeCartQuantity(item.key, -1)}><Minus size={14}/></button><b>{item.quantity}</b><button onClick={() => changeCartQuantity(item.key, 1)}><Plus size={14}/></button></div>
           </article>) : <div className="feed-cart-empty">Seu carrinho desta loja está vazio.</div>}
