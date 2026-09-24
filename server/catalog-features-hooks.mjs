@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import express from 'express'
 import pg from 'pg'
+import { loadCatalogMedia, streamCatalogPdf } from './catalog-pdf.mjs'
 
 const { Pool } = pg
 const databaseUrl = process.env.DATABASE_URL?.trim() || ''
@@ -76,6 +77,18 @@ async function ensureSchema() {
       PRIMARY KEY(catalog_id,product_id)
     );
     CREATE INDEX IF NOT EXISTS idx_catalog_products_visible ON catalog_products(catalog_id,visible,product_id);
+    ALTER TABLE products ADD COLUMN IF NOT EXISTS images jsonb NOT NULL DEFAULT '[]'::jsonb;
+    CREATE TABLE IF NOT EXISTS media_asset_variants (
+      asset_id text NOT NULL REFERENCES media_assets(id) ON DELETE CASCADE,
+      variant text NOT NULL,
+      mime_type text NOT NULL,
+      byte_size integer NOT NULL,
+      width integer,
+      height integer,
+      data bytea NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY(asset_id,variant)
+    );
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS catalog_id text REFERENCES catalogs(id) ON DELETE SET NULL;
   `)
 }
@@ -207,6 +220,32 @@ async function updateCatalog(req, res) {
     try { await client.query('ROLLBACK') } catch {}
     throw error
   } finally { client.release() }
+}
+
+async function downloadCatalogPdf(req, res) {
+  const storeId = req.catalogStore.store_id
+  await schemaReady()
+  const catalogResult = await pool.query('SELECT * FROM catalogs WHERE id=$1 AND store_id=$2 LIMIT 1', [req.params.catalogId, storeId])
+  if (!catalogResult.rowCount) return res.status(404).json({ error: 'Catálogo não encontrado.' })
+  const storeResult = await pool.query('SELECT id,slug,name,logo_url,minimum_order,whatsapp FROM stores WHERE id=$1 LIMIT 1', [storeId])
+  if (!storeResult.rowCount) return res.status(404).json({ error: 'Loja não encontrada.' })
+  const catalog = catalogResult.rows[0]
+  const products = await pool.query(
+    `SELECT p.id,p.sku,p.name,p.description,p.price,p.category,p.media_url,p.media_type,p.images,p.variations,
+            COALESCE(cp.price_override,p.price) AS public_price
+     FROM products p
+     LEFT JOIN catalog_products cp ON cp.product_id=p.id AND cp.catalog_id=$2
+     WHERE p.store_id=$1 AND p.active=true AND COALESCE(cp.visible,true)=true
+     ORDER BY p.featured DESC,p.category ASC,p.name ASC,p.id ASC`,
+    [storeId, catalog.id],
+  )
+  await streamCatalogPdf({
+    res,
+    store: storeResult.rows[0],
+    catalog,
+    products: products.rows,
+    imageLoader: (url, variant = 'medium') => loadCatalogMedia(pool.query.bind(pool), url, variant),
+  })
 }
 
 async function deleteCatalog(req, res) {
@@ -494,6 +533,7 @@ function install(app) {
   app.get('/api/admin/catalogs', requireStore, (req, res, next) => Promise.resolve(listCatalogs(req, res)).catch(next))
   app.post('/api/admin/catalogs', express.json({ limit: '64kb' }), requireStore, (req, res, next) => Promise.resolve(createCatalog(req, res)).catch(next))
   app.patch('/api/admin/catalogs/:catalogId', express.json({ limit: '2mb' }), requireStore, (req, res, next) => Promise.resolve(updateCatalog(req, res)).catch(next))
+  app.get('/api/admin/catalogs/:catalogId/pdf', requireStore, (req, res, next) => Promise.resolve(downloadCatalogPdf(req, res)).catch(next))
   app.delete('/api/admin/catalogs/:catalogId', requireStore, (req, res, next) => Promise.resolve(deleteCatalog(req, res)).catch(next))
   app.get('/api/public/store/:storeSlug/:sellerSlug?', (req, res, next) => Promise.resolve(protectedStore(req, res)).catch(next))
   app.post('/api/business/orders', express.json({ limit: '256kb' }), (req, res, next) => Promise.resolve(createCatalogOrder(req, res)).catch(next))
