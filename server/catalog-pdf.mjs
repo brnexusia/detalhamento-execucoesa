@@ -20,12 +20,8 @@ export async function loadCatalogMedia(query, url, variant = 'medium') {
   const assetId = mediaAssetId(url)
   if (!assetId) return null
   const result = await query(
-    `SELECT COALESCE(v.data,a.data) AS data,COALESCE(v.mime_type,a.mime_type) AS mime_type
-     FROM media_assets a
-     LEFT JOIN media_asset_variants v ON v.asset_id=a.id AND v.variant=$2
-     WHERE a.id=$1
-     LIMIT 1`,
-    [assetId, variant],
+    'SELECT data,mime_type FROM media_assets WHERE id=$1 LIMIT 1',
+    [assetId],
   )
   if (!result.rowCount) return null
   const row = result.rows[0]
