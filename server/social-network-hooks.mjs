@@ -72,6 +72,7 @@ async function ensureSchema() {
         OLD.price IS DISTINCT FROM NEW.price OR
         OLD.category IS DISTINCT FROM NEW.category OR
         OLD.media_url IS DISTINCT FROM NEW.media_url OR
+        OLD.images IS DISTINCT FROM NEW.images OR
         OLD.media_type IS DISTINCT FROM NEW.media_type OR
         OLD.variations IS DISTINCT FROM NEW.variations
       ) THEN
