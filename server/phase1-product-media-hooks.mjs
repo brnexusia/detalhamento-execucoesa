@@ -98,8 +98,10 @@ async function updateGallery(req, res) {
   }
 
   const current = existing.rows[0]
-  const keepVideo = current.media_type === 'video' && String(current.media_url || '').trim()
-  const mediaUrl = keepVideo ? current.media_url : (images[0] || '')
+  const currentUrl = String(current.media_url || '').trim()
+  const keepVideo = current.media_type === 'video' && currentUrl
+  const keepPrimaryImage = current.media_type === 'image' && currentUrl && images.length === 0
+  const mediaUrl = keepVideo || keepPrimaryImage ? currentUrl : (images[0] || '')
   const mediaType = keepVideo ? 'video' : 'image'
 
   const updated = await pool.query(
