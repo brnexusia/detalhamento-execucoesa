@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowRight, Boxes, Check, ChevronLeft, ChevronRight, Clipboard, CreditCard, ExternalLink, ImagePlus, Link2, LogOut, Menu, Package, Pencil, Plus, ReceiptText, Search, Settings, Store as StoreIcon, Trash2, TrendingUp, Upload, Users, X } from 'lucide-react'
+import { ArrowRight, Boxes, Check, ChevronLeft, ChevronRight, Clipboard, CreditCard, Eye, EyeOff, ExternalLink, ImagePlus, Link2, LogOut, Menu, Package, Pencil, Plus, ReceiptText, Search, Settings, Store as StoreIcon, Trash2, TrendingUp, Upload, Users, X } from 'lucide-react'
 import { api } from './api'
 import AdminNavigation from './AdminNavigation'
 import CommercialSettingsPanel from './CommercialSettingsPanel'
@@ -99,7 +99,7 @@ export default function AdminApp() {
         {notice && <div className="toast"><Check size={16} /> {notice}</div>}
         {error && <div className="panel-error">{error}</div>}
         {section === 'inicio' && <Dashboard data={data} incomplete={incomplete} storeUrl={storeUrl} onSection={changeSection} onCopy={() => copy(storeUrl)} />}
-        {section === 'produtos' && <Products data={data} query={query} setQuery={setQuery} onCreate={() => setProductModal({ ...blankProduct })} onEdit={(product) => setProductModal(productDraft(product))} onDelete={async (product) => { if (!(await confirmAction(`Excluir ${product.name}? Esta ação não pode ser desfeita.`, 'Excluir produto', 'Excluir'))) return; await api.deleteProduct(product.id); flash('Produto excluído.'); load() }} />}
+        {section === 'produtos' && <Products data={data} query={query} setQuery={setQuery} onCreate={() => setProductModal({ ...blankProduct })} onEdit={(product) => setProductModal(productDraft(product))} onVisibility={async (product) => { await api.setProductVisibility(product.id, !product.active); flash(product.active ? 'Produto escondido da loja e do feed.' : 'Produto publicado novamente.'); await load() }} onDelete={async (product) => { if (!(await confirmAction(`Excluir ${product.name}? Esta ação não pode ser desfeita.`, 'Excluir produto', 'Excluir'))) return; await api.deleteProduct(product.id); flash('Produto excluído.'); load() }} />}
         {section === 'pedidos' && <Orders data={data} />}
         {section === 'vendedoras' && <Sellers data={data} baseUrl={baseUrl} onCopy={copy} onCreate={() => setSellerModal({ name: '', phone: '', slug: '', is_active: true })} onEdit={(seller) => setSellerModal({ ...seller })} onDelete={async (seller) => { if (!(await confirmAction(`Excluir ${seller.name}? O link individual deixará de funcionar.`, 'Excluir vendedora', 'Excluir'))) return; await api.deleteSeller(seller.id); flash('Vendedora excluída.'); load() }} />}
         {section === 'loja' && <><StoreSettings data={data} onSaved={() => { flash('Loja atualizada.'); load() }} onCopy={copy} onDirtyChange={setStoreDirty} /><CommercialSettingsPanel embedded/><StoreTools data={data}/></>}
@@ -120,7 +120,7 @@ function Dashboard({ data, incomplete, storeUrl, onSection, onCopy }: { data: Ad
   </div>
 }
 
-function Products({ data, query, setQuery, onCreate, onEdit, onDelete }: { data: AdminBootstrap; query: string; setQuery: (value: string) => void; onCreate: () => void; onEdit: (p: AdminProduct) => void; onDelete: (p: AdminProduct) => void }) {
+function Products({ data, query, setQuery, onCreate, onEdit, onVisibility, onDelete }: { data: AdminBootstrap; query: string; setQuery: (value: string) => void; onCreate: () => void; onEdit: (p: AdminProduct) => void; onVisibility: (p: AdminProduct) => void | Promise<void>; onDelete: (p: AdminProduct) => void }) {
   const [page, setPage] = useState(1)
   const pageSize = 18
   const products = data.products.filter((product) => `${product.name} ${product.sku} ${product.category}`.toLowerCase().includes(query.toLowerCase()))
@@ -131,7 +131,7 @@ function Products({ data, query, setQuery, onCreate, onEdit, onDelete }: { data:
 
   return <div className="panel-page"><div className="page-title"><div><span>Catálogo</span><h1>Produtos</h1><p>Cadastro, fotos, variações e estoque ficam juntos para evitar caminhos duplicados.</p></div><button className="primary-action" onClick={onCreate}><Plus size={18} /> Novo produto</button></div>
     <div className="table-toolbar"><label><Search size={17} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar nome, SKU ou categoria" /></label><span>{products.length === data.products.length ? countLabel(products.length, 'produto') : `${products.length} de ${data.products.length} produtos`}</span></div>
-    <div className="product-admin-grid">{visible.map((product) => <article className="product-admin-card" key={product.id}><div className="product-admin-card__media"><AdminProductMedia product={product}/>{!product.active && <span>oculto</span>}</div><div className="product-admin-card__body"><small>{product.sku || 'SEM SKU'} · {product.category}</small><h3>{product.name}</h3><strong>{money.format(product.price)}</strong>{product.variations?.length > 0 && <p>{product.variations.map((group) => `${group.name}: ${group.options.join('/')}`).join(' · ')}</p>}<p>{countLabel(Array.isArray(product.images) ? product.images.length : 0, 'foto')} · {product.stock_enabled ? `${product.stock_quantity || 0} em estoque` : 'estoque livre'}</p></div><div className="product-admin-card__actions"><button onClick={() => onEdit(product)}><Pencil size={16} /> Editar</button><button className="danger" aria-label={`Excluir ${product.name}`} onClick={() => onDelete(product)}><Trash2 size={16} /></button></div></article>)}</div>
+    <div className="product-admin-grid">{visible.map((product) => <article className="product-admin-card" key={product.id}><div className="product-admin-card__media"><AdminProductMedia product={product}/>{!product.active && <span>oculto</span>}</div><div className="product-admin-card__body"><small>{product.sku || 'SEM SKU'} · {product.category}</small><h3>{product.name}</h3><strong>{money.format(product.price)}</strong>{product.variations?.length > 0 && <p>{product.variations.map((group) => `${group.name}: ${group.options.join('/')}`).join(' · ')}</p>}<p>{countLabel(Array.isArray(product.images) ? product.images.length : 0, 'foto')} · {product.stock_enabled ? `${product.stock_quantity || 0} em estoque` : 'estoque livre'}</p></div><div className="product-admin-card__actions"><button onClick={() => onEdit(product)}><Pencil size={16} /> Editar</button><button onClick={() => void onVisibility(product)} aria-label={product.active ? `Esconder ${product.name}` : `Mostrar ${product.name}`}>{product.active ? <EyeOff size={16}/> : <Eye size={16}/>} {product.active ? 'Esconder' : 'Mostrar'}</button><button className="danger" aria-label={`Excluir ${product.name}`} onClick={() => onDelete(product)}><Trash2 size={16} /></button></div></article>)}</div>
     {!products.length && <div className="admin-empty"><Package size={30} /><h2>{data.products.length ? 'Nenhum produto encontrado.' : 'Cadastre seu primeiro produto.'}</h2><p>Você pode usar fotos ou vídeo, criar variações e controlar estoque na mesma edição.</p><button className="primary-action" onClick={onCreate}><Plus size={18} /> Cadastrar produto</button></div>}
     {products.length > pageSize && <div className="panel-pagination"><button disabled={page === 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>Anterior</button><span>Página {page} de {pages}</span><button disabled={page === pages} onClick={() => setPage((value) => Math.min(pages, value + 1))}>Próxima</button></div>}
   </div>
@@ -255,7 +255,7 @@ function ProductEditor({ draft, setDraft, onClose, onSaved }: { draft: ProductDr
     if (dirty && !(await confirmAction('Há alterações ainda não salvas neste produto.', 'Descartar alterações', 'Descartar'))) return
     onClose()
   }
-  const upload = async (file?: File) => { if (!file) return; setUploading(true); setError(''); try { const result = await api.upload(file); setDraft({ ...draft, mediaUrl: result.url, mediaType: result.type }) } catch (err) { setError(err instanceof Error ? err.message : 'Falha no upload.') } finally { setUploading(false) } }
+  const upload = async (file?: File) => { if (!file) return; setUploading(true); setError(''); try { const result = await api.upload(file); const previousMain = draft.mediaType === 'image' ? draft.mediaUrl : ''; setDraft({ ...draft, mediaUrl: result.url, mediaType: result.type }); if (result.type === 'image') setGallery((current) => Array.from(new Set([result.url, ...current.filter((url) => url !== previousMain && url !== result.url)]))) } catch (err) { setError(err instanceof Error ? err.message : 'Falha no upload.') } finally { setUploading(false) } }
   const uploadGallery = async (files: FileList | null) => {
     if (!files?.length) return
     const images = Array.from(files).filter((file) => file.type.startsWith('image/'))
@@ -282,7 +282,10 @@ function ProductEditor({ draft, setDraft, onClose, onSaved }: { draft: ProductDr
 
   const save = async (event: React.FormEvent) => {
     event.preventDefault(); setBusy(true); setError('')
-    const cover = draft.mediaType === 'video' ? draft.mediaUrl : gallery[0] || draft.mediaUrl
+    const galleryToSave = draft.mediaType === 'image' && draft.mediaUrl
+      ? Array.from(new Set([draft.mediaUrl, ...gallery.filter((url) => url !== draft.mediaUrl)]))
+      : gallery
+    const cover = draft.mediaType === 'video' ? draft.mediaUrl : galleryToSave[0] || draft.mediaUrl
     const body = { name: draft.name, sku: draft.sku, description: draft.description, price: Number(draft.price), category: draft.category, pack: draft.pack, mediaUrl: cover, mediaType: draft.mediaType, variations: parseVariations(draft.variationsText), featured: draft.featured, active: draft.active }
     try {
       let productId = draft.id
@@ -291,7 +294,7 @@ function ProductEditor({ draft, setDraft, onClose, onSaved }: { draft: ProductDr
         const created = await api.createProduct(body)
         productId = created.product.id
       }
-      if (productId) await api.updateProductGallery(productId, gallery)
+      if (productId) await api.updateProductGallery(productId, galleryToSave)
       if (productId && stockAllowed) await api.updateStock(productId, { enabled: draft.stockEnabled, quantity: Math.max(0, Number(draft.stockQuantity || 0)), variantStock: draft.variantStock || {} })
       onSaved()
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível salvar.') }
