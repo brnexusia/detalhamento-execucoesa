@@ -89,6 +89,39 @@ export async function apiRequest<T>(url: string, options: RequestInit = {}): Pro
 
 const request = apiRequest
 
+type GoogleAuthBody = { credential: string; intent: 'login' | 'register'; storeName?: string; whatsapp?: string; planCode?: string; referralCode?: string }
+type GoogleAuthResult =
+  | { ok: true; created: boolean; storeSlug?: string; profile: { name: string; email: string; picture?: string } }
+  | { ok: false; needsSignup: true; profile: { name: string; email: string; picture?: string } }
+
+const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
+
+async function googleAuthRequest(body: GoogleAuthBody, attempt = 0): Promise<GoogleAuthResult> {
+  try {
+    return await request<GoogleAuthResult>('/api/auth/google', { method: 'POST', body: JSON.stringify(body) })
+  } catch (error) {
+    const current = error as Error & { status?: number; code?: string }
+    if (body.intent === 'register' && current.code === 'GOOGLE_ALREADY_REGISTERED') {
+      return request<GoogleAuthResult>('/api/auth/google', {
+        method: 'POST',
+        body: JSON.stringify({ credential: body.credential, intent: 'login' }),
+      })
+    }
+
+    const networkFailure = error instanceof TypeError || /failed to fetch|network(?:error| changed)|load failed/i.test(current.message || '')
+    if (networkFailure && attempt < 2) {
+      await wait(attempt === 0 ? 450 : 1100)
+      return googleAuthRequest(body, attempt + 1)
+    }
+    if (networkFailure) {
+      const friendly = new Error('A conexão mudou durante o acesso ao Google. Tente novamente em alguns segundos.') as Error & { code?: string }
+      friendly.code = 'GOOGLE_NETWORK_CHANGED'
+      throw friendly
+    }
+    throw error
+  }
+}
+
 async function requestBlob(url: string): Promise<{ blob: Blob; filename: string }> {
   const response = await fetch(url, { credentials: 'include' })
   if (!response.ok) {
@@ -121,10 +154,7 @@ export const api = {
   createOrder: (body: { storeSlug: string; sellerSlug?: string; catalogSlug?: string; items: Array<{ productId: string; quantity: number; selections: Record<string, string> }> }) => request<{ code: string; orderId?: string; catalog?: Catalog; whatsappUrl: string }>('/api/business/orders', { method: 'POST', body: JSON.stringify({ ...body, catalogSlug: body.catalogSlug ?? currentCatalogSlug() }) }),
   login: (body: { email: string; password: string }) => request<{ ok: true }>('/api/auth/login', { method: 'POST', body: JSON.stringify(body) }),
   googleConfig: () => request<{ enabled: boolean; clientId: string | null }>('/api/public/auth/google-config'),
-  googleAuth: (body: { credential: string; intent: 'login' | 'register'; storeName?: string; whatsapp?: string; planCode?: string; referralCode?: string }) => request<
-    | { ok: true; created: boolean; storeSlug?: string; profile: { name: string; email: string; picture?: string } }
-    | { ok: false; needsSignup: true; profile: { name: string; email: string; picture?: string } }
-  >('/api/auth/google', { method: 'POST', body: JSON.stringify(body) }),
+  googleAuth: (body: GoogleAuthBody) => googleAuthRequest(body),
   register: (body: { name: string; email: string; password: string; storeName: string; whatsapp: string; planCode: string; referralCode?: string }) => request<{ ok: true; storeSlug: string; planCode: string }>('/api/auth/register', { method: 'POST', body: JSON.stringify(body) }),
   logout: () => request<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
   me: () => request<{ user: { id: string; name: string; email: string }; store: { id: string; slug: string; name: string; plan_tier?: string } }>('/api/auth/me'),
