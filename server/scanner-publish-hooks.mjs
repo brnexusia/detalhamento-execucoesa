@@ -146,7 +146,7 @@ async function materializeRows(query, rows) {
 async function materializeJobMedia(query, jobId, storeId) {
   const result = await query(
     `SELECT DISTINCT ON (p.id)
-       p.id,p.store_id,p.media_url,p.media_type,p.images,p.variant_images,
+       p.id,p.store_id,p.name,p.sku,p.media_url,p.media_type,p.images,p.variant_images,
        COALESCE(n.review_data,n.normalized_data)->>'source_url' AS source_url
      FROM import_normalized_products n
      JOIN products p ON p.id=n.published_product_id
@@ -164,7 +164,7 @@ async function repairExistingImportedMedia() {
   while (true) {
     const result = await pool.query(
       `SELECT DISTINCT ON (p.id)
-         p.id,p.store_id,p.media_url,p.media_type,p.images,p.variant_images,
+         p.id,p.store_id,p.name,p.sku,p.media_url,p.media_type,p.images,p.variant_images,
          COALESCE(n.review_data,n.normalized_data)->>'source_url' AS source_url
        FROM products p
        JOIN import_normalized_products n ON n.published_product_id=p.id
@@ -389,10 +389,12 @@ function installPublisherRoute(app) {
   })
 
   if (pool && process.env.SHOPVAX_IMPORT_MEDIA_REPAIR_DISABLED !== '1') {
-    const timer = setTimeout(() => {
-      void repairExistingImportedMedia().catch((error) => console.warn('[scanner publish] imported media repair:', error?.message || error))
-    }, 15_000)
-    timer.unref()
+    for (const delay of [15_000, 120_000, 600_000]) {
+      const timer = setTimeout(() => {
+        void repairExistingImportedMedia().catch((error) => console.warn('[scanner publish] imported media repair:', error?.message || error))
+      }, delay)
+      timer.unref()
+    }
   }
 }
 
