@@ -4,7 +4,6 @@ import { fileURLToPath } from 'node:url'
 import express from 'express'
 import multer from 'multer'
 import pg from 'pg'
-import { mediaVariantFromQuery, optimizeImageBuffer, saveImageVariants } from './media-optimizer.mjs'
 
 const { Pool } = pg
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -16,7 +15,6 @@ const sessionDays = 30
 
 const databaseUrl = process.env.DATABASE_URL?.trim() || ''
 const pool = databaseUrl ? new Pool({ connectionString: databaseUrl, max: 10, connectionTimeoutMillis: 5000 }) : null
-const mediaOptimizationInFlight = new Set()
 
 let dbReady = false
 let dbError = databaseUrl ? 'Conectando ao banco…' : 'DATABASE_URL não configurada.'
@@ -67,17 +65,6 @@ CREATE TABLE IF NOT EXISTS media_assets (
   byte_size integer NOT NULL,
   data bytea NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now()
-);
-CREATE TABLE IF NOT EXISTS media_asset_variants (
-  asset_id text NOT NULL REFERENCES media_assets(id) ON DELETE CASCADE,
-  variant text NOT NULL,
-  mime_type text NOT NULL,
-  byte_size integer NOT NULL,
-  width integer,
-  height integer,
-  data bytea NOT NULL,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY(asset_id,variant)
 );
 CREATE TABLE IF NOT EXISTS products (
   id text PRIMARY KEY,
@@ -338,37 +325,14 @@ app.get(
   asyncRoute(async (req, res) => {
     if (!dbReady) await initDb()
     if (!dbReady || !pool) return res.status(503).end()
-    const requestedVariant = mediaVariantFromQuery(req.query?.size)
-    const result = requestedVariant
-      ? await pool.query(
-          `SELECT
-             COALESCE(v.mime_type,a.mime_type) AS mime_type,
-             COALESCE(v.byte_size,a.byte_size) AS byte_size,
-             COALESCE(v.data,a.data) AS data,
-             (v.variant IS NOT NULL) AS optimized
-           FROM media_assets a
-           LEFT JOIN media_asset_variants v ON v.asset_id=a.id AND v.variant=$2
-           WHERE a.id=$1
-           LIMIT 1`,
-          [req.params.assetId, requestedVariant],
-        )
-      : await pool.query(
-          'SELECT mime_type,byte_size,data FROM media_assets WHERE id=$1 LIMIT 1',
-          [req.params.assetId],
-        )
+    const result = await pool.query(
+      'SELECT mime_type,byte_size,data FROM media_assets WHERE id=$1 LIMIT 1',
+      [req.params.assetId],
+    )
     if (!result.rowCount) return res.status(404).end()
 
     const asset = result.rows[0]
     const data = Buffer.isBuffer(asset.data) ? asset.data : Buffer.from(asset.data)
-    if (requestedVariant && !asset.optimized && /^image\//.test(String(asset.mime_type || '')) && !mediaOptimizationInFlight.has(req.params.assetId)) {
-      mediaOptimizationInFlight.add(req.params.assetId)
-      setImmediate(() => {
-        void optimizeImageBuffer(data)
-          .then((optimized) => saveImageVariants(pool.query.bind(pool), req.params.assetId, optimized.variants))
-          .catch((error) => console.warn('[media] lazy optimization:', error?.message || error))
-          .finally(() => mediaOptimizationInFlight.delete(req.params.assetId))
-      })
-    }
     const total = data.length
     res.setHeader('Content-Type', asset.mime_type)
     res.setHeader('Accept-Ranges', 'bytes')
@@ -593,30 +557,9 @@ app.post(
         req.file.buffer,
       ],
     )
-
-    let variants = []
-    let dimensions = null
-    if (req.file.mimetype.startsWith('image/')) {
-      try {
-        const optimized = await optimizeImageBuffer(req.file.buffer)
-        variants = optimized.variants
-        dimensions = optimized.original
-        await saveImageVariants(pool.query.bind(pool), assetId, variants)
-      } catch (error) {
-        console.warn('[media upload] image optimization:', error?.message || error)
-      }
-    }
-
     res.status(201).json({
       url: `/media/${assetId}`,
       type: req.file.mimetype.startsWith('video/') ? 'video' : 'image',
-      dimensions,
-      variants: Object.fromEntries(variants.map((variant) => [variant.name, {
-        url: `/media/${assetId}?size=${variant.name}`,
-        width: variant.width,
-        height: variant.height,
-        byteSize: variant.byteSize,
-      }])),
     })
   }),
 )
