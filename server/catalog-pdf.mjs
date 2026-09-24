@@ -1,4 +1,5 @@
 import PDFDocument from 'pdfkit'
+import sharp from 'sharp'
 
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
@@ -28,9 +29,18 @@ export async function loadCatalogMedia(query, url, variant = 'medium') {
   )
   if (!result.rowCount) return null
   const row = result.rows[0]
-  return {
-    data: Buffer.isBuffer(row.data) ? row.data : Buffer.from(row.data || []),
-    mimeType: String(row.mime_type || ''),
+  const source = Buffer.isBuffer(row.data) ? row.data : Buffer.from(row.data || [])
+  if (!source.length) return null
+  try {
+    const data = await sharp(source, { failOn: 'none', limitInputPixels: 100_000_000 })
+      .rotate()
+      .resize({ width: variant === 'thumb' ? 400 : 900, height: variant === 'thumb' ? 400 : 900, fit: 'inside', withoutEnlargement: true })
+      .flatten({ background: '#f0ece4' })
+      .jpeg({ quality: 82, mozjpeg: true })
+      .toBuffer()
+    return { data, mimeType: 'image/jpeg' }
+  } catch {
+    return null
   }
 }
 
