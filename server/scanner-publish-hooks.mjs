@@ -39,6 +39,17 @@ async function ensurePublisherSchema() {
     ALTER TABLE products ADD COLUMN IF NOT EXISTS images jsonb NOT NULL DEFAULT '[]'::jsonb;
     ALTER TABLE products ADD COLUMN IF NOT EXISTS variant_images jsonb NOT NULL DEFAULT '[]'::jsonb;
     ALTER TABLE media_assets ADD COLUMN IF NOT EXISTS source_url text;
+    CREATE TABLE IF NOT EXISTS media_asset_variants (
+      asset_id text NOT NULL REFERENCES media_assets(id) ON DELETE CASCADE,
+      variant text NOT NULL,
+      mime_type text NOT NULL,
+      byte_size integer NOT NULL,
+      width integer,
+      height integer,
+      data bytea NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY(asset_id,variant)
+    );
     CREATE UNIQUE INDEX IF NOT EXISTS idx_media_assets_store_source_unique
       ON media_assets(store_id,source_url) WHERE source_url IS NOT NULL;
     CREATE INDEX IF NOT EXISTS idx_import_normalized_publish_result ON import_normalized_products(job_id,publish_result);
