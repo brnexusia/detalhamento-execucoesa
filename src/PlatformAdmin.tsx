@@ -19,6 +19,7 @@ import {
   XCircle,
 } from 'lucide-react'
 import { confirmAction } from './ui-dialogs'
+import GoogleSignInButton from './GoogleSignInButton'
 
 type PlatformStats = { users: number; stores: number; active_stores: number; products: number; orders: number; order_value: number }
 type PlatformPlan = {
@@ -36,7 +37,7 @@ type LatestUser = { id: string; name: string; email: string; createdAt: string; 
 type AuditEntry = { id: string; action: string; targetType: string; targetId?: string | null; meta: Record<string, unknown>; createdAt: string; actorName?: string | null; actorEmail?: string | null }
 type PlatformAccount = { id: string; name: string; email: string; createdAt: string; isAdmin: boolean; store: null | { id: string; name: string; slug: string; isActive: boolean; planCode: string } }
 type Bootstrap = {
-  user: { id: string; name: string; email: string }; stats: PlatformStats; stores: PlatformStore[]; admins: PlatformAdminUser[]
+  user: { id: string; name: string; email: string; hasPassword: boolean; hasGoogle: boolean }; stats: PlatformStats; stores: PlatformStore[]; admins: PlatformAdminUser[]
   latestUsers: LatestUser[]; plans: PlatformPlan[]; audit: AuditEntry[]
 }
 type Section = 'visao' | 'lojas' | 'contas' | 'planos' | 'admins' | 'auditoria'
@@ -138,10 +139,10 @@ export default function PlatformAdmin() {
     catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível apagar o plano.') }
   }
 
-  const executeDanger = async (password: string) => {
+  const executeDanger = async (reauth: { password?: string; googleCredential?: string }) => {
     if (!danger) return
     const path = danger.kind === 'account' ? `/api/platform/accounts/${danger.id}` : `/api/platform/admins/${danger.id}`
-    await apiRequest(path, { method: 'DELETE', body: JSON.stringify({ password }) })
+    await apiRequest(path, { method: 'DELETE', body: JSON.stringify(reauth) })
     const kind = danger.kind
     setDanger(null); flash(kind === 'account' ? 'Conta apagada.' : 'Administrador removido.')
     await load()
@@ -235,7 +236,7 @@ export default function PlatformAdmin() {
 
     {adminOpen && <AdminModal onClose={() => setAdminOpen(false)} onSaved={async () => { setAdminOpen(false); flash('Administrador adicionado.'); await load() }} />}
     {planOpen && <PlanModal plan={planOpen === 'new' ? null : planOpen} onClose={() => setPlanOpen(null)} onSaved={async () => { setPlanOpen(null); flash('Plano salvo.'); await load() }} />}
-    {danger && <DangerModal target={danger} onClose={() => setDanger(null)} onConfirm={executeDanger} />}
+    {danger && <DangerModal target={danger} auth={{ hasPassword: data.user.hasPassword, hasGoogle: data.user.hasGoogle }} onClose={() => setDanger(null)} onConfirm={executeDanger} />}
   </div>
 }
 
@@ -310,11 +311,18 @@ function PlanModal({ plan, onClose, onSaved }: { plan: PlatformPlan | null; onCl
   </div><footer><button type="button" className="platform-secondary" onClick={onClose}>Cancelar</button><button className="platform-primary" disabled={busy}>{busy ? 'Salvando…' : 'Salvar plano'}</button></footer></form></ModalFrame>
 }
 
-function DangerModal({ target, onClose, onConfirm }: { target: DangerTarget; onClose: () => void; onConfirm: (password: string) => Promise<void> }) {
+function DangerModal({ target, auth, onClose, onConfirm }: { target: DangerTarget; auth: { hasPassword: boolean; hasGoogle: boolean }; onClose: () => void; onConfirm: (reauth: { password?: string; googleCredential?: string }) => Promise<void> }) {
   const [password, setPassword] = useState(''); const [confirm, setConfirm] = useState(''); const [busy, setBusy] = useState(false); const [error, setError] = useState('')
-  const submit = async (event: React.FormEvent) => { event.preventDefault(); if (confirm !== 'EXCLUIR') return; setBusy(true); setError(''); try { await onConfirm(password) } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível concluir a exclusão.') } finally { setBusy(false) } }
+  const run = async (reauth: { password?: string; googleCredential?: string }) => { if (confirm !== 'EXCLUIR') { setError('Digite EXCLUIR antes de confirmar esta ação.'); return } setBusy(true); setError(''); try { await onConfirm(reauth) } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível concluir a exclusão.') } finally { setBusy(false) } }
+  const submit = async (event: React.FormEvent) => { event.preventDefault(); if (!auth.hasPassword) return; await run({ password }) }
+  const confirmGoogle = async (credential: string) => { await run({ googleCredential: credential }) }
   const title = target.kind === 'account' ? 'Apagar conta definitivamente' : 'Remover administrador'
-  return <ModalFrame title={title} kicker="Ação sensível" onClose={onClose}><form onSubmit={submit}><div className="platform-modal__body"><p>Alvo: <strong>{target.name}</strong>. Confirme sua senha administrativa e digite EXCLUIR.</p><label><span>Sua senha</span><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoFocus /></label><label><span>Confirmação</span><input value={confirm} onChange={(e) => setConfirm(e.target.value.toUpperCase())} placeholder="EXCLUIR" required /></label>{error && <p className="platform-form-error">{error}</p>}</div><footer><button type="button" className="platform-secondary" onClick={onClose}>Cancelar</button><button className="platform-danger" disabled={busy || confirm !== 'EXCLUIR' || !password}>{busy ? 'Processando…' : title}</button></footer></form></ModalFrame>
+  const instruction = auth.hasGoogle && !auth.hasPassword
+    ? 'Confirme novamente sua conta Google e digite EXCLUIR.'
+    : auth.hasGoogle
+      ? 'Confirme sua senha ou sua conta Google e digite EXCLUIR.'
+      : 'Confirme sua senha administrativa e digite EXCLUIR.'
+  return <ModalFrame title={title} kicker="Ação sensível" onClose={onClose}><form onSubmit={submit}><div className="platform-modal__body"><p>Alvo: <strong>{target.name}</strong>. {instruction}</p>{auth.hasPassword && <label><span>Sua senha</span><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoFocus={!auth.hasGoogle} /></label>}<label><span>Confirmação</span><input value={confirm} onChange={(e) => setConfirm(e.target.value.toUpperCase())} placeholder="EXCLUIR" required autoFocus={!auth.hasPassword} /></label>{auth.hasGoogle && <div className="platform-google-reauth"><span>{auth.hasPassword ? 'Ou confirme sua identidade com o Google' : 'Confirme sua identidade com o Google'}</span><GoogleSignInButton mode="login" disabled={busy || confirm !== 'EXCLUIR'} onCredential={confirmGoogle} onUnavailable={setError} /></div>}{error && <p className="platform-form-error">{error}</p>}</div><footer><button type="button" className="platform-secondary" onClick={onClose}>Cancelar</button>{auth.hasPassword && <button className="platform-danger" disabled={busy || confirm !== 'EXCLUIR' || !password}>{busy ? 'Processando…' : title}</button>}</footer></form></ModalFrame>
 }
 
 function ModalFrame({ title, kicker, onClose, children }: { title: string; kicker: string; onClose: () => void; children: React.ReactNode }) {
