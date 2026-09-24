@@ -2,12 +2,15 @@ import { systemPlans } from './system-plans.mjs'
 import crypto from 'node:crypto'
 import express from 'express'
 import pg from 'pg'
+import { OAuth2Client } from 'google-auth-library'
 
 const { Pool } = pg
 const databaseUrl = process.env.DATABASE_URL?.trim() || ''
 const pool = databaseUrl ? new Pool({ connectionString: databaseUrl, max: 5, connectionTimeoutMillis: 5000 }) : null
 const sessionCookies = ['shopvax_session', 'atacado_session']
 const bootstrapToken = String(process.env.SHOPVAX_ADMIN_BOOTSTRAP_TOKEN || '').trim()
+const googleClientId = String(process.env.GOOGLE_CLIENT_ID || '').trim()
+const googleClient = googleClientId ? new OAuth2Client(googleClientId) : null
 
 if (pool) pool.on('error', (error) => console.error('[shopvax-admin] pool:', error.message))
 
@@ -183,7 +186,7 @@ async function currentSessionUser(req) {
   const token = sessionToken(req)
   if (!token) return null
   const result = await pool.query(
-    `SELECT u.id,u.email,u.name,u.password_hash,s.created_at AS session_created_at
+    `SELECT u.id,u.email,u.name,u.password_hash,u.google_sub,s.created_at AS session_created_at
      FROM sessions s JOIN users u ON u.id=s.user_id
      WHERE s.token_hash=$1 AND s.expires_at>now() LIMIT 1`,
     [hashToken(token)],
@@ -196,7 +199,7 @@ async function currentPlatformAdmin(req) {
   if (!token) return null
   await ensurePlatformSchema()
   const result = await pool.query(
-    `SELECT u.id,u.email,u.name,u.password_hash,s.created_at AS session_created_at
+    `SELECT u.id,u.email,u.name,u.password_hash,u.google_sub,s.created_at AS session_created_at
      FROM sessions s
      JOIN users u ON u.id=s.user_id
      JOIN platform_admins pa ON pa.user_id=u.id
@@ -253,11 +256,55 @@ async function audit(actorId, action, targetType, targetId = null, meta = {}) {
 }
 
 async function requireReauth(req, res) {
-  const password = String(req.body?.password || '')
-  if (!password) { res.status(400).json({ error: 'Confirme sua senha para esta ação.' }); return false }
   const user = req.platformUser
-  if (!verifyPassword(password, user.password_hash)) { res.status(403).json({ error: 'Senha administrativa incorreta.' }); return false }
-  return true
+  const password = String(req.body?.password || '')
+  const googleCredential = String(req.body?.googleCredential || '')
+
+  if (password) {
+    if (!user.password_hash || !verifyPassword(password, user.password_hash)) {
+      res.status(403).json({ error: 'Senha administrativa incorreta.' })
+      return false
+    }
+    return true
+  }
+
+  if (googleCredential) {
+    if (!user.google_sub) {
+      res.status(403).json({ error: 'Esta conta administrativa não está vinculada ao Google.' })
+      return false
+    }
+    if (!googleClient || !googleClientId) {
+      res.status(503).json({ error: 'A confirmação com Google não está disponível no momento.' })
+      return false
+    }
+    try {
+      const ticket = await googleClient.verifyIdToken({ idToken: googleCredential, audience: googleClientId })
+      const payload = ticket.getPayload()
+      const sub = String(payload?.sub || '')
+      const email = String(payload?.email || '').trim().toLowerCase()
+      if (payload?.email_verified !== true || sub !== String(user.google_sub) || email !== String(user.email || '').trim().toLowerCase()) {
+        res.status(403).json({ error: 'A conta Google confirmada não corresponde ao administrador conectado.' })
+        return false
+      }
+      const issuedAt = Number(payload?.iat || 0)
+      const now = Math.floor(Date.now() / 1000)
+      if (!issuedAt || Math.abs(now - issuedAt) > 10 * 60) {
+        res.status(403).json({ error: 'A confirmação do Google expirou. Confirme novamente.' })
+        return false
+      }
+      return true
+    } catch {
+      res.status(403).json({ error: 'Não foi possível confirmar sua conta Google.' })
+      return false
+    }
+  }
+
+  if (user.google_sub && !user.password_hash) {
+    res.status(400).json({ error: 'Confirme esta ação com sua conta Google.' })
+    return false
+  }
+  res.status(400).json({ error: 'Confirme sua senha administrativa para esta ação.' })
+  return false
 }
 
 const asyncRoute = (handler) => (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next)
@@ -316,7 +363,7 @@ function installPlatformRoutes(app) {
     ])
 
     res.json({
-      user: { id: req.platformUser.id, name: req.platformUser.name, email: req.platformUser.email },
+      user: { id: req.platformUser.id, name: req.platformUser.name, email: req.platformUser.email, hasPassword: Boolean(req.platformUser.password_hash), hasGoogle: Boolean(req.platformUser.google_sub) },
       stats: { ...stats.rows[0], order_value: Number(stats.rows[0]?.order_value || 0) },
       stores: stores.rows.map((store) => ({
         id: store.id, slug: store.slug, name: store.name, isActive: Boolean(store.is_active), createdAt: store.created_at,
