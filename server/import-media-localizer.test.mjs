@@ -15,6 +15,16 @@ const downloaded = await fetchImportImage('https://cdn.example/foto.jpg', {
 assert.equal(downloaded.mimeType, 'image/jpeg')
 assert.ok(Buffer.isBuffer(downloaded.buffer))
 
+const sniffed = await fetchImportImage('https://cdn.example/sem-tipo', {
+  request: async () => ({
+    ok: true,
+    status: 200,
+    contentType: 'application/octet-stream',
+    buffer: Buffer.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a,0x00]),
+  }),
+})
+assert.equal(sniffed.mimeType, 'image/png', 'CDNs com content-type genérico devem ser aceitas pelo conteúdo binário')
+
 await assert.rejects(
   () => fetchImportImage('https://cdn.example/not-image', {
     request: async () => ({ ok: true, status: 200, contentType: 'text/html', buffer: Buffer.from('<html>') }),
@@ -70,16 +80,76 @@ assert.equal(result.mediaUrl, '/media/asset-1')
 assert.deepEqual(result.images, ['/media/asset-1', '/media/asset-2'])
 assert.deepEqual(result.variantImages[0].images, ['/media/asset-1'])
 
+const recoveredCache = new Map()
+let recoveredInserts = 0
+const recoveredQuery = async (sql, params) => {
+  if (sql.startsWith('SELECT id FROM media_assets')) {
+    const found = recoveredCache.get(params[1])
+    return { rowCount: found ? 1 : 0, rows: found ? [{ id: found }] : [] }
+  }
+  if (sql.startsWith('INSERT INTO media_assets')) {
+    recoveredInserts += 1
+    const assetId = `recovered-${recoveredInserts}`
+    recoveredCache.set(params[6], assetId)
+    return { rowCount: 1, rows: [{ id: assetId }] }
+  }
+  throw new Error(`Unexpected recovery query: ${sql}`)
+}
+
+const recoveringRequest = async (url, options = {}) => {
+  if (url === 'https://cdn.example/expired.jpg') {
+    return { ok: false, status: 403, contentType: 'text/plain', buffer: Buffer.alloc(0) }
+  }
+  if (url === 'https://loja.example/produto/novo') {
+    return {
+      ok: true,
+      status: 200,
+      url,
+      contentType: 'text/html; charset=utf-8',
+      body: `<!doctype html><html><head>
+        <meta property="og:type" content="product">
+        <meta property="og:title" content="Produto Recuperado">
+        <meta property="product:price:amount" content="29.90">
+        <meta property="og:image" content="https://cdn.example/fresh.jpg">
+      </head><body><h1>Produto Recuperado</h1></body></html>`,
+    }
+  }
+  if (url === 'https://cdn.example/fresh.jpg') {
+    assert.equal(options.responseType, 'buffer')
+    return { ok: true, status: 200, contentType: 'image/jpeg', buffer: Buffer.from([0xff,0xd8,0xff,0x00]) }
+  }
+  throw new Error(`Unexpected recovery URL: ${url}`)
+}
+
+const recovered = await localizeImportedProductMedia({
+  query: recoveredQuery,
+  storeId: 'store-2',
+  sourceUrl: 'https://loja.example/produto/novo',
+  product: {
+    name: 'Produto Recuperado',
+    sku: '',
+    media_url: 'https://cdn.example/expired.jpg',
+    media_type: 'image',
+    images: ['https://cdn.example/expired.jpg'],
+    variant_images: [],
+  },
+  request: recoveringRequest,
+})
+assert.equal(recovered.recovered, 1)
+assert.equal(recovered.mediaUrl, '/media/recovered-1')
+assert.deepEqual(recovered.images, ['/media/recovered-1'])
+assert.equal(recoveredInserts, 1)
+
 const failed = await localizeImportedProductMedia({
   query: async (sql, params) => {
     if (sql.startsWith('SELECT id FROM media_assets')) return { rowCount: 0, rows: [] }
     throw new Error(`Unexpected query after failed download: ${sql} ${params}`)
   },
-  storeId: 'store-2',
+  storeId: 'store-3',
   product: { media_url: 'https://cdn.example/broken.jpg', media_type: 'image', images: ['https://cdn.example/broken.jpg'], variant_images: [] },
   request: async () => ({ ok: false, status: 403, contentType: 'text/plain', buffer: Buffer.alloc(0) }),
 })
 assert.equal(failed.failed, 1)
-assert.equal(failed.mediaUrl, 'https://cdn.example/broken.jpg', 'falha de cópia não deve apagar a referência original')
+assert.equal(failed.mediaUrl, 'https://cdn.example/broken.jpg', 'falha sem source_url não deve apagar a referência original')
 
 console.log('[import media localizer] remote images are copied into Shopvax media storage: ok')
