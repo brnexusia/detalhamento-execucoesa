@@ -44,19 +44,14 @@ try {
   assert.equal(response.status, 201)
   const uploaded = await response.json()
   assert.equal(uploaded.type, 'image')
-  assert.equal(uploaded.variants.thumb.width, 400)
-  assert.equal(uploaded.variants.thumb.height, 200)
-  assert.equal(uploaded.variants.medium.width, 900)
-  assert.equal(uploaded.variants.medium.height, 450)
-  assert.equal(uploaded.variants.large.width, 1200)
-  assert.equal(uploaded.variants.large.height, 600)
+  assert.equal(uploaded.variants, undefined, 'upload normal não deve gerar versões redimensionadas')
 
-  response = await fetch(`${base}${uploaded.url}?size=thumb`)
+  response = await fetch(`${base}${uploaded.url}`)
   assert.equal(response.status, 200)
-  assert.equal(response.headers.get('content-type'), 'image/webp')
-  const thumbMeta = await sharp(Buffer.from(await response.arrayBuffer())).metadata()
-  assert.equal(thumbMeta.width, 400)
-  assert.equal(thumbMeta.height, 200)
+  assert.equal(response.headers.get('content-type'), 'image/jpeg')
+  const originalMeta = await sharp(Buffer.from(await response.arrayBuffer())).metadata()
+  assert.equal(originalMeta.width, 1200)
+  assert.equal(originalMeta.height, 600)
 
   response = await admin('/api/admin/products', account.cookie, {
     method: 'POST', body: JSON.stringify({ sku: 'CAT-001', name: 'Produto Multi', description: 'Teste', price: 100, category: 'Teste', mediaUrl: uploaded.url, mediaType: 'image', pack: '', variations: [], active: true }),

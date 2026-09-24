@@ -78,17 +78,6 @@ async function ensureSchema() {
     );
     CREATE INDEX IF NOT EXISTS idx_catalog_products_visible ON catalog_products(catalog_id,visible,product_id);
     ALTER TABLE products ADD COLUMN IF NOT EXISTS images jsonb NOT NULL DEFAULT '[]'::jsonb;
-    CREATE TABLE IF NOT EXISTS media_asset_variants (
-      asset_id text NOT NULL REFERENCES media_assets(id) ON DELETE CASCADE,
-      variant text NOT NULL,
-      mime_type text NOT NULL,
-      byte_size integer NOT NULL,
-      width integer,
-      height integer,
-      data bytea NOT NULL,
-      created_at timestamptz NOT NULL DEFAULT now(),
-      PRIMARY KEY(asset_id,variant)
-    );
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS catalog_id text REFERENCES catalogs(id) ON DELETE SET NULL;
   `)
 }

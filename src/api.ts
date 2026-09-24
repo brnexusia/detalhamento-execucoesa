@@ -194,6 +194,6 @@ export const api = {
   upload: async (file: File) => {
     const form = new FormData()
     form.append('file', file)
-    return request<{ url: string; type: 'image' | 'video'; dimensions?: { width: number; height: number; format: string } | null; variants?: Record<string, { url: string; width: number; height: number; byteSize: number }> }>('/api/admin/upload', { method: 'POST', body: form })
+    return request<{ url: string; type: 'image' | 'video' }>('/api/admin/upload', { method: 'POST', body: form })
   },
 }
