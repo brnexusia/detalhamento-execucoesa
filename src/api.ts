@@ -89,6 +89,17 @@ export async function apiRequest<T>(url: string, options: RequestInit = {}): Pro
 
 const request = apiRequest
 
+async function requestBlob(url: string): Promise<{ blob: Blob; filename: string }> {
+  const response = await fetch(url, { credentials: 'include' })
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null)
+    throw new Error(payload?.error || 'Não foi possível gerar o arquivo.')
+  }
+  const disposition = response.headers.get('content-disposition') || ''
+  const filename = /filename="?([^";]+)"?/i.exec(disposition)?.[1] || 'catalogo-shopvax.pdf'
+  return { blob: await response.blob(), filename }
+}
+
 function currentCatalogSlug() {
   if (typeof window === 'undefined') return ''
   return new URLSearchParams(window.location.search).get('catalog') || ''
@@ -130,6 +141,7 @@ export const api = {
   catalogs: () => request<{ catalogs: AdminCatalog[] }>('/api/admin/catalogs'),
   createCatalog: (body: { name: string; kind: 'geral' | 'atacado' | 'varejo'; minimumOrder?: number | null }) => request<{ catalog: AdminCatalog }>('/api/admin/catalogs', { method: 'POST', body: JSON.stringify(body) }),
   updateCatalog: (catalogId: string, body: { name?: string; kind?: 'geral' | 'atacado' | 'varejo'; minimumOrder?: number | null; active?: boolean; items?: Array<{ productId: string; priceOverride: number | null; visible: boolean }> }) => request<{ catalog: Catalog }>(`/api/admin/catalogs/${encodeURIComponent(catalogId)}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  downloadCatalogPdf: (catalogId: string) => requestBlob(`/api/admin/catalogs/${encodeURIComponent(catalogId)}/pdf`),
   deleteCatalog: (catalogId: string) => request<void>(`/api/admin/catalogs/${encodeURIComponent(catalogId)}`, { method: 'DELETE' }),
   createSeller: (body: Record<string, unknown>) => request('/api/admin/sellers', { method: 'POST', body: JSON.stringify(body) }),
   updateSeller: (id: string, body: Record<string, unknown>) => request(`/api/admin/sellers/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
@@ -152,6 +164,6 @@ export const api = {
   upload: async (file: File) => {
     const form = new FormData()
     form.append('file', file)
-    return request<{ url: string; type: 'image' | 'video' }>('/api/admin/upload', { method: 'POST', body: form })
+    return request<{ url: string; type: 'image' | 'video'; dimensions?: { width: number; height: number; format: string } | null; variants?: Record<string, { url: string; width: number; height: number; byteSize: number }> }>('/api/admin/upload', { method: 'POST', body: form })
   },
 }
