@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { showToast } from './ui-dialogs'
 import { ChevronRight, Eye, Heart, MessageCircleQuestion, Minus, Play, Plus, Share2, ShoppingBag, Store, Volume2, VolumeX, X } from 'lucide-react'
 import './social-feed.css'
+import { optimizedMediaUrl, type MediaVariantSize } from './media'
 
 type VariationGroup = { name: string; options: string[] }
 type FeedProduct = {
@@ -82,13 +83,13 @@ function productMediaCandidates(product: FeedProduct) {
   return Array.from(new Set([product.mediaUrl, ...(Array.isArray(product.images) ? product.images : [])].map((value) => String(value || '').trim()).filter(Boolean)))
 }
 
-function FeedImage({ product, className = '' }: { product: FeedProduct; className?: string }) {
+function FeedImage({ product, className = '', size = 'large' }: { product: FeedProduct; className?: string; size?: MediaVariantSize }) {
   const candidates = productMediaCandidates(product)
   const [index, setIndex] = useState(0)
-  useEffect(() => { setIndex(0) }, [product.id, product.mediaUrl, JSON.stringify(product.images || [])])
+  useEffect(() => { setIndex(0) }, [product.id, product.mediaUrl, JSON.stringify(product.images || []), size])
   const src = candidates[index] || ''
   if (!src) return <div className={className}><Play size={34}/></div>
-  return <img className={className} src={src} alt={product.name} loading="lazy" decoding="async" onError={() => setIndex((current) => current + 1)} />
+  return <img className={className} src={optimizedMediaUrl(src, size)} alt={product.name} loading="lazy" decoding="async" onError={() => setIndex((current) => current + 1)} />
 }
 
 async function copyText(value: string) {
@@ -178,7 +179,7 @@ function SocialPostCard({ post, cartCount, onProfile, onAdd, onCart }: { post: S
   return <article className="social-feed-card" ref={cardRef}>
     <div className="social-feed-media" onDoubleClick={() => { if (!interactions.liked) void like() }}>
       {post.product.mediaType === 'video'
-        ? <video ref={videoRef} src={post.product.mediaUrl} poster={post.product.images?.[0] || undefined} loop muted={muted} playsInline preload="metadata" />
+        ? <video ref={videoRef} src={post.product.mediaUrl} poster={post.product.images?.[0] ? optimizedMediaUrl(post.product.images[0], 'medium') : undefined} loop muted={muted} playsInline preload="metadata" />
         : productMediaCandidates(post.product).length
           ? <FeedImage product={post.product} />
           : <div className="social-feed-media__empty"><Play size={34}/></div>}
@@ -187,7 +188,7 @@ function SocialPostCard({ post, cartCount, onProfile, onAdd, onCart }: { post: S
     </div>
 
     <button className="social-feed-store" onClick={() => onProfile(post.store.slug)}>
-      <span className="social-feed-store__avatar">{post.store.logoUrl ? <img src={post.store.logoUrl} alt=""/> : <Store size={19}/>}</span>
+      <span className="social-feed-store__avatar">{post.store.logoUrl ? <img src={optimizedMediaUrl(post.store.logoUrl, 'thumb')} alt=""/> : <Store size={19}/>}</span>
       <span><strong>{post.store.name}</strong><small>@{post.store.slug}</small></span>
       <ChevronRight size={17}/>
     </button>
@@ -353,7 +354,7 @@ export default function SocialFeed() {
         <header><div><span>Carrinho</span><h2>{activeCart.name}</h2></div><button onClick={() => setActiveCart(null)}><X size={20}/></button></header>
         <div className="feed-sheet-body">
           {cartItems.length ? cartItems.map((item) => <article className="feed-cart-item" key={item.key}>
-            <div className="feed-cart-thumb">{item.product.mediaType === 'image' && productMediaCandidates(item.product).length ? <FeedImage product={item.product}/> : <Play size={18}/>}</div>
+            <div className="feed-cart-thumb">{item.product.mediaType === 'image' && productMediaCandidates(item.product).length ? <FeedImage product={item.product} size="thumb"/> : <Play size={18}/>}</div>
             <div><strong>{item.product.name}</strong><small>{Object.entries(item.selections).map(([key, value]) => `${key}: ${value}`).join(' · ') || 'Sem variação'}</small><span>{money.format(item.product.price)}</span></div>
             <div className="feed-cart-qty"><button onClick={() => changeCartQuantity(item.key, -1)}><Minus size={14}/></button><b>{item.quantity}</b><button onClick={() => changeCartQuantity(item.key, 1)}><Plus size={14}/></button></div>
           </article>) : <div className="feed-cart-empty">Seu carrinho desta loja está vazio.</div>}
