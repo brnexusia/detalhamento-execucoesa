@@ -7,6 +7,13 @@ const read = (file) => fs.readFileSync(path.join(root, file), 'utf8')
 
 const hook = read('server/google-auth-hooks.mjs')
 const security = read('server/security-hooks.mjs')
+const api = read('src/api.ts')
+assert.match(api, /googleAuthRequest/)
+assert.match(api, /attempt < 2/)
+assert.match(api, /GOOGLE_ALREADY_REGISTERED/)
+assert.match(api, /GOOGLE_NETWORK_CHANGED/)
+assert.match(api, /A conexão mudou durante o acesso ao Google/)
+
 const auth = read('src/Auth.tsx')
 const googleButton = read('src/GoogleSignInButton.tsx')
 const app = read('server/app.mjs')
