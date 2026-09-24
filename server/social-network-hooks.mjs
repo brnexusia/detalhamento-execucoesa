@@ -129,8 +129,9 @@ function publicationShape(row) {
     description: row.description,
     price: Number(row.price),
     category: row.category,
-    mediaUrl: row.media_url,
+    mediaUrl: row.media_url || (Array.isArray(row.images) ? row.images[0] || '' : ''),
     mediaType: row.media_type === 'video' ? 'video' : 'image',
+    images: Array.isArray(row.images) ? row.images.map(String).filter(Boolean).slice(0, 40) : [],
     pack: row.pack,
     variations: Array.isArray(row.variations) ? row.variations : [],
     featured: Boolean(row.featured),
@@ -188,7 +189,7 @@ async function publicStorePublications(slug) {
   const store = await pool.query('SELECT id FROM stores WHERE slug=$1 AND is_active=true AND social_enabled=true LIMIT 1', [slug])
   if (!store.rowCount) return null
   const products = await pool.query(`
-    SELECT id,sku,name,description,price,category,media_url,media_type,pack,variations,featured,social_published_at
+    SELECT id,sku,name,description,price,category,media_url,media_type,images,pack,variations,featured,social_published_at
     FROM products
     WHERE store_id=$1 AND active=true AND social_published=true
     ORDER BY social_published_at DESC,id DESC
@@ -202,7 +203,7 @@ async function publicFeed(cursorValue, requestedLimit, viewerKey) {
   const cursor = decodeFeedCursor(cursorValue)
   const limit = Math.max(1, Math.min(30, Math.floor(Number(requestedLimit) || 12)))
   const result = await pool.query(`
-    SELECT p.id,p.sku,p.name,p.description,p.price,p.category,p.media_url,p.media_type,p.pack,p.variations,p.featured,p.social_published_at,
+    SELECT p.id,p.sku,p.name,p.description,p.price,p.category,p.media_url,p.media_type,p.images,p.pack,p.variations,p.featured,p.social_published_at,
       s.id AS store_id,s.slug AS store_slug,s.name AS store_name,s.logo_url AS store_logo_url,s.accent AS store_accent,s.plan_tier,
       (SELECT COUNT(*)::int FROM social_post_views v WHERE v.product_id=p.id) AS social_views,
       (SELECT COUNT(*)::int FROM social_post_likes l WHERE l.product_id=p.id) AS social_likes,
