@@ -637,6 +637,22 @@ app.put(
   }),
 )
 
+app.patch(
+  '/api/admin/products/:id/visibility',
+  auth,
+  asyncRoute(async (req, res) => {
+    const store = await pool.query('SELECT id FROM stores WHERE owner_id=$1 LIMIT 1', [req.user.id])
+    if (!store.rowCount) return res.status(404).json({ error: 'Loja não encontrada.' })
+    const active = req.body?.active !== false
+    const result = await pool.query(
+      'UPDATE products SET active=$1,updated_at=now() WHERE id=$2 AND store_id=$3 RETURNING id,active',
+      [active, req.params.id, store.rows[0].id],
+    )
+    if (!result.rowCount) return res.status(404).json({ error: 'Produto não encontrado.' })
+    res.json({ product: result.rows[0] })
+  }),
+)
+
 app.delete(
   '/api/admin/products/:id',
   auth,

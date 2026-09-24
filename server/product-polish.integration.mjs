@@ -21,6 +21,7 @@ assert.doesNotMatch(auth, /fallbackPlans/)
 const app = read('server/app.mjs')
 assert.match(app, /plan_tier,signup_plan_selected_at/)
 assert.match(app, /Selecione Bronze, Prata ou Ouro/)
+assert.match(app, /\/api\/admin\/products\/:id\/visibility/)
 
 const nav = read('src/AdminNavigation.tsx')
 const order = ['Início', 'Produtos', 'Pedidos', 'Vendedoras', 'Inteligência', 'Minha loja']
@@ -40,6 +41,9 @@ assert.equal(fs.existsSync(path.join(root, 'src/PublicStore.tsx')), false)
 
 const admin = read('src/AdminApp.tsx')
 assert.match(admin, /updateProductGallery/)
+assert.match(admin, /galleryToSave/)
+assert.match(admin, /setProductVisibility/)
+assert.match(admin, /Esconder/)
 assert.match(admin, /stockEnabled/)
 assert.match(admin, /orders-filters/)
 assert.match(admin, /pageSize = 18/)
@@ -67,6 +71,9 @@ const publicStore = read('src/PublicStoreV2.tsx')
 for (const label of ['Fechar carrinho', 'Foto anterior', 'Próxima foto', 'Diminuir quantidade', 'Aumentar quantidade']) {
   assert.match(publicStore, new RegExp(label))
 }
+
+const socialNetwork = read('server/social-network-hooks.mjs')
+assert.match(socialNetwork, /p\.active=true AND p\.social_published=true/, 'feed social deve excluir produtos escondidos')
 
 const platform = read('src/PlatformAdmin.tsx')
 for (const field of ['photoLimit', 'franchiseeLimit', 'trafficPriority', 'features']) assert.match(platform, new RegExp(field))

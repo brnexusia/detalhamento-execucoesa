@@ -82,6 +82,39 @@ try {
   assert.equal(result.response.status, 201)
   const productId = result.payload.product.id
 
+  result = await request('/api/admin/products', {
+    method: 'POST', cookie: account.cookie,
+    body: {
+      sku: 'F1-PRIMARY', name: 'Produto imagem principal', description: '', price: 19.9,
+      category: 'Teste', mediaUrl: '/media/fase1-primary', mediaType: 'image', pack: '',
+      variations: [], active: true,
+    },
+  })
+  assert.equal(result.response.status, 201)
+  const primaryProductId = result.payload.product.id
+
+  result = await request(`/api/admin/products/${primaryProductId}/gallery`, {
+    method: 'PATCH', cookie: account.cookie, body: { images: [] },
+  })
+  assert.equal(result.response.status, 200)
+  assert.equal(result.payload.product.media_url, '/media/fase1-primary', 'galeria vazia não pode apagar a imagem principal')
+
+  result = await request(`/api/admin/products/${primaryProductId}/visibility`, {
+    method: 'PATCH', cookie: account.cookie, body: { active: false },
+  })
+  assert.equal(result.response.status, 200)
+  assert.equal(result.payload.product.active, false)
+
+  result = await request(`/api/public/store/${account.storeSlug}`, {})
+  assert.equal(result.response.status, 200)
+  assert.equal(result.payload.products.some((product) => product.id === primaryProductId), false, 'produto escondido não pode aparecer na loja pública')
+
+  result = await request(`/api/admin/products/${primaryProductId}/visibility`, {
+    method: 'PATCH', cookie: account.cookie, body: { active: true },
+  })
+  assert.equal(result.response.status, 200)
+  assert.equal(result.payload.product.active, true)
+
   const fivePhotos = Array.from({ length: 5 }, (_, index) => `https://assets.example.test/fase1-${index + 1}.jpg`)
   result = await request(`/api/admin/products/${productId}/gallery`, {
     method: 'PATCH', cookie: account.cookie, body: { images: fivePhotos },
