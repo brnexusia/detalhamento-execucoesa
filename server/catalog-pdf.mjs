@@ -86,7 +86,10 @@ async function drawProductCard(doc, product, x, y, w, h, imageLoader) {
   const imageH = 115
   doc.rect(x + padding, y + padding, imageW, imageH).fill('#f0ece4')
   let image = null
-  try { image = await imageLoader(product.media_url || product.images?.[0] || '') } catch {}
+  const imageSource = product.media_type === 'image'
+    ? (product.media_url || product.images?.[0] || '')
+    : (product.images?.[0] || '')
+  try { image = await imageLoader(imageSource) } catch {}
   if (image?.data?.length) {
     try {
       doc.image(image.data, x + padding, y + padding, {
