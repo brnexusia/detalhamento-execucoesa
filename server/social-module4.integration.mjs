@@ -42,7 +42,13 @@ const storeA = await createStore('A')
 const storeB = await createStore('B')
 const nameA = `Foto feed ${unique}`
 const nameB = `Vídeo feed ${unique}`
-await createProduct(storeA.cookie, nameA, 'image')
+const imageProduct = await createProduct(storeA.cookie, nameA, 'image')
+const galleryResponse = await fetch(`${base}/api/admin/products/${imageProduct.id}/gallery`, {
+  method: 'PATCH',
+  headers: { 'content-type': 'application/json', cookie: storeA.cookie },
+  body: JSON.stringify({ images: ['https://example.invalid/produto-atualizado.jpg'] }),
+})
+if (!galleryResponse.ok) throw new Error(`Galeria do produto de feed não atualizou: ${galleryResponse.status}`)
 await new Promise((resolve) => setTimeout(resolve, 5))
 await createProduct(storeB.cookie, nameB, 'video')
 
@@ -51,6 +57,9 @@ const feed = await feedResponse.json().catch(() => ({}))
 if (!feedResponse.ok) throw new Error(`Feed não abriu: ${feedResponse.status} ${JSON.stringify(feed)}`)
 const names = new Set((feed.posts || []).map((post) => post.product?.name))
 if (!names.has(nameA) || !names.has(nameB)) throw new Error('Feed geral não misturou publicações das duas lojas de teste.')
+const image = feed.posts.find((post) => post.product?.name === nameA)
+if (image?.product?.mediaUrl !== 'https://example.invalid/produto-atualizado.jpg') throw new Error('Feed não refletiu a mídia principal atualizada do produto.')
+if (!Array.isArray(image?.product?.images) || image.product.images[0] !== 'https://example.invalid/produto-atualizado.jpg') throw new Error('Feed não preservou a galeria de imagens do produto.')
 const video = feed.posts.find((post) => post.product?.name === nameB)
 if (video?.product?.mediaType !== 'video' || !video?.store?.slug) throw new Error('Post de vídeo não preservou mídia e origem da loja.')
 
