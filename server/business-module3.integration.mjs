@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import pg from 'pg'
+import sharp from 'sharp'
 
 const { Pool } = pg
 const base = process.env.BASE_URL || 'http://127.0.0.1:3000'
@@ -30,8 +31,35 @@ async function admin(path, cookie, options = {}) {
 try {
   await waitForServer()
   const account = await register()
-  let response = await admin('/api/admin/products', account.cookie, {
-    method: 'POST', body: JSON.stringify({ sku: 'CAT-001', name: 'Produto Multi', description: 'Teste', price: 100, category: 'Teste', mediaUrl: '', mediaType: 'image', pack: '', variations: [], active: true }),
+  const sourceImage = await sharp({
+    create: { width: 1200, height: 600, channels: 3, background: '#d8d1c4' },
+  }).jpeg({ quality: 90 }).toBuffer()
+  const form = new FormData()
+  form.append('file', new Blob([sourceImage], { type: 'image/jpeg' }), 'catalogo.jpg')
+  let response = await fetch(`${base}/api/admin/upload`, {
+    method: 'POST',
+    headers: { Cookie: account.cookie },
+    body: form,
+  })
+  assert.equal(response.status, 201)
+  const uploaded = await response.json()
+  assert.equal(uploaded.type, 'image')
+  assert.equal(uploaded.variants.thumb.width, 400)
+  assert.equal(uploaded.variants.thumb.height, 200)
+  assert.equal(uploaded.variants.medium.width, 900)
+  assert.equal(uploaded.variants.medium.height, 450)
+  assert.equal(uploaded.variants.large.width, 1200)
+  assert.equal(uploaded.variants.large.height, 600)
+
+  response = await fetch(`${base}${uploaded.url}?size=thumb`)
+  assert.equal(response.status, 200)
+  assert.equal(response.headers.get('content-type'), 'image/webp')
+  const thumbMeta = await sharp(Buffer.from(await response.arrayBuffer())).metadata()
+  assert.equal(thumbMeta.width, 400)
+  assert.equal(thumbMeta.height, 200)
+
+  response = await admin('/api/admin/products', account.cookie, {
+    method: 'POST', body: JSON.stringify({ sku: 'CAT-001', name: 'Produto Multi', description: 'Teste', price: 100, category: 'Teste', mediaUrl: uploaded.url, mediaType: 'image', pack: '', variations: [], active: true }),
   })
   assert.equal(response.status, 201)
   const product = (await response.json()).product
@@ -62,6 +90,14 @@ try {
   assert.equal(page.store.minimumOrder, 100)
   assert.equal(page.products.find((item) => item.id === product.id).price, 55)
   assert.equal(page.page.limit, 24, 'proteção de paginação deve continuar ativa')
+
+  response = await admin(`/api/admin/catalogs/${catalog.id}/pdf`, account.cookie, { method: 'GET' })
+  assert.equal(response.status, 200)
+  assert.equal(response.headers.get('content-type'), 'application/pdf')
+  assert.match(response.headers.get('content-disposition') || '', /shopvax\.pdf/i)
+  const pdfBuffer = Buffer.from(await response.arrayBuffer())
+  assert.equal(pdfBuffer.subarray(0, 4).toString('ascii'), '%PDF')
+  assert.ok(pdfBuffer.length > 1500, 'PDF deve conter layout e produto')
 
   response = await fetch(`${base}/api/business/orders`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
