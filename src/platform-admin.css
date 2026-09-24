@@ -22,3 +22,5 @@
 
 .platform-plan-form select{width:100%;border:1px solid #d9ddd9;border-radius:10px;background:#fff;padding:10px 11px;font:inherit}.platform-form-note{margin:0;background:#f6f4ed;border:1px solid #e3dfd2;border-radius:10px;padding:10px 12px;color:#6d6a61;font-size:.82rem}.platform-feature-editor{display:grid;gap:9px;padding-top:4px}.platform-feature-editor>strong{font-size:.9rem}.platform-feature-editor>p{margin:0;color:#6d746e;font-size:.8rem;line-height:1.45}.platform-feature-editor>div{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 12px}
 @media(max-width:680px){.platform-feature-editor>div{grid-template-columns:1fr}}
+
+.platform-google-reauth{display:grid;gap:8px;padding-top:2px}.platform-google-reauth>span{color:var(--muted);font-size:9px;font-weight:600}.platform-google-reauth .google-auth-button{width:100%}
