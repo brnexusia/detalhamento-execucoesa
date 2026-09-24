@@ -119,28 +119,32 @@ function groupedRows(rows) {
 }
 
 async function materializeRows(query, rows) {
-  let localized = 0
-  let failed = 0
-  let changed = 0
-  for (const row of rows) {
-    const result = await localizeImportedProductMedia({
-      query,
-      storeId: row.store_id,
-      sourceUrl: row.source_url || '',
-      product: row,
-    })
-    localized += result.localized
-    failed += result.failed
-    if (!result.changed) continue
-    await query(
-      `UPDATE products
-       SET media_url=$1,images=$2,variant_images=$3,updated_at=now()
-       WHERE id=$4 AND store_id=$5`,
-      [result.mediaUrl, JSON.stringify(result.images), JSON.stringify(result.variantImages), row.id, row.store_id],
-    )
-    changed += 1
-  }
-  return { localized, failed, changed }
+  const stats = { localized: 0, failed: 0, changed: 0 }
+  const queue = [...rows]
+  const workers = Array.from({ length: Math.min(4, Math.max(1, queue.length)) }, async () => {
+    while (queue.length) {
+      const row = queue.shift()
+      if (!row) break
+      const result = await localizeImportedProductMedia({
+        query,
+        storeId: row.store_id,
+        sourceUrl: row.source_url || '',
+        product: row,
+      })
+      stats.localized += result.localized
+      stats.failed += result.failed
+      if (!result.changed) continue
+      await query(
+        `UPDATE products
+         SET media_url=$1,images=$2,variant_images=$3,updated_at=now()
+         WHERE id=$4 AND store_id=$5`,
+        [result.mediaUrl, JSON.stringify(result.images), JSON.stringify(result.variantImages), row.id, row.store_id],
+      )
+      stats.changed += 1
+    }
+  })
+  await Promise.all(workers)
+  return stats
 }
 
 async function materializeJobMedia(query, jobId, storeId) {
@@ -366,13 +370,13 @@ async function publishJob(req, res) {
       [created, skippedExisting, job.id, store.store_id],
     )
     await client.query('COMMIT')
-    let media = { localized: 0, failed: 0, changed: 0 }
-    try {
-      media = await materializeJobMedia(client.query.bind(client), job.id, store.store_id)
-    } catch (error) {
-      console.warn('[scanner publish] media localization:', error?.message || error)
+    if (process.env.SHOPVAX_IMPORT_MEDIA_REPAIR_DISABLED !== '1') {
+      setImmediate(() => {
+        void materializeJobMedia(pool.query.bind(pool), job.id, store.store_id)
+          .catch((error) => console.warn('[scanner publish] media localization:', error?.message || error))
+      })
     }
-    return res.json({ ...publicResult(updated.rows[0], false), media })
+    return res.json({ ...publicResult(updated.rows[0], false), media: { queued: true } })
   } catch (error) {
     try { await client.query('ROLLBACK') } catch {}
     throw error
