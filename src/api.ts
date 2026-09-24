@@ -123,6 +123,7 @@ export const api = {
   createProduct: (body: Record<string, unknown>) => request<{ product: AdminProduct }>('/api/admin/products', { method: 'POST', body: JSON.stringify(body) }),
   updateProduct: (id: string, body: Record<string, unknown>) => request<{ product: AdminProduct }>(`/api/admin/products/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   updateProductGallery: (id: string, images: string[]) => request<{ product: { id: string; images: string[] }; limit: number | null }>(`/api/admin/products/${encodeURIComponent(id)}/gallery`, { method: 'PATCH', body: JSON.stringify({ images }) }),
+  setProductVisibility: (id: string, active: boolean) => request<{ product: { id: string; active: boolean } }>(`/api/admin/products/${encodeURIComponent(id)}/visibility`, { method: 'PATCH', body: JSON.stringify({ active }) }),
   deleteProduct: (id: string) => request(`/api/admin/products/${id}`, { method: 'DELETE' }),
   updateStock: (productId: string, body: { enabled: boolean; quantity: number; variantStock: Record<string, number> }) => request<{ product: { id: string; stock_enabled: boolean; stock_quantity: number; variant_stock: Record<string, number> } }>(`/api/admin/features/products/${encodeURIComponent(productId)}/stock`, { method: 'PATCH', body: JSON.stringify(body) }),
   cancelOrder: (orderId: string) => request<{ order: { id: string; status: string; stock_reverted: boolean }; idempotent: boolean }>(`/api/admin/features/orders/${encodeURIComponent(orderId)}/cancel`, { method: 'POST', body: '{}' }),
