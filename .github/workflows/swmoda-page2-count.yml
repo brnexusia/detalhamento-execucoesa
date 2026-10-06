@@ -1,0 +1,34 @@
+name: swmoda-page2-count
+
+on:
+  push:
+    branches: [inspect/swmoda-page2-count]
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch and count SW Moda page 2
+        shell: bash
+        run: |
+          curl -fsSL --retry 3 --connect-timeout 15 -A "Mozilla/5.0" "https://www.swmoda.com.br/cat/42/todos-os-produtos?atual=2" -o /tmp/sw.html
+          python3 - <<'PY'
+          import re, html
+          from urllib.parse import urljoin, urlparse
+          text=open('/tmp/sw.html',encoding='utf-8',errors='ignore').read()
+          hrefs=re.findall(r'href=["\']([^"\']+)["\']',text,re.I)
+          paths=[]
+          for href in hrefs:
+              u=urlparse(urljoin('https://www.swmoda.com.br/',html.unescape(href)))
+              if u.netloc.endswith('swmoda.com.br') and re.fullmatch(r'/p/[^/?#]+/?',u.path):
+                  paths.append(u.path.rstrip('/'))
+          unique=list(dict.fromkeys(paths))
+          print('HTML_BYTES',len(text.encode()))
+          print('PRODUCT_LINK_OCCURRENCES',len(paths))
+          print('UNIQUE_PRODUCT_URLS',len(unique))
+          print('PRODUCTS')
+          for i,p in enumerate(unique,1):
+              print(f'{i:02d} {p}')
+          print('END_PRODUCTS')
+          PY
