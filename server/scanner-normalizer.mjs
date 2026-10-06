@@ -4,7 +4,7 @@ const COLOR_NAMES = new Set(['cor', 'cores', 'color', 'colors', 'colour', 'colou
 const SIZE_NAMES = new Set(['tamanho', 'tamanhos', 'tam', 'size', 'sizes', 'numero', 'número', 'numeracao', 'numeração'])
 const IGNORED_OPTIONS = new Set(['default title', 'padrão', 'padrao', 'default', 'único', 'unico', 'one size'])
 const MAX_PRODUCT_IMAGES = 40
-const MAX_VARIANT_IMAGES = 8
+const MAX_VARIANT_IMAGES = 10
 const MAX_VARIANT_IMAGE_GROUPS = 80
 
 function text(value, max = 4000) {
@@ -150,10 +150,10 @@ function mergeImageUrls(values, max = MAX_PRODUCT_IMAGES) {
 }
 
 function normalizeImages(candidate) {
-  return mergeImageUrls([
-    ...(Array.isArray(candidate?.images) ? candidate.images : []),
-    ...(Array.isArray(candidate?.variants) ? candidate.variants.flatMap(variantImages) : []),
-  ])
+  const base = mergeImageUrls(Array.isArray(candidate?.images) ? candidate.images : [])
+  const variant = mergeImageUrls(Array.isArray(candidate?.variants) ? candidate.variants.flatMap(variantImages) : [])
+  if (String(candidate?.source || '').startsWith('braavo') && base.length && variant.length) return base
+  return mergeImageUrls([...base, ...variant])
 }
 
 function variantSelections(variant, propertyOrder) {
