@@ -13,51 +13,25 @@ jobs:
         with:
           node-version: 22
       - run: npm install --no-audit --no-fund
-      - name: Compare Shopvax vs SW Moda image bytes and dimensions
+      - name: Compare SW Moda image variants with Shopvax
         shell: bash
         run: |
           set -euo pipefail
           SHOP="https://shopvax.com.br/media/0cd825ba-8b56-46d5-bdf1-d38d844957d5"
-          PRODUCT="https://www.swmoda.com.br/p/blusaliegi"
-          curl -fsSL --retry 3 -A "Mozilla/5.0" "$PRODUCT" -o /tmp/product.html
-          python3 - <<'PY' > /tmp/source_url.txt
-          import re, html
-          s=open('/tmp/product.html',encoding='utf-8',errors='ignore').read()
-          # Prefer Braavo's gallery full/original data-src under slave/0.
-          vals=re.findall(r'data-src=["\'](https://thumb\.braavo\.me/slave/0/[^"\']+)["\']',s,re.I)
-          print(html.unescape(vals[0]) if vals else '')
-          PY
-          SOURCE="$(cat /tmp/source_url.txt)"
-          echo "PRODUCT_PAGE=$PRODUCT"
-          echo "SHOP_URL=$SHOP"
-          echo "SOURCE_URL=$SOURCE"
-          test -n "$SOURCE"
-          curl -fsSL --retry 3 -A "Mozilla/5.0" "$SHOP" -o /tmp/shop-image
-          curl -fsSL --retry 3 -A "Mozilla/5.0" "$SOURCE" -o /tmp/source-image
-          echo "SHOP_BYTES=$(wc -c < /tmp/shop-image)"
-          echo "SOURCE_BYTES=$(wc -c < /tmp/source-image)"
-          echo "SHOP_SHA256=$(sha256sum /tmp/shop-image | cut -d' ' -f1)"
-          echo "SOURCE_SHA256=$(sha256sum /tmp/source-image | cut -d' ' -f1)"
+          BASE="https://thumb.braavo.me/slave"
+          ID="968285696.webp"
+          for spec in "shop:$SHOP" "source0:$BASE/0/$ID" "source600:$BASE/600/$ID" "source1000:$BASE/1000/$ID" "source200:$BASE/200/$ID"; do
+            label="${spec%%:*}"
+            url="${spec#*:}"
+            curl -fsSL --retry 3 -A "Mozilla/5.0" "$url" -o "/tmp/$label"
+            echo "${label}_URL=$url"
+            echo "${label}_BYTES=$(wc -c < "/tmp/$label")"
+            echo "${label}_SHA256=$(sha256sum "/tmp/$label" | cut -d' ' -f1)"
+          done
           node --input-type=module <<'NODE'
           import sharp from 'sharp'
-          for (const [label,path] of [['SHOP','/tmp/shop-image'],['SOURCE','/tmp/source-image']]) {
-            const meta=await sharp(path).metadata()
-            console.log(label+'_META', JSON.stringify({format:meta.format,width:meta.width,height:meta.height,space:meta.space,channels:meta.channels,density:meta.density}))
+          for (const label of ['shop','source0','source600','source1000','source200']) {
+            const meta=await sharp('/tmp/'+label).metadata()
+            console.log(label.toUpperCase()+'_META', JSON.stringify({format:meta.format,width:meta.width,height:meta.height,space:meta.space,channels:meta.channels}))
           }
           NODE
-          echo "SOURCE_PAGE_IMAGE_REFERENCES"
-          python3 - <<'PY'
-          import re,html
-          s=open('/tmp/product.html',encoding='utf-8',errors='ignore').read()
-          for pat in [
-            r'data-src=["\']([^"\']+)["\']',
-            r'src=["\']([^"\']+)["\']',
-            r'srcset=["\']([^"\']+)["\']'
-          ]:
-            vals=[]
-            for v in re.findall(pat,s,re.I):
-              if 'braavo' in v and ('slave/' in v or 'thumb.' in v):
-                v=html.unescape(v)
-                if v not in vals: vals.append(v)
-            for v in vals[:20]: print(v)
-          PY
