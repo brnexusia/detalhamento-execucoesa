@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import { canonicalVariationName, cleanDescription, normalizeCandidate, normalizeCandidates, normalizeVariations } from './scanner-normalizer.mjs'
 
 assert.equal(cleanDescription('<p>Camisa <strong>ampla</strong> em linho.</p>'), 'Camisa ampla em linho.')
+assert.equal(cleanDescription('cal&ccedil;a jogging em fluity'), 'calça jogging em fluity')
+assert.equal(cleanDescription('Vestido &amp; faixa &#231;'), 'Vestido & faixa ç')
 assert.equal(canonicalVariationName('Color'), 'Cor')
 assert.equal(canonicalVariationName('cores'), 'Cor')
 assert.equal(canonicalVariationName('tam'), 'Tamanho')
