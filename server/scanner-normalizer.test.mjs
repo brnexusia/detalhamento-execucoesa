@@ -42,6 +42,8 @@ const normalized = normalizeCandidate({
 })
 assert.equal(normalized.source_candidate_id, 'candidate-1')
 assert.equal(normalized.normalized.name, 'Camisa Linho')
+const encodedName = normalizeCandidate({ title: 'Cal&ccedil;a Jogging em Fluity', price: 79.9, source_url: 'https://loja.example/p/calca' })
+assert.equal(encodedName.normalized.name, 'Calça Jogging em Fluity')
 assert.equal(normalized.normalized.description, 'Camisa leve para atacado.')
 assert.equal(normalized.normalized.price, 42)
 assert.equal(normalized.normalized.currency, 'BRL')
