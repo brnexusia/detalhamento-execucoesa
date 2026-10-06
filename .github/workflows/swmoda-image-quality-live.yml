@@ -9,22 +9,55 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Inspect Shopvax public SW Moda API
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - name: Compare Shopvax vs SW Moda image bytes and dimensions
         shell: bash
         run: |
-          curl -fsSL --retry 3 --connect-timeout 15 -A "Mozilla/5.0" "https://shopvax.com.br/api/public/store/sw-moda?limit=24" -o /tmp/shop.json
+          set -euo pipefail
+          SHOP="https://shopvax.com.br/media/0cd825ba-8b56-46d5-bdf1-d38d844957d5"
+          PRODUCT="https://www.swmoda.com.br/p/blusaliegi"
+          curl -fsSL --retry 3 -A "Mozilla/5.0" "$PRODUCT" -o /tmp/product.html
+          python3 - <<'PY' > /tmp/source_url.txt
+          import re, html
+          s=open('/tmp/product.html',encoding='utf-8',errors='ignore').read()
+          # Prefer Braavo's gallery full/original data-src under slave/0.
+          vals=re.findall(r'data-src=["\'](https://thumb\.braavo\.me/slave/0/[^"\']+)["\']',s,re.I)
+          print(html.unescape(vals[0]) if vals else '')
+          PY
+          SOURCE="$(cat /tmp/source_url.txt)"
+          echo "PRODUCT_PAGE=$PRODUCT"
+          echo "SHOP_URL=$SHOP"
+          echo "SOURCE_URL=$SOURCE"
+          test -n "$SOURCE"
+          curl -fsSL --retry 3 -A "Mozilla/5.0" "$SHOP" -o /tmp/shop-image
+          curl -fsSL --retry 3 -A "Mozilla/5.0" "$SOURCE" -o /tmp/source-image
+          echo "SHOP_BYTES=$(wc -c < /tmp/shop-image)"
+          echo "SOURCE_BYTES=$(wc -c < /tmp/source-image)"
+          echo "SHOP_SHA256=$(sha256sum /tmp/shop-image | cut -d' ' -f1)"
+          echo "SOURCE_SHA256=$(sha256sum /tmp/source-image | cut -d' ' -f1)"
+          node --input-type=module <<'NODE'
+          import sharp from 'sharp'
+          for (const [label,path] of [['SHOP','/tmp/shop-image'],['SOURCE','/tmp/source-image']]) {
+            const meta=await sharp(path).metadata()
+            console.log(label+'_META', JSON.stringify({format:meta.format,width:meta.width,height:meta.height,space:meta.space,channels:meta.channels,density:meta.density}))
+          }
+          NODE
+          echo "SOURCE_PAGE_IMAGE_REFERENCES"
           python3 - <<'PY'
-          import json
-          data=json.load(open('/tmp/shop.json'))
-          print('TOP_KEYS', sorted(data.keys()))
-          products=data.get('products') or []
-          print('PRODUCT_COUNT_RESPONSE',len(products))
-          for i,p in enumerate(products[:12],1):
-              print('PRODUCT',i,json.dumps({
-                'id':p.get('id'),
-                'name':p.get('name'),
-                'mediaUrl':p.get('mediaUrl'),
-                'images':p.get('images'),
-                'variantImages':p.get('variantImages'),
-              },ensure_ascii=False))
+          import re,html
+          s=open('/tmp/product.html',encoding='utf-8',errors='ignore').read()
+          for pat in [
+            r'data-src=["\']([^"\']+)["\']',
+            r'src=["\']([^"\']+)["\']',
+            r'srcset=["\']([^"\']+)["\']'
+          ]:
+            vals=[]
+            for v in re.findall(pat,s,re.I):
+              if 'braavo' in v and ('slave/' in v or 'thumb.' in v):
+                v=html.unescape(v)
+                if v not in vals: vals.append(v)
+            for v in vals[:20]: print(v)
           PY
