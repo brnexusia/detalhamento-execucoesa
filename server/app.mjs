@@ -600,6 +600,28 @@ app.post(
   }),
 )
 
+app.post(
+  '/api/admin/products/bulk-delete',
+  auth,
+  asyncRoute(async (req, res) => {
+    const store = await pool.query('SELECT id FROM stores WHERE owner_id=$1 LIMIT 1', [req.user.id])
+    if (!store.rowCount) return res.status(404).json({ error: 'Loja não encontrada.' })
+
+    const ids = [...new Set(
+      (Array.isArray(req.body?.ids) ? req.body.ids : [])
+        .map((value) => String(value || '').trim())
+        .filter(Boolean),
+    )].slice(0, 5000)
+    if (!ids.length) return res.status(400).json({ error: 'Selecione ao menos um produto para excluir.' })
+
+    const deleted = await pool.query(
+      'DELETE FROM products WHERE store_id=$1 AND id = ANY($2::text[]) RETURNING id',
+      [store.rows[0].id, ids],
+    )
+    res.json({ ok: true, deleted: deleted.rowCount, ids: deleted.rows.map((row) => row.id) })
+  }),
+)
+
 app.put(
   '/api/admin/products/:id',
   auth,

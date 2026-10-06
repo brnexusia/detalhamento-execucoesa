@@ -237,6 +237,38 @@ async function downloadCatalogPdf(req, res) {
   })
 }
 
+async function downloadProductsPdf(req, res) {
+  const storeId = req.catalogStore.store_id
+  await schemaReady()
+  const storeResult = await pool.query(
+    'SELECT id,slug,name,logo_url,minimum_order,whatsapp FROM stores WHERE id=$1 LIMIT 1',
+    [storeId],
+  )
+  if (!storeResult.rowCount) return res.status(404).json({ error: 'Loja não encontrada.' })
+
+  const products = await pool.query(
+    `SELECT p.id,p.sku,p.name,p.description,p.price,p.category,p.media_url,p.media_type,p.images,p.variations,
+            p.price AS public_price
+     FROM products p
+     WHERE p.store_id=$1 AND p.active=true
+     ORDER BY p.featured DESC,p.category ASC,p.name ASC,p.id ASC`,
+    [storeId],
+  )
+
+  const store = storeResult.rows[0]
+  await streamCatalogPdf({
+    res,
+    store,
+    catalog: {
+      name: 'Catálogo de produtos',
+      kind: 'geral',
+      minimum_order: store.minimum_order,
+    },
+    products: products.rows,
+    imageLoader: (url, variant = 'medium') => loadCatalogMedia(pool.query.bind(pool), url, variant),
+  })
+}
+
 async function deleteCatalog(req, res) {
   const result = await pool.query('DELETE FROM catalogs WHERE id=$1 AND store_id=$2 AND is_default=false RETURNING id', [req.params.catalogId, req.catalogStore.store_id])
   if (!result.rowCount) return res.status(400).json({ error: 'O catálogo principal não pode ser excluído.' })
@@ -519,6 +551,7 @@ async function createCatalogOrder(req, res) {
 function install(app) {
   if (app.__atacadoCatalogFeaturesInstalled) return
   app.__atacadoCatalogFeaturesInstalled = true
+  app.get('/api/admin/products/pdf', requireStore, (req, res, next) => Promise.resolve(downloadProductsPdf(req, res)).catch(next))
   app.get('/api/admin/catalogs', requireStore, (req, res, next) => Promise.resolve(listCatalogs(req, res)).catch(next))
   app.post('/api/admin/catalogs', express.json({ limit: '64kb' }), requireStore, (req, res, next) => Promise.resolve(createCatalog(req, res)).catch(next))
   app.patch('/api/admin/catalogs/:catalogId', express.json({ limit: '2mb' }), requireStore, (req, res, next) => Promise.resolve(updateCatalog(req, res)).catch(next))

@@ -7,8 +7,19 @@ const MAX_PRODUCT_IMAGES = 40
 const MAX_VARIANT_IMAGES = 10
 const MAX_VARIANT_IMAGE_GROUPS = 80
 
+export function decodeHtmlEntities(value) {
+  const raw = String(value ?? '')
+  if (!/&(?:#[0-9]+|#x[0-9a-f]+|[a-z][a-z0-9]+);/i.test(raw)) return raw
+  try {
+    const $ = load(`<body>${raw}</body>`)
+    return $('body').text()
+  } catch {
+    return raw
+  }
+}
+
 function text(value, max = 4000) {
-  return String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, max)
+  return decodeHtmlEntities(value).replace(/\s+/g, ' ').trim().slice(0, max)
 }
 
 export function cleanDescription(value) {

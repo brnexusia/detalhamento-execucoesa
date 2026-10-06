@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowRight, Boxes, Check, ChevronLeft, ChevronRight, Clipboard, CreditCard, Eye, EyeOff, ExternalLink, ImagePlus, Link2, LogOut, Menu, Package, Pencil, Plus, ReceiptText, Search, Settings, Store as StoreIcon, Trash2, TrendingUp, Upload, Users, X } from 'lucide-react'
+import { ArrowRight, Boxes, Check, ChevronLeft, ChevronRight, Clipboard, CreditCard, Download, Eye, EyeOff, ExternalLink, ImagePlus, Link2, LogOut, Menu, Package, Pencil, Plus, ReceiptText, Search, Settings, Store as StoreIcon, Trash2, TrendingUp, Upload, Users, X } from 'lucide-react'
 import { api } from './api'
 import AdminNavigation from './AdminNavigation'
 import CommercialSettingsPanel from './CommercialSettingsPanel'
@@ -14,6 +14,16 @@ type ProductDraft = { id?: string; name: string; sku: string; description: strin
 const blankProduct: ProductDraft = { name: '', sku: '', description: '', price: '', category: '', pack: '', mediaUrl: '', mediaType: 'image', images: [], variationsText: '', featured: false, active: true, stockEnabled: false, stockQuantity: 0, variantStock: {} }
 
 function go(path: string) { window.history.pushState({}, '', path); window.dispatchEvent(new PopStateEvent('popstate')) }
+function downloadFile(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = filename
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
 function currentSection(): Section { const segment = window.location.pathname.split('/').filter(Boolean)[1]; return ['produtos', 'pedidos', 'vendedoras', 'loja'].includes(segment) ? segment as Section : 'inicio' }
 function variationText(groups: VariationGroup[]) { return (groups || []).map((group) => `${group.name}: ${group.options.join(', ')}`).join('\n') }
 function parseVariations(text: string): VariationGroup[] {
@@ -73,6 +83,32 @@ export default function AdminApp() {
   const flash = (message: string) => { setNotice(message); window.setTimeout(() => setNotice(''), 2200) }
   const copy = async (value: string) => { await navigator.clipboard.writeText(value); flash('Link copiado.') }
   const logout = async () => { if (!(await canLeaveStore())) return; await api.logout().catch(() => undefined); go('/entrar') }
+  const deleteProductsBulk = async (products: AdminProduct[]) => {
+    if (!products.length) return false
+    const label = countLabel(products.length, 'produto selecionado', 'produtos selecionados')
+    if (!(await confirmAction(`Excluir ${label}? Esta ação não pode ser desfeita.`, 'Excluir produtos em massa', 'Excluir selecionados'))) return false
+    setError('')
+    try {
+      const result = await api.deleteProducts(products.map((product) => product.id))
+      flash(countLabel(result.deleted, 'produto excluído', 'produtos excluídos'))
+      await load()
+      return true
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível excluir os produtos selecionados.')
+      return false
+    }
+  }
+  const downloadProductsPdf = async () => {
+    setError('')
+    try {
+      const file = await api.downloadProductsPdf()
+      downloadFile(file.blob, file.filename)
+      flash('Catálogo PDF gerado.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível gerar o catálogo PDF.')
+      throw err
+    }
+  }
 
   if (loading) return <div className="panel-loading"><span className="brand__mark">SV</span><strong>Abrindo seu painel…</strong></div>
   if (!data) return <div className="panel-loading panel-loading--error"><span className="brand__mark">SV</span><strong>O painel não conseguiu iniciar.</strong><p>{error}</p><button className="primary-action" onClick={load}>Tentar novamente</button></div>
@@ -99,7 +135,7 @@ export default function AdminApp() {
         {notice && <div className="toast"><Check size={16} /> {notice}</div>}
         {error && <div className="panel-error">{error}</div>}
         {section === 'inicio' && <Dashboard data={data} incomplete={incomplete} storeUrl={storeUrl} onSection={changeSection} onCopy={() => copy(storeUrl)} />}
-        {section === 'produtos' && <Products data={data} query={query} setQuery={setQuery} onCreate={() => setProductModal({ ...blankProduct })} onEdit={(product) => setProductModal(productDraft(product))} onVisibility={async (product) => { await api.setProductVisibility(product.id, !product.active); flash(product.active ? 'Produto escondido da loja e do feed.' : 'Produto publicado novamente.'); await load() }} onDelete={async (product) => { if (!(await confirmAction(`Excluir ${product.name}? Esta ação não pode ser desfeita.`, 'Excluir produto', 'Excluir'))) return; await api.deleteProduct(product.id); flash('Produto excluído.'); load() }} />}
+        {section === 'produtos' && <Products data={data} query={query} setQuery={setQuery} onCreate={() => setProductModal({ ...blankProduct })} onEdit={(product) => setProductModal(productDraft(product))} onVisibility={async (product) => { await api.setProductVisibility(product.id, !product.active); flash(product.active ? 'Produto escondido da loja e do feed.' : 'Produto publicado novamente.'); await load() }} onDelete={async (product) => { if (!(await confirmAction(`Excluir ${product.name}? Esta ação não pode ser desfeita.`, 'Excluir produto', 'Excluir'))) return; await api.deleteProduct(product.id); flash('Produto excluído.'); load() }} onBulkDelete={deleteProductsBulk} onDownloadPdf={downloadProductsPdf} />}
         {section === 'pedidos' && <Orders data={data} />}
         {section === 'vendedoras' && <Sellers data={data} baseUrl={baseUrl} onCopy={copy} onCreate={() => setSellerModal({ name: '', phone: '', slug: '', is_active: true })} onEdit={(seller) => setSellerModal({ ...seller })} onDelete={async (seller) => { if (!(await confirmAction(`Excluir ${seller.name}? O link individual deixará de funcionar.`, 'Excluir vendedora', 'Excluir'))) return; await api.deleteSeller(seller.id); flash('Vendedora excluída.'); load() }} />}
         {section === 'loja' && <><StoreSettings data={data} onSaved={() => { flash('Loja atualizada.'); load() }} onCopy={copy} onDirtyChange={setStoreDirty} /><CommercialSettingsPanel embedded/><StoreTools data={data}/></>}
@@ -120,18 +156,57 @@ function Dashboard({ data, incomplete, storeUrl, onSection, onCopy }: { data: Ad
   </div>
 }
 
-function Products({ data, query, setQuery, onCreate, onEdit, onVisibility, onDelete }: { data: AdminBootstrap; query: string; setQuery: (value: string) => void; onCreate: () => void; onEdit: (p: AdminProduct) => void; onVisibility: (p: AdminProduct) => void | Promise<void>; onDelete: (p: AdminProduct) => void }) {
+function Products({ data, query, setQuery, onCreate, onEdit, onVisibility, onDelete, onBulkDelete, onDownloadPdf }: { data: AdminBootstrap; query: string; setQuery: (value: string) => void; onCreate: () => void; onEdit: (p: AdminProduct) => void; onVisibility: (p: AdminProduct) => void | Promise<void>; onDelete: (p: AdminProduct) => void; onBulkDelete: (products: AdminProduct[]) => Promise<boolean>; onDownloadPdf: () => Promise<void> }) {
   const [page, setPage] = useState(1)
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [bulkBusy, setBulkBusy] = useState(false)
+  const [pdfBusy, setPdfBusy] = useState(false)
   const pageSize = 18
   const products = data.products.filter((product) => `${product.name} ${product.sku} ${product.category}`.toLowerCase().includes(query.toLowerCase()))
   const pages = Math.max(1, Math.ceil(products.length / pageSize))
   const visible = products.slice((page - 1) * pageSize, page * pageSize)
+  const selected = new Set(selectedIds)
+  const selectedProducts = data.products.filter((product) => selected.has(product.id))
+  const allFilteredSelected = products.length > 0 && products.every((product) => selected.has(product.id))
   useEffect(() => { setPage(1) }, [query, data.products.length])
   useEffect(() => { if (page > pages) setPage(pages) }, [page, pages])
+  useEffect(() => { setSelectedIds((current) => current.filter((id) => data.products.some((product) => product.id === id))) }, [data.products])
 
-  return <div className="panel-page"><div className="page-title"><div><span>Catálogo</span><h1>Produtos</h1><p>Cadastro, fotos, variações e estoque ficam juntos para evitar caminhos duplicados.</p></div><button className="primary-action" onClick={onCreate}><Plus size={18} /> Novo produto</button></div>
+  const toggleSelectionMode = () => {
+    setSelectionMode((current) => !current)
+    setSelectedIds([])
+  }
+  const toggleProduct = (productId: string) => {
+    setSelectedIds((current) => current.includes(productId) ? current.filter((id) => id !== productId) : [...current, productId])
+  }
+  const toggleFiltered = () => {
+    const filteredIds = products.map((product) => product.id)
+    if (allFilteredSelected) setSelectedIds((current) => current.filter((id) => !filteredIds.includes(id)))
+    else setSelectedIds((current) => Array.from(new Set([...current, ...filteredIds])))
+  }
+  const removeSelected = async () => {
+    if (!selectedProducts.length || bulkBusy) return
+    setBulkBusy(true)
+    try {
+      const deleted = await onBulkDelete(selectedProducts)
+      if (deleted) {
+        setSelectedIds([])
+        setSelectionMode(false)
+      }
+    } finally { setBulkBusy(false) }
+  }
+  const generatePdf = async () => {
+    if (pdfBusy || !data.products.length) return
+    setPdfBusy(true)
+    try { await onDownloadPdf() } catch {}
+    finally { setPdfBusy(false) }
+  }
+
+  return <div className="panel-page"><div className="page-title"><div><span>Catálogo</span><h1>Produtos</h1><p>Cadastro, fotos, variações e estoque ficam juntos para evitar caminhos duplicados.</p></div><div className="page-title-actions"><button className="secondary-action" disabled={!data.products.length || pdfBusy} onClick={() => void generatePdf()}><Download size={17} /> {pdfBusy ? 'Gerando PDF…' : 'Gerar catálogo PDF'}</button><button className={`secondary-action ${selectionMode ? 'danger' : ''}`} disabled={!data.products.length || bulkBusy} onClick={toggleSelectionMode}><Trash2 size={17} /> {selectionMode ? 'Cancelar seleção' : 'Excluir em massa'}</button><button className="primary-action" onClick={onCreate}><Plus size={18} /> Novo produto</button></div></div>
     <div className="table-toolbar"><label><Search size={17} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar nome, SKU ou categoria" /></label><span>{products.length === data.products.length ? countLabel(products.length, 'produto') : `${products.length} de ${data.products.length} produtos`}</span></div>
-    <div className="product-admin-grid">{visible.map((product) => <article className="product-admin-card" key={product.id}><div className="product-admin-card__media"><AdminProductMedia product={product}/>{!product.active && <span>oculto</span>}</div><div className="product-admin-card__body"><small>{product.sku || 'SEM SKU'} · {product.category}</small><h3>{product.name}</h3><strong>{money.format(product.price)}</strong>{product.variations?.length > 0 && <p>{product.variations.map((group) => `${group.name}: ${group.options.join('/')}`).join(' · ')}</p>}<p>{countLabel(Array.isArray(product.images) ? product.images.length : 0, 'foto')} · {product.stock_enabled ? `${product.stock_quantity || 0} em estoque` : 'estoque livre'}</p></div><div className="product-admin-card__actions"><button onClick={() => onEdit(product)}><Pencil size={16} /> Editar</button><button onClick={() => void onVisibility(product)} aria-label={product.active ? `Esconder ${product.name}` : `Mostrar ${product.name}`}>{product.active ? <EyeOff size={16}/> : <Eye size={16}/>} {product.active ? 'Esconder' : 'Mostrar'}</button><button className="danger" aria-label={`Excluir ${product.name}`} onClick={() => onDelete(product)}><Trash2 size={16} /></button></div></article>)}</div>
+    {selectionMode && <div className="product-bulk-toolbar"><label><input type="checkbox" checked={allFilteredSelected} onChange={toggleFiltered} disabled={!products.length}/><span>Selecionar todos {products.length === data.products.length ? `os ${products.length} produtos` : `os ${products.length} deste filtro`}</span></label><div><span>{countLabel(selectedProducts.length, 'selecionado')}</span><button className="secondary-action danger" disabled={!selectedProducts.length || bulkBusy} onClick={() => void removeSelected()}><Trash2 size={15}/>{bulkBusy ? 'Excluindo…' : 'Excluir selecionados'}</button></div></div>}
+    <div className="product-admin-grid">{visible.map((product) => <article className={`product-admin-card ${selected.has(product.id) ? 'is-selected' : ''}`} key={product.id}><div className="product-admin-card__media"><AdminProductMedia product={product}/>{!product.active && <span>oculto</span>}{selectionMode && <label className="product-select-control"><input type="checkbox" checked={selected.has(product.id)} onChange={() => toggleProduct(product.id)}/><span>Selecionar</span></label>}</div><div className="product-admin-card__body"><small>{product.sku || 'SEM SKU'} · {product.category}</small><h3>{product.name}</h3><strong>{money.format(product.price)}</strong>{product.variations?.length > 0 && <p>{product.variations.map((group) => `${group.name}: ${group.options.join('/')}`).join(' · ')}</p>}<p>{countLabel(Array.isArray(product.images) ? product.images.length : 0, 'foto')} · {product.stock_enabled ? `${product.stock_quantity || 0} em estoque` : 'estoque livre'}</p></div><div className="product-admin-card__actions"><button onClick={() => onEdit(product)}><Pencil size={16} /> Editar</button><button onClick={() => void onVisibility(product)} aria-label={product.active ? `Esconder ${product.name}` : `Mostrar ${product.name}`}>{product.active ? <EyeOff size={16}/> : <Eye size={16}/>} {product.active ? 'Esconder' : 'Mostrar'}</button><button className="danger" aria-label={`Excluir ${product.name}`} onClick={() => onDelete(product)}><Trash2 size={16} /></button></div></article>)}</div>
     {!products.length && <div className="admin-empty"><Package size={30} /><h2>{data.products.length ? 'Nenhum produto encontrado.' : 'Cadastre seu primeiro produto.'}</h2><p>Você pode usar fotos ou vídeo, criar variações e controlar estoque na mesma edição.</p><button className="primary-action" onClick={onCreate}><Plus size={18} /> Cadastrar produto</button></div>}
     {products.length > pageSize && <div className="panel-pagination"><button disabled={page === 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>Anterior</button><span>Página {page} de {pages}</span><button disabled={page === pages} onClick={() => setPage((value) => Math.min(pages, value + 1))}>Próxima</button></div>}
   </div>

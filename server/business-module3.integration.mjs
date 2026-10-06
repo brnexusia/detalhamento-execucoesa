@@ -94,6 +94,14 @@ try {
   assert.equal(pdfBuffer.subarray(0, 4).toString('ascii'), '%PDF')
   assert.ok(pdfBuffer.length > 1500, 'PDF deve conter layout e produto')
 
+  response = await admin('/api/admin/products/pdf', account.cookie, { method: 'GET' })
+  assert.equal(response.status, 200)
+  assert.equal(response.headers.get('content-type'), 'application/pdf')
+  assert.match(response.headers.get('content-disposition') || '', /shopvax\.pdf/i)
+  const productsPdfBuffer = Buffer.from(await response.arrayBuffer())
+  assert.equal(productsPdfBuffer.subarray(0, 4).toString('ascii'), '%PDF')
+  assert.ok(productsPdfBuffer.length > 1500, 'PDF direto de produtos deve conter o catálogo')
+
   response = await fetch(`${base}/api/business/orders`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ storeSlug: account.storeSlug, catalogSlug: catalog.slug, items: [{ productId: product.id, quantity: 2, selections: {} }] }),
@@ -117,5 +125,24 @@ try {
   const defaultPage = await response.json()
   assert.equal(defaultPage.products.find((item) => item.id === product.id).price, 100, 'catálogo principal preserva preço base')
 
-  console.log('[business module 3] catalogs + price + visibility + minimum: ok')
+  response = await admin('/api/admin/products', account.cookie, {
+    method: 'POST', body: JSON.stringify({ sku: 'CAT-002', name: 'Produto Lote', description: 'Teste', price: 80, category: 'Teste', mediaUrl: '', mediaType: 'image', pack: '', variations: [], active: true }),
+  })
+  assert.equal(response.status, 201)
+  const secondProduct = (await response.json()).product
+
+  response = await admin('/api/admin/products/bulk-delete', account.cookie, {
+    method: 'POST',
+    body: JSON.stringify({ ids: [product.id, secondProduct.id, 'produto-de-outra-loja-inexistente'] }),
+  })
+  assert.equal(response.status, 200)
+  const bulkDelete = await response.json()
+  assert.equal(bulkDelete.deleted, 2)
+  assert.deepEqual(new Set(bulkDelete.ids), new Set([product.id, secondProduct.id]))
+
+  response = await admin('/api/admin/bootstrap', account.cookie)
+  assert.equal(response.status, 200)
+  assert.equal((await response.json()).products.length, 0, 'exclusão em massa deve remover somente os produtos da própria loja')
+
+  console.log('[business module 3] catalogs + pdf + bulk product delete: ok')
 } finally { await db.end() }
