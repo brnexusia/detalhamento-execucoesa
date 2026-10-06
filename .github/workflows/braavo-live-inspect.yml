@@ -12,27 +12,50 @@ jobs:
         run: |
           curl -L --fail --silent --show-error 'https://www.swmoda.com.br/p/blusamangacurtadecotevfrenteecostaslisa' -o /tmp/product.html
           wc -c /tmp/product.html
-      - name: Print relevant HTML structure
+      - name: Print variation galleries
         run: |
           python - <<'PY'
           from html.parser import HTMLParser
-          from collections import Counter
-          import re
+          import re, json
 
           html=open('/tmp/product.html','r',encoding='utf-8',errors='ignore').read()
-          print('thumb count', html.count('thumb.braavo.me'))
-          print('static count', html.count('static1.braavo.com.br'))
 
           class P(HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.stack=[]
+                  self.groups=[]
+                  self.current=None
+                  self.variation_tags=[]
               def handle_starttag(self, tag, attrs):
                   d=dict(attrs)
-                  blob=' '.join([tag]+[f'{k}={v}' for k,v in attrs if v])
-                  if tag=='img':
-                      src=d.get('src') or d.get('data-src') or d.get('data-lazy-src') or ''
-                      alt=d.get('alt','')
-                      if 'braavo' in src or alt:
-                          print('IMG', {k:v for k,v in d.items() if k in ('src','data-src','data-lazy-src','data-original','data-zoom-image','data-large-image','data-full','data-full-image','alt','class','id') or k.startswith('data-')})
-                  if re.search(r'(vari|cor|color|galer|foto|image|sku|produto)', blob, re.I):
-                      print('TAG', tag, attrs)
-          P().feed(html)
+                  cls=d.get('class','')
+                  entry={'tag':tag,'attrs':d}
+                  self.stack.append(entry)
+                  m=re.search(r'js-produto-ver-foto-interno-(\d+)-(\d+)', cls)
+                  if m:
+                      self.current={'product_id':m.group(1),'variation_id':m.group(2),'class':cls,'images':[],'depth':len(self.stack)}
+                      self.groups.append(self.current)
+                  if self.current and tag=='a' and 'tail-prod-ver-foto-link' in cls:
+                      u=d.get('data-src') or d.get('href') or ''
+                      if u and u not in self.current['images']: self.current['images'].append(u)
+                  blob=' '.join([cls,d.get('id','')]+[f'{k}={v}' for k,v in attrs if v and k.startswith('data-')])
+                  if re.search(r'variacao|variation|sku|cor|color', blob, re.I):
+                      self.variation_tags.append({'tag':tag,'class':cls,'id':d.get('id',''),'data':{k:v for k,v in d.items() if k.startswith('data-')},'title':d.get('title',''),'alt':d.get('alt','')})
+              def handle_endtag(self, tag):
+                  if self.current and len(self.stack)==self.current['depth'] and self.stack and self.stack[-1]['tag']==tag:
+                      self.current=None
+                  if self.stack: self.stack.pop()
+
+          p=P(); p.feed(html)
+          print('GALLERIES')
+          for g in p.groups:
+              print(json.dumps(g,ensure_ascii=False))
+          print('VARIATION_TAGS')
+          seen=set()
+          for t in p.variation_tags:
+              key=json.dumps(t,ensure_ascii=False,sort_keys=True)
+              if key in seen: continue
+              seen.add(key)
+              print(key)
           PY
