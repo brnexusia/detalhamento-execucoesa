@@ -1,0 +1,58 @@
+name: swmoda-full-catalog-count
+
+on:
+  push:
+    branches: [inspect/swmoda-full-catalog-count]
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Count all SW Moda catalog pages
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import re, html, subprocess, os, sys
+          from urllib.parse import urljoin, urlparse
+
+          base='https://www.swmoda.com.br/cat/42/todos-os-produtos'
+          all_unique=[]
+          seen=set()
+          empty_or_repeat=0
+          for page in range(1, 21):
+              url=base if page==1 else f'{base}?atual={page}'
+              path=f'/tmp/sw-{page}.html'
+              cmd=['curl','-fsSL','--retry','3','--connect-timeout','15','-A','Mozilla/5.0',url,'-o',path]
+              result=subprocess.run(cmd)
+              if result.returncode!=0:
+                  print(f'PAGE {page}: FETCH_ERROR')
+                  break
+              text=open(path,encoding='utf-8',errors='ignore').read()
+              hrefs=re.findall(r'href=["\']([^"\']+)["\']',text,re.I)
+              paths=[]
+              for href in hrefs:
+                  u=urlparse(urljoin('https://www.swmoda.com.br/',html.unescape(href)))
+                  if u.netloc.endswith('swmoda.com.br') and re.fullmatch(r'/p/[^/?#]+/?',u.path):
+                      paths.append(u.path.rstrip('/'))
+              unique=list(dict.fromkeys(paths))
+              new=[p for p in unique if p not in seen]
+              for p in new:
+                  seen.add(p); all_unique.append(p)
+              print(f'PAGE {page}: UNIQUE={len(unique)} NEW={len(new)} BYTES={len(text.encode())}')
+              for i,p in enumerate(unique,1):
+                  print(f'  {i:02d} {p}')
+              # If an out-of-range page repeats a previous page, it adds no new products.
+              # Require two consecutive pages with no new products after page 1 before stopping.
+              if len(new)==0:
+                  empty_or_repeat += 1
+              else:
+                  empty_or_repeat = 0
+              if page >= 2 and empty_or_repeat >= 2:
+                  break
+          print('TOTAL_UNIQUE_PRODUCTS',len(all_unique))
+          print('ALL_PRODUCTS')
+          for i,p in enumerate(all_unique,1):
+              print(f'{i:03d} {p}')
+          print('END_ALL_PRODUCTS')
+          PY
