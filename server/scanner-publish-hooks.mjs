@@ -3,7 +3,7 @@ import express from 'express'
 import pg from 'pg'
 import { prepareReview } from './scanner-review.mjs'
 import { importParentHash, mergeImportParentProducts } from './scanner-import-grouping.mjs'
-import { localizeImportedProductMedia } from './import-media-localizer.mjs'
+import { fetchBestImportImage, isBraavoImageUrl, localizeImportedProductMedia } from './import-media-localizer.mjs'
 
 const { Pool } = pg
 const databaseUrl = process.env.DATABASE_URL?.trim() || ''
@@ -39,6 +39,7 @@ async function ensurePublisherSchema() {
     ALTER TABLE products ADD COLUMN IF NOT EXISTS images jsonb NOT NULL DEFAULT '[]'::jsonb;
     ALTER TABLE products ADD COLUMN IF NOT EXISTS variant_images jsonb NOT NULL DEFAULT '[]'::jsonb;
     ALTER TABLE media_assets ADD COLUMN IF NOT EXISTS source_url text;
+    ALTER TABLE media_assets ADD COLUMN IF NOT EXISTS source_quality_checked_at timestamptz;
     CREATE UNIQUE INDEX IF NOT EXISTS idx_media_assets_store_source_unique
       ON media_assets(store_id,source_url) WHERE source_url IS NOT NULL;
     CREATE INDEX IF NOT EXISTS idx_import_normalized_publish_result ON import_normalized_products(job_id,publish_result);
@@ -186,6 +187,65 @@ async function repairExistingImportedMedia() {
     await materializeRows(pool.query.bind(pool), result.rows)
     cursor = result.rows.at(-1).id
   }
+}
+
+let braavoQualityUpgradePromise = null
+
+async function upgradeExistingBraavoMediaAssets() {
+  if (!pool) return { checked: 0, upgraded: 0, failed: 0 }
+  if (braavoQualityUpgradePromise) return braavoQualityUpgradePromise
+
+  braavoQualityUpgradePromise = (async () => {
+    await ensurePublisherSchema()
+    const stats = { checked: 0, upgraded: 0, failed: 0 }
+
+    while (true) {
+      const result = await pool.query(
+        `SELECT id,source_url,byte_size
+         FROM media_assets
+         WHERE source_quality_checked_at IS NULL
+           AND source_url IS NOT NULL
+           AND source_url ~ '^https://thumb\\.braavo\\.me/slave/(0|200|600|1000)/'
+         ORDER BY id
+         LIMIT 100`,
+      )
+      if (!result.rowCount) break
+
+      const queue = [...result.rows]
+      const workers = Array.from({ length: Math.min(4, queue.length) }, async () => {
+        while (queue.length) {
+          const row = queue.shift()
+          if (!row) break
+          try {
+            if (!isBraavoImageUrl(row.source_url)) {
+              await pool.query('UPDATE media_assets SET source_quality_checked_at=now() WHERE id=$1', [row.id])
+              stats.checked += 1
+              continue
+            }
+            const fetched = await fetchBestImportImage(row.source_url)
+            const nextBytes = fetched.buffer.length
+            await pool.query(
+              `UPDATE media_assets
+               SET data=$1,mime_type=$2,byte_size=$3,source_quality_checked_at=now()
+               WHERE id=$4`,
+              [fetched.buffer, fetched.mimeType, nextBytes, row.id],
+            )
+            stats.checked += 1
+            if (nextBytes !== Number(row.byte_size || 0) || fetched.resolvedUrl !== row.source_url) stats.upgraded += 1
+          } catch {
+            await pool.query('UPDATE media_assets SET source_quality_checked_at=now() WHERE id=$1', [row.id]).catch(() => undefined)
+            stats.checked += 1
+            stats.failed += 1
+          }
+        }
+      })
+      await Promise.all(workers)
+    }
+
+    return stats
+  })().finally(() => { braavoQualityUpgradePromise = null })
+
+  return braavoQualityUpgradePromise
 }
 
 async function publishJob(req, res) {
@@ -396,6 +456,11 @@ function installPublisherRoute(app) {
     for (const delay of [15_000, 120_000, 600_000]) {
       const timer = setTimeout(() => {
         void repairExistingImportedMedia().catch((error) => console.warn('[scanner publish] imported media repair:', error?.message || error))
+        void upgradeExistingBraavoMediaAssets()
+          .then((stats) => {
+            if (stats?.checked) console.info(`[scanner publish] braavo media quality: checked=${stats.checked} upgraded=${stats.upgraded} failed=${stats.failed}`)
+          })
+          .catch((error) => console.warn('[scanner publish] braavo media quality:', error?.message || error))
       }, delay)
       timer.unref()
     }
