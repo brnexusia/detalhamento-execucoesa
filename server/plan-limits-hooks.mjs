@@ -121,6 +121,12 @@ async function ensureSchema() {
         )
       }
 
+      await pool.query(
+        `UPDATE platform_plans
+         SET photo_limit=NULL,updated_at=now()
+         WHERE code='ouro' AND is_system=true AND photo_limit IS NOT NULL`,
+      )
+
       await pool.query(`
         CREATE OR REPLACE FUNCTION shopvax_enforce_store_plan_limit()
         RETURNS trigger AS $$

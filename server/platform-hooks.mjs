@@ -177,6 +177,14 @@ async function ensurePlatformSchema() {
         ],
       )
     }
+
+    // Ouro é o plano sem limite de fotos. A correção abaixo atualiza bancos já
+    // inicializados, sem depender de recriar o plano ou alterar a loja do cliente.
+    await pool.query(
+      `UPDATE platform_plans
+       SET photo_limit=NULL,updated_at=now()
+       WHERE code='ouro' AND is_system=true AND photo_limit IS NOT NULL`,
+    )
   })()
   try { await schemaPromise } finally { schemaPromise = null }
 }

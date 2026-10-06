@@ -107,6 +107,21 @@ try {
   assert.equal(result.payload.billing.status, 'active')
   assert.equal(result.payload.billing.creditMonths, 0)
 
+
+  const ouroPlan = await pool.query("SELECT photo_limit FROM platform_plans WHERE code='ouro' AND active=true LIMIT 1")
+  assert.equal(ouroPlan.rowCount, 1)
+  assert.equal(ouroPlan.rows[0].photo_limit, null, 'Ouro deve permanecer sem limite de fotos por produto')
+
+  await pool.query("UPDATE stores SET plan_tier='ouro',updated_at=now() WHERE id=$1", [targetStore.id])
+  const unlimitedImages = Array.from({ length: 24 }, (_, index) => `https://cdn.example.test/ouro-${index + 1}.jpg`)
+  await pool.query(
+    `INSERT INTO products (id,store_id,sku,name,description,price,category,media_url,media_type,images)
+     VALUES ($1,$2,$3,$4,'',99.90,'Teste',$5,'image',$6::jsonb)`,
+    [`phase5-ouro-photos-${unique}`, targetStore.id, `OURO-${unique}`, 'Produto Ouro Fotos', unlimitedImages[0], JSON.stringify(unlimitedImages)],
+  )
+  await pool.query('DELETE FROM products WHERE id=$1', [`phase5-ouro-photos-${unique}`])
+  await pool.query("UPDATE stores SET plan_tier='bronze',updated_at=now() WHERE id=$1", [targetStore.id])
+
   result = await request(`/api/platform/phase5/stores/${targetStore.id}/billing/credits`, {
     method: 'POST', cookie: admin.cookie, body: { months: 2, note: 'Créditos de indicação homologação', password: 'senha-incorreta' },
   })
