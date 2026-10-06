@@ -1,4 +1,5 @@
 import crypto from 'node:crypto'
+import sharp from 'sharp'
 import { extractProductsFromHtml, safeRequest } from './scanner-collector.mjs'
 
 const MAX_REMOTE_IMAGE_BYTES = 12 * 1024 * 1024
@@ -95,6 +96,82 @@ export async function fetchImportImage(url, { request = safeRequest, referer = '
   return { buffer, mimeType: type }
 }
 
+export function isBraavoImageUrl(value) {
+  try {
+    const url = new URL(String(value || ''))
+    return url.protocol === 'https:' &&
+      url.hostname.toLowerCase() === 'thumb.braavo.me' &&
+      /^\/slave\/(?:0|200|600|1000)\/.+/.test(url.pathname)
+  } catch {
+    return false
+  }
+}
+
+function braavoImageUrl(value, width) {
+  try {
+    const url = new URL(String(value || ''))
+    if (!isBraavoImageUrl(url.toString())) return ''
+    url.pathname = url.pathname.replace(/^\/slave\/(?:0|200|600|1000)\//, `/slave/${width}/`)
+    url.hash = ''
+    return url.toString()
+  } catch {
+    return ''
+  }
+}
+
+async function imagePixels(buffer) {
+  try {
+    const metadata = await sharp(buffer, { failOn: 'none', limitInputPixels: 100_000_000 }).metadata()
+    const width = Number(metadata.width || 0)
+    const height = Number(metadata.height || 0)
+    return { width, height, pixels: width * height }
+  } catch {
+    return { width: 0, height: 0, pixels: 0 }
+  }
+}
+
+export async function fetchBestImportImage(url, { request = safeRequest, referer = '' } = {}) {
+  const source = cleanUrl(url)
+  if (!isBraavoImageUrl(source)) {
+    const fetched = await fetchImportImage(source, { request, referer })
+    return { ...fetched, resolvedUrl: source }
+  }
+
+  const originalUrl = braavoImageUrl(source, 0) || source
+  const original = await fetchImportImage(originalUrl, { request, referer })
+  const originalSize = await imagePixels(original.buffer)
+
+  // O CDN da Braavo pode entregar /slave/0 menor que a versão 1000 usada
+  // pelo próprio srcset da loja. Só buscamos a alternativa maior quando
+  // o arquivo original tem menos de 1000 px de largura.
+  if (originalSize.width >= 1000) {
+    return { ...original, resolvedUrl: originalUrl, width: originalSize.width, height: originalSize.height }
+  }
+
+  const candidates = [{ fetched: original, url: originalUrl, ...originalSize }]
+  for (const width of [1000, 600]) {
+    const candidateUrl = braavoImageUrl(source, width)
+    if (!candidateUrl || candidateUrl === originalUrl) continue
+    try {
+      const fetched = await fetchImportImage(candidateUrl, { request, referer })
+      const size = await imagePixels(fetched.buffer)
+      candidates.push({ fetched, url: candidateUrl, ...size })
+      if (size.width >= 1000) break
+    } catch {
+      // Mantém o melhor arquivo já disponível caso uma variante do CDN falhe.
+    }
+  }
+
+  candidates.sort((a, b) => b.pixels - a.pixels || b.fetched.buffer.length - a.fetched.buffer.length)
+  const best = candidates[0]
+  return {
+    ...best.fetched,
+    resolvedUrl: best.url,
+    width: best.width,
+    height: best.height,
+  }
+}
+
 async function persistRemoteImage(query, { storeId, url, referer, request }) {
   const source = cleanUrl(url)
   if (isLocalShopvaxMedia(source)) return source
@@ -106,7 +183,7 @@ async function persistRemoteImage(query, { storeId, url, referer, request }) {
   )
   if (cached.rowCount) return `/media/${cached.rows[0].id}`
 
-  const fetched = await fetchImportImage(source, { request, referer })
+  const fetched = await fetchBestImportImage(source, { request, referer })
   const assetId = crypto.randomUUID()
   const inserted = await query(
     `INSERT INTO media_assets (id,store_id,mime_type,original_name,byte_size,data,source_url)
