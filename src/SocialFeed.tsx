@@ -125,6 +125,28 @@ function SocialPostCard({ post, cartCount, onProfile, onAdd, onCart }: { post: S
   const [interactions, setInteractions] = useState(post.interactions)
   const [asking, setAsking] = useState(false)
   const [muted, setMuted] = useState(true)
+  const descriptionRef = useRef<HTMLParagraphElement | null>(null)
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false)
+  const [descriptionCanExpand, setDescriptionCanExpand] = useState(false)
+
+  useEffect(() => {
+    setDescriptionExpanded(false)
+  }, [post.id])
+
+  useEffect(() => {
+    if (descriptionExpanded) return
+    const description = descriptionRef.current
+    if (!description) { setDescriptionCanExpand(false); return }
+    const measure = () => setDescriptionCanExpand(description.scrollHeight > description.clientHeight + 1)
+    measure()
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null
+    observer?.observe(description)
+    window.addEventListener('resize', measure)
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', measure)
+    }
+  }, [post.product.description, descriptionExpanded])
 
   useEffect(() => {
     const target = cardRef.current
@@ -202,7 +224,14 @@ function SocialPostCard({ post, cartCount, onProfile, onAdd, onCart }: { post: S
     <div className="social-feed-copy">
       <span>{post.product.category}</span>
       <h2>{post.product.name}</h2>
-      {post.product.description && <p>{post.product.description}</p>}
+      {post.product.description && <div className={`social-feed-description ${descriptionExpanded ? 'is-expanded' : ''}`}>
+        <p
+          ref={descriptionRef}
+          onClick={() => { if (descriptionCanExpand && !descriptionExpanded) setDescriptionExpanded(true) }}
+          title={descriptionCanExpand && !descriptionExpanded ? 'Clique para ler a descrição completa' : undefined}
+        >{post.product.description}</p>
+        {descriptionCanExpand && <button type="button" aria-expanded={descriptionExpanded} onClick={() => setDescriptionExpanded((value) => !value)}>{descriptionExpanded ? 'Menos' : 'Mais'}</button>}
+      </div>}
       <div className="social-feed-buyline">
         <strong>{money.format(post.product.price)}</strong>
         <div>
