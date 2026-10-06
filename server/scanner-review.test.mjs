@@ -23,6 +23,9 @@ const clean = sanitizeReviewData({
 })
 
 assert.equal(clean.name, 'Camisa Linho')
+const encodedReview = sanitizeReviewData({ name: 'Cal&ccedil;a Jogging em Fluity', description: 'Pe&ccedil;a leve &amp; confort&aacute;vel.', price: 89.9 })
+assert.equal(encodedReview.name, 'Calça Jogging em Fluity')
+assert.equal(encodedReview.description, 'Peça leve & confortável.')
 assert.equal(clean.price, 42.9)
 assert.equal(clean.currency, 'BRL')
 assert.deepEqual(clean.images, ['https://cdn.example.com/a.jpg'])
