@@ -48,6 +48,33 @@ assert.deepEqual(normalized.normalized.variations, [{ name: 'Cor', options: ['Pr
 assert.deepEqual(normalized.warnings, [])
 assert.equal(normalized.confidence, 1)
 
+
+const braavoImages = Array.from({ length: 10 }, (_, index) => `https://thumb.braavo.me/azul-${index + 1}.webp`)
+const braavoNormalized = normalizeCandidate({
+  source_url: 'https://loja.example/p/blusa-braavo',
+  source: 'braavo-html',
+  title: 'Blusa Braavo',
+  price: 56.9,
+  images: ['https://thumb.braavo.me/azul-1.webp', 'https://thumb.braavo.me/azul-2.webp'],
+  variants: [
+    { external_id: 'color-1', color: 'Azul', images: braavoImages },
+    { external_id: 'sku-p', color: 'Azul', size: 'P', price: 56.9, images: [] },
+    { external_id: 'sku-m', color: 'Azul', size: 'M', price: 56.9, images: [] },
+  ],
+})
+assert.deepEqual(braavoNormalized.normalized.images, [
+  'https://thumb.braavo.me/azul-1.webp',
+  'https://thumb.braavo.me/azul-2.webp',
+], 'Braavo não deve misturar fotos de outras cores na galeria base')
+assert.deepEqual(braavoNormalized.normalized.variations, [
+  { name: 'Cor', options: ['Azul'] },
+  { name: 'Tamanho', options: ['P', 'M'] },
+])
+assert.deepEqual(braavoNormalized.normalized.variant_images, [{
+  selections: { Cor: 'Azul' },
+  images: braavoImages,
+}], 'a galeria da cor deve manter as dez fotos e não depender do tamanho selecionado')
+
 const incomplete = normalizeCandidate({ title: 'Produto sem dados', source_url: 'https://loja.example/p/sem-dados' })
 assert.equal(incomplete.normalized.category, 'Geral')
 assert.equal(incomplete.normalized.price, null)

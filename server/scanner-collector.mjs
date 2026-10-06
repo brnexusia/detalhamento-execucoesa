@@ -383,6 +383,119 @@ function inferCurrency(priceText) {
   return ''
 }
 
+
+function braavoPrice(value) {
+  const raw = String(value ?? '').trim().replace(/\s/g, '').replace(',', '.')
+  const number = Number(raw)
+  return Number.isFinite(number) && number > 0 ? number : null
+}
+
+function braavoGalleryGroups($, sourceUrl) {
+  const groups = new Map()
+  $('[class*="js-produto-ver-foto-interno-"]').each((_index, element) => {
+    const node = $(element)
+    const className = String(node.attr('class') || '')
+    const match = /(?:^|\s)js-produto-ver-foto-interno-(\d+)-(\d+)(?:\s|$)/.exec(className)
+    if (!match) return
+    const key = `${match[1]}-${match[2]}`
+    const images = []
+    const add = (raw) => {
+      const value = absoluteUrl(raw, sourceUrl)
+      if (value && !images.includes(value)) images.push(value)
+    }
+    node.find('a.tail-prod-ver-foto-link, a[data-fancybox="galeria-produtos"]').each((_i, anchor) => {
+      const item = $(anchor)
+      add(item.attr('data-src') || item.attr('href'))
+    })
+    if (!images.length) {
+      node.find('img.tail-prod-ver-foto-imagem, img').each((_i, image) => {
+        const item = $(image)
+        add(bestSrcsetUrl(item.attr('srcset') || item.attr('data-srcset'), sourceUrl) || item.attr('data-src') || item.attr('src'))
+      })
+    }
+    if (images.length) groups.set(key, { key, className, images: uniqueStrings(images).slice(0, 10) })
+  })
+  return groups
+}
+
+function enrichBraavoProduct($, product, sourceUrl) {
+  const colorInputs = $('.js-tail-etapa-variacao-1-input[data-vari-id][data-vari-nome]')
+  const galleries = braavoGalleryGroups($, sourceUrl)
+  if (!colorInputs.length || !galleries.size) return product
+
+  const colorById = new Map()
+  const variants = []
+  let productId = ''
+
+  colorInputs.each((_index, element) => {
+    const input = $(element)
+    const colorId = String(input.attr('data-vari-id') || '').trim()
+    const color = String(input.attr('data-vari-nome') || '').trim()
+    const sourceProductId = String(input.attr('data-produto-id') || '').trim()
+    const photosId = String(input.attr('data-fotos-id') || (sourceProductId && colorId ? `${sourceProductId}-${colorId}` : '')).trim()
+    if (!colorId || !color) return
+    productId ||= sourceProductId
+    const images = galleries.get(photosId)?.images || galleries.get(`${sourceProductId}-${colorId}`)?.images || []
+    colorById.set(colorId, { color, images })
+    variants.push({
+      external_id: `braavo-color-${colorId}`,
+      title: color,
+      sku: '',
+      color,
+      size: '',
+      images,
+      price: braavoPrice(input.attr('data-preco-por')),
+      available: Number(input.attr('data-quantidade') || 0) > 0,
+      properties: [{ name: 'Cor', value: color }],
+    })
+  })
+
+  $('.js-tail-etapa-variacao-2-input[data-sku-id][data-vari-id][data-vari-nome]').each((_index, element) => {
+    const input = $(element)
+    const colorId = String(input.attr('data-vari-id') || '').trim()
+    const size = String(input.attr('data-vari-nome') || '').trim()
+    const skuId = String(input.attr('data-sku-id') || '').trim()
+    const color = colorById.get(colorId)?.color || ''
+    if (!color && !size) return
+    const quantity = Number(input.attr('data-quantidade') || 0)
+    variants.push({
+      external_id: skuId || `braavo-sku-${colorId}-${String(input.attr('data-vari2-id') || size)}`,
+      title: [color, size].filter(Boolean).join(' / '),
+      sku: '',
+      color,
+      size,
+      images: [],
+      price: braavoPrice(input.attr('data-preco-por')),
+      available: Number.isFinite(quantity) ? quantity > 0 : true,
+      stock: Number.isFinite(quantity) ? Math.max(0, quantity) : null,
+      properties: [
+        color && { name: 'Cor', value: color },
+        size && { name: 'Tamanho', value: size },
+      ].filter(Boolean),
+    })
+  })
+
+  let primaryImages = []
+  $('[class*="js-produto-ver-foto-interno-"]').each((_index, element) => {
+    if (primaryImages.length) return
+    const node = $(element)
+    const className = String(node.attr('class') || '')
+    if (/\bescondido\b/.test(className)) return
+    const match = /(?:^|\s)js-produto-ver-foto-interno-(\d+)-(\d+)(?:\s|$)/.exec(className)
+    if (!match) return
+    primaryImages = galleries.get(`${match[1]}-${match[2]}`)?.images || []
+  })
+  if (!primaryImages.length) primaryImages = galleries.values().next().value?.images || []
+
+  return {
+    ...product,
+    external_id: String(product?.external_id || productId || '').trim(),
+    images: primaryImages.length ? primaryImages : (Array.isArray(product?.images) ? product.images : []),
+    variants: variants.length ? variants : (Array.isArray(product?.variants) ? product.variants : []),
+    source: 'braavo-html',
+  }
+}
+
 export function extractProductsFromHtml(html, sourceUrl) {
   const $ = load(String(html || ''))
   const products = []
@@ -393,10 +506,10 @@ export function extractProductsFromHtml(html, sourceUrl) {
   })
   const galleryImages = pageGalleryImages($, sourceUrl)
   if (products.length) {
-    return dedupeCandidates(products.map((product) => ({
+    return dedupeCandidates(products.map((product) => enrichBraavoProduct($, {
       ...product,
       images: uniqueStrings([...(product.images || []), ...galleryImages]).slice(0, MAX_PRODUCT_IMAGES),
-    })))
+    }, sourceUrl)))
   }
 
   const ogType = $('meta[property="og:type"]').attr('content') || ''
@@ -416,7 +529,7 @@ export function extractProductsFromHtml(html, sourceUrl) {
   const category = $('meta[property="product:category"]').attr('content') || breadcrumb[breadcrumb.length - 1] || tableValue($, ['product type', 'categoria', 'category']) || ''
   const sku = $('[itemprop="sku"]').attr('content') || $('[itemprop="sku"]').first().text().trim() || tableValue($, ['sku', 'referência', 'referencia', 'reference', 'código', 'codigo', 'upc']) || ''
   const availability = $('meta[property="product:availability"]').attr('content') || $('.availability').first().text().trim() || tableValue($, ['availability', 'disponibilidade']) || ''
-  return [{
+  return [enrichBraavoProduct($, {
     source_url: sourceUrl,
     external_id: '',
     title,
@@ -432,7 +545,7 @@ export function extractProductsFromHtml(html, sourceUrl) {
     currency: explicitCurrency || inferCurrency(priceText),
     availability,
     source: 'html',
-  }]
+  }, sourceUrl)]
 }
 
 function dedupeCandidates(products) {

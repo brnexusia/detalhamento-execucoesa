@@ -74,7 +74,7 @@ function sanitizeVariantImages(value) {
       if (!url || seen.has(url)) continue
       seen.add(url)
       images.push(url)
-      if (images.length >= 8) break
+      if (images.length >= 10) break
     }
     if (!images.length) continue
     const selections = {}

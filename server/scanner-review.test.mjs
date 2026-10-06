@@ -32,6 +32,17 @@ assert.deepEqual(clean.variations, [
 ])
 assert.equal(clean.source_url, 'https://loja.example.com/produto/1')
 
+
+const variantGallery = sanitizeReviewData({
+  name: 'Produto com cores',
+  price: 59.9,
+  variant_images: [{
+    selections: { Cor: 'Azul' },
+    images: Array.from({ length: 10 }, (_, index) => `https://cdn.example.com/azul-${index + 1}.jpg`),
+  }],
+})
+assert.equal(variantGallery.variant_images[0].images.length, 10, 'revisão não deve cortar a 9ª ou 10ª foto da cor')
+
 assert.deepEqual(sanitizeReviewVariations([
   { name: 'Cor', options: ['Azul'] },
   { name: 'Color', options: ['Preto', 'Azul'] },

@@ -155,6 +155,59 @@ assert.equal(braavo.candidates.length, 3, 'Braavo deve percorrer todas as págin
 assert.deepEqual(braavo.candidates.map((item) => item.title).sort(), ['Blusa Canoa', 'Calça Pantalona', 'Vestido Adele'])
 assert.ok(braavo.pagesScanned >= 6, 'Braavo deve abrir catálogo paginado e páginas de detalhe')
 
+
+const braavoVariantHtml = `<!doctype html><html><head>
+  <meta property="og:type" content="product">
+  <meta property="og:title" content="Blusa Braavo">
+  <meta property="product:price:amount" content="56.90">
+  <meta property="product:price:currency" content="BRL">
+</head><body id="pag-produto">
+  <div class="grid js-produto-ver-foto-interno js-produto-ver-foto-interno-114-1352">
+    <a class="tail-prod-ver-foto-link" data-fancybox="galeria-produtos" data-src="https://thumb.braavo.me/slave/0/grena-1.webp"></a>
+    <a class="tail-prod-ver-foto-link" data-fancybox="galeria-produtos" data-src="https://thumb.braavo.me/slave/0/grena-2.webp"></a>
+  </div>
+  <div class="escondido grid js-produto-ver-foto-interno js-produto-ver-foto-interno-114-1009">
+    <a class="tail-prod-ver-foto-link" data-fancybox="galeria-produtos" data-src="https://thumb.braavo.me/slave/0/off-1.webp"></a>
+    <a class="tail-prod-ver-foto-link" data-fancybox="galeria-produtos" data-src="https://thumb.braavo.me/slave/0/off-2.webp"></a>
+    <a class="tail-prod-ver-foto-link" data-fancybox="galeria-produtos" data-src="https://thumb.braavo.me/slave/0/off-3.webp"></a>
+  </div>
+  <input class="js-tail-etapa-variacao-input js-tail-etapa-variacao-1-input"
+    data-produto-id="114" data-fotos-id="114-1352" data-vari-id="1352" data-vari-nome="Grena"
+    data-preco-por="56.90" data-quantidade="4">
+  <input class="js-tail-etapa-variacao-input js-tail-etapa-variacao-1-input"
+    data-produto-id="114" data-fotos-id="114-1009" data-vari-id="1009" data-vari-nome="Off White"
+    data-preco-por="56.90" data-quantidade="3">
+  <input class="js-tail-etapa-variacao-input js-tail-etapa-variacao-2-input"
+    data-sku-id="11382" data-vari-id="1352" data-vari2-id="1006" data-vari-nome="P"
+    data-preco-por="56.90" data-quantidade="2">
+  <input class="js-tail-etapa-variacao-input js-tail-etapa-variacao-2-input"
+    data-sku-id="11383" data-vari-id="1352" data-vari2-id="1005" data-vari-nome="M"
+    data-preco-por="56.90" data-quantidade="2">
+  <input class="js-tail-etapa-variacao-input js-tail-etapa-variacao-2-input"
+    data-sku-id="10393" data-vari-id="1009" data-vari2-id="1006" data-vari-nome="P"
+    data-preco-por="56.90" data-quantidade="1">
+</body></html>`
+const braavoVariantProduct = extractProductsFromHtml(braavoVariantHtml, 'https://braavo.fixture/p/blusa-braavo')[0]
+assert.equal(braavoVariantProduct.source, 'braavo-html')
+assert.equal(braavoVariantProduct.external_id, '114')
+assert.deepEqual(braavoVariantProduct.images, [
+  'https://thumb.braavo.me/slave/0/grena-1.webp',
+  'https://thumb.braavo.me/slave/0/grena-2.webp',
+], 'a galeria base deve usar somente a cor inicialmente exibida')
+const grenaVariant = braavoVariantProduct.variants.find((item) => item.color === 'Grena' && item.images?.length)
+const offVariant = braavoVariantProduct.variants.find((item) => item.color === 'Off White' && item.images?.length)
+assert.deepEqual(grenaVariant?.images, [
+  'https://thumb.braavo.me/slave/0/grena-1.webp',
+  'https://thumb.braavo.me/slave/0/grena-2.webp',
+])
+assert.deepEqual(offVariant?.images, [
+  'https://thumb.braavo.me/slave/0/off-1.webp',
+  'https://thumb.braavo.me/slave/0/off-2.webp',
+  'https://thumb.braavo.me/slave/0/off-3.webp',
+])
+assert.ok(braavoVariantProduct.variants.some((item) => item.color === 'Grena' && item.size === 'P' && item.external_id === '11382'))
+assert.ok(braavoVariantProduct.variants.some((item) => item.color === 'Off White' && item.size === 'P' && item.external_id === '10393'))
+
 const shopifyRoot = '<html><script src="https://cdn.shopify.com/store.js"></script></html>'
 const shopifyFixtures = {
   'https://shop.example/': { contentType: 'text/html', body: shopifyRoot },

@@ -2,7 +2,7 @@ import crypto from 'node:crypto'
 import { extractProductsFromHtml, safeRequest } from './scanner-collector.mjs'
 
 const MAX_REMOTE_IMAGE_BYTES = 12 * 1024 * 1024
-const MAX_LOCALIZED_ASSETS_PER_PRODUCT = 40
+const MAX_LOCALIZED_ASSETS_PER_PRODUCT = 120
 const ALLOWED_IMAGE_TYPES = new Set([
   'image/jpeg',
   'image/png',
