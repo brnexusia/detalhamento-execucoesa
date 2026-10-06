@@ -81,7 +81,7 @@ export const systemPlans = [
     sellerLimit: null,
     productLimit: null,
     catalogLimit: null,
-    photoLimit: 10,
+    photoLimit: null,
     franchiseeLimit: null,
     socialWeight: 3,
     trafficPriority: 'alta',
