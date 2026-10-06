@@ -27,6 +27,7 @@ jobs:
       BASE_URL: http://127.0.0.1:3000
       SCANNER_WORKER_DISABLED: '1'
       SHOPVAX_SECURITY_RATE_LIMIT_DISABLED: '1'
+      SHOPVAX_PLAN_LIMITS_DISABLED: '1'
       SHOPVAX_IMPORT_MEDIA_REPAIR_DISABLED: '1'
     steps:
       - uses: actions/checkout@v4
