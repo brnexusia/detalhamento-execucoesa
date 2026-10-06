@@ -1,0 +1,30 @@
+name: swmoda-image-quality-live
+
+on:
+  push:
+    branches: [inspect/swmoda-image-quality-live]
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect Shopvax public SW Moda API
+        shell: bash
+        run: |
+          curl -fsSL --retry 3 --connect-timeout 15 -A "Mozilla/5.0" "https://shopvax.com.br/api/public/store/sw-moda?limit=24" -o /tmp/shop.json
+          python3 - <<'PY'
+          import json
+          data=json.load(open('/tmp/shop.json'))
+          print('TOP_KEYS', sorted(data.keys()))
+          products=data.get('products') or []
+          print('PRODUCT_COUNT_RESPONSE',len(products))
+          for i,p in enumerate(products[:12],1):
+              print('PRODUCT',i,json.dumps({
+                'id':p.get('id'),
+                'name':p.get('name'),
+                'mediaUrl':p.get('mediaUrl'),
+                'images':p.get('images'),
+                'variantImages':p.get('variantImages'),
+              },ensure_ascii=False))
+          PY
