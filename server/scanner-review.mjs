@@ -1,11 +1,11 @@
-import { canonicalVariationName } from './scanner-normalizer.mjs'
+import { canonicalVariationName, decodeHtmlEntities } from './scanner-normalizer.mjs'
 
 function text(value, max) {
-  return String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, max)
+  return decodeHtmlEntities(value).replace(/\s+/g, ' ').trim().slice(0, max)
 }
 
 function multiline(value, max) {
-  return String(value ?? '').replace(/\r\n/g, '\n').trim().slice(0, max)
+  return decodeHtmlEntities(value).replace(/\r\n/g, '\n').trim().slice(0, max)
 }
 
 function money(value) {
