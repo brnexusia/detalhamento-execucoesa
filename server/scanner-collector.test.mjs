@@ -4,6 +4,7 @@ import { collectCatalog, detectPlatform, extractProductsFromHtml, extractSitemap
 assert.equal(detectPlatform('<script src="https://cdn.shopify.com/x.js"></script>'), 'shopify')
 assert.equal(detectPlatform('<body class="woocommerce shop"></body>'), 'woocommerce')
 assert.equal(detectPlatform('<script src="https://cdn.awsli.com.br/app.js"></script>'), 'lojaintegrada')
+assert.equal(detectPlatform('<img src="https://thumb.braavo.me/produto.jpg">'), 'braavo')
 assert.equal(detectPlatform('<html></html>'), 'generic')
 
 const sitemap = `<?xml version="1.0"?><urlset><url><loc>https://fixture.shop/produto/a&amp;b</loc></url><url><loc>https://fixture.shop/produto/c</loc></url></urlset>`
@@ -105,6 +106,54 @@ const nested = await collectCatalog('https://nested.fixture/', {
 assert.equal(nested.candidates.length, 1, 'crawler deve seguir links relativos usando a URL da página atual')
 assert.equal(nested.candidates[0].title, 'Produto Profundo')
 assert.equal(nested.candidates[0].images[0], 'https://nested.fixture/catalogue/images/deep.jpg')
+
+
+const braavoProduct = (name, slug, price) => `<!doctype html><html><head>
+  <script type="application/ld+json">${JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name,
+    sku: slug.toUpperCase(),
+    description: `Descrição de ${name}`,
+    image: [`https://thumb.braavo.me/${slug}.jpg`],
+    offers: { '@type': 'Offer', price: String(price), priceCurrency: 'BRL' },
+  })}</script>
+</head><body><h1>${name}</h1></body></html>`
+
+const braavoRoot = `<html><body>
+  <img src="https://static1.braavo.com.br/logo.png">
+  <a href="/cat/42/todos-os-produtos">TODOS OS PRODUTOS</a>
+</body></html>`
+const braavoFixtures = {
+  'https://braavo.fixture/': { contentType: 'text/html', body: braavoRoot },
+  'https://braavo.fixture/cat/42/todos-os-produtos': {
+    contentType: 'text/html',
+    body: `<html><body>
+      <a href="/p/calca">Calça R$ 109,90</a>
+      <a href="/p/calca">Calça outra cor R$ 109,90</a>
+      <a href="/p/blusa">Blusa R$ 56,90</a>
+      <a href="/cat/42/todos-os-produtos?atual=1">1</a>
+      <a href="/cat/42/todos-os-produtos?atual=2">2</a>
+    </body></html>`,
+  },
+  'https://braavo.fixture/cat/42/todos-os-produtos?atual=2': {
+    contentType: 'text/html',
+    body: `<html><body>
+      <a href="/p/blusa">Blusa repetida R$ 56,90</a>
+      <a href="/p/vestido">Vestido R$ 159,90</a>
+      <a href="/cat/42/todos-os-produtos?atual=1">1</a>
+      <a href="/cat/42/todos-os-produtos?atual=2">2</a>
+    </body></html>`,
+  },
+  'https://braavo.fixture/p/calca': { contentType: 'text/html', body: braavoProduct('Calça Pantalona', 'calca', 109.9) },
+  'https://braavo.fixture/p/blusa': { contentType: 'text/html', body: braavoProduct('Blusa Canoa', 'blusa', 56.9) },
+  'https://braavo.fixture/p/vestido': { contentType: 'text/html', body: braavoProduct('Vestido Adele', 'vestido', 159.9) },
+}
+const braavo = await collectCatalog('https://braavo.fixture/', { request: fixtureRequest(braavoFixtures) })
+assert.equal(braavo.platform, 'braavo')
+assert.equal(braavo.candidates.length, 3, 'Braavo deve percorrer todas as páginas e deduplicar cores do mesmo produto')
+assert.deepEqual(braavo.candidates.map((item) => item.title).sort(), ['Blusa Canoa', 'Calça Pantalona', 'Vestido Adele'])
+assert.ok(braavo.pagesScanned >= 6, 'Braavo deve abrir catálogo paginado e páginas de detalhe')
 
 const shopifyRoot = '<html><script src="https://cdn.shopify.com/store.js"></script></html>'
 const shopifyFixtures = {

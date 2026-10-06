@@ -487,6 +487,113 @@ function linksFromHtml(html, baseUrl) {
   return uniqueStrings(links)
 }
 
+
+function braavoCatalogUrl(html, baseUrl) {
+  const $ = load(String(html || ''))
+  let exact = ''
+  let fallback = ''
+  $('a[href]').each((_index, element) => {
+    const resolved = sameOriginUrl($(element).attr('href'), new URL(baseUrl).origin)
+    if (!resolved) return
+    const url = new URL(resolved)
+    const path = url.pathname.toLowerCase()
+    const label = $(element).text().replace(/\s+/g, ' ').trim().toLowerCase()
+    if (!exact && /\/cat\/\d+\/todos-os-produtos\/?$/.test(path)) exact = resolved
+    if (!fallback && /todos\s+os\s+produtos/.test(label) && /\/(?:cat|c)\//.test(path)) fallback = resolved
+  })
+  return exact || fallback
+}
+
+function braavoProductLinks(html, baseUrl) {
+  const $ = load(String(html || ''))
+  const origin = new URL(baseUrl).origin
+  const result = []
+  const seen = new Set()
+  $('a[href]').each((_index, element) => {
+    const resolved = sameOriginUrl($(element).attr('href'), origin)
+    if (!resolved) return
+    const url = new URL(resolved)
+    if (!/^\/p\/[^/]+\/?$/i.test(url.pathname)) return
+    url.search = ''
+    url.hash = ''
+    const value = url.toString()
+    if (seen.has(value)) return
+    seen.add(value)
+    result.push(value)
+  })
+  return result
+}
+
+function braavoMaxPage(html, baseUrl) {
+  const $ = load(String(html || ''))
+  const origin = new URL(baseUrl).origin
+  let maxPage = 1
+  $('a[href]').each((_index, element) => {
+    const resolved = sameOriginUrl($(element).attr('href'), origin)
+    if (!resolved) return
+    const page = Number(new URL(resolved).searchParams.get('atual') || 0)
+    if (Number.isInteger(page) && page > maxPage) maxPage = page
+  })
+  return maxPage
+}
+
+async function collectBraavo(rootResponse, request, maxProducts, sink, onProgress) {
+  let pagesScanned = 1
+  const catalogUrl = braavoCatalogUrl(rootResponse.body, rootResponse.url) || rootResponse.url
+  let firstPage = rootResponse
+
+  if (catalogUrl !== rootResponse.url) {
+    firstPage = await request(catalogUrl, { accept: 'text/html,application/xhtml+xml' })
+    pagesScanned += 1
+    if (!firstPage.ok || !firstPage.contentType.includes('html')) {
+      throw new Error(`A vitrine Braavo respondeu HTTP ${firstPage.status} ao abrir o catálogo completo.`)
+    }
+  }
+
+  const maxPage = braavoMaxPage(firstPage.body, firstPage.url || catalogUrl)
+  const seenProducts = new Set()
+
+  for (let page = 1; page <= maxPage && sink.count < maxProducts; page += 1) {
+    let response = firstPage
+    if (page > 1) {
+      const pageUrl = new URL(catalogUrl)
+      pageUrl.searchParams.set('atual', String(page))
+      response = await request(pageUrl.toString(), { accept: 'text/html,application/xhtml+xml' })
+      pagesScanned += 1
+      if (!response.ok || !response.contentType.includes('html')) continue
+    }
+
+    const links = braavoProductLinks(response.body, response.url || catalogUrl)
+    const freshLinks = links.filter((url) => {
+      if (seenProducts.has(url)) return false
+      seenProducts.add(url)
+      return true
+    })
+
+    const batches = await mapLimit(freshLinks, 6, async (productUrl) => {
+      try {
+        const detail = await request(productUrl, { accept: 'text/html,application/xhtml+xml' })
+        pagesScanned += 1
+        if (!detail.ok || !detail.contentType.includes('html')) return []
+        return extractProductsFromHtml(detail.body, detail.url || productUrl)
+      } catch {
+        return []
+      }
+    })
+
+    await sink.push(batches.flat())
+    await onProgress({
+      progress: Math.min(90, 15 + Math.round((page / Math.max(1, maxPage)) * 75)),
+      pagesScanned,
+      candidates: sink.count,
+      platform: 'braavo',
+    })
+  }
+
+  await sink.flush()
+  return { candidateCount: sink.count, pagesScanned }
+}
+
 function configuredLimit(value) {
   if (value == null || value === '') return Number.POSITIVE_INFINITY
   const parsed = Number(value)
@@ -981,6 +1088,16 @@ export async function collectCatalog(sourceUrl, options = {}) {
     } catch (error) {
       if (options.strictPlatformAdapters) throw error
       // Algumas lojas Tray restringem a API pública; nesses casos há fallback genérico.
+    }
+  }
+
+  if (platform === 'braavo') {
+    try {
+      const result = await collectBraavo(rootResponse, request, maxProducts, sink, onProgress)
+      if (result.candidateCount) return { platform, pagesScanned: result.pagesScanned, candidateCount: sink.count, candidates: sink.candidates }
+    } catch (error) {
+      if (options.strictPlatformAdapters) throw error
+      // Braavo pode alterar a paginação; mantém o crawler genérico como fallback.
     }
   }
 
