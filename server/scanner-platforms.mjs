@@ -143,6 +143,7 @@ export function detectStorefrontPlatform(html, sourceUrl = '') {
   if (host.endsWith('.lojavirtualnuvem.com.br') || host.endsWith('.mitiendanube.com') || value.includes('nuvemshop') || value.includes('tiendanube')) return 'nuvemshop'
   if (host.endsWith('.lojaintegrada.com.br') || value.includes('lojaintegrada') || value.includes('cdn.awsli.com.br')) return 'lojaintegrada'
   if (host.endsWith('.commercesuite.com.br') || host.endsWith('.tray.com.br') || value.includes('tray.com.br') || value.includes('traycdn.com')) return 'tray'
+  if (value.includes('thumb.braavo.me') || value.includes('static1.braavo.com.br') || value.includes('braavo.com.br')) return 'braavo'
   if (value.includes('cdn.shopify.com') || value.includes('shopify.theme') || value.includes('shopify-section')) return 'shopify'
   if (value.includes('woocommerce') || value.includes('wc-block') || value.includes('wp-content/plugins/woocommerce')) return 'woocommerce'
   return 'generic'
