@@ -13,6 +13,16 @@ jobs:
         with:
           node-version: 22
       - run: npm install --no-audit --no-fund
+      - name: Scanner collector tests
+        run: npm run test:scanner:collector
+      - name: Scanner normalizer tests
+        run: npm run test:scanner:normalizer
+      - name: Scanner review tests
+        run: npm run test:scanner:review
+      - name: Imported media localization tests
+        run: node server/import-media-localizer.test.mjs
+      - name: Build
+        run: npm run build
       - name: Validate live Braavo galleries
         run: |
           node --input-type=module <<'NODE'
