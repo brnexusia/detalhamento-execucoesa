@@ -152,4 +152,39 @@ const failed = await localizeImportedProductMedia({
 assert.equal(failed.failed, 1)
 assert.equal(failed.mediaUrl, 'https://cdn.example/broken.jpg', 'falha sem source_url não deve apagar a referência original')
 
+const manyCache = new Map()
+let manyInserts = 0
+const manyQuery = async (sql, params) => {
+  if (sql.startsWith('SELECT id FROM media_assets')) {
+    const found = manyCache.get(params[1])
+    return { rowCount: found ? 1 : 0, rows: found ? [{ id: found }] : [] }
+  }
+  if (sql.startsWith('INSERT INTO media_assets')) {
+    manyInserts += 1
+    const assetId = `many-${manyInserts}`
+    manyCache.set(params[6], assetId)
+    return { rowCount: 1, rows: [{ id: assetId }] }
+  }
+  throw new Error(`Unexpected many-gallery query: ${sql}`)
+}
+const manyVariantImages = Array.from({ length: 5 }, (_, colorIndex) => ({
+  selections: { Cor: `Cor ${colorIndex + 1}` },
+  images: Array.from({ length: 10 }, (_, imageIndex) => `https://cdn.example/cor-${colorIndex + 1}-${imageIndex + 1}.jpg`),
+}))
+const many = await localizeImportedProductMedia({
+  query: manyQuery,
+  storeId: 'store-many',
+  sourceUrl: 'https://loja.example/produto/muitas-cores',
+  product: {
+    media_url: 'https://cdn.example/base.jpg',
+    media_type: 'image',
+    images: ['https://cdn.example/base.jpg'],
+    variant_images: manyVariantImages,
+  },
+  request: async () => ({ ok: true, status: 200, contentType: 'image/jpeg', buffer: Buffer.from([0xff,0xd8,0xff,0x00]) }),
+})
+assert.equal(many.localized, 51, 'produto com muitas cores não deve parar no limite antigo de 40 imagens')
+assert.equal(manyInserts, 51)
+assert.ok(many.variantImages.every((group) => group.images.length === 10 && group.images.every(isLocalShopvaxMedia)))
+
 console.log('[import media localizer] remote images are copied into Shopvax media storage: ok')
