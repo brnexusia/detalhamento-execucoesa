@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
-import { fetchImportImage, isLocalShopvaxMedia, localizeImportedProductMedia } from './import-media-localizer.mjs'
+import sharp from 'sharp'
+import { fetchBestImportImage, fetchImportImage, isLocalShopvaxMedia, localizeImportedProductMedia } from './import-media-localizer.mjs'
 
 assert.equal(isLocalShopvaxMedia('/media/abc-123'), true)
 assert.equal(isLocalShopvaxMedia('https://cdn.example/foto.jpg'), false)
@@ -14,6 +15,35 @@ const downloaded = await fetchImportImage('https://cdn.example/foto.jpg', {
 })
 assert.equal(downloaded.mimeType, 'image/jpeg')
 assert.ok(Buffer.isBuffer(downloaded.buffer))
+
+const braavoSmall = await sharp({ create: { width: 566, height: 850, channels: 3, background: '#bbb' } }).webp({ quality: 80 }).toBuffer()
+const braavoLarge = await sharp({ create: { width: 1000, height: 1502, channels: 3, background: '#bbb' } }).webp({ quality: 80 }).toBuffer()
+const braavoRequests = []
+const bestBraavo = await fetchBestImportImage('https://thumb.braavo.me/slave/0/example.webp', {
+  request: async (url) => {
+    braavoRequests.push(url)
+    if (url.includes('/slave/0/')) return { ok: true, status: 200, contentType: 'image/webp', buffer: braavoSmall }
+    if (url.includes('/slave/1000/')) return { ok: true, status: 200, contentType: 'image/webp', buffer: braavoLarge }
+    throw new Error(`Unexpected Braavo URL: ${url}`)
+  },
+})
+assert.equal(bestBraavo.width, 1000)
+assert.equal(bestBraavo.height, 1502)
+assert.match(bestBraavo.resolvedUrl, /\/slave\/1000\//)
+assert.equal(braavoRequests.length, 2, 'Braavo pequeno deve comparar original e 1000px')
+
+const braavoOriginalLarge = await sharp({ create: { width: 1871, height: 2807, channels: 3, background: '#aaa' } }).webp({ quality: 80 }).toBuffer()
+const largeRequests = []
+const bestOriginalBraavo = await fetchBestImportImage('https://thumb.braavo.me/slave/0/original-large.webp', {
+  request: async (url) => {
+    largeRequests.push(url)
+    return { ok: true, status: 200, contentType: 'image/webp', buffer: braavoOriginalLarge }
+  },
+})
+assert.equal(bestOriginalBraavo.width, 1871)
+assert.match(bestOriginalBraavo.resolvedUrl, /\/slave\/0\//)
+assert.equal(largeRequests.length, 1, 'original Braavo maior que 1000px não deve ser reduzido nem baixar variante desnecessária')
+
 
 const sniffed = await fetchImportImage('https://cdn.example/sem-tipo', {
   request: async () => ({
