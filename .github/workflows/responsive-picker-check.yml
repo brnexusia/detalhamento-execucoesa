@@ -1,0 +1,42 @@
+name: responsive-picker-check
+
+on:
+  pull_request:
+    paths:
+      - 'src/PublicStoreV2.tsx'
+      - 'src/product-picker-responsive.css'
+      - 'src/canvas.css'
+      - 'src/saas.css'
+      - 'src/product-gallery.css'
+      - 'src/styles.css'
+      - 'src/main.tsx'
+      - 'tests/product-picker-responsive.e2e.mjs'
+      - '.github/workflows/responsive-picker-check.yml'
+  workflow_dispatch:
+
+jobs:
+  visual:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - run: npm install --no-save --no-audit --no-fund playwright@1.58.2
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - name: Serve the application
+        run: |
+          npm run dev -- --host 127.0.0.1 > /tmp/vite.log 2>&1 &
+          for i in $(seq 1 80); do
+            curl -sf http://127.0.0.1:5173/ >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/vite.log
+          exit 1
+      - name: Browser regression across viewport sizes
+        run: node tests/product-picker-responsive.e2e.mjs
+      - name: Debug log
+        if: failure()
+        run: cat /tmp/vite.log || true
