@@ -151,6 +151,7 @@
 }
 
 .picker-layer .picker-add__label {
+  margin-left: 0;
   flex: 1 1 130px;
   min-width: 0;
   overflow-wrap: anywhere;
