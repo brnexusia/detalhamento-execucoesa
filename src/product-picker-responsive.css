@@ -1,0 +1,270 @@
+/* Responsividade do seletor de produto, independente do tamanho ou orientação.
+   A foto, miniaturas, informações e ação de compra permanecem acessíveis. */
+
+.picker-layer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding:
+    max(8px, env(safe-area-inset-top))
+    max(8px, env(safe-area-inset-right))
+    max(8px, env(safe-area-inset-bottom))
+    max(8px, env(safe-area-inset-left));
+}
+
+.picker-layer .product-picker {
+  box-sizing: border-box;
+  flex: 0 1 1024px;
+  width: min(100%, 1024px);
+  max-width: 100%;
+  height: min(830px, 100%);
+  max-height: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, .94fr) minmax(0, 1.06fr);
+  grid-template-rows: minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.picker-layer .product-picker__media.product-gallery {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 8px;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.picker-layer .product-gallery__stage {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  aspect-ratio: auto;
+  overflow: hidden;
+}
+
+.picker-layer .product-gallery__stage > img,
+.picker-layer .product-gallery__stage > video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.picker-layer .product-gallery__thumbs {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  padding: 2px 8px 8px;
+  scroll-padding-inline: 8px;
+}
+
+.picker-layer .product-gallery__thumbs button {
+  flex: 0 0 58px;
+  width: 58px;
+  height: 58px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.picker-layer .product-picker__body {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  overflow: hidden;
+  padding: 0;
+}
+
+.picker-layer .product-picker__scroll {
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  padding: clamp(18px, 2.5vw, 36px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.picker-layer .product-picker h2 {
+  font-size: clamp(24px, 3vw, 42px);
+  overflow-wrap: anywhere;
+}
+
+.picker-layer .product-picker__meta,
+.picker-layer .variant-group > div:first-child,
+.picker-layer .picker-quantity {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.picker-layer .variant-options {
+  min-width: 0;
+  gap: 8px;
+}
+
+.picker-layer .variant-options button {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+  min-height: 40px;
+}
+
+.picker-layer .product-picker__footer {
+  min-width: 0;
+  padding: 12px clamp(14px, 2.5vw, 36px) max(12px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.picker-layer .picker-add {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 7px 10px;
+  padding: 11px 13px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.picker-layer .picker-add > svg {
+  flex: 0 0 auto;
+}
+
+.picker-layer .picker-add__label {
+  flex: 1 1 130px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.picker-layer .picker-add__price {
+  flex: 0 0 auto;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.picker-layer .product-picker__close,
+.picker-layer .product-gallery__prev,
+.picker-layer .product-gallery__next {
+  min-width: 36px;
+  min-height: 36px;
+  cursor: pointer;
+}
+
+/* Portrait: galeria acima dos detalhes, ambos dentro do viewport. */
+@media (max-width: 760px) and (orientation: portrait) {
+  .picker-layer .product-picker {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, min(38%, 325px)) minmax(0, 1fr);
+  }
+
+  .picker-layer .product-picker__scroll {
+    padding: clamp(13px, 3.5vw, 22px);
+  }
+
+  .picker-layer .product-picker__footer {
+    padding: 10px clamp(10px, 3.5vw, 22px) max(10px, env(safe-area-inset-bottom));
+  }
+
+  .picker-layer .product-picker__media.product-gallery {
+    height: 100%;
+  }
+
+  .picker-layer .product-picker h2 {
+    font-size: clamp(23px, 6vw, 34px);
+  }
+
+  .picker-layer .product-gallery__thumbs button {
+    flex-basis: 48px;
+    width: 48px;
+    height: 48px;
+  }
+
+  .picker-layer .product-gallery__prev,
+  .picker-layer .product-gallery__next {
+    width: 36px;
+    height: 36px;
+  }
+}
+
+/* Aparelhos horizontais, inclusive celulares de largura inferior a 760px. */
+@media (orientation: landscape) and (max-height: 650px) {
+  .picker-layer .product-picker {
+    grid-template-columns: minmax(0, .88fr) minmax(0, 1.12fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .picker-layer .product-picker__scroll {
+    padding: clamp(10px, 2vmin, 20px);
+  }
+
+  .picker-layer .product-picker__footer {
+    padding: 8px clamp(9px, 2vmin, 18px) max(8px, env(safe-area-inset-bottom));
+  }
+
+  .picker-layer .product-picker h2 {
+    font-size: clamp(20px, 3.6vmin, 32px);
+  }
+
+  .picker-layer .product-gallery__thumbs button {
+    flex-basis: 42px;
+    width: 42px;
+    height: 42px;
+  }
+
+  .picker-layer .picker-add {
+    padding: 8px 10px;
+    min-height: 44px;
+  }
+}
+
+/* Janelas excepcionalmente estreitas ou ampliadas por zoom. */
+@media (max-width: 360px) {
+  .picker-layer .product-picker__scroll {
+    padding: 12px;
+  }
+
+  .picker-layer .product-picker__footer {
+    padding: 8px 10px max(8px, env(safe-area-inset-bottom));
+  }
+
+  .picker-layer .picker-add {
+    font-size: 11px;
+  }
+
+  .picker-layer .variant-options button {
+    padding: 8px;
+  }
+}
+
+/* Altura muito pequena: os elementos não somem; reduz-se só o espaço da foto. */
+@media (orientation: portrait) and (max-height: 520px) and (max-width: 760px) {
+  .picker-layer .product-picker {
+    grid-template-rows: minmax(0, 28%) minmax(0, 1fr);
+  }
+
+  .picker-layer .product-gallery__thumbs button {
+    flex-basis: 38px;
+    width: 38px;
+    height: 38px;
+  }
+}
