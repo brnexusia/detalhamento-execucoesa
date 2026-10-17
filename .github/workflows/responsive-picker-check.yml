@@ -1,0 +1,98 @@
+name: responsive-picker-check
+
+on:
+  push:
+    branches: [fix/product-picker-responsive-all-devices]
+
+jobs:
+  visual:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - run: npm install --no-save --no-audit --no-fund playwright@1.58.2
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - name: Serve the application
+        run: |
+          npm run dev -- --host 127.0.0.1 > /tmp/vite.log 2>&1 &
+          for i in $(seq 1 80); do
+            curl -sf http://127.0.0.1:5173/ >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/vite.log
+          exit 1
+      - name: Browser regression across viewport sizes
+        run: |
+          cat > responsive-e2e.mjs <<'EOF'
+          import { chromium } from 'playwright'
+          import assert from 'node:assert/strict'
+
+          const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAJ0XH1cAAAAASUVORK5CYII=', 'base64')
+          const gallery = Array.from({ length: 8 }, (_, i) => `https://test-images.example/${i}.png`)
+          const colors = Array.from({ length: 15 }, (_, i) => `Cor ${i+1} Especial`)
+          const product = {
+            id: 'p1', sku: 'SW-114', name: 'Blusa Decote V Frente e Costas',
+            description: 'Blusa manga curta decote V na frente e nas costas em malha de viscolycra lisa. '.repeat(12),
+            price: 56.9, category: 'Geral', mediaUrl: gallery[0], mediaType: 'image',
+            images: gallery, variations: [{ name: 'Cor', options: colors }, { name: 'Tamanho', options: ['P','M','G'] }],
+          }
+          const payload = {
+            store: { slug: 'sw-moda', name: 'SW Moda', eyebrow: 'Atacado', tagline: 'Coleção SW Moda', minimumOrder: 0, whatsapp: '5571999999999', accent: '#c94c2d' },
+            seller: { slug: 'atendimento', name: 'Atendimento', phone: '5571999999999' },
+            products: [product], categories: ['Geral'], page: { hasMore: false, nextCursor: null, limit: 24 },
+          }
+          const browser = await chromium.launch({ headless: true })
+          const sizes = [[320,568],[360,640],[375,667],[390,844],[428,926],[768,1024],[820,1180],[1024,768],[1366,768],[1920,1080],[812,375],[667,375],[720,320],[600,300],[280,520],[390,450]]
+          let passed = 0
+          try {
+            for(const [width,height] of sizes) {
+              const page = await browser.newPage({ viewport:{ width, height }, deviceScaleFactor:1 })
+              await page.route('**/api/public/store/**', route => route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(payload)}))
+              await page.route('**/api/public/events', route => route.fulfill({status:204,body:''}))
+              await page.route('**/test-images.example/**', route => route.fulfill({status:200,contentType:'image/png',body:png}))
+              await page.goto('http://127.0.0.1:5173/sw-moda')
+              await page.locator('.product-card__media').first().click()
+              await page.locator('.product-picker').waitFor()
+              const before=await page.evaluate(() => {
+                const rect = (s) => {
+                  const node=document.querySelector(s)
+                  if(!node) return null
+                  const r=node.getBoundingClientRect()
+                  return {x:r.x,y:r.y,w:r.width,h:r.height,right:r.right,bottom:r.bottom}
+                }
+                const scroll=document.querySelector('.product-picker__scroll')
+                const stage=document.querySelector('.product-gallery__stage')
+                return {picker:rect('.product-picker'),footer:rect('.product-picker__footer'),cta:rect('.picker-add'),gallery:rect('.product-gallery__stage'),thumbs:rect('.product-gallery__thumbs'),scroll:rect('.product-picker__scroll'),scrollHeight:scroll?.scrollHeight,clientHeight:scroll?.clientHeight, stageHeight:stage?.clientHeight, innerWidth:window.innerWidth, innerHeight:window.innerHeight}
+              })
+              const inBounds=(r,label) => {
+                assert(r && r.w>=1 && r.h>=1,`${width}x${height}: ${label} absent or zero: ${JSON.stringify(before)}`)
+                assert(r.x >= -2 && r.right<=width+2 && r.y>=-2 && r.bottom<=height+2,`${width}x${height}: ${label} clipped: ${JSON.stringify(before)}`)
+              }
+              for(const sel of ['picker','footer','cta','gallery','thumbs','scroll']) inBounds(before[sel],sel)
+              assert((before.scrollHeight??0)>(before.clientHeight??0),`${width}x${height}: details should scroll instead of disappearing: ${JSON.stringify(before)}`)
+              assert((before.stageHeight??0)>0,`${width}x${height}: missing image`)
+              assert.equal(await page.locator('.variant-options button').count(),18)
+              await page.getByRole('button',{name:'Cor 15 Especial'}).click()
+              await page.getByRole('button',{name:'G',exact:true}).click()
+              await page.locator('.product-picker__scroll').evaluate(el => {el.scrollTop=el.scrollHeight})
+              const after = await page.locator('.picker-add').boundingBox()
+              inBounds({x:after.x,y:after.y,w:after.width,h:after.height,right:after.x+after.width,bottom:after.y+after.height},'CTA after scrolling')
+              await page.locator('.picker-add').click()
+              await page.locator('.product-picker').waitFor({state:'detached'})
+              const countText=await page.locator('.cart-trigger b').first().textContent()
+              assert.equal(countText?.trim(),'1',`${width}x${height}: item not added`)
+              console.log('PASS',width,height,JSON.stringify({gallery:before.gallery.h,thumbs:before.thumbs.h,cta:before.cta.h}))
+              passed++
+              await page.close()
+            }
+          } finally { await browser.close() }
+          console.log('RESPONSIVE_TESTS_PASSED',passed)
+          EOF
+          node responsive-e2e.mjs
+      - name: Debug log
+        if: failure()
+        run: cat /tmp/vite.log || true
