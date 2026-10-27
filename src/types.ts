@@ -108,6 +108,7 @@ export type AdminStore = {
   accent: string
   is_active: boolean
   plan_tier?: 'bronze' | 'prata' | 'ouro' | string
+  onboarding_palette_selected?: boolean
 }
 
 export type AdminSeller = {
