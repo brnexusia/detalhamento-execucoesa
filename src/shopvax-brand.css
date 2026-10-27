@@ -1,0 +1,328 @@
+/* Shopvax — sistema visual oficial (Prancha 02 / 2026).
+   Não reinterprete estes tokens como "tema genérico de e-commerce".
+   A cor da loja é o acento configurado pelo lojista; a estrutura permanece Shopvax. */
+
+:root {
+  --svx-paper: #F3F0E8;
+  --svx-board: #E7E3DA;
+  --svx-surface: #F3F0E8;
+  --svx-ink: #161514;
+  --svx-muted: #6B665C;
+  --svx-muted-strong: #4D4943;
+  --svx-line: #D9D3C6;
+  --svx-orange: #F25C05;
+  --svx-mustard: #E9B21C;
+  --svx-graphite: #8A96A1;
+  --svx-stamp: #2D2A8C;
+  --svx-font-display: 'Archivo Narrow', 'Arial Narrow', Arial, sans-serif;
+  --svx-font-body: 'Archivo', Arial, sans-serif;
+  --svx-font-mono: 'Fragment Mono', ui-monospace, SFMono-Regular, monospace;
+
+  /* Compatibilidade com páginas existentes; valores oficiais sem migração destrutiva. */
+  --paper: var(--svx-paper);
+  --surface: #FCFAF5;
+  --ink: var(--svx-ink);
+  --muted: var(--svx-muted);
+  --line: var(--svx-line);
+  --accent: var(--svx-orange);
+}
+
+body {
+  color: var(--svx-ink);
+  background: var(--svx-paper);
+  font-family: var(--svx-font-body);
+}
+
+.app, .panel-shell, .home-shell, .auth-shell {
+  font-family: var(--svx-font-body);
+}
+
+.app h1, .app h2, .app h3, .app h4,
+.panel-shell h1, .panel-shell h2, .panel-shell h3,
+.home-shell h1, .home-shell h2, .auth-shell h1, .auth-shell h2 {
+  font-family: var(--svx-font-display);
+  font-weight: 700;
+  letter-spacing: -.03em;
+}
+
+/* Linguagem do balcão: fita, carimbo, etiqueta, número grande e cor. */
+.svx-ribbon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: .7rem 1.25rem;
+  padding: 10px 14px;
+  background: var(--accent, var(--svx-orange));
+  color: var(--svx-ink);
+  font-family: var(--svx-font-mono);
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1.4;
+  letter-spacing: .035em;
+  text-transform: uppercase;
+}
+
+.svx-stamp {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 9px;
+  border: 2px solid var(--svx-stamp);
+  color: var(--svx-stamp);
+  font-family: var(--svx-font-mono);
+  font-size: 10px;
+  line-height: 1.1;
+  font-weight: 700;
+  transform: rotate(-5deg);
+}
+
+.svx-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 6px 9px;
+  background: var(--svx-paper);
+  border: 1px solid var(--svx-ink);
+  color: var(--svx-ink);
+  font-family: var(--svx-font-mono);
+  font-size: 10px;
+  line-height: 1.15;
+}
+
+.svx-tag--price {
+  background: var(--svx-ink);
+  border-color: var(--svx-ink);
+  color: var(--svx-paper);
+}
+
+.svx-tag--new {
+  background: var(--accent, var(--svx-orange));
+  border-color: var(--accent, var(--svx-orange));
+}
+
+.svx-number {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--svx-ink);
+}
+
+.svx-number > strong {
+  font: 700 clamp(26px, 3vw, 46px)/.9 var(--svx-font-display);
+  letter-spacing: -.04em;
+}
+
+.svx-number > small {
+  color: var(--svx-muted);
+  font: 400 10px/1.4 var(--svx-font-mono);
+  text-transform: uppercase;
+}
+
+.svx-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 42px;
+  padding: 11px 17px;
+  border: 1px solid var(--svx-ink);
+  border-radius: 0;
+  font: 700 12px/1.2 var(--svx-font-body);
+  cursor: pointer;
+  transition: filter .16s ease, background-color .16s ease;
+}
+
+.svx-button--primary { background: var(--accent, var(--svx-orange)); color: var(--svx-ink); }
+.svx-button--outline { background: transparent; color: var(--svx-ink); }
+.svx-button--quiet { border-color: transparent; background: transparent; color: var(--svx-ink); }
+.svx-button:hover:not(:disabled) { filter: brightness(.95); }
+.svx-button:disabled { opacity: .52; cursor: not-allowed; }
+
+.svx-signature {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  color: var(--svx-muted);
+  font: 400 10px var(--svx-font-mono);
+  text-transform: lowercase;
+}
+.svx-signature strong { color: var(--svx-ink); font-weight: 700; }
+.svx-signature > span { color: var(--accent, var(--svx-orange)); font-size: 18px; line-height: 1; }
+
+.svx-button:focus-visible, .svx-palette-choice:focus-visible,
+.svx-ribbon:focus-visible {
+  outline: 3px solid var(--svx-stamp);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .svx-button { transition: none; }
+}
+
+/* Identidade de loja: a marca atendida sempre aparece antes do Shopvax. */
+.app .topbar {
+  border-bottom-color: var(--svx-ink);
+  background: rgba(243,240,232,.97);
+}
+
+.app .brand__text strong {
+  max-width: min(58vw, 300px);
+  font: 700 clamp(15px, 1.7vw, 20px)/1 var(--svx-font-display);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.app .brand__text small {
+  font: 400 9px/1.4 var(--svx-font-mono);
+  letter-spacing: .025em;
+  text-transform: uppercase;
+}
+
+.app .brand__logo {
+  width: clamp(38px, 4vw, 58px);
+  height: clamp(38px, 4vw, 58px);
+  background: var(--svx-paper);
+  border-color: var(--svx-line);
+  object-fit: contain;
+}
+
+.app .brand__mark {
+  background: var(--accent, var(--svx-orange));
+  border-color: var(--svx-ink);
+  font-family: var(--svx-font-display);
+  font-size: 20px;
+}
+
+.app .store-intro {
+  position: relative;
+  align-items: end;
+  row-gap: clamp(18px, 3vw, 32px);
+}
+
+.app .store-intro__ribbon {
+  grid-column: 1 / -1;
+  justify-content: flex-start;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.app .store-intro__identity {
+  min-width: 0;
+  display: grid;
+  justify-items: start;
+  gap: clamp(12px, 2vw, 23px);
+}
+
+.app .store-intro__identity .eyebrow {
+  margin: 0;
+  font: 500 11px/1.4 var(--svx-font-mono);
+  letter-spacing: .02em;
+  text-transform: uppercase;
+  color: var(--svx-muted);
+}
+
+.app .store-intro__logo {
+  width: clamp(70px, 9vw, 130px);
+  height: clamp(70px, 9vw, 130px);
+  border: 1px solid var(--svx-line);
+  background: var(--svx-paper);
+  object-fit: contain;
+}
+
+.app .store-intro h1 {
+  margin: 0;
+  max-width: 15ch;
+  font: 700 clamp(48px, 7vw, 112px)/.88 var(--svx-font-display);
+  letter-spacing: -.045em;
+  overflow-wrap: anywhere;
+}
+
+.app .store-intro__tagline {
+  margin: 0;
+  max-width: 54ch;
+  color: var(--svx-muted-strong);
+  font: 400 clamp(13px, 1.3vw, 17px)/1.5 var(--svx-font-body);
+}
+
+.app .seller-note strong {
+  font-family: var(--svx-font-display);
+  font-size: clamp(21px, 2.4vw, 30px);
+  line-height: 1.15;
+}
+
+.app .store-brand-signature {
+  display: flex;
+  justify-content: center;
+  padding: 30px 12px max(20px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--svx-line);
+}
+
+.app .catalog-heading h2,
+.app .product-card h3,
+.app .product-picker h2 { font-family: var(--svx-font-display); }
+
+.app .product-card__meta,
+.app .product-picker__meta,
+.app .minimum-inline span { font-family: var(--svx-font-mono); }
+
+.app .product-card__flag { background: var(--accent, var(--svx-orange)); color: var(--svx-ink); }
+
+.app .product-card__footer strong { font-family: var(--svx-font-display); font-weight: 700; }
+
+/* Paletas oficiais preservadas no campo já existente do lojista. */
+.svx-palette-selector {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+.svx-palette-selector__title {
+  font-size: 11px;
+  font-weight: 700;
+}
+.svx-palette-selector__choices {
+  display: grid;
+  grid-template-columns: repeat(3,minmax(0,1fr));
+  gap: 8px;
+}
+.svx-palette-choice {
+  min-width: 0;
+  display: grid;
+  justify-items: start;
+  gap: 7px;
+  padding: 10px;
+  border: 1px solid var(--svx-line);
+  background: var(--svx-paper);
+  font: 600 11px/1.25 var(--svx-font-body);
+  cursor: pointer;
+  text-align: left;
+}
+.svx-palette-choice[aria-pressed='true'] {
+  border-color: var(--svx-ink);
+  box-shadow: inset 0 0 0 1px var(--svx-ink);
+}
+.svx-palette-choice__swatch {
+  display: block;
+  width: 100%;
+  min-height: 26px;
+  border: 1px solid rgba(0,0,0,.1);
+}
+.svx-palette-selector__note {
+  margin: 2px 0 0;
+  color: var(--svx-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+@media (max-width: 760px) {
+  .app .store-intro__ribbon { grid-column: 1; }
+  .app .store-intro h1 { font-size: clamp(44px, 13vw, 76px); }
+  .app .store-intro__identity { gap: 13px; }
+  .svx-palette-selector__choices { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .svx-palette-choice { padding: 8px; font-size: 10px; }
+}
+
+@media (max-width: 370px) {
+  .svx-palette-selector__choices { grid-template-columns: minmax(0, 1fr); }
+}
