@@ -437,7 +437,7 @@ async function updatePhase2Store(req, res) {
 }
 
 async function updateOrderStatus(req, res) {
-  const allowed = ['whatsapp', 'em_atendimento', 'arquivado']
+  const allowed = ['whatsapp', 'em_atendimento', 'confirmado', 'arquivado']
   const status = String(req.body?.status || '')
   if (!allowed.includes(status)) return res.status(400).json({ error: 'Status inválido. Para cancelar e devolver estoque, use a ação de cancelamento.' })
   const result = await pool.query('UPDATE orders SET status=$1,status_updated_at=now() WHERE id=$2 AND store_id=$3 AND status<>\'cancelled\' RETURNING id,code,status,status_updated_at', [status, req.params.orderId, req.phase2Store.id])
