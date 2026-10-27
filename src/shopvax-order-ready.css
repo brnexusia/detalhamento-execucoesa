@@ -9,7 +9,7 @@
 .svx-order-ready__message{display:grid;gap:10px;min-height:0;overflow:auto;padding:16px clamp(16px,4vw,30px);}
 .svx-order-ready__message textarea{display:block;width:100%;height:min(22dvh,180px);min-height:80px;resize:vertical;border:1px solid #D9D3C6;background:#FCFAF5;color:#161514;padding:12px;font:400 11px/1.5 var(--svx-font-mono,monospace);overflow:auto;white-space:pre-wrap;}
 .svx-order-ready>footer{display:grid;gap:9px;padding:14px clamp(16px,4vw,30px) max(15px,env(safe-area-inset-bottom));background:#F3F0E8;border-top:1px solid #D9D3C6;}
-.svx-order-ready>footer button{display:flex;align-items:center;justify-content:center;gap:10px;min-height:46px;padding:11px 14px;border:1px solid #161514;border-radius:0;color:#161514;font:800 12px var(--svx-font-body,'Archivo',sans-serif);cursor:pointer;}
+.svx-order-ready>footer button,.svx-order-ready>footer a{display:flex;align-items:center;justify-content:center;gap:10px;min-height:46px;padding:11px 14px;border:1px solid #161514;border-radius:0;color:#161514;font:800 12px var(--svx-font-body,'Archivo',sans-serif);cursor:pointer;text-decoration:none;}
 .svx-order-ready__send{background:#F25C05;}
 .svx-order-ready__copy{background:#FCFAF5;}
 .svx-order-ready>footer small{font-size:10px;line-height:1.4;color:#6B665C;}
