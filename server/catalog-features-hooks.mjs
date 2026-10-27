@@ -399,37 +399,50 @@ async function protectedStore(req, res) {
 
   const q = String(req.query.q || '').trim().slice(0, 100)
   const category = String(req.query.category || '').trim().slice(0, 80)
+  const sort = ['newest', 'price_asc', 'price_desc'].includes(String(req.query.sort || '')) ? String(req.query.sort) : 'newest'
   const requestedLimit = Number(req.query.limit || 24)
   const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(24, Math.floor(requestedLimit))) : 24
   let cursor = null
   if (req.query.cursor) {
     try { cursor = decodeCursor(req.query.cursor) } catch { return res.status(400).json({ error: 'Página inválida. Atualize a loja para continuar.' }) }
-    const valid = cursor?.storeId === store.id && cursor?.visitor === visitor && cursor?.sellerSlug === String(req.params.sellerSlug || '') && cursor?.q === q && cursor?.category === category && cursor?.catalogSlug === catalog.slug && Number(cursor?.expiresAt || 0) > Date.now()
+    const valid = cursor?.storeId === store.id && cursor?.visitor === visitor && cursor?.sellerSlug === String(req.params.sellerSlug || '') && cursor?.q === q && cursor?.category === category && (cursor?.sort || 'newest') === sort && cursor?.catalogSlug === catalog.slug && Number(cursor?.expiresAt || 0) > Date.now()
     if (!valid) return res.status(400).json({ error: 'Página inválida. Atualize a loja para continuar.' })
   }
 
   const params = [store.id, catalog.id]
   const conditions = ['p.store_id=$1', 'p.active=true', '(cp.visible IS NULL OR cp.visible=true)']
-  if (category) { params.push(category); conditions.push(`p.category=$${params.length}`) }
-  if (q) { params.push(`%${q.toLowerCase()}%`); conditions.push(`lower(p.name || ' ' || p.sku || ' ' || p.category) LIKE $${params.length}`) }
+  if (category) { params.push(category); conditions.push(`p.category=${params.length}`) }
+  if (q) { params.push(`%${q.toLowerCase()}%`); conditions.push(`lower(p.name || ' ' || p.sku || ' ' || p.category) LIKE ${params.length}`) }
+  const sqlParam = (index) => String.fromCharCode(36) + index
+  const sortPrice = 'COALESCE(cp.price_override,p.price)'
   if (cursor) {
-    params.push(Number(cursor.featured || 0), cursor.createdAt, cursor.id)
-    const featuredIndex = params.length - 2
-    const createdIndex = params.length - 1
-    const idIndex = params.length
-    conditions.push(`(p.featured::int < $${featuredIndex} OR (p.featured::int=$${featuredIndex} AND p.created_at<$${createdIndex}::timestamptz) OR (p.featured::int=$${featuredIndex} AND p.created_at=$${createdIndex}::timestamptz AND p.id<$${idIndex}))`)
+    if (sort === 'newest') {
+      params.push(Number(cursor.featured || 0), cursor.createdAt, cursor.id)
+      const featuredIndex = params.length - 2
+      const createdIndex = params.length - 1
+      const idIndex = params.length
+      conditions.push(`(p.featured::int < ${sqlParam(featuredIndex)} OR (p.featured::int=${sqlParam(featuredIndex)} AND p.created_at<${sqlParam(createdIndex)}::timestamptz) OR (p.featured::int=${sqlParam(featuredIndex)} AND p.created_at=${sqlParam(createdIndex)}::timestamptz AND p.id<${sqlParam(idIndex)}))`)
+    } else {
+      const price = Number(cursor.price)
+      if (!Number.isFinite(price) || price < 0) return res.status(400).json({ error:'Página inválida. Atualize a loja para continuar.' })
+      params.push(price,cursor.id)
+      const priceIdx=params.length-1,idIdx=params.length
+      const comparator=sort === 'price_asc' ? '>' : '<'
+      conditions.push(`(${sortPrice} ${comparator} ${sqlParam(priceIdx)}::numeric OR (${sortPrice}=${sqlParam(priceIdx)}::numeric AND p.id<${sqlParam(idIdx)}))`)
+    }
   }
+  const orderBy = sort === 'price_asc' ? `${sortPrice} ASC,p.id DESC` : sort === 'price_desc' ? `${sortPrice} DESC,p.id DESC` : 'p.featured DESC,p.created_at DESC,p.id DESC'
   params.push(limit + 1)
   const productsResult = await pool.query(
     `SELECT p.*,p.created_at::text AS created_at_cursor,COALESCE(cp.price_override,p.price) AS public_price
      FROM products p LEFT JOIN catalog_products cp ON cp.product_id=p.id AND cp.catalog_id=$2
-     WHERE ${conditions.join(' AND ')} ORDER BY p.featured DESC,p.created_at DESC,p.id DESC LIMIT $${params.length}`,
+     WHERE ${conditions.join(' AND ')} ORDER BY ${orderBy} LIMIT ${sqlParam(params.length)}`,
     params,
   )
   const hasMore = productsResult.rows.length > limit
   const pageRows = productsResult.rows.slice(0, limit)
   const last = pageRows.at(-1)
-  const nextCursor = hasMore && last ? encodeCursor({ storeId: store.id, visitor, sellerSlug: String(req.params.sellerSlug || ''), q, category, catalogSlug: catalog.slug, featured: last.featured ? 1 : 0, createdAt: last.created_at_cursor, id: last.id, expiresAt: Date.now() + 30 * 60_000 }) : null
+  const nextCursor = hasMore && last ? encodeCursor({ storeId: store.id, visitor, sellerSlug: String(req.params.sellerSlug || ''), q, category, catalogSlug: catalog.slug, sort, price: Number(last.public_price), featured: last.featured ? 1 : 0, createdAt: last.created_at_cursor, id: last.id, expiresAt: Date.now() + 30 * 60_000 }) : null
   const categoriesResult = await pool.query(
     `SELECT DISTINCT p.category FROM products p LEFT JOIN catalog_products cp ON cp.product_id=p.id AND cp.catalog_id=$2
      WHERE p.store_id=$1 AND p.active=true AND p.category<>'' AND (cp.visible IS NULL OR cp.visible=true) ORDER BY p.category ASC LIMIT 100`,
