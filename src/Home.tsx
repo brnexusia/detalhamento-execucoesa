@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowRight, Check, Grid2X2, ShoppingBag, Smartphone } from 'lucide-react'
+import { ArrowRight, Grid2X2, ShoppingBag, Smartphone } from 'lucide-react'
 import { apiRequest } from './api'
 import UiState from './UiState'
 import ShopvaxPlans from './ShopvaxPlans'
@@ -10,15 +10,6 @@ function go(path: string) {
 }
 
 type HomePlan = { code: string; name: string; monthlyPrice: number; sellerLimit: number | null; catalogLimit: number | null; photoLimit: number | null; franchiseeLimit: number | null }
-
-const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
-
-function planCopy(plan: HomePlan) {
-  const sellers = plan.sellerLimit == null ? 'Vendedoras ilimitadas' : `${plan.sellerLimit} vendedoras`
-  const catalogs = plan.catalogLimit == null ? 'Catálogos ilimitados' : `${plan.catalogLimit} ${plan.catalogLimit === 1 ? 'catálogo' : 'catálogos'}`
-  const photos = plan.photoLimit == null ? 'Fotos ilimitadas' : `${plan.photoLimit} fotos por produto`
-  return [sellers, catalogs, photos]
-}
 
 export default function Home() {
   const [plans, setPlans] = useState<HomePlan[]>([])
