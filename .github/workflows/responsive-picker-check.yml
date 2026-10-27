@@ -14,6 +14,9 @@ on:
       - 'tests/brand-phase1.e2e.mjs'
       - 'tests/shopvax-grade.e2e.mjs'
       - 'tests/shopvax-feed.e2e.mjs'
+      - 'tests/shopvax-plans.e2e.mjs'
+      - 'src/ShopvaxPlans.tsx'
+      - 'src/shopvax-plans.css'
       - 'src/shopvax-feed-redesign.css'
       - 'src/ShopvaxGrade.tsx'
       - 'src/ShopvaxDashboard.tsx'
@@ -53,6 +56,8 @@ jobs:
         run: node tests/shopvax-grade.e2e.mjs
       - name: Feed interaction browser regression
         run: node tests/shopvax-feed.e2e.mjs
+      - name: Plans layout and navigation regression
+        run: node tests/shopvax-plans.e2e.mjs
       - name: Debug log
         if: failure()
         run: cat /tmp/vite.log || true
