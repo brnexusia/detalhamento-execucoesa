@@ -8,7 +8,7 @@ type Props = {
   incomplete: boolean
   storeUrl: string
   onSection: (section: DeskSection) => void
-  onCopy: (url?: string) => void
+  onCopy: (url: string) => void
 }
 const money = new Intl.NumberFormat('pt-BR', { style:'currency', currency:'BRL' })
 const date = new Intl.DateTimeFormat('pt-BR', { day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit' })
