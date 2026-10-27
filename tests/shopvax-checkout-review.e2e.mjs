@@ -39,7 +39,7 @@ try{
   assert.equal(state.error,'','o checkout não deve apresentar erro')
   assert.equal(state.reviewOpen,false,'o checkout deve fechar após preparar o talão')
   await page.locator('.svx-order-ready').waitFor()
-  assert.match(await page.locator('.svx-order-ready').innerText(),/Agora é só enviar/)
+  assert.match(await page.locator('.svx-order-ready').innerText(),/agora é só enviar/i)
   await page.getByRole('button',{name:'Copiar pedido'}).click()
   await page.getByRole('button',{name:'Mensagem copiada'}).waitFor()
   assert(created,'deve registrar pedido na API')
