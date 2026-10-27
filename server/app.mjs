@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS stores (
   minimum_order numeric(12,2) NOT NULL DEFAULT 400,
   whatsapp text NOT NULL DEFAULT '',
   logo_url text NOT NULL DEFAULT '',
-  accent text NOT NULL DEFAULT '#c94c2d',
+  accent text NOT NULL DEFAULT '#F25C05',
   is_active boolean NOT NULL DEFAULT true,
   plan_tier text NOT NULL DEFAULT 'bronze',
   signup_plan_selected_at timestamptz,
