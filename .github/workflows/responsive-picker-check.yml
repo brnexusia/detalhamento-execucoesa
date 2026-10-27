@@ -18,6 +18,7 @@ on:
       - 'tests/shopvax-plans.e2e.mjs'
       - 'tests/shopvax-product-list.e2e.mjs'
       - 'tests/shopvax-order-buyer.e2e.mjs'
+      - 'tests/shopvax-catalog-sort.e2e.mjs'
       - 'src/shopvax-product-operations.css'
       - 'src/ShopvaxPlans.tsx'
       - 'src/ShopvaxFirstRun.tsx'
@@ -71,6 +72,8 @@ jobs:
         run: node tests/shopvax-product-list.e2e.mjs
       - name: Order buyer details browser regression
         run: node tests/shopvax-order-buyer.e2e.mjs
+      - name: Global catalogue sorting browser regression
+        run: node tests/shopvax-catalog-sort.e2e.mjs
       - name: Debug log
         if: failure()
         run: cat /tmp/vite.log || true

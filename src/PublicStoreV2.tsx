@@ -74,6 +74,7 @@ export default function PublicStoreV2() {
   const [demo, setDemo] = useState(false)
   const [view, setView] = useState<ViewMode>('store')
   const [category, setCategory] = useState('Todos')
+  const [sort, setSort] = useState<'newest' | 'price_asc' | 'price_desc'>('newest')
   const [query, setQuery] = useState('')
   const [savedProducts, setSavedProducts] = useState<string[]>(() => {
     try { const items = JSON.parse(localStorage.getItem(`shopvax-favorites-v1:${route.storeSlug}`) || '[]'); return Array.isArray(items) ? items.filter((id) => typeof id === 'string') : [] } catch { return [] }
@@ -108,7 +109,7 @@ export default function PublicStoreV2() {
   const [catalogError, setCatalogError] = useState('')
   const [loadingMore, setLoadingMore] = useState(false)
   const [filterLoading, setFilterLoading] = useState(false)
-  const filterKeyRef = useRef('Todos|')
+  const filterKeyRef = useRef('Todos||newest')
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
   useEffect(() => {
     if (!picker) return
@@ -132,7 +133,7 @@ export default function PublicStoreV2() {
   const loadFirst = useCallback(() => {
     setCategory('Todos')
     setQuery('')
-    filterKeyRef.current = 'Todos|'
+    filterKeyRef.current = 'Todos||newest'
     return api.publicStore(route.storeSlug, route.sellerSlug)
       .then((data) => {
         setPayload(data)
@@ -155,7 +156,7 @@ export default function PublicStoreV2() {
 
   useEffect(() => {
     if (!payload || demo) return
-    const key = `${category}|${query.trim()}`
+    const key = `${category}|${query.trim()}|${sort}`
     if (filterKeyRef.current === key) return
     const timer = window.setTimeout(() => {
       setFilterLoading(true)
@@ -163,6 +164,7 @@ export default function PublicStoreV2() {
       api.publicStore(route.storeSlug, route.sellerSlug, {
         q: query.trim() || undefined,
         category: category === 'Todos' ? undefined : category,
+        sort,
       }).then((data) => {
         filterKeyRef.current = key
         setPayload(data)
@@ -170,7 +172,7 @@ export default function PublicStoreV2() {
         .finally(() => setFilterLoading(false))
     }, 300)
     return () => window.clearTimeout(timer)
-  }, [category, query, demo, payload?.store.slug, route.storeSlug, route.sellerSlug])
+  }, [category, query, sort, demo, payload?.store.slug, route.storeSlug, route.sellerSlug])
 
   const store = payload?.store
   const seller = payload?.seller
@@ -182,7 +184,7 @@ export default function PublicStoreV2() {
   const visibleProducts = demo ? products.filter((product) => {
     const matchesCategory = category === 'Todos' || product.category === category
     return matchesCategory && `${product.name} ${product.sku} ${product.category}`.toLowerCase().includes(query.trim().toLowerCase())
-  }) : products
+  }).sort((a,b) => sort === 'price_asc' ? a.price-b.price : sort === 'price_desc' ? b.price-a.price : 0) : products
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0)
   const cartTotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0)
   const minimum = store?.minimumOrder || 0
@@ -198,6 +200,7 @@ export default function PublicStoreV2() {
         cursor,
         q: query.trim() || undefined,
         category: category === 'Todos' ? undefined : category,
+        sort,
       })
       setPayload((current) => {
         if (!current) return data
@@ -207,7 +210,7 @@ export default function PublicStoreV2() {
     } catch (err) {
       setCatalogError(err instanceof Error ? err.message : 'Não foi possível carregar mais produtos.')
     } finally { setLoadingMore(false) }
-  }, [payload?.page, demo, loadingMore, route.storeSlug, route.sellerSlug, query, category])
+  }, [payload?.page, demo, loadingMore, route.storeSlug, route.sellerSlug, query, category, sort])
 
   useEffect(() => {
     const target = loadMoreRef.current
@@ -330,9 +333,10 @@ export default function PublicStoreV2() {
         <div className="svx-discovery__rail">{visibleProducts.slice(0,6).map((product) => <button type="button" key={product.id} onClick={() => openPicker(product)}><span className="svx-discovery__image"><ProductMedia product={product}/></span><small>{product.sku || product.category}</small><strong>{product.name}</strong><b>{money.format(product.price)}</b></button>)}</div>
       </section>
       {visibleProducts.some((product) => product.featured) && <section className="svx-highlights" aria-label="Destaques da loja"><h2>Destaques da loja</h2><div>{visibleProducts.filter((product)=>product.featured).slice(0,3).map((product,index)=><button key={product.id} onClick={() => openPicker(product)}><span>{String(index+1).padStart(2,'0')}</span><strong>{product.name}</strong><small>{money.format(product.price)}</small><ArrowRight size={16}/></button>)}</div></section>}
-      <section className="catalog-toolbar"><label className="search-box"><Search size={18}/><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar produto ou referência" /></label><div className="minimum-inline"><span>Pedido mínimo</span><strong>{money.format(minimum)}</strong></div></section>
+      <section className="catalog-toolbar"><label className="search-box"><Search size={18}/><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar produto ou referência" /></label><label className="svx-catalog-sort"><span>Ordenar por</span><select aria-label="Ordenação dos produtos" value={sort} onChange={(e) => setSort(e.target.value as 'newest' | 'price_asc' | 'price_desc')}><option value="newest">Mais recentes</option><option value="price_asc">Menor preço</option><option value="price_desc">Maior preço</option></select></label><div className="minimum-inline"><span>Pedido mínimo</span><strong>{money.format(minimum)}</strong></div></section>
       <section className="category-strip">{categories.map((item) => <button key={item} className={category === item ? 'is-active' : ''} onClick={() => setCategory(item)}>{item}</button>)}</section>
       <section id="colecao-atual" className="catalog-heading"><div><span>{payload.page?.hasMore ? 'Mais produtos disponíveis' : `${visibleProducts.length} produtos`}</span><h2>{category === 'Todos' ? 'Escolha suas peças' : category}</h2></div><button className="feed-callout" onClick={() => setView('feed')}>Ver como feed <ArrowRight size={17}/></button></section>
+      {!visibleProducts.length && !filterLoading && <div className="svx-catalog-empty"><Search size={28}/><h3>Nenhuma peça encontrada.</h3><p>Experimente outra referência, categoria ou termo de busca.</p><button onClick={() => { setQuery(''); setCategory('Todos'); setSort('newest') }}>Limpar filtros</button></div>}
       <section className="product-grid">{visibleProducts.map((product) => <article className="product-card" key={product.id}><button className="product-card__media" onClick={() => openPicker(product)} aria-label={`Ver ${product.name}`}><ProductMedia product={product}/>{product.featured && <SVTag className="product-card__flag">Destaque</SVTag>}</button><div className="product-card__content"><div className="product-card__meta"><span>{product.sku}</span><span>{product.category}</span></div><h3>{product.name}</h3><p>{product.description}</p>{product.variations.length > 0 && <div className="product-card__variations">{product.variations.map((group) => <span key={group.name}>{group.name}: {group.options.join(' / ')}</span>)}</div>}<div className="product-card__footer"><strong>{money.format(product.price)}</strong><button onClick={() => openPicker(product)}><Plus size={18}/> Escolher</button></div></div></article>)}</section>
       {!demo && <div ref={loadMoreRef} style={{height: 1}}/>}
       {(filterLoading || loadingMore) && <div className="empty-state"><p>Carregando produtos…</p></div>}
