@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, ArrowRight, Check, ChevronLeft, ChevronRight, Grid2X2, ImageOff, Minus, Plus, Search, ShoppingBag, Sparkles, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, ChevronLeft, ChevronRight, Grid2X2, ImageOff, Minus, Plus, Search, ShoppingBag, Sparkles, Heart, MessageCircle, Share2, X } from 'lucide-react'
 import { api } from './api'
 import { ProductGrade, getGradeGroups, type GradeLine } from './ShopvaxGrade'
 import { SHOPVAX_DEFAULT_ACCENT, shopvaxAccentTextColor, SVBrandSignature, SVRibbon, SVStamp, SVTag } from './ShopvaxDesignSystem'
@@ -49,6 +49,16 @@ function galleryFor(product: Product, selections: Record<string, string>) {
   return [...new Set(variant.length ? variant : base)]
 }
 
+function FeedCaption({ description }: { description: string }) {
+  const [expanded, setExpanded] = useState(false)
+  if (!description) return null
+  const expandable = description.length > 85
+  return <div className={`svx-feed-caption ${expanded ? 'is-expanded' : ''}`}>
+    <p>{description}</p>
+    {expandable && <button type="button" aria-expanded={expanded} onClick={() => setExpanded((current) => !current)}>{expanded ? 'Ver menos' : 'Mais'}</button>}
+  </div>
+}
+
 function ProductMedia({ product, className = '' }: { product: Product; className?: string }) {
   if (product.mediaType === 'video') return <video className={className} src={product.mediaUrl} autoPlay loop muted playsInline preload="metadata" />
   return <ResilientImage className={className} src={mediaUrl(product)} alt={product.name} />
@@ -64,6 +74,25 @@ export default function PublicStoreV2() {
   const [view, setView] = useState<ViewMode>('store')
   const [category, setCategory] = useState('Todos')
   const [query, setQuery] = useState('')
+  const [savedProducts, setSavedProducts] = useState<string[]>(() => {
+    try { const items = JSON.parse(localStorage.getItem(`shopvax-favorites-v1:${route.storeSlug}`) || '[]'); return Array.isArray(items) ? items.filter((id) => typeof id === 'string') : [] } catch { return [] }
+  })
+  const [feedNotice, setFeedNotice] = useState('')
+  const toggleSaved = (id: string) => setSavedProducts((items) => items.includes(id) ? items.filter((x) => x !== id) : [...items, id])
+  const shareProduct = async (product: Product) => {
+    const url = new URL(window.location.href)
+    url.searchParams.set('produto', product.id)
+    try {
+      if (navigator.share) await navigator.share({ title: product.name, text: `Veja ${product.name} na ${store?.name || 'loja'}`, url: url.toString() })
+      else { await navigator.clipboard.writeText(url.toString()); setFeedNotice('Link do produto copiado.') }
+    } catch { setFeedNotice('Não foi possível compartilhar agora.') }
+  }
+  const askProduct = (product: Product) => {
+    const phone = (seller?.phone || store?.whatsapp || '').replace(/\\D/g, '')
+    if (!phone) { setFeedNotice('A loja ainda não cadastrou atendimento por WhatsApp.'); return }
+    const message = `Olá! Tenho uma dúvida sobre ${product.name} (ref. ${product.sku || product.id}).`
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer')
+  }
   const [cartOpen, setCartOpen] = useState(false)
   const [picker, setPicker] = useState<Product | null>(null)
   const [pickerQty, setPickerQty] = useState(1)
@@ -116,6 +145,8 @@ export default function PublicStoreV2() {
   }, [route.storeSlug, route.sellerSlug])
 
   useEffect(() => { void loadFirst() }, [loadFirst])
+  useEffect(() => { localStorage.setItem(`shopvax-favorites-v1:${route.storeSlug}`, JSON.stringify(savedProducts)) }, [route.storeSlug, savedProducts])
+  useEffect(() => { if (!feedNotice) return; const timer = window.setTimeout(() => setFeedNotice(''), 2600); return () => window.clearTimeout(timer) }, [feedNotice])
   useEffect(() => { localStorage.setItem(cartStorageKey, JSON.stringify(cart)); window.dispatchEvent(new CustomEvent('shopvax:cart-change', { detail: { storeSlug: route.storeSlug } })) }, [cart, cartStorageKey, route.storeSlug])
 
   useEffect(() => {
@@ -279,13 +310,14 @@ export default function PublicStoreV2() {
       {(filterLoading || loadingMore) && <div className="empty-state"><p>Carregando produtos…</p></div>}
       {catalogError && <div className="empty-state"><p>{catalogError}</p></div>}
       <footer className="store-brand-signature"><SVBrandSignature /></footer>
-    </main> : <main className="feed-shell"><div className="feed-list">{products.map((product) => <article className="feed-card" key={product.id}><ProductMedia product={product}/><div className="feed-card__shade"/><div className="feed-card__top"><span>{product.category}</span><span>{product.sku}</span></div><div className="feed-card__actions"><button onClick={() => openPicker(product)}><Plus size={24}/></button></div><div className="feed-card__info"><span className="feed-card__seller">com {seller?.name || 'atendimento'}</span><h2>{product.name}</h2><p>{product.description}</p><div className="feed-card__buyline"><strong>{money.format(product.price)}</strong><button onClick={() => openPicker(product)}>Escolher quantidade <ChevronRight size={18}/></button></div></div></article>)}{!demo && <div ref={loadMoreRef}/>}</div></main>}
+    </main> : <main className="feed-shell"><div className="feed-list">{products.map((product) => <article className="feed-card" key={product.id}><ProductMedia product={product}/><div className="feed-card__shade"/><div className="feed-card__top"><span>{product.category}</span><span>{product.sku}</span></div><div className="feed-card__actions"><button aria-label={`Montar grade de ${product.name}`} onClick={() => openPicker(product)}><Plus size={24}/><span>GRADE</span></button><button type="button" aria-pressed={savedProducts.includes(product.id)} aria-label={savedProducts.includes(product.id) ? `Remover ${product.name} dos salvos` : `Salvar ${product.name}`} onClick={() => toggleSaved(product.id)}><Heart size={22} fill={savedProducts.includes(product.id) ? 'currentColor' : 'none'}/><span>SALVAR</span></button><button type="button" aria-label={`Compartilhar ${product.name}`} onClick={() => void shareProduct(product)}><Share2 size={22}/><span>ENVIAR</span></button><button type="button" aria-label={`Perguntar sobre ${product.name}`} onClick={() => askProduct(product)}><MessageCircle size={22}/><span>PERGUNTAR</span></button></div><div className="feed-card__info"><span className="feed-card__seller">com {seller?.name || 'atendimento'}</span><h2>{product.name}</h2><FeedCaption description={product.description}/><div className="feed-card__buyline"><strong>{money.format(product.price)}</strong><button onClick={() => openPicker(product)}>Escolher quantidade <ChevronRight size={18}/></button></div></div></article>)}{!demo && <div ref={loadMoreRef}/>}</div></main>}
 
     <div className={`drawer-backdrop ${cartOpen ? 'is-open' : ''}`} onClick={() => setCartOpen(false)}/>
     <aside className={`cart-drawer ${cartOpen ? 'is-open' : ''}`}><div className="cart-drawer__head"><div><small>Seu pedido</small><h2>Seu pedido</h2>{cartCount > 0 && <SVStamp>NA GRADE</SVStamp>}</div><button onClick={() => setCartOpen(false)} aria-label="Fechar carrinho"><X size={22}/></button></div><div className="cart-drawer__seller"><span>Talão digital · Atendimento atribuído</span><strong>{seller?.name || 'Atendimento'}</strong></div><div className="cart-items">{cart.length === 0 ? <div className="cart-empty"><ShoppingBag size={30}/><h3>Seu carrinho está vazio.</h3></div> : cart.map((item) => <div className="cart-item" key={item.key}><ResilientImage src={galleryFor(item.product, item.selections)[0] || mediaUrl(item.product)} alt={item.product.name}/><div className="cart-item__main"><span>{item.product.sku}</span><strong>{item.product.name}</strong><small>{Object.entries(item.selections).map(([k,v]) => `${k}: ${v}`).join(' · ')}</small><small>{money.format(item.product.price)} cada</small></div><div className="quantity-control"><button onClick={() => setCart((current) => current.map((x) => x.key === item.key ? {...x, quantity: Math.max(0, x.quantity - 1)} : x).filter((x) => x.quantity > 0))} aria-label={`Diminuir quantidade de ${item.product.name}`}><Minus size={14}/></button><b>{item.quantity}</b><button onClick={() => setCart((current) => current.map((x) => x.key === item.key ? {...x, quantity: x.quantity + 1} : x))} aria-label={`Aumentar quantidade de ${item.product.name}`}><Plus size={14}/></button></div></div>)}</div><div className="cart-drawer__foot"><div className="minimum-box"><div className="minimum-box__copy">{minimumReached ? <span className="minimum-ok"><Check size={15}/> Pedido mínimo atingido</span> : <span>Faltam {money.format(Math.max(0, minimum - cartTotal))}</span>}<strong>{money.format(cartTotal)} / {money.format(minimum)}</strong></div><div className="minimum-track"><span style={{width: `${minimumProgress}%`}}/></div></div><div className="cart-total"><span>Total dos produtos</span><strong>{money.format(cartTotal)}</strong></div>{error && <p className="form-error">{error}</p>}<button className="whatsapp-button" disabled={!minimumReached || !cart.length || sending} onClick={sendOrder}>{sending ? 'Preparando pedido…' : `Enviar pedido para ${seller?.name || 'atendimento'}`}<ArrowRight size={19}/></button></div></aside>
 
     {picker && <div className="picker-layer" role="dialog" aria-modal="true" aria-label={`Escolher ${picker.name}`}><button className="picker-layer__backdrop" onClick={() => setPicker(null)} aria-label="Fechar produto"/><section className="product-picker"><button className="product-picker__close" onClick={() => setPicker(null)} aria-label="Fechar"><X size={20}/></button><div className="product-picker__media product-gallery"><div className="product-gallery__stage">{picker.mediaType === 'video' && !pickerGallery.length ? <video src={picker.mediaUrl} controls playsInline/> : <ResilientImage src={pickerGallery[galleryIndex] || mediaUrl(picker)} alt={picker.name}/>} {pickerGallery.length > 1 && <><button className="product-gallery__prev" onClick={() => setGalleryIndex((i) => (i - 1 + pickerGallery.length) % pickerGallery.length)} aria-label="Foto anterior"><ChevronLeft size={20}/></button><button className="product-gallery__next" onClick={() => setGalleryIndex((i) => (i + 1) % pickerGallery.length)} aria-label="Próxima foto"><ChevronRight size={20}/></button></>}</div>{pickerGallery.length > 1 && <div className="product-gallery__thumbs">{pickerGallery.map((url, index) => <button key={url} className={index === galleryIndex ? 'is-active' : ''} onClick={() => setGalleryIndex(index)} aria-label={`Ver foto ${index + 1}`}><ResilientImage src={url} alt={`${picker.name} - foto ${index + 1}`}/></button>)}</div>}</div><div className="product-picker__body"><div className="product-picker__scroll"><div className="product-picker__meta"><span>{picker.sku}</span><span>{picker.category}</span></div><h2>{picker.name}</h2><p>{picker.description}</p><strong className="product-picker__price">{money.format(picker.price)}</strong>{getGradeGroups(picker) && <div className="svx-picker-modes" role="group" aria-label="Forma de comprar"><button type="button" aria-pressed={gradeMode} onClick={() => { setGradeMode(true); setError("") }}>Montar grade</button><button type="button" aria-pressed={!gradeMode} onClick={() => { setGradeMode(false); setError("") }}>Uma variação</button></div>}{gradeMode && getGradeGroups(picker) && <ProductGrade key={picker.id} product={picker} onAdd={addGradeLines} onError={setError}/>} {!gradeMode && picker.variations.map((group) => <div className="variant-group" key={group.name}><div><strong>{group.name}</strong><span>{pickerSelections[group.name] || 'Escolha uma opção'}</span></div><div className="variant-options">{group.options.map((option) => <button key={option} className={pickerSelections[group.name] === option ? 'is-active' : ''} onClick={() => { setPickerSelections((current) => ({...current, [group.name]: option})); setError('') }}>{option}</button>)}</div></div>)}{!gradeMode && <div className="picker-quantity"><div><strong>Quantidade</strong><span>{money.format(picker.price * pickerQty)}</span></div><div className="quantity-control quantity-control--large"><button onClick={() => setPickerQty((v) => Math.max(1, v - 1))} aria-label="Diminuir quantidade"><Minus size={16}/></button><b>{pickerQty}</b><button onClick={() => setPickerQty((v) => v + 1)} aria-label="Aumentar quantidade"><Plus size={16}/></button></div></div>}{error && <p className="form-error" role="alert">{error}</p>}</div>{!gradeMode && <div className="product-picker__footer"><button className="picker-add" onClick={confirmPicker}><ShoppingBag size={18}/><span className="picker-add__label">Adicionar {pickerQty} ao carrinho</span><strong className="picker-add__price">{money.format(picker.price * pickerQty)}</strong></button></div>}</div></section></div>}
 
+    {feedNotice && <div className="svx-feed-notice" role="status">{feedNotice}</div>}
     {view === 'store' && <button className="mobile-cart" onClick={() => setCartOpen(true)}><ShoppingBag size={18}/><span>{cartCount > 0 ? `${cartCount} itens · ${money.format(cartTotal)}` : 'Ver carrinho'}</span><ArrowLeft className="mobile-cart__arrow" size={17}/></button>}
   </div>
 }
