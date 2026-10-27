@@ -17,6 +17,17 @@ export function shopvaxPaletteName(accent: string) {
   return SHOPVAX_PALETTES.find((item) => item.accent.toLowerCase() === String(accent || '').toLowerCase())?.label || 'Personalizada'
 }
 
+/** Mantém contraste do acento personalizado sem alterar a escolha de cor do lojista. */
+export function shopvaxAccentTextColor(accent: string) {
+  if (!/^#[0-9a-fA-F]{6}$/.test(accent)) return '#161514'
+  const channels = [1, 3, 5].map((offset) => parseInt(accent.slice(offset, offset + 2), 16) / 255)
+  const linear = channels.map((v) => v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)
+  const luminance = linear[0] * 0.2126 + linear[1] * 0.7152 + linear[2] * 0.0722
+  const paperContrast = (0.871 + 0.05) / (luminance + 0.05)
+  const inkContrast = (luminance + 0.05) / (0.0075 + 0.05)
+  return paperContrast > inkContrast ? '#F3F0E8' : '#161514'
+}
+
 type SVButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: 'primary' | 'outline' | 'quiet'
   children: ReactNode
