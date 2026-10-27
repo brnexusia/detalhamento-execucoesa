@@ -135,15 +135,16 @@ try {
   response = await fetch(`${base}/api/public/store/${account.storeSlug}?sort=price_asc&limit=1`, { headers: sortedHeaders })
   assert.equal(response.status, 200)
   const lowPricePage = await response.json()
+  const visitorCookie = response.headers.get('set-cookie')?.split(';')[0] || ''
   assert.equal(lowPricePage.products[0].id, secondProduct.id, 'menor preço deve vir primeiro')
   assert.ok(lowPricePage.page.nextCursor)
-  response = await fetch(`${base}/api/public/store/${account.storeSlug}?sort=price_asc&limit=1&cursor=${encodeURIComponent(lowPricePage.page.nextCursor)}`, { headers: sortedHeaders })
+  response = await fetch(`${base}/api/public/store/${account.storeSlug}?sort=price_asc&limit=1&cursor=${encodeURIComponent(lowPricePage.page.nextCursor)}`, { headers: { ...sortedHeaders, cookie: visitorCookie } })
   assert.equal(response.status, 200)
   assert.equal((await response.json()).products[0].id, product.id, 'cursor deve seguir preço ascendente')
   response = await fetch(`${base}/api/public/store/${account.storeSlug}?sort=price_desc&limit=1`, { headers: sortedHeaders })
   assert.equal(response.status, 200)
   assert.equal((await response.json()).products[0].id, product.id, 'maior preço deve vir primeiro')
-  response = await fetch(`${base}/api/public/store/${account.storeSlug}?sort=price_desc&limit=1&cursor=${encodeURIComponent(lowPricePage.page.nextCursor)}`, { headers: sortedHeaders })
+  response = await fetch(`${base}/api/public/store/${account.storeSlug}?sort=price_desc&limit=1&cursor=${encodeURIComponent(lowPricePage.page.nextCursor)}`, { headers: { ...sortedHeaders, cookie: visitorCookie } })
   assert.equal(response.status, 400, 'cursor de outra ordenação deve ser rejeitado')
 
   response = await admin('/api/admin/products/bulk-delete', account.cookie, {
