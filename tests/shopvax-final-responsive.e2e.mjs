@@ -50,11 +50,11 @@ try {
   assert.equal(await page.locator('.feed-card__actions button').count(),8)
   await page.emulateMedia({reducedMotion:'reduce'})
   const motion=await page.evaluate(()=>{
-   const stamp=document.querySelector('.svx-ribbon')
+   const stamp=document.querySelector('.cart-trigger b')
    const feed=document.querySelector('.feed-list')
    return {ribbon:getComputedStyle(stamp).animationName,feed:getComputedStyle(feed).scrollSnapType}
   })
-  assert.equal(motion.ribbon,'none','Movimento reduzido deve desligar animação da fita')
+  assert.equal(motion.ribbon,'none','Movimento reduzido deve desligar animação do contador')
   assert.match(motion.feed,/y proximity/,'Rolagem reduzida mantém navegação livre')
   await page.locator('.cart-trigger').click()
   assert.match(await page.locator('.cart-drawer').innerText(),/Grena/)
