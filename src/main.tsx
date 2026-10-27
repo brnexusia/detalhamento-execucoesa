@@ -13,6 +13,7 @@ import './shopvax-onboarding.css'
 import './shopvax-product-operations.css'
 import './shopvax-orders.css'
 import './shopvax-feed-redesign.css'
+import './shopvax-final-motion.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
