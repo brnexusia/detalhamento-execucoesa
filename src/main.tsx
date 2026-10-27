@@ -8,8 +8,9 @@ import './product-picker-responsive.css'
 import './shopvax-brand.css'
 import './shopvax-commerce.css'
 import './shopvax-dashboard.css'
+import './shopvax-plans.css'
+import './shopvax-onboarding.css'
 import './shopvax-orders.css'
-import './shopvax-home.css'
 import './shopvax-feed-redesign.css'
 
 createRoot(document.getElementById('root')!).render(

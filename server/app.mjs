@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS stores (
   is_active boolean NOT NULL DEFAULT true,
   plan_tier text NOT NULL DEFAULT 'bronze',
   signup_plan_selected_at timestamptz,
+  onboarding_palette_selected boolean NOT NULL DEFAULT false,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
@@ -117,6 +118,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url text NOT NULL DEFAULT '';
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub_unique ON users(google_sub) WHERE google_sub IS NOT NULL;
 ALTER TABLE stores ADD COLUMN IF NOT EXISTS plan_tier text NOT NULL DEFAULT 'bronze';
 ALTER TABLE stores ADD COLUMN IF NOT EXISTS signup_plan_selected_at timestamptz;
+ALTER TABLE stores ADD COLUMN IF NOT EXISTS onboarding_palette_selected boolean NOT NULL DEFAULT false;
 `
 
 async function initDb() {
@@ -514,13 +516,14 @@ app.put(
     const whatsapp = digits(req.body?.whatsapp ?? store.whatsapp)
     const logoUrl = String(req.body?.logoUrl ?? store.logo_url).trim().slice(0, 1000)
     const accent = /^#[0-9a-fA-F]{6}$/.test(req.body?.accent || '') ? req.body.accent : store.accent
+    const paletteSelected = store.onboarding_palette_selected === true || req.body?.completePaletteSetup === true
 
     const updated = await pool.query(
       `UPDATE stores
-       SET slug=$1,name=$2,eyebrow=$3,tagline=$4,minimum_order=$5,whatsapp=$6,logo_url=$7,accent=$8,updated_at=now()
-       WHERE id=$9
+       SET slug=$1,name=$2,eyebrow=$3,tagline=$4,minimum_order=$5,whatsapp=$6,logo_url=$7,accent=$8,onboarding_palette_selected=$9,updated_at=now()
+       WHERE id=$10
        RETURNING *`,
-      [slug, name, eyebrow, tagline, minimumOrder, whatsapp, logoUrl, accent, store.id],
+      [slug, name, eyebrow, tagline, minimumOrder, whatsapp, logoUrl, accent, paletteSelected, store.id],
     )
     res.json({
       store: { ...updated.rows[0], minimum_order: Number(updated.rows[0].minimum_order) },
