@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, Check, ChevronLeft, ChevronRight, Grid2X2, ImageOff, Minus, Plus, Search, ShoppingBag, Sparkles, X } from 'lucide-react'
 import { api } from './api'
-import { SHOPVAX_DEFAULT_ACCENT, SVBrandSignature, SVRibbon, SVStamp, SVTag } from './ShopvaxDesignSystem'
+import { SHOPVAX_DEFAULT_ACCENT, shopvaxAccentTextColor, SVBrandSignature, SVRibbon, SVStamp, SVTag } from './ShopvaxDesignSystem'
 import { demoPayload } from './data'
 import type { CartItem, Product, PublicPayload } from './types'
 
@@ -229,7 +229,7 @@ export default function PublicStoreV2() {
 
   if (!payload) return <div className="store-loading"><span className="brand__mark">SV</span><strong>Abrindo a loja…</strong><p>Só um instante.</p></div>
 
-  return <div className={`app ${view === 'feed' ? 'app--feed' : ''}`} style={{ '--accent': store?.accent || SHOPVAX_DEFAULT_ACCENT } as React.CSSProperties}>
+  return <div className={`app ${view === 'feed' ? 'app--feed' : ''}`} style={{ '--accent': store?.accent || SHOPVAX_DEFAULT_ACCENT, '--svx-accent-text': shopvaxAccentTextColor(store?.accent || SHOPVAX_DEFAULT_ACCENT) } as React.CSSProperties}>
     <header className="topbar">
       <button className="brand" onClick={() => setView('store')}>{store?.logoUrl ? <img className="brand__logo" src={store.logoUrl} alt="" /> : <span className="brand__mark" aria-hidden="true">{(store?.name || 'L').slice(0, 1).toUpperCase()}</span>}<span className="brand__text"><strong>{store?.name}</strong><small>Catálogo de atacado</small></span></button>
       <nav className="view-switch"><button className={view === 'store' ? 'is-active' : ''} onClick={() => setView('store')}><Grid2X2 size={16}/> Loja</button><button className={view === 'feed' ? 'is-active' : ''} onClick={() => { setCategory('Todos'); setQuery(''); setView('feed') }}><Sparkles size={16}/> Feed</button></nav>
