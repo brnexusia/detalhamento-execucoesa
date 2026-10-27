@@ -25,7 +25,7 @@ try{
   await page.getByLabel('Ordenação dos produtos').selectOption('price_asc')
   await page.waitForFunction(()=>document.querySelector('.product-card h3')?.textContent?.includes('Peça Baixa'))
   assert.equal(requestSort,'price_asc')
-  const names=await page.locator('.product-card h3').allInnerTexts()
+  const names=(await page.locator('.product-card h3').allTextContents()).map(name=>name.trim())
   assert.deepEqual(names,['Peça Baixa','Peça Média','Peça Alta'])
   await page.getByLabel('Ordenação dos produtos').selectOption('price_desc')
   await page.waitForFunction(()=>document.querySelector('.product-card h3')?.textContent?.includes('Peça Alta'))
