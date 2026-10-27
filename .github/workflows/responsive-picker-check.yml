@@ -78,6 +78,14 @@ jobs:
         run: node tests/shopvax-catalog-sort.e2e.mjs
       - name: Final responsive and reduced-motion acceptance
         run: node tests/shopvax-final-responsive.e2e.mjs
+      - name: Visual evidence from final responsive acceptance
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shopvax-redesign-visual-evidence
+          path: artifacts/shopvax-redesign/*.png
+          if-no-files-found: ignore
+          retention-days: 14
       - name: Debug log
         if: failure()
         run: cat /tmp/vite.log || true
