@@ -54,7 +54,7 @@ body {
   gap: .7rem 1.25rem;
   padding: 10px 14px;
   background: var(--accent, var(--svx-orange));
-  color: var(--svx-ink);
+  color: var(--svx-accent-text, var(--svx-ink));
   font-family: var(--svx-font-mono);
   font-size: 10px;
   font-weight: 400;
@@ -100,6 +100,7 @@ body {
 .svx-tag--new {
   background: var(--accent, var(--svx-orange));
   border-color: var(--accent, var(--svx-orange));
+  color: var(--svx-accent-text, var(--svx-ink));
 }
 
 .svx-number {
@@ -134,7 +135,7 @@ body {
   transition: filter .16s ease, background-color .16s ease;
 }
 
-.svx-button--primary { background: var(--accent, var(--svx-orange)); color: var(--svx-ink); }
+.svx-button--primary { background: var(--accent, var(--svx-orange)); color: var(--svx-accent-text, var(--svx-ink)); }
 .svx-button--outline { background: transparent; color: var(--svx-ink); }
 .svx-button--quiet { border-color: transparent; background: transparent; color: var(--svx-ink); }
 .svx-button:hover:not(:disabled) { filter: brightness(.95); }
@@ -190,6 +191,7 @@ body {
 
 .app .brand__mark {
   background: var(--accent, var(--svx-orange));
+  color: var(--svx-accent-text, var(--svx-ink));
   border-color: var(--svx-ink);
   font-family: var(--svx-font-display);
   font-size: 20px;
@@ -267,7 +269,7 @@ body {
 .app .product-picker__meta,
 .app .minimum-inline span { font-family: var(--svx-font-mono); }
 
-.app .product-card__flag { background: var(--accent, var(--svx-orange)); color: var(--svx-ink); }
+.app .product-card__flag { background: var(--accent, var(--svx-orange)); color: var(--svx-accent-text, var(--svx-ink)); }
 
 .app .product-card__footer strong { font-family: var(--svx-font-display); font-weight: 700; }
 
