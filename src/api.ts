@@ -151,7 +151,7 @@ export const api = {
     return request<PublicPayload>(`/api/public/store/${encodeURIComponent(storeSlug)}${sellerSlug ? `/${encodeURIComponent(sellerSlug)}` : ''}${query ? `?${query}` : ''}`)
   },
   track: (body: { storeSlug: string; sellerSlug?: string; kind: 'view' | 'cart' | 'whatsapp' }) => request<void>('/api/public/events', { method: 'POST', body: JSON.stringify(body) }).catch(() => undefined),
-  createOrder: (body: { storeSlug: string; sellerSlug?: string; catalogSlug?: string; items: Array<{ productId: string; quantity: number; selections: Record<string, string> }> }) => request<{ code: string; orderId?: string; catalog?: Catalog; whatsappUrl: string }>('/api/business/orders', { method: 'POST', body: JSON.stringify({ ...body, catalogSlug: body.catalogSlug ?? currentCatalogSlug() }) }),
+  createOrder: (body: { storeSlug: string; sellerSlug?: string; catalogSlug?: string; buyer?: { name?: string; city?: string; cep?: string; phone?: string }; notes?: string; items: Array<{ productId: string; quantity: number; selections: Record<string, string> }> }) => request<{ code: string; orderId?: string; catalog?: Catalog; whatsappUrl: string }>('/api/business/orders', { method: 'POST', body: JSON.stringify({ ...body, catalogSlug: body.catalogSlug ?? currentCatalogSlug() }) }),
   login: (body: { email: string; password: string }) => request<{ ok: true }>('/api/auth/login', { method: 'POST', body: JSON.stringify(body) }),
   googleConfig: () => request<{ enabled: boolean; clientId: string | null }>('/api/public/auth/google-config'),
   googleAuth: (body: GoogleAuthBody) => googleAuthRequest(body),
