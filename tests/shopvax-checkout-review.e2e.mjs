@@ -11,7 +11,9 @@ try{
   let created=null
   await page.route('**/api/public/store/**',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(payload)}))
   await page.route('**/api/public/events',route=>route.fulfill({status:204,body:''}))
-  await page.route('**/api/business/orders',route=>{created=route.request().postDataJSON();return route.fulfill({status:201,contentType:'application/json',body:JSON.stringify({orderId:'order-review-01',code:'AS-001',whatsappUrl:'https://wa.me/5571999999999?text=teste'})})})
+  await context.route('**/api/business/orders**',route=>{created=route.request().postDataJSON();return route.fulfill({status:201,contentType:'application/json',body:JSON.stringify({orderId:'order-review-01',code:'AS-001',whatsappUrl:'https://wa.me/5571999999999?text=teste'})})})
+  page.on('request',req=>{if(req.method()==='POST')console.log('REQUEST_DEBUG',req.url())})
+  page.on('response',res=>{if(res.request().method()==='POST')console.log('RESPONSE_DEBUG',res.url(),res.status())})
   await context.route('https://wa.me/**',route=>route.fulfill({status:200,body:'ok'}))
   await page.goto('http://127.0.0.1:5173/sw-moda')
   await page.locator('.product-card__media').first().click()
