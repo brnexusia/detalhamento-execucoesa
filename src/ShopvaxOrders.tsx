@@ -23,7 +23,7 @@ export function orderWhatsAppText(order: AdminOrder, storeName: string, sellerNa
 }
 
 type Props = { data: AdminBootstrap; onUpdated: () => void | Promise<void> }
-const allowed = ['whatsapp','em_atendimento','confirmado','arquivado']
+const allowed = ['whatsapp','em_atendimento','confirmado','arquivado'] as const
 
 export default function ShopvaxOrders({data,onUpdated}: Props) {
   const [query,setQuery] = useState('')
@@ -46,7 +46,7 @@ export default function ShopvaxOrders({data,onUpdated}: Props) {
     if (!allowed.includes(next) || next===order.status || busy) return
     setError(''); setBusy(order.id)
     try {
-      await api.updateOrderStatus(order.id,next)
+      await api.updateOrderStatus(order.id,next as typeof allowed[number])
       await onUpdated()
       setNotice(`Talão ${order.code}: ${statusText[next]}.`)
     } catch(err){ setError(err instanceof Error?err.message:'Não foi possível atualizar o pedido.') }
