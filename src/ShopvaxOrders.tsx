@@ -43,7 +43,7 @@ export default function ShopvaxOrders({data,onUpdated}: Props) {
   }).sort((a,b)=>Date.parse(b.created_at)-Date.parse(a.created_at))
   const active = data.orders.find(o=>o.id===selected) || null
   const update = async (order: AdminOrder, next: string) => {
-    if (!allowed.includes(next) || next===order.status || busy) return
+    if (!(allowed as readonly string[]).includes(next) || next===order.status || busy) return
     setError(''); setBusy(order.id)
     try {
       await api.updateOrderStatus(order.id,next as typeof allowed[number])
