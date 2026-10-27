@@ -139,5 +139,5 @@
 }
 .app--feed .feed-card { min-height:100%; height:100%; scroll-snap-align:start; scroll-snap-stop:always; }
 @media (prefers-reduced-motion:reduce) {
-  .app--feed .feed-list { scroll-snap-type:y proximity !important; scroll-behavior:auto !important; }
+  .app--feed .feed-list { scroll-snap-type:none !important; scroll-behavior:auto !important; }
 }
