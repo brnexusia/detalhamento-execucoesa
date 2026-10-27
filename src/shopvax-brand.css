@@ -34,7 +34,7 @@ body {
 }
 
 html body .app, html body .panel-shell, html body .home-shell, html body .auth-shell {
-  font-family: var(--svx-font-body) !important;
+  font-family: 'Archivo', Arial, sans-serif !important;
 }
 
 .app h1, .app h2, .app h3, .app h4,
