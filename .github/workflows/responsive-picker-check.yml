@@ -27,7 +27,7 @@ jobs:
           node-version: 22
       - run: npm install --no-audit --no-fund
       - run: npm install --no-save --no-audit --no-fund playwright@1.58.2
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install chromium
       - run: npm run build
       - name: Serve the application
         run: |
