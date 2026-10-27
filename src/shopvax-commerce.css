@@ -96,6 +96,18 @@
 @media(max-width:360px){.svx-discovery__rail{grid-auto-columns:minmax(130px,65%)}.svx-vitrine__actions>button{flex-basis:100%;min-height:40px}}
 @media(prefers-reduced-motion:reduce){.svx-discovery__rail{scroll-behavior:auto}}
 
+/* Catálogo oficial: ordenação de toda a coleção, não só das peças carregadas. */
+.app .catalog-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:9px;}
+.app .svx-catalog-sort{display:flex;align-items:center;gap:8px;border:1px solid #D9D3C6;background:#FCFAF5;padding:7px 10px;min-height:41px;}
+.app .svx-catalog-sort span{color:#6B665C;font:400 10px var(--svx-font-mono,monospace);white-space:nowrap;}
+.app .svx-catalog-sort select{border:0;background:transparent;font:700 12px var(--svx-font-body,'Archivo',sans-serif);min-width:0;max-width:165px;padding:4px;color:#161514;cursor:pointer;}
+.app .svx-catalog-sort select:focus-visible{outline:2px solid #2D2A8C;}
+.app .svx-catalog-empty{display:grid;gap:10px;justify-items:start;padding:clamp(22px,4vw,55px);max-width:1280px;margin:auto;border:1px dashed #D9D3C6;background:#FCFAF5;}
+.app .svx-catalog-empty h3{font:700 35px/.9 var(--svx-font-display,'Archivo Narrow',sans-serif);text-transform:uppercase;margin:0;}
+.app .svx-catalog-empty p{color:#6B665C;font-size:12px;line-height:1.5;margin:0;}
+.app .svx-catalog-empty button{border:1px solid #161514;padding:10px 15px;background:#F25C05;color:#161514;cursor:pointer;font-weight:700;}
+@media(max-width:760px){.app .svx-catalog-sort{flex:1 1 170px;justify-content:space-between;}.app .minimum-inline{flex:1 1 140px;}}
+
 /* Prancha 03 — revisão do talão, antes da abertura do WhatsApp. */
 .svx-review-layer{position:fixed;inset:0;z-index:160;display:grid;place-items:center;padding:max(8px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));}
 .svx-review-layer__backdrop{position:absolute;inset:0;background:rgba(0,0,0,.75);border:0;cursor:default;}
