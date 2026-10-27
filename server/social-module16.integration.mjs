@@ -13,8 +13,10 @@ for (const file of files) {
 }
 
 const store = await fs.readFile('src/PublicStoreV2.tsx', 'utf8')
-if (!store.includes('<small>via Shopvax</small>')) throw new Error('Loja pública não exibe Shopvax.')
-if (!store.includes('brand__mark">SV</span>')) throw new Error('Loja pública não usa o monograma SV.')
+// O redesign mantém Shopvax como assinatura discreta e promove a marca da loja.
+if (!store.includes('<SVBrandSignature />') || !store.includes('store-brand-signature')) throw new Error('Loja pública não exibe assinatura Shopvax.')
+if (!store.includes('brand__mark') || !store.includes("(store?.name || 'L').slice(0, 1).toUpperCase()")) throw new Error('Loja pública não usa a identidade própria da loja.')
+if (!store.includes('<strong>{store?.name}</strong>')) throw new Error('Nome da loja deixou de ser protagonista no cabeçalho.')
 
 const admin = await fs.readFile('src/AdminApp.tsx', 'utf8')
 if (!admin.includes('<strong>Shopvax</strong>')) throw new Error('Painel do lojista não exibe Shopvax.')

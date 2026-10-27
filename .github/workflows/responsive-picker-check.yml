@@ -11,6 +11,9 @@ on:
       - 'src/styles.css'
       - 'src/main.tsx'
       - 'tests/product-picker-responsive.e2e.mjs'
+      - 'tests/brand-phase1.e2e.mjs'
+      - 'src/shopvax-brand.css'
+      - 'src/ShopvaxDesignSystem.tsx'
       - '.github/workflows/responsive-picker-check.yml'
   workflow_dispatch:
 
@@ -24,7 +27,7 @@ jobs:
           node-version: 22
       - run: npm install --no-audit --no-fund
       - run: npm install --no-save --no-audit --no-fund playwright@1.58.2
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install chromium
       - run: npm run build
       - name: Serve the application
         run: |
@@ -37,6 +40,8 @@ jobs:
           exit 1
       - name: Browser regression across viewport sizes
         run: node tests/product-picker-responsive.e2e.mjs
+      - name: Brand foundation regression across stores
+        run: node tests/brand-phase1.e2e.mjs
       - name: Debug log
         if: failure()
         run: cat /tmp/vite.log || true

@@ -92,7 +92,7 @@ assert.match(catalogPdf, /gerado via shopvax/)
 assert.match(catalogPdf, /fit: \[imageW, imageH\]/)
 
 const storeCss = read('src/styles.css')
-assert.match(storeCss, /\.product-card__media img \{ width: 100%; height: 100%; object-fit: cover;/)
+assert.match(storeCss, /\.product-card__media img \{ width: 100%; height: 100%; object-fit: contain;/, 'a loja deve preservar a proporção original da foto, sem recorte')
 const socialCss = read('src/social-feed.css')
 assert.match(socialCss, /\.social-feed-media img,\.social-feed-media video\{object-fit:cover\}/)
 
