@@ -69,7 +69,11 @@ assert.match(frame, /Shopvax/)
 assert.doesNotMatch(frame, /Atacado Shop/)
 
 const home = read('src/Home.tsx')
-assert.match(home, /Bronze, Prata ou Ouro/)
+assert.match(home, /<ShopvaxPlans/)
+const planUi = read('src/ShopvaxPlans.tsx')
+assert.match(planUi, /Escolha o tamanho do seu atacado/)
+assert.match(planUi, /sellerLimit/)
+assert.match(planUi, /photoLimit/)
 assert.match(home, /\/api\/public\/plans/)
 
 const publicStore = read('src/PublicStoreV2.tsx')
