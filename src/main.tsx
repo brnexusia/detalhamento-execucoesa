@@ -8,6 +8,7 @@ import './product-picker-responsive.css'
 import './shopvax-brand.css'
 import './shopvax-commerce.css'
 import './shopvax-dashboard.css'
+import './shopvax-plans.css'
 import './shopvax-orders.css'
 import './shopvax-feed-redesign.css'
 
