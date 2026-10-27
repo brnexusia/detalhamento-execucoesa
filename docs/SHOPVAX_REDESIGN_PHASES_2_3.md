@@ -27,6 +27,18 @@
 
 A identidade base foi estabelecida pela Fase 1 (#56). Tipografia, faixas, carimbos, etiquetas, laranja de ação, fundo papel e assinatura Shopvax devem ser reutilizados; loja e vendedora continuam protagonistas.
 
+## Fechamento dos módulos 12–14
+
+| Módulo | Entrega implementada | Evidência |
+|---|---|---|
+| 12 — Responsividade | Vitrine, feed, grade, talão e painel responsivos; suportes de telas estreitas e paisagem; scroll-snap do feed em iOS com rolagem vertical e sem ocultar opções/CTAs | PR #73; `tests/product-picker-responsive.e2e.mjs` (19 tamanhos) e `tests/shopvax-final-responsive.e2e.mjs` (5 tamanhos) |
+| 13 — Movimento | Entrada editorial, fita, carimbo, contador e feedback dos botões; media query de `prefers-reduced-motion` desliga animações e encaixe forçado do feed | PR #73; `src/shopvax-final-motion.css` e E2E reduzido |
+| 14 — Homologação técnica | Build, navegação de loja/grade/feed/talão, APIs e testes de cinco fases. Seis capturas de vitrine, feed e talão produzidas pelo GitHub Actions | PR #73; [evidência visual da execução](https://github.com/brnexusia/detalhamento-execucoesa/actions/runs/40576315086/artifacts/12767990446) (retenção temporária) |
+
+**Fechamento do código:** todos os módulos 00–14 possuem implementação no `main`. A validação de navegador do PR #73 passou para 320×568, 390×844, 720×320 (paisagem), 1024×768 e 1440×900; a suíte `validate`, incluindo importador de 50 mil itens, e as fases 1–5 passaram no PR. O merge final do movimento é `f2f12f68baa07e91a748bfd58655347d6f47f513`.
+
+**Limite da homologação:** as imagens são evidência de execução da interface, **não uma comparação automática de fidelidade visual/pixel a pixel** com o ZIP. A verificação manual contra as nove pranchas e a validação do domínio de produção continuam fora do que foi comprovado.
+
 ## Contratos de funcionamento preservados
 
 - **Multiloja e autorização:** pedidos, vendedoras e produtos permanecem vinculados à loja; a API autenticada não publica dados privados do comprador.
@@ -37,6 +49,8 @@ A identidade base foi estabelecida pela Fase 1 (#56). Tipografia, faixas, carimb
 - **Responsividade:** CTAs de compra, grade, carrinho e revisão continuam visíveis/roláveis em dispositivos estreitos. Modais não devem impedir o acesso aos botões inferiores.
 
 ## Regressões e evidência automatizada
+
+- `tests/shopvax-final-responsive.e2e.mjs` — vitrine → grade → feed → talão, cinco viewports, movimento reduzido, seis capturas.
 
 - `tests/product-picker-responsive.e2e.mjs` — produtos e ações em 19 viewports.
 - `tests/brand-phase1.e2e.mjs` — quatro paletas/marcas e carrinho.
