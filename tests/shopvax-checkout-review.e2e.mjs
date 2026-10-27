@@ -9,6 +9,10 @@ try{
   const context=await browser.newContext({viewport:{width,height},permissions:['clipboard-read','clipboard-write']})
   const page=await context.newPage()
   let created=null
+  page.on('request',request => {if(request.url().includes('/api/'))console.log('API_REQUEST',request.method(),request.url())})
+  page.on('requestfailed',request=>console.log('REQUEST_FAILED',request.url(),request.failure()))
+  page.on('pageerror',error=>console.log('PAGE_ERROR',error.message))
+  page.on('console',message=>{if(message.type()==='error')console.log('BROWSER_CONSOLE_ERROR',message.text())})
   await page.route('**/api/public/store/**',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(payload)}))
   await page.route('**/api/public/events',route=>route.fulfill({status:204,body:''}))
   await context.route('**/api/business/orders**',route=>{created=route.request().postDataJSON();return route.fulfill({status:201,contentType:'application/json',body:JSON.stringify({orderId:'order-review-01',code:'AS-001',whatsappUrl:'https://wa.me/5571999999999?text=teste'})})})
