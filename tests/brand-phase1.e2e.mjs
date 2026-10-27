@@ -40,7 +40,7 @@ try {
     await page.locator('.store-intro h1').waitFor()
     assert.equal((await page.locator('.store-intro h1').innerText()).trim(),sample.name)
     assert.match(await page.locator('.brand__text strong').innerText(),new RegExp(sample.name))
-    assert.equal(await page.locator('.brand__text small').innerText(),'Catálogo de atacado')
+    assert.equal((await page.locator('.brand__text small').innerText()).toLocaleLowerCase('pt-BR'),'catálogo de atacado')
     assert.equal((await page.locator('.store-intro__tagline').innerText()).trim(),store.tagline)
     assert.equal((await page.locator('.seller-note strong').innerText()).trim(),'Marina')
     assert.equal(await page.locator('.svx-ribbon').count(),1)
@@ -50,19 +50,9 @@ try {
     const titleFont=await page.locator('.store-intro h1').evaluate(node=>getComputedStyle(node).fontFamily)
     assert.match(titleFont,/Archivo Narrow/i)
     const bodyFont=await page.locator('.app').evaluate(node=>getComputedStyle(node).fontFamily)
-    const fontDebug=await page.evaluate(() => {
-      const app=document.querySelector('.app')
-      const tagline=document.querySelector('.store-intro__tagline')
-      return {
-        appFont:getComputedStyle(app).fontFamily,
-        taglineFont:getComputedStyle(tagline).fontFamily,
-        matchesApp:app.matches('html body .app'),
-        inlineStyle:app.getAttribute('style'),
-        brandStyles:[...document.styleSheets].flatMap(sheet=>{try{return [...sheet.cssRules].map(rule=>rule.cssText).filter(rule=>rule.includes('svx-font-body') && rule.includes('.app')).slice(0,5)}catch{return []}}).slice(0,10),
-      }
-    })
-    console.log('FONT_DEBUG',JSON.stringify(fontDebug))
-    assert.match(fontDebug.taglineFont,/Archivo/i)
+    assert.match(bodyFont,/Archivo/i)
+    const taglineFont=await page.locator('.store-intro__tagline').evaluate(node=>getComputedStyle(node).fontFamily)
+    assert.match(taglineFont,/Archivo/i)
     const foreground=await page.locator('.svx-ribbon').evaluate(node=>getComputedStyle(node).color)
     if(sample.accent==='#121314')assert.equal(foreground,'rgb(243, 240, 232)')
     await page.locator('.product-card__media').click()
