@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { ArrowRight, Boxes, Check, ChevronLeft, ChevronRight, Clipboard, CreditCard, Download, Eye, EyeOff, ExternalLink, ImagePlus, Link2, LogOut, Menu, Package, Pencil, Plus, ReceiptText, Search, Settings, Store as StoreIcon, Trash2, TrendingUp, Upload, Users, X } from 'lucide-react'
 import { api } from './api'
 import ShopvaxDashboard from './ShopvaxDashboard'
+import ShopvaxOrders from './ShopvaxOrders'
 import { SHOPVAX_PALETTES, shopvaxPaletteName } from './ShopvaxDesignSystem'
 import AdminNavigation from './AdminNavigation'
 import CommercialSettingsPanel from './CommercialSettingsPanel'
@@ -138,7 +139,7 @@ export default function AdminApp() {
         {error && <div className="panel-error">{error}</div>}
         {section === 'inicio' && <Dashboard data={data} incomplete={incomplete} storeUrl={storeUrl} onSection={changeSection} onCopy={copy} />}
         {section === 'produtos' && <Products data={data} query={query} setQuery={setQuery} onCreate={() => setProductModal({ ...blankProduct })} onEdit={(product) => setProductModal(productDraft(product))} onVisibility={async (product) => { await api.setProductVisibility(product.id, !product.active); flash(product.active ? 'Produto escondido da loja e do feed.' : 'Produto publicado novamente.'); await load() }} onDelete={async (product) => { if (!(await confirmAction(`Excluir ${product.name}? Esta ação não pode ser desfeita.`, 'Excluir produto', 'Excluir'))) return; await api.deleteProduct(product.id); flash('Produto excluído.'); load() }} onBulkDelete={deleteProductsBulk} onDownloadPdf={downloadProductsPdf} />}
-        {section === 'pedidos' && <Orders data={data} />}
+        {section === 'pedidos' && <Orders data={data} onUpdated={load} />}
         {section === 'vendedoras' && <Sellers data={data} baseUrl={baseUrl} onCopy={copy} onCreate={() => setSellerModal({ name: '', phone: '', slug: '', is_active: true })} onEdit={(seller) => setSellerModal({ ...seller })} onDelete={async (seller) => { if (!(await confirmAction(`Excluir ${seller.name}? O link individual deixará de funcionar.`, 'Excluir vendedora', 'Excluir'))) return; await api.deleteSeller(seller.id); flash('Vendedora excluída.'); load() }} />}
         {section === 'loja' && <><StoreSettings data={data} onSaved={() => { flash('Loja atualizada.'); load() }} onCopy={copy} onDirtyChange={setStoreDirty} /><CommercialSettingsPanel embedded/><StoreTools data={data}/></>}
       </main>
@@ -208,25 +209,8 @@ function Products({ data, query, setQuery, onCreate, onEdit, onVisibility, onDel
   </div>
 }
 
-function Orders({ data }: { data: AdminBootstrap }) {
-  const [query, setQuery] = useState('')
-  const [status, setStatus] = useState('all')
-  const [period, setPeriod] = useState('30')
-  const sellerName = (id?: string | null) => data.sellers.find((seller) => seller.id === id)?.name || 'Loja'
-  const statusLabel = (value: string) => ({ whatsapp: 'Enviado ao WhatsApp', em_atendimento: 'Em atendimento', confirmado: 'Venda confirmada', cancelled: 'Cancelado', arquivado: 'Arquivado' } as Record<string, string>)[value] || value
-  const statuses = Array.from(new Set(data.orders.map((order) => order.status))).filter(Boolean)
-  const since = period === 'all' ? 0 : Date.now() - Number(period) * 86400000
-  const filtered = data.orders.filter((order) => {
-    const text = `${order.code} ${sellerName(order.seller_id)}`.toLowerCase()
-    return (!query.trim() || text.includes(query.trim().toLowerCase()))
-      && (status === 'all' || order.status === status)
-      && (!since || new Date(order.created_at).getTime() >= since)
-  })
-  return <div className="panel-page"><div className="page-title"><div><span>WhatsApp</span><h1>Pedidos</h1><p>Pedidos registrados quando o cliente envia o carrinho para atendimento.</p></div></div>
-    <div className="orders-filters"><label><Search size={16}/><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar pedido ou vendedora"/></label><select value={status} onChange={(e) => setStatus(e.target.value)}><option value="all">Todos os status</option>{statuses.map((item) => <option key={item} value={item}>{statusLabel(item)}</option>)}</select><select value={period} onChange={(e) => setPeriod(e.target.value)}><option value="7">Últimos 7 dias</option><option value="30">Últimos 30 dias</option><option value="all">Todo o período</option></select><span>{countLabel(filtered.length, 'pedido')}</span></div>
-    <div className="orders-table"><div className="orders-table__head"><span>Pedido</span><span>Vendedora</span><span>Itens</span><span>Quando</span><span>Status</span><span>Total</span></div>{filtered.map((order) => <div className="orders-table__row" key={order.id}><strong>{order.code}</strong><span>{sellerName(order.seller_id)}</span><span>{order.items.reduce((sum, item) => sum + item.quantity, 0)} un.</span><span>{date.format(new Date(order.created_at))}</span><span>{statusLabel(order.status)}</span><b>{money.format(order.total)}</b></div>)}</div>
-    {!filtered.length && <div className="admin-empty"><ReceiptText size={30} /><h2>{data.orders.length ? 'Nenhum pedido neste filtro.' : 'Nenhum pedido ainda.'}</h2><p>{data.orders.length ? 'Ajuste a busca, o status ou o período.' : 'Quando o cliente enviar o carrinho para o WhatsApp, ele fica registrado aqui.'}</p></div>}
-  </div>
+function Orders({ data, onUpdated }: { data: AdminBootstrap; onUpdated: () => void | Promise<void> }) {
+  return <ShopvaxOrders data={data} onUpdated={onUpdated}/>
 }
 
 function Sellers({ data, baseUrl, onCopy, onCreate, onEdit, onDelete }: { data: AdminBootstrap; baseUrl: string; onCopy: (value: string) => void; onCreate: () => void; onEdit: (seller: AdminSeller) => void; onDelete: (seller: AdminSeller) => void }) {
