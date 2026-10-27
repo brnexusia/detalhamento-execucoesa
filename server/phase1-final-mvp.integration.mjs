@@ -44,6 +44,15 @@ async function register() {
 try {
   await waitForServer()
   const account = await register()
+  let onboarding = await request('/api/admin/bootstrap', { cookie: account.cookie })
+  assert.equal(onboarding.response.status, 200)
+  assert.equal(onboarding.payload.store.onboarding_palette_selected, false, 'loja nova deve poder escolher a paleta')
+  const selected = await request('/api/admin/store', { method: 'PUT', cookie: account.cookie, body: { accent: '#E6B91F', completePaletteSetup: true } })
+  assert.equal(selected.response.status, 200)
+  assert.equal(selected.payload.store.onboarding_palette_selected, true)
+  onboarding = await request('/api/admin/bootstrap', { cookie: account.cookie })
+  assert.equal(onboarding.payload.store.onboarding_palette_selected, true)
+  assert.equal(onboarding.payload.store.accent, '#E6B91F')
 
   let result = await request('/api/admin/plan-context', { cookie: account.cookie })
   assert.equal(result.response.status, 200)
