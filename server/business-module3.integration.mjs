@@ -131,6 +131,21 @@ try {
   assert.equal(response.status, 201)
   const secondProduct = (await response.json()).product
 
+  const sortedHeaders = { 'User-Agent': 'Mozilla/5.0 BusinessCatalogSort', 'X-Forwarded-For': '203.0.113.76' }
+  response = await fetch(`${base}/api/public/store/${account.storeSlug}?sort=price_asc&limit=1`, { headers: sortedHeaders })
+  assert.equal(response.status, 200)
+  const lowPricePage = await response.json()
+  assert.equal(lowPricePage.products[0].id, secondProduct.id, 'menor preço deve vir primeiro')
+  assert.ok(lowPricePage.page.nextCursor)
+  response = await fetch(`${base}/api/public/store/${account.storeSlug}?sort=price_asc&limit=1&cursor=${encodeURIComponent(lowPricePage.page.nextCursor)}`, { headers: sortedHeaders })
+  assert.equal(response.status, 200)
+  assert.equal((await response.json()).products[0].id, product.id, 'cursor deve seguir preço ascendente')
+  response = await fetch(`${base}/api/public/store/${account.storeSlug}?sort=price_desc&limit=1`, { headers: sortedHeaders })
+  assert.equal(response.status, 200)
+  assert.equal((await response.json()).products[0].id, product.id, 'maior preço deve vir primeiro')
+  response = await fetch(`${base}/api/public/store/${account.storeSlug}?sort=price_desc&limit=1&cursor=${encodeURIComponent(lowPricePage.page.nextCursor)}`, { headers: sortedHeaders })
+  assert.equal(response.status, 400, 'cursor de outra ordenação deve ser rejeitado')
+
   response = await admin('/api/admin/products/bulk-delete', account.cookie, {
     method: 'POST',
     body: JSON.stringify({ ids: [product.id, secondProduct.id, 'produto-de-outra-loja-inexistente'] }),
