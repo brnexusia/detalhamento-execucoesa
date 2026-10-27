@@ -219,6 +219,23 @@ export default function PublicStoreV2() {
     setPicker(null)
   }
 
+  const addGradeLines = (lines: GradeLine[]) => {
+    if (!picker || !lines.length) return
+    setCart((current) => {
+      const next = [...current]
+      for (const line of lines) {
+        const key = cartKey(picker, line.selections)
+        const idx = next.findIndex((item) => item.key === key)
+        if (idx >= 0) next[idx] = { ...next[idx], quantity: next[idx].quantity + line.quantity }
+        else next.push({ key, product: picker, quantity: line.quantity, selections: line.selections })
+      }
+      return next
+    })
+    api.track({ storeSlug: route.storeSlug, sellerSlug: route.sellerSlug, kind: 'cart' })
+    setError('')
+    setPicker(null)
+  }
+
   const sendOrder = async () => {
     if (!store || !minimumReached || !cart.length || sending) return
     setSending(true); setError('')
