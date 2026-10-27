@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowRight, Check, ChevronLeft, ChevronRight, Grid2X2, Image
 import { api } from './api'
 import { ProductGrade, getGradeGroups, type GradeLine } from './ShopvaxGrade'
 import ShopvaxCheckoutReview, { type CheckoutBuyer } from './ShopvaxCheckoutReview'
+import ShopvaxOrderReady from './ShopvaxOrderReady'
 import { SHOPVAX_DEFAULT_ACCENT, shopvaxAccentTextColor, SVBrandSignature, SVRibbon, SVStamp, SVTag } from './ShopvaxDesignSystem'
 import { demoPayload } from './data'
 import type { CartItem, Product, PublicPayload } from './types'
@@ -101,7 +102,8 @@ export default function PublicStoreV2() {
   const [galleryIndex, setGalleryIndex] = useState(0)
   const [sending, setSending] = useState(false)
   const [reviewOpen, setReviewOpen] = useState(false)
-  const preparedOrderRef = useRef<{ signature: string; url: string } | null>(null)
+  const preparedOrderRef = useRef<{ signature: string; url: string; code: string } | null>(null)
+  const [readyOrder, setReadyOrder] = useState<{ code: string; url: string } | null>(null)
   const [error, setError] = useState('')
   const [catalogError, setCatalogError] = useState('')
   const [loadingMore, setLoadingMore] = useState(false)
@@ -271,33 +273,37 @@ export default function PublicStoreV2() {
 
   const sendOrder = async (buyer: CheckoutBuyer, notes: string) => {
     if (!store || !minimumReached || !cart.length || sending || demo) return
-    const signature = JSON.stringify(cart.map(item => ({ id:item.product.id, quantity:item.quantity, selections:item.selections })))
+    const signature = JSON.stringify({
+      store: route.storeSlug,
+      seller: route.sellerSlug || '',
+      items: cart.map(item => ({ id: item.product.id, quantity: item.quantity, selections: item.selections })),
+      buyer, notes,
+    })
     const previous = preparedOrderRef.current
     if (previous?.signature === signature) {
-      window.open(previous.url, '_blank', 'noopener,noreferrer')
+      setReadyOrder({ code: previous.code, url: previous.url })
       setReviewOpen(false)
+      setCartOpen(false)
       return
     }
-    // Abre no evento de clique para não bloquear o WhatsApp no iPhone/Safari.
-    const destination = window.open('about:blank','_blank')
-    if (destination) destination.opener = null
-    setSending(true); setError('')
+    setSending(true)
+    setError('')
     try {
       const result = await api.createOrder({
         storeSlug: route.storeSlug,
         sellerSlug: route.sellerSlug,
-        items: cart.map((item) => ({ productId:item.product.id, quantity:item.quantity, selections:item.selections })),
+        items: cart.map(item => ({ productId: item.product.id, quantity: item.quantity, selections: item.selections })),
         buyer, notes,
       })
-      preparedOrderRef.current = { signature, url: result.whatsappUrl }
+      preparedOrderRef.current = { signature, url: result.whatsappUrl, code: result.code }
+      setReadyOrder({ code: result.code, url: result.whatsappUrl })
       setReviewOpen(false)
       setCartOpen(false)
-      if (destination && !destination.closed) destination.location.replace(result.whatsappUrl)
-      else window.location.assign(result.whatsappUrl)
     } catch (err) {
-      if (destination && !destination.closed) destination.close()
       setError(err instanceof Error ? err.message : 'Não foi possível preparar o pedido.')
-    } finally { setSending(false) }
+    } finally {
+      setSending(false)
+    }
   }
 
   if (!payload) return <div className="store-loading"><span className="brand__mark">SV</span><strong>Abrindo a loja…</strong><p>Só um instante.</p></div>
@@ -327,7 +333,7 @@ export default function PublicStoreV2() {
       <section className="catalog-toolbar"><label className="search-box"><Search size={18}/><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar produto ou referência" /></label><div className="minimum-inline"><span>Pedido mínimo</span><strong>{money.format(minimum)}</strong></div></section>
       <section className="category-strip">{categories.map((item) => <button key={item} className={category === item ? 'is-active' : ''} onClick={() => setCategory(item)}>{item}</button>)}</section>
       <section id="colecao-atual" className="catalog-heading"><div><span>{payload.page?.hasMore ? 'Mais produtos disponíveis' : `${visibleProducts.length} produtos`}</span><h2>{category === 'Todos' ? 'Escolha suas peças' : category}</h2></div><button className="feed-callout" onClick={() => setView('feed')}>Ver como feed <ArrowRight size={17}/></button></section>
-      <section className="product-grid">{visibleProducts.map((product) => <article className="product-card" key={product.id}><button className="product-card__media" onClick={() => openPicker(product)} aria-label={`Ver ${product.name}`}><ProductMedia product={product}/>{product.featured && <SVTag className="product-card__flag">mais pedido</SVTag>}</button><div className="product-card__content"><div className="product-card__meta"><span>{product.sku}</span><span>{product.category}</span></div><h3>{product.name}</h3><p>{product.description}</p>{product.variations.length > 0 && <div className="product-card__variations">{product.variations.map((group) => <span key={group.name}>{group.name}: {group.options.join(' / ')}</span>)}</div>}<div className="product-card__footer"><strong>{money.format(product.price)}</strong><button onClick={() => openPicker(product)}><Plus size={18}/> Escolher</button></div></div></article>)}</section>
+      <section className="product-grid">{visibleProducts.map((product) => <article className="product-card" key={product.id}><button className="product-card__media" onClick={() => openPicker(product)} aria-label={`Ver ${product.name}`}><ProductMedia product={product}/>{product.featured && <SVTag className="product-card__flag">Destaque</SVTag>}</button><div className="product-card__content"><div className="product-card__meta"><span>{product.sku}</span><span>{product.category}</span></div><h3>{product.name}</h3><p>{product.description}</p>{product.variations.length > 0 && <div className="product-card__variations">{product.variations.map((group) => <span key={group.name}>{group.name}: {group.options.join(' / ')}</span>)}</div>}<div className="product-card__footer"><strong>{money.format(product.price)}</strong><button onClick={() => openPicker(product)}><Plus size={18}/> Escolher</button></div></div></article>)}</section>
       {!demo && <div ref={loadMoreRef} style={{height: 1}}/>}
       {(filterLoading || loadingMore) && <div className="empty-state"><p>Carregando produtos…</p></div>}
       {catalogError && <div className="empty-state"><p>{catalogError}</p></div>}
@@ -338,6 +344,7 @@ export default function PublicStoreV2() {
     <aside className={`cart-drawer ${cartOpen ? 'is-open' : ''}`}><div className="cart-drawer__head"><div><small>Seu pedido</small><h2>Seu pedido</h2>{cartCount > 0 && <SVStamp>NA GRADE</SVStamp>}</div><button onClick={() => setCartOpen(false)} aria-label="Fechar carrinho"><X size={22}/></button></div><div className="cart-drawer__seller"><span>Talão digital · Atendimento atribuído</span><strong>{seller?.name || 'Atendimento'}</strong></div><div className="cart-items">{cart.length === 0 ? <div className="cart-empty"><ShoppingBag size={30}/><h3>Seu carrinho está vazio.</h3></div> : cart.map((item) => <div className="cart-item" key={item.key}><ResilientImage src={galleryFor(item.product, item.selections)[0] || mediaUrl(item.product)} alt={item.product.name}/><div className="cart-item__main"><span>{item.product.sku}</span><strong>{item.product.name}</strong><small>{Object.entries(item.selections).map(([k,v]) => `${k}: ${v}`).join(' · ')}</small><small>{money.format(item.product.price)} cada</small></div><div className="quantity-control"><button onClick={() => setCart((current) => current.map((x) => x.key === item.key ? {...x, quantity: Math.max(0, x.quantity - 1)} : x).filter((x) => x.quantity > 0))} aria-label={`Diminuir quantidade de ${item.product.name}`}><Minus size={14}/></button><b>{item.quantity}</b><button onClick={() => setCart((current) => current.map((x) => x.key === item.key ? {...x, quantity: x.quantity + 1} : x))} aria-label={`Aumentar quantidade de ${item.product.name}`}><Plus size={14}/></button></div></div>)}</div><div className="cart-drawer__foot"><div className="minimum-box"><div className="minimum-box__copy">{minimumReached ? <span className="minimum-ok"><Check size={15}/> Pedido mínimo atingido</span> : <span>Faltam {money.format(Math.max(0, minimum - cartTotal))}</span>}<strong>{money.format(cartTotal)} / {money.format(minimum)}</strong></div><div className="minimum-track"><span style={{width: `${minimumProgress}%`}}/></div></div><div className="cart-total"><span>Total dos produtos</span><strong>{money.format(cartTotal)}</strong></div>{error && <p className="form-error">{error}</p>}<button className="whatsapp-button" disabled={!minimumReached || !cart.length || sending} onClick={() => { setError(''); setReviewOpen(true) }}>Revisar talão e ir ao WhatsApp<ArrowRight size={19}/></button></div></aside>
 
     {reviewOpen && <ShopvaxCheckoutReview items={cart} total={cartTotal} minimum={minimum} storeName={store?.name || ''} sellerName={seller?.name || 'atendimento'} sending={sending} error={error} onClose={() => { if (!sending) setReviewOpen(false) }} onSubmit={sendOrder}/>}
+    {readyOrder && <ShopvaxOrderReady code={readyOrder.code} url={readyOrder.url} storeName={store?.name || ''} onClose={() => setReadyOrder(null)}/>} 
     {picker && <div className="picker-layer" role="dialog" aria-modal="true" aria-label={`Escolher ${picker.name}`}><button className="picker-layer__backdrop" onClick={() => setPicker(null)} aria-label="Fechar produto"/><section className="product-picker"><button className="product-picker__close" onClick={() => setPicker(null)} aria-label="Fechar"><X size={20}/></button><div className="product-picker__media product-gallery"><div className="product-gallery__stage">{picker.mediaType === 'video' && !pickerGallery.length ? <video src={picker.mediaUrl} controls playsInline/> : <ResilientImage src={pickerGallery[galleryIndex] || mediaUrl(picker)} alt={picker.name}/>} {pickerGallery.length > 1 && <><button className="product-gallery__prev" onClick={() => setGalleryIndex((i) => (i - 1 + pickerGallery.length) % pickerGallery.length)} aria-label="Foto anterior"><ChevronLeft size={20}/></button><button className="product-gallery__next" onClick={() => setGalleryIndex((i) => (i + 1) % pickerGallery.length)} aria-label="Próxima foto"><ChevronRight size={20}/></button></>}</div>{pickerGallery.length > 1 && <div className="product-gallery__thumbs">{pickerGallery.map((url, index) => <button key={url} className={index === galleryIndex ? 'is-active' : ''} onClick={() => setGalleryIndex(index)} aria-label={`Ver foto ${index + 1}`}><ResilientImage src={url} alt={`${picker.name} - foto ${index + 1}`}/></button>)}</div>}</div><div className="product-picker__body"><div className="product-picker__scroll"><div className="product-picker__meta"><span>{picker.sku}</span><span>{picker.category}</span></div><h2>{picker.name}</h2><p>{picker.description}</p><strong className="product-picker__price">{money.format(picker.price)}</strong>{getGradeGroups(picker) && <div className="svx-picker-modes" role="group" aria-label="Forma de comprar"><button type="button" aria-pressed={gradeMode} onClick={() => { setGradeMode(true); setError("") }}>Montar grade</button><button type="button" aria-pressed={!gradeMode} onClick={() => { setGradeMode(false); setError("") }}>Uma variação</button></div>}{gradeMode && getGradeGroups(picker) && <ProductGrade key={picker.id} product={picker} onAdd={addGradeLines} onError={setError}/>} {!gradeMode && picker.variations.map((group) => <div className="variant-group" key={group.name}><div><strong>{group.name}</strong><span>{pickerSelections[group.name] || 'Escolha uma opção'}</span></div><div className="variant-options">{group.options.map((option) => <button key={option} className={pickerSelections[group.name] === option ? 'is-active' : ''} onClick={() => { setPickerSelections((current) => ({...current, [group.name]: option})); setError('') }}>{option}</button>)}</div></div>)}{!gradeMode && <div className="picker-quantity"><div><strong>Quantidade</strong><span>{money.format(picker.price * pickerQty)}</span></div><div className="quantity-control quantity-control--large"><button onClick={() => setPickerQty((v) => Math.max(1, v - 1))} aria-label="Diminuir quantidade"><Minus size={16}/></button><b>{pickerQty}</b><button onClick={() => setPickerQty((v) => v + 1)} aria-label="Aumentar quantidade"><Plus size={16}/></button></div></div>}{error && <p className="form-error" role="alert">{error}</p>}</div>{!gradeMode && <div className="product-picker__footer"><button className="picker-add" onClick={confirmPicker}><ShoppingBag size={18}/><span className="picker-add__label">Adicionar {pickerQty} ao carrinho</span><strong className="picker-add__price">{money.format(picker.price * pickerQty)}</strong></button></div>}</div></section></div>}
 
     {feedNotice && <div className="svx-feed-notice" role="status">{feedNotice}</div>}

@@ -1,0 +1,17 @@
+/* Prancha 03 · Pedido pronto: a mensagem é preparada, envio é explícito. */
+.svx-order-ready{position:relative;z-index:1;display:flex;flex-direction:column;width:min(620px,100%);max-height:100%;min-height:0;background:#F3F0E8;color:#161514;border:1px solid #161514;box-shadow:0 20px 70px rgba(0,0,0,.3);}
+.svx-order-ready .svx-ribbon{justify-content:space-between;}
+.svx-order-ready>header{position:relative;padding:clamp(20px,5vw,36px) clamp(16px,4vw,30px) 15px;border-bottom:1px solid #D9D3C6;}
+.svx-order-ready>header>button{position:absolute;top:12px;right:12px;display:grid;place-items:center;width:38px;height:38px;border:1px solid #161514;background:transparent;cursor:pointer;}
+.svx-order-ready>header .svx-stamp{display:table;margin-bottom:25px;transform:rotate(-4deg);}
+.svx-order-ready>header h2{max-width:13ch;font:800 clamp(43px,7vw,75px)/.87 var(--svx-font-display,'Archivo Narrow',sans-serif);letter-spacing:-.06em;text-transform:uppercase;margin:9px 0 15px;}
+.svx-order-ready>header p{max-width:44ch;font:400 12px/1.5 var(--svx-font-body,'Archivo',sans-serif);color:#6B665C;margin:0;}
+.svx-order-ready__message{display:grid;gap:10px;min-height:0;overflow:auto;padding:16px clamp(16px,4vw,30px);}
+.svx-order-ready__message textarea{display:block;width:100%;height:min(22dvh,180px);min-height:80px;resize:vertical;border:1px solid #D9D3C6;background:#FCFAF5;color:#161514;padding:12px;font:400 11px/1.5 var(--svx-font-mono,monospace);overflow:auto;white-space:pre-wrap;}
+.svx-order-ready>footer{display:grid;gap:9px;padding:14px clamp(16px,4vw,30px) max(15px,env(safe-area-inset-bottom));background:#F3F0E8;border-top:1px solid #D9D3C6;}
+.svx-order-ready>footer button,.svx-order-ready>footer a{display:flex;align-items:center;justify-content:center;gap:10px;min-height:46px;padding:11px 14px;border:1px solid #161514;border-radius:0;color:#161514;font:800 12px var(--svx-font-body,'Archivo',sans-serif);cursor:pointer;text-decoration:none;}
+.svx-order-ready__send{background:#F25C05;}
+.svx-order-ready__copy{background:#FCFAF5;}
+.svx-order-ready>footer small{font-size:10px;line-height:1.4;color:#6B665C;}
+.svx-order-ready .form-error{margin:5px 25px;}
+@media(max-width:580px){.svx-order-ready{height:100%;}.svx-order-ready>header h2{font-size:clamp(42px,12vw,62px);}.svx-order-ready>header .svx-stamp{margin-bottom:14px;}.svx-order-ready__message textarea{height:min(23dvh,170px);}}

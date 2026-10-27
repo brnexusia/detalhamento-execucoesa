@@ -40,7 +40,7 @@ export default function ShopvaxCheckoutReview({items,total,minimum,storeName,sel
         <p className="svx-review__privacy">Os dados informados serão incluídos no pedido da loja e na mensagem preparada para o WhatsApp. Eles não criam cadastro para receber publicidade.</p>
         {error&&<p className="form-error" role="alert">{error}</p>}
       </div>
-      <footer className="svx-review__footer"><span><Check size={15}/> {items.reduce((count,item)=>count+item.quantity,0)} peças conferidas</span><button disabled={!canSend} type="button" onClick={()=>void onSubmit(buyer,notes)}><MessageCircle size={19}/>{sending?'Preparando talão…':'Abrir pedido no WhatsApp'}<ArrowRight size={18}/></button><small>Abrir o WhatsApp não comprova que a mensagem foi enviada ou que a venda foi concluída.</small></footer>
+      <footer className="svx-review__footer"><span><Check size={15}/> {items.reduce((count,item)=>count+item.quantity,0)} peças conferidas</span><button disabled={!canSend} type="button" onClick={()=>void onSubmit(buyer,notes)}><MessageCircle size={19}/>{sending?'Preparando talão…':'Preparar pedido para enviar'}<ArrowRight size={18}/></button><small>Abrir o WhatsApp não comprova que a mensagem foi enviada ou que a venda foi concluída.</small></footer>
     </section>
   </div>
 }
