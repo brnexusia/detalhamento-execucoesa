@@ -1,0 +1,126 @@
+/* Shopvax — Módulos 12/13: movimento útil, responsividade real e acessibilidade.
+ * Referência: prancha 08 do redesign. Sem animação infinita de métricas nem efeitos
+ * que dificultem escolha de variações, rolagem ou leitura do talão.
+ */
+@keyframes svx-arrive {
+  from { opacity:.25; translate:0 9px; }
+  to { opacity:1; translate:0 0; }
+}
+@keyframes svx-stamp-confirm {
+  0% { opacity:.35; transform:translateY(-9px) rotate(-10deg) scale(1.08); }
+  70% { opacity:1; transform:translateY(1px) rotate(-4deg) scale(.98); }
+  100% { opacity:1; transform:translateY(0) rotate(-5deg) scale(1); }
+}
+@keyframes svx-ribbon-reveal {
+  from { clip-path:inset(0 100% 0 0); }
+  to { clip-path:inset(0 0 0 0); }
+}
+@keyframes svx-order-progress {
+  from { transform:scaleX(0); }
+  to { transform:scaleX(1); }
+}
+@keyframes svx-cart-gently {
+  0% { transform:scale(1); }
+  40% { transform:scale(1.07); }
+  100% { transform:scale(1); }
+}
+@media (prefers-reduced-motion:no-preference) {
+  .app .store-intro__ribbon,
+  .svx-dashboard__ribbon,
+  .svx-review .svx-ribbon,
+  .svx-order-ready .svx-ribbon {
+    animation:svx-ribbon-reveal .42s cubic-bezier(.2,.65,.1,1) both;
+  }
+  .app .store-intro__identity,
+  .svx-dashboard__welcome,
+  .svx-review__head,
+  .svx-order-ready>header {
+    animation:svx-arrive .36s ease-out both;
+  }
+  .svx-stamp {
+    animation:svx-stamp-confirm .33s cubic-bezier(.15,.8,.35,1.1) both;
+  }
+  /* A barra acompanha a porcentagem real; animar somente da esquerda. */
+  .minimum-track > span,
+  .svx-dashboard__setup-track > span {
+    transform-origin:left center;
+    transition:width .22s ease;
+  }
+  .svx-grade__add:not(:disabled):active,
+  .app .picker-add:not(:disabled):active,
+  .svx-review__footer>button:not(:disabled):active {
+    transform:translateY(1px);
+  }
+  .app .cart-trigger b,
+  .app .mobile-cart span {
+    animation:svx-cart-gently .24s ease-out;
+  }
+}
+/* Acessibilidade: nunca depender do movimento para exibir conteúdo. */
+@media (prefers-reduced-motion:reduce) {
+  .app .store-intro__ribbon,
+  .svx-dashboard__ribbon,
+  .svx-review .svx-ribbon,
+  .svx-order-ready .svx-ribbon,
+  .app .store-intro__identity,
+  .svx-dashboard__welcome,
+  .svx-review__head,
+  .svx-order-ready>header,
+  .svx-stamp,
+  .app .cart-trigger b,
+  .app .mobile-cart span {
+    animation:none!important;
+  }
+  .minimum-track > span,
+  .svx-dashboard__setup-track > span,
+  .svx-grade__add,
+  .app .picker-add {
+    transition:none!important;
+  }
+}
+/* Dimensões e orientação: preservar ações, mínimo, grade e botões;
+ * permitir scroll apenas em áreas de conteúdo deliberadas. */
+.app .catalog-toolbar,
+.app .svx-vitrine__actions,
+.app .svx-discovery__heading,
+.panel-shell .svx-dashboard__welcome,
+.panel-shell .svx-orders__header {
+  min-width:0;
+}
+.app .catalog-toolbar>* { min-width:0; }
+.app .svx-catalog-sort select { max-width:min(100%,210px); }
+.app .svx-vitrine__actions button,
+.app .svx-grade__add,
+.app .whatsapp-button { touch-action:manipulation; }
+.app .svx-grade__table-scroll { -webkit-overflow-scrolling:touch; }
+.app .svx-vitrine__actions button,
+.app .svx-grade__add,
+.app .svx-grade__colors button,
+.app .category-strip button,
+.app .svx-catalog-sort select,
+.app .cart-trigger,
+.svx-order-ready__send,
+.svx-order-ready__copy { outline-offset:2px; }
+@media (max-width:700px) and (orientation:landscape) and (max-height:450px) {
+  .app .store-intro.svx-vitrine { min-height:0; height:auto; padding:12px 15px; }
+  .app .store-intro.svx-vitrine .store-intro__identity h1 { font-size:clamp(31px,6vw,50px); }
+  .app .svx-vitrine__facts { margin:6px 0 8px; }
+  .app .store-intro.svx-vitrine .seller-note { padding:7px 10px; }
+  .svx-review { max-height:100dvh; height:100dvh; }
+  .svx-review__head { padding:8px 12px; }
+  .svx-review__head h2 { font-size:26px; margin:2px 0; }
+  .svx-review__footer { padding:8px 12px; }
+}
+@media (max-width:320px) {
+  .app .catalog-toolbar { gap:6px; }
+  .app .svx-catalog-sort { flex:1 1 100%; }
+  .app .svx-catalog-sort select { max-width:100%; }
+  .app .svx-vitrine__actions>button { min-height:42px; width:100%; }
+  .svx-review__footer>button { min-height:44px; }
+}
+/* Nunca ocultar CTA nem opções de compra em telas baixas. */
+@media (max-height:490px) {
+  .app .product-picker__footer { position:relative; z-index:4; }
+  .svx-review__footer,
+  .svx-order-ready>footer { flex-shrink:0; }
+}
