@@ -59,7 +59,7 @@ try {
    return {ribbon:getComputedStyle(stamp).animationName,feed:getComputedStyle(feed).scrollSnapType}
   })
   assert.equal(motion.ribbon,'none','Movimento reduzido deve desligar animação do contador')
-  assert.match(motion.feed,/y proximity/,'Rolagem reduzida mantém navegação livre')
+  assert.equal(motion.feed,'none','Rolagem reduzida não deve forçar encaixe de quadros')
   await page.locator('.cart-trigger').click()
   assert.match(await page.locator('.cart-drawer').innerText(),/Grena/)
   if(width===390 || width===1440) await page.screenshot({path:`artifacts/shopvax-redesign/talao-${width}.png`})
