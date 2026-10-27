@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { mkdirSync } from 'node:fs'
 import { chromium } from 'playwright'
 
 // Homologação transversal das pranchas 03/05/06 e dos módulos 12–14.
@@ -16,6 +17,7 @@ const payload={
  seller:{slug:'carla',name:'Carla',phone:'5571999999999'},
  products,categories:['Blusas','Calças'],page:{hasMore:false,nextCursor:null,limit:24},
 }
+mkdirSync('artifacts/shopvax-redesign',{recursive:true})
 let passed=0
 try {
  for(const [width,height] of [[320,568],[390,844],[720,320],[1024,768],[1440,900]]) {
@@ -28,6 +30,7 @@ try {
   assert.match(await page.locator('.store-intro h1').innerText(),/SW Moda/)
   assert.equal(await page.locator('.product-card__media').count(),2)
   assert.equal(await page.getByRole('button',{name:'Passar uma por uma'}).count(),1)
+  if(width===390 || width===1440) await page.screenshot({path:`artifacts/shopvax-redesign/vitrine-${width}.png`,fullPage:true})
   await page.locator('.product-card__media').first().click()
   await page.getByRole('button',{name:'Montar grade'}).click()
   await page.getByRole('button',{name:/Grena/}).click()
@@ -37,6 +40,7 @@ try {
   assert.equal(await page.locator('.cart-trigger b').innerText(),'1')
   await page.getByRole('button',{name:'Passar uma por uma'}).click()
   await page.locator('.feed-card').first().waitFor()
+  if(width===390 || width===1440) await page.screenshot({path:`artifacts/shopvax-redesign/feed-${width}.png`})
   const feed=await page.evaluate(()=>{
    const scroller=document.querySelector('.feed-list')
    const cards=[...document.querySelectorAll('.feed-card')]
@@ -58,6 +62,7 @@ try {
   assert.match(motion.feed,/y proximity/,'Rolagem reduzida mantém navegação livre')
   await page.locator('.cart-trigger').click()
   assert.match(await page.locator('.cart-drawer').innerText(),/Grena/)
+  if(width===390 || width===1440) await page.screenshot({path:`artifacts/shopvax-redesign/talao-${width}.png`})
   console.log('FINAL_SHOPVAX_VIEWPORT_PASS',width,height)
   passed+=1
   await context.close()
