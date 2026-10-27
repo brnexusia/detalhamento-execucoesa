@@ -6,6 +6,7 @@ import './saas.css'
 import './canvas.css'
 import './product-picker-responsive.css'
 import './shopvax-brand.css'
+import './shopvax-commerce.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
