@@ -50,13 +50,12 @@ function galleryFor(product: Product, selections: Record<string, string>) {
 }
 
 function FeedCaption({ description }: { description: string }) {
-  const [expanded, setExpanded] = useState(false)
   if (!description) return null
-  const expandable = description.length > 85
-  return <div className={`svx-feed-caption ${expanded ? 'is-expanded' : ''}`}>
+  if (description.length <= 85) return <p className="svx-feed-caption__short">{description}</p>
+  return <details className="svx-feed-caption">
+    <summary><span className="svx-feed-caption__preview">{description}</span><span className="svx-feed-caption__more">Mais</span><span className="svx-feed-caption__less">Ver menos</span></summary>
     <p>{description}</p>
-    {expandable && <button type="button" aria-expanded={expanded} onClick={() => setExpanded((current) => !current)}>{expanded ? 'Ver menos' : 'Mais'}</button>}
-  </div>
+  </details>
 }
 
 function ProductMedia({ product, className = '' }: { product: Product; className?: string }) {
