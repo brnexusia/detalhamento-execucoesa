@@ -12,6 +12,11 @@ on:
       - 'src/main.tsx'
       - 'tests/product-picker-responsive.e2e.mjs'
       - 'tests/brand-phase1.e2e.mjs'
+      - 'tests/shopvax-grade.e2e.mjs'
+      - 'src/ShopvaxGrade.tsx'
+      - 'src/ShopvaxDashboard.tsx'
+      - 'src/shopvax-commerce.css'
+      - 'src/shopvax-dashboard.css'
       - 'src/shopvax-brand.css'
       - 'src/ShopvaxDesignSystem.tsx'
       - '.github/workflows/responsive-picker-check.yml'
@@ -42,6 +47,8 @@ jobs:
         run: node tests/product-picker-responsive.e2e.mjs
       - name: Brand foundation regression across stores
         run: node tests/brand-phase1.e2e.mjs
+      - name: Wholesale grade browser regression
+        run: node tests/shopvax-grade.e2e.mjs
       - name: Debug log
         if: failure()
         run: cat /tmp/vite.log || true
