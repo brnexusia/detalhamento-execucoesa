@@ -87,7 +87,7 @@ export default function PublicStoreV2() {
     } catch { setFeedNotice('Não foi possível compartilhar agora.') }
   }
   const askProduct = (product: Product) => {
-    const phone = (seller?.phone || store?.whatsapp || '').replace(/\\D/g, '')
+    const phone = (seller?.phone || store?.whatsapp || '').replace(/\D/g, '')
     if (!phone) { setFeedNotice('A loja ainda não cadastrou atendimento por WhatsApp.'); return }
     const message = `Olá! Tenho uma dúvida sobre ${product.name} (ref. ${product.sku || product.id}).`
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer')
