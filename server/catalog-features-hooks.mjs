@@ -411,9 +411,9 @@ async function protectedStore(req, res) {
 
   const params = [store.id, catalog.id]
   const conditions = ['p.store_id=$1', 'p.active=true', '(cp.visible IS NULL OR cp.visible=true)']
-  if (category) { params.push(category); conditions.push(`p.category=${params.length}`) }
-  if (q) { params.push(`%${q.toLowerCase()}%`); conditions.push(`lower(p.name || ' ' || p.sku || ' ' || p.category) LIKE ${params.length}`) }
   const sqlParam = (index) => String.fromCharCode(36) + index
+  if (category) { params.push(category); conditions.push(`p.category=${sqlParam(params.length)}`) }
+  if (q) { params.push(`%${q.toLowerCase()}%`); conditions.push(`lower(p.name || ' ' || p.sku || ' ' || p.category) LIKE ${sqlParam(params.length)}`) }
   const sortPrice = 'COALESCE(cp.price_override,p.price)'
   if (cursor) {
     if (sort === 'newest') {
