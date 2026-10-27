@@ -79,6 +79,8 @@ async function ensureSchema() {
     CREATE INDEX IF NOT EXISTS idx_catalog_products_visible ON catalog_products(catalog_id,visible,product_id);
     ALTER TABLE products ADD COLUMN IF NOT EXISTS images jsonb NOT NULL DEFAULT '[]'::jsonb;
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS catalog_id text REFERENCES catalogs(id) ON DELETE SET NULL;
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS buyer jsonb NOT NULL DEFAULT '{}'::jsonb;
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS notes text NOT NULL DEFAULT '';
   `)
 }
 
@@ -533,14 +535,31 @@ async function createCatalogOrder(req, res) {
     }
     const phone = digits(seller?.phone || store.whatsapp)
     if (phone.length < 10) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'A loja ainda não configurou um WhatsApp de atendimento.' }) }
+    const inputBuyer = req.body?.buyer && typeof req.body.buyer === 'object' && !Array.isArray(req.body.buyer) ? req.body.buyer : {}
+    const safeText = (value, max) => String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, max)
+    const buyer = {
+      name: safeText(inputBuyer.name, 120),
+      city: safeText(inputBuyer.city, 100),
+      cep: digits(inputBuyer.cep).slice(0, 8),
+      phone: digits(inputBuyer.phone).slice(0, 20),
+    }
+    if (buyer.cep && buyer.cep.length !== 8) {
+      await client.query('ROLLBACK')
+      return res.status(400).json({ error: 'O CEP precisa ter 8 dígitos.' })
+    }
+    if (buyer.phone && buyer.phone.length < 10) {
+      await client.query('ROLLBACK')
+      return res.status(400).json({ error: 'Informe um telefone válido ou deixe o campo em branco.' })
+    }
+    const notes = safeText(req.body?.notes, 500)
     const code = `AS-${Date.now().toString().slice(-6)}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`
     const orderId = id()
-    await client.query('INSERT INTO orders (id,code,store_id,seller_id,catalog_id,total,items,status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)', [orderId, code, store.id, seller?.id || null, catalog.id, total, JSON.stringify(items), 'whatsapp'])
+    await client.query('INSERT INTO orders (id,code,store_id,seller_id,catalog_id,total,items,status,buyer,notes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [orderId, code, store.id, seller?.id || null, catalog.id, total, JSON.stringify(items), 'whatsapp', JSON.stringify(buyer), notes])
     await client.query('INSERT INTO events (id,store_id,seller_id,kind) VALUES ($1,$2,$3,$4)', [id(), store.id, seller?.id || null, 'whatsapp'])
     await client.query('COMMIT')
     const formatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
     const lines = items.map((item) => `${item.quantity}x ${item.name}${Object.keys(item.selections).length ? ` (${Object.entries(item.selections).map(([key,value]) => `${key}: ${value}`).join(' · ')})` : ''} — ${formatter.format(item.lineTotal)}`)
-    const message = [`Olá! Montei este pedido na ${store.name}:`, `Catálogo: ${catalog.name}`, '', ...lines, '', `Total dos produtos: ${formatter.format(total)}`, `Pedido: ${code}`, '', `Quero finalizar com ${seller?.name || 'atendimento'}.`].join('\n')
+    const message = [`Olá! Montei este pedido na ${store.name}:`, `Catálogo: ${catalog.name}`, '', ...lines, '', `Total dos produtos: ${formatter.format(total)}`, `Pedido: ${code}`, ...(buyer.name ? [`Comprador: ${buyer.name}`] : []), ...(buyer.city ? [`Cidade: ${buyer.city}`] : []), ...(buyer.cep ? [`CEP: ${buyer.cep}`] : []), ...(buyer.phone ? [`Contato: ${buyer.phone}`] : []), ...(notes ? [`Observações: ${notes}`] : []), '', `Quero finalizar com ${seller?.name || 'atendimento'}.`].join('\n')
     return res.status(201).json({ code, orderId, catalog: catalogShape(catalog), whatsappUrl: `https://wa.me/${phone}?text=${encodeURIComponent(message)}` })
   } catch (error) {
     try { await client.query('ROLLBACK') } catch {}
