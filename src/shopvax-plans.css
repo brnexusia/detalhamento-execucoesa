@@ -1,0 +1,42 @@
+/* Prancha 07 · PLANOS. Dados da API, estética do talão. */
+.home-pricing:has(.svx-plans){max-width:none;margin:0;padding:clamp(20px,4vw,52px) clamp(14px,5vw,70px);background:#FCFAF5;color:#161514;border-top:1px solid #D9D3C6;}
+.svx-plans{max-width:1320px;margin-inline:auto;font-family:var(--svx-font-body,'Archivo',sans-serif);}
+.svx-plans__intro{display:flex;justify-content:space-between;align-items:end;gap:18px;margin-bottom:28px;}
+.svx-plans__intro>div{min-width:0;flex:1;}
+.svx-plans__intro h2{font:800 clamp(36px,5.7vw,78px)/.88 var(--svx-font-display,'Archivo Narrow',sans-serif);letter-spacing:-.055em;text-transform:uppercase;max-width:13ch;margin:12px 0 0;color:#161514;}
+.svx-plans__intro>p{font-size:12px;line-height:1.5;max-width:265px;margin:0;color:#6B665C;}
+.svx-plans__comparison{max-width:100%;overflow-x:auto;scrollbar-width:thin;overscroll-behavior-inline:contain;}
+.svx-plans__comparison table{width:100%;border-collapse:collapse;border:1px solid #161514;min-width:620px;table-layout:fixed;}
+.svx-plans__comparison thead th{text-align:left;vertical-align:bottom;border:1px solid #D9D3C6;padding:20px 18px 16px;position:relative;background:#FCFAF5;}
+.svx-plans__comparison thead th:first-child{width:20%;vertical-align:top;}
+.svx-plans__comparison .svx-plans__reference p{color:#6B665C;max-width:130px;font-size:11px;font-weight:400;line-height:1.5;}
+.svx-plans__comparison thead h3{font:800 clamp(24px,3vw,35px)/.95 var(--svx-font-display,'Archivo Narrow',sans-serif);letter-spacing:-.04em;text-transform:uppercase;margin:22px 0 7px;color:#161514;}
+.svx-plans__comparison thead th>p{font:400 11px/1.4 var(--svx-font-body,'Archivo',sans-serif);min-height:35px;color:#6B665C;}
+.svx-plans__comparison thead th>strong{display:block;font:800 clamp(27px,3.2vw,44px)/1 var(--svx-font-display,'Archivo Narrow',sans-serif);color:#161514;}
+.svx-plans__comparison thead th>small{display:block;font:400 9px var(--svx-font-mono,monospace);margin-top:4px;color:#6B665C;}
+.svx-plans__flag{position:absolute;inset:0 auto auto 0;padding:5px 10px;background:#161514;color:#FCFAF5;font:400 9px var(--svx-font-mono,monospace);text-transform:uppercase;}
+.svx-plans__comparison .svx-plans__recommended{background:#F8D8C6;}
+.svx-plans__comparison tbody th,.svx-plans__comparison tbody td{border:1px solid #D9D3C6;padding:11px 17px;text-align:left;color:#161514;}
+.svx-plans__comparison tbody th{font:400 10px var(--svx-font-mono,monospace);text-transform:uppercase;}
+.svx-plans__comparison tbody td{font:700 12px var(--svx-font-body,'Archivo',sans-serif);}
+.svx-plans__comparison tfoot td{padding:18px 16px;border:1px solid #D9D3C6;vertical-align:middle;}
+.svx-plans__comparison tfoot td:first-child{font:400 10px var(--svx-font-mono,monospace);text-transform:uppercase;}
+.svx-plans__cta{display:flex;align-items:center;justify-content:space-between;gap:6px;width:100%;min-height:42px;padding:10px;border:1px solid #161514;background:transparent;color:#161514;border-radius:0;font:700 12px var(--svx-font-body,'Archivo',sans-serif);cursor:pointer;text-align:left;}
+.svx-plans__cta.is-featured{background:#F25C05;color:#161514;}
+.svx-plans__cta:focus-visible{outline:3px solid #2D2A8C;outline-offset:2px;}
+.svx-plans__benefits{display:grid;grid-template-columns:1fr 2fr;gap:24px 44px;margin:52px 0 35px;border-top:1px solid #D9D3C6;padding-top:26px;}
+.svx-plans__benefits h3{font:800 clamp(28px,3vw,43px)/.9 var(--svx-font-display,'Archivo Narrow',sans-serif);margin:9px 0;text-transform:uppercase;max-width:13ch;}
+.svx-plans__benefits p{font-size:11px;line-height:1.5;color:#6B665C;}
+.svx-plans__benefit-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 23px;}
+.svx-plans__benefit-grid>div{display:flex;align-items:start;gap:8px;padding:11px 0;border-bottom:1px solid #D9D3C6;}
+.svx-plans__benefit-grid svg{color:#F25C05;flex:0 0 14px;margin-top:2px;}
+.svx-plans__benefit-grid span{display:grid;gap:4px;min-width:0;}
+.svx-plans__benefit-grid strong{font:700 12px var(--svx-font-body,'Archivo',sans-serif);}
+.svx-plans__benefit-grid small{font:400 10px/1.5 var(--svx-font-body,'Archivo',sans-serif);color:#6B665C;}
+.svx-plans__help{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:23px;background:#F8D8C6;}
+.svx-plans__help h3{font:800 clamp(24px,3vw,34px)/.9 var(--svx-font-display,'Archivo Narrow',sans-serif);text-transform:uppercase;margin:0 0 6px;}
+.svx-plans__help p{font-size:11px;margin:0;}
+.svx-plans__help button{display:flex;align-items:center;gap:8px;padding:10px 13px;background:transparent;border:1px solid #161514;color:#161514;white-space:nowrap;cursor:pointer;font-weight:700;}
+@media(max-width:700px){.svx-plans__intro{flex-direction:column;align-items:flex-start;}.svx-plans__intro h2{font-size:clamp(34px,10vw,53px)}.svx-plans__comparison table{min-width:560px}.svx-plans__comparison thead th{padding:20px 10px 13px}.svx-plans__comparison tbody th,.svx-plans__comparison tbody td{padding:10px}.svx-plans__comparison thead th>p{font-size:10px}.svx-plans__comparison tfoot td{padding:10px}.svx-plans__benefits{grid-template-columns:1fr;margin:35px 0}.svx-plans__help{flex-direction:column;align-items:stretch}.svx-plans__help button{justify-content:center}}
+@media(max-width:400px){.svx-plans__comparison table{min-width:490px}.svx-plans__comparison thead h3{font-size:25px}.svx-plans__comparison thead th>strong{font-size:27px}.svx-plans__comparison tbody td{font-size:11px}.svx-plans__benefit-grid{grid-template-columns:1fr}.svx-plans__cta{font-size:10px}}
+@media(prefers-reduced-motion:reduce){.svx-plans__comparison{scroll-behavior:auto}}
