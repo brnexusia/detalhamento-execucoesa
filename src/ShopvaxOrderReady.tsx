@@ -12,7 +12,6 @@ export default function ShopvaxOrderReady({storeName,code,url,onClose}:Props){
     try{await navigator.clipboard.writeText(text);setCopied(true);setError('')}
     catch{setError('Não foi possível copiar automaticamente. Selecione a mensagem abaixo para copiar.')}
   }
-  const send=()=>{window.open(url,'_blank','noopener,noreferrer')}
   return <div className="svx-review-layer" role="dialog" aria-modal="true" aria-labelledby="svx-ready-title">
     <button type="button" className="svx-review-layer__backdrop" onClick={onClose} aria-label="Fechar confirmação"/>
     <section className="svx-order-ready">
@@ -20,7 +19,7 @@ export default function ShopvaxOrderReady({storeName,code,url,onClose}:Props){
       <header><button onClick={onClose} aria-label="Fechar confirmação"><X size={19}/></button><SVStamp>PEDIDO PRONTO</SVStamp><span className="svx-kicker">{code}</span><h2 id="svx-ready-title">Agora é só enviar.</h2><p>O pedido foi preparado na {storeName}. Ao tocar em mandar, a conversa será aberta no WhatsApp. Confira e envie a mensagem para a vendedora.</p></header>
       <div className="svx-order-ready__message"><span className="svx-kicker">MENSAGEM QUE VAI SER ENVIADA</span><textarea aria-label="Mensagem preparada para o WhatsApp" readOnly rows={10} value={text} onFocus={e=>e.currentTarget.select()}/></div>
       {error&&<p role="alert" className="form-error">{error}</p>}
-      <footer><button type="button" onClick={send} className="svx-order-ready__send"><MessageCircle size={17}/> Abrir WhatsApp e mandar <ArrowRight size={18}/></button><button type="button" onClick={()=>void copy()} className="svx-order-ready__copy">{copied?<Check size={17}/>:<Clipboard size={17}/>} {copied?'Mensagem copiada':'Copiar pedido'}</button><small>Preparar o talão não confirma entrega da mensagem, pagamento ou venda concluída.</small></footer>
+      <footer><a href={url} target="_blank" rel="noopener noreferrer" className="svx-order-ready__send"><MessageCircle size={17}/> Abrir WhatsApp e mandar <ArrowRight size={18}/></a><button type="button" onClick={()=>void copy()} className="svx-order-ready__copy">{copied?<Check size={17}/>:<Clipboard size={17}/>} {copied?'Mensagem copiada':'Copiar pedido'}</button><small>Preparar o talão não confirma entrega da mensagem, pagamento ou venda concluída.</small></footer>
     </section>
   </div>
 }
