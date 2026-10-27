@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ArrowRight, Boxes, Check, ChevronLeft, ChevronRight, Clipboard, CreditCard, Download, Eye, EyeOff, ExternalLink, ImagePlus, Link2, LogOut, Menu, Package, Pencil, Plus, ReceiptText, Search, Settings, Store as StoreIcon, Trash2, TrendingUp, Upload, Users, X } from 'lucide-react'
 import { api } from './api'
+import ShopvaxDashboard from './ShopvaxDashboard'
 import { SHOPVAX_PALETTES, shopvaxPaletteName } from './ShopvaxDesignSystem'
 import AdminNavigation from './AdminNavigation'
 import CommercialSettingsPanel from './CommercialSettingsPanel'
