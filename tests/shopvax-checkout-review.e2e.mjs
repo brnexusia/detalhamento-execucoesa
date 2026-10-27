@@ -33,7 +33,7 @@ try{
   await page.getByPlaceholder('Ex.: separar outras cores, retirada na loja...').fill('Retirar na loja')
   await page.getByRole('button',{name:/Preparar pedido para enviar/}).click()
   await page.waitForTimeout(800)
-  const state=await page.evaluate(()=>({ reviewOpen:!!document.querySelector('.svx-review-layer'), error:document.querySelector('.svx-review .form-error')?.textContent||'', location:location.href }))
+  const state=await page.evaluate(()=>({ reviewOpen:!!document.querySelector('.svx-review'), error:document.querySelector('.svx-review .form-error')?.textContent||'', location:location.href }))
   console.log('CHECKOUT_DEBUG',width,height,JSON.stringify({state,created}))
   assert(created, 'a solicitação de registro do pedido deve ser enviada')
   assert.equal(state.error,'','o checkout não deve apresentar erro')
