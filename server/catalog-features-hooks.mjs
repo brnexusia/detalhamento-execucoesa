@@ -411,6 +411,7 @@ async function protectedStore(req, res) {
   const conditions = ['p.store_id=$1', 'p.active=true', '(cp.visible IS NULL OR cp.visible=true)']
   if (category) { params.push(category); conditions.push(`p.category=$${params.length}`) }
   if (q) { params.push(`%${q.toLowerCase()}%`); conditions.push(`lower(p.name || ' ' || p.sku || ' ' || p.category) LIKE $${params.length}`) }
+  const sqlParam = (index) => String.fromCharCode(36) + index
   const sortPrice = 'COALESCE(cp.price_override,p.price)'
   if (cursor) {
     if (sort === 'newest') {
@@ -418,14 +419,14 @@ async function protectedStore(req, res) {
       const featuredIndex = params.length - 2
       const createdIndex = params.length - 1
       const idIndex = params.length
-      conditions.push(`(p.featured::int < ${featuredIndex} OR (p.featured::int=${featuredIndex} AND p.created_at<${createdIndex}::timestamptz) OR (p.featured::int=${featuredIndex} AND p.created_at=${createdIndex}::timestamptz AND p.id<${idIndex}))`)
+      conditions.push(`(p.featured::int < ${sqlParam(featuredIndex)} OR (p.featured::int=${sqlParam(featuredIndex)} AND p.created_at<${sqlParam(createdIndex)}::timestamptz) OR (p.featured::int=${sqlParam(featuredIndex)} AND p.created_at=${sqlParam(createdIndex)}::timestamptz AND p.id<${sqlParam(idIndex)}))`)
     } else {
       const price = Number(cursor.price)
       if (!Number.isFinite(price) || price < 0) return res.status(400).json({ error:'Página inválida. Atualize a loja para continuar.' })
       params.push(price,cursor.id)
       const priceIdx=params.length-1,idIdx=params.length
       const comparator=sort === 'price_asc' ? '>' : '<'
-      conditions.push(`(${sortPrice} ${comparator} ${priceIdx}::numeric OR (${sortPrice}=${priceIdx}::numeric AND p.id<${idIdx}))`)
+      conditions.push(`(${sortPrice} ${comparator} ${sqlParam(priceIdx)}::numeric OR (${sortPrice}=${sqlParam(priceIdx)}::numeric AND p.id<${sqlParam(idIdx)}))`)
     }
   }
   const orderBy = sort === 'price_asc' ? `${sortPrice} ASC,p.id DESC` : sort === 'price_desc' ? `${sortPrice} DESC,p.id DESC` : 'p.featured DESC,p.created_at DESC,p.id DESC'
@@ -433,7 +434,7 @@ async function protectedStore(req, res) {
   const productsResult = await pool.query(
     `SELECT p.*,p.created_at::text AS created_at_cursor,COALESCE(cp.price_override,p.price) AS public_price
      FROM products p LEFT JOIN catalog_products cp ON cp.product_id=p.id AND cp.catalog_id=$2
-     WHERE ${conditions.join(' AND ')} ORDER BY ${orderBy} LIMIT ${params.length}`,
+     WHERE ${conditions.join(' AND ')} ORDER BY ${orderBy} LIMIT ${sqlParam(params.length)}`,
     params,
   )
   const hasMore = productsResult.rows.length > limit
