@@ -124,3 +124,20 @@
   .svx-review__footer,
   .svx-order-ready>footer { flex-shrink:0; }
 }
+
+/* Scroll-snap do feed em iOS e navegadores móveis: cada peça ocupa um quadro. */
+.app--feed .feed-shell { min-height:0; overscroll-behavior:contain; }
+.app--feed .feed-list {
+  height:100%;
+  overflow-x:hidden;
+  overflow-y:auto;
+  overscroll-behavior-y:contain;
+  -webkit-overflow-scrolling:touch;
+  scroll-padding-block:0;
+  scroll-snap-type:y mandatory;
+  touch-action:pan-y;
+}
+.app--feed .feed-card { min-height:100%; height:100%; scroll-snap-align:start; scroll-snap-stop:always; }
+@media (prefers-reduced-motion:reduce) {
+  .app--feed .feed-list { scroll-snap-type:y proximity; scroll-behavior:auto; }
+}
