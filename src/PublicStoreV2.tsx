@@ -74,6 +74,7 @@ export default function PublicStoreV2() {
   const [demo, setDemo] = useState(false)
   const [view, setView] = useState<ViewMode>('store')
   const [category, setCategory] = useState('Todos')
+  const [sort, setSort] = useState<'newest' | 'price_asc' | 'price_desc'>('newest')
   const [query, setQuery] = useState('')
   const [savedProducts, setSavedProducts] = useState<string[]>(() => {
     try { const items = JSON.parse(localStorage.getItem(`shopvax-favorites-v1:${route.storeSlug}`) || '[]'); return Array.isArray(items) ? items.filter((id) => typeof id === 'string') : [] } catch { return [] }
@@ -108,7 +109,7 @@ export default function PublicStoreV2() {
   const [catalogError, setCatalogError] = useState('')
   const [loadingMore, setLoadingMore] = useState(false)
   const [filterLoading, setFilterLoading] = useState(false)
-  const filterKeyRef = useRef('Todos|')
+  const filterKeyRef = useRef('Todos||newest')
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
   useEffect(() => {
     if (!picker) return
@@ -132,7 +133,7 @@ export default function PublicStoreV2() {
   const loadFirst = useCallback(() => {
     setCategory('Todos')
     setQuery('')
-    filterKeyRef.current = 'Todos|'
+    filterKeyRef.current = 'Todos||newest'
     return api.publicStore(route.storeSlug, route.sellerSlug)
       .then((data) => {
         setPayload(data)
@@ -155,7 +156,7 @@ export default function PublicStoreV2() {
 
   useEffect(() => {
     if (!payload || demo) return
-    const key = `${category}|${query.trim()}`
+    const key = `${category}|${query.trim()}|${sort}`
     if (filterKeyRef.current === key) return
     const timer = window.setTimeout(() => {
       setFilterLoading(true)
@@ -163,6 +164,7 @@ export default function PublicStoreV2() {
       api.publicStore(route.storeSlug, route.sellerSlug, {
         q: query.trim() || undefined,
         category: category === 'Todos' ? undefined : category,
+        sort,
       }).then((data) => {
         filterKeyRef.current = key
         setPayload(data)
@@ -170,7 +172,7 @@ export default function PublicStoreV2() {
         .finally(() => setFilterLoading(false))
     }, 300)
     return () => window.clearTimeout(timer)
-  }, [category, query, demo, payload?.store.slug, route.storeSlug, route.sellerSlug])
+  }, [category, query, sort, demo, payload?.store.slug, route.storeSlug, route.sellerSlug])
 
   const store = payload?.store
   const seller = payload?.seller
@@ -182,7 +184,7 @@ export default function PublicStoreV2() {
   const visibleProducts = demo ? products.filter((product) => {
     const matchesCategory = category === 'Todos' || product.category === category
     return matchesCategory && `${product.name} ${product.sku} ${product.category}`.toLowerCase().includes(query.trim().toLowerCase())
-  }) : products
+  }).sort((a,b) => sort === 'price_asc' ? a.price-b.price : sort === 'price_desc' ? b.price-a.price : 0) : products
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0)
   const cartTotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0)
   const minimum = store?.minimumOrder || 0
@@ -198,6 +200,7 @@ export default function PublicStoreV2() {
         cursor,
         q: query.trim() || undefined,
         category: category === 'Todos' ? undefined : category,
+        sort,
       })
       setPayload((current) => {
         if (!current) return data
@@ -207,7 +210,7 @@ export default function PublicStoreV2() {
     } catch (err) {
       setCatalogError(err instanceof Error ? err.message : 'Não foi possível carregar mais produtos.')
     } finally { setLoadingMore(false) }
-  }, [payload?.page, demo, loadingMore, route.storeSlug, route.sellerSlug, query, category])
+  }, [payload?.page, demo, loadingMore, route.storeSlug, route.sellerSlug, query, category, sort])
 
   useEffect(() => {
     const target = loadMoreRef.current
