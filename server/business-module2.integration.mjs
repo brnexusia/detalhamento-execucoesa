@@ -70,11 +70,18 @@ try {
 
   response = await fetch(`${base}/api/business/orders`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ storeSlug: account.storeSlug, items: [{ productId: product.id, quantity: 1, selections: { Cor: 'Preto', Tamanho: 'P' } }] }),
+    body: JSON.stringify({ storeSlug: account.storeSlug, buyer: { name: 'Cliente Teste', city: 'Salvador', cep: '41740100', phone: '71999999999' }, notes: 'Retirar na loja', items: [{ productId: product.id, quantity: 1, selections: { Cor: 'Preto', Tamanho: 'P' } }] }),
   })
   assert.equal(response.status, 201)
   const order = await response.json()
   assert.ok(order.orderId)
+  assert.match(decodeURIComponent(order.whatsappUrl), /Cliente Teste/)
+  assert.match(decodeURIComponent(order.whatsappUrl), /Retirar na loja/)
+  const buyerRow = (await db.query('SELECT buyer,notes FROM orders WHERE id=$1', [order.orderId])).rows[0]
+  assert.equal(buyerRow.buyer.name, 'Cliente Teste')
+  assert.equal(buyerRow.buyer.city, 'Salvador')
+  assert.equal(buyerRow.buyer.cep, '41740100')
+  assert.equal(buyerRow.notes, 'Retirar na loja')
   let row = (await db.query('SELECT variant_stock FROM products WHERE id=$1', [product.id])).rows[0]
   assert.equal(Number(row.variant_stock[blackKey]), 1)
   assert.equal(Number(row.variant_stock[whiteKey]), 4)
