@@ -25,6 +25,7 @@ try {
     await page.route('**/api/public/events', route => route.fulfill({status:204,body:''}))
     await page.route('**/test-images.example/**', route => route.fulfill({status:200,contentType:'image/png',body:png}))
     await page.goto('http://127.0.0.1:5173/sw-moda')
+    await page.locator('.product-card__media').first().waitFor({ state: 'visible' })
     
               const cardsVisible=await page.evaluate(() => ({
                 description: getComputedStyle(document.querySelector('.product-card__content p')).display,
