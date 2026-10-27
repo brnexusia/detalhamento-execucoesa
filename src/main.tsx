@@ -10,6 +10,7 @@ import './shopvax-commerce.css'
 import './shopvax-dashboard.css'
 import './shopvax-plans.css'
 import './shopvax-onboarding.css'
+import './shopvax-product-operations.css'
 import './shopvax-orders.css'
 import './shopvax-feed-redesign.css'
 
