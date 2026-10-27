@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ArrowRight, Check, Clipboard, MessageCircle, X } from 'lucide-react'
 import { SVRibbon, SVStamp } from './ShopvaxDesignSystem'
+import './shopvax-order-ready.css'
 
 type Props={storeName:string;code:string;url:string;onClose:()=>void}
 export default function ShopvaxOrderReady({storeName,code,url,onClose}:Props){
