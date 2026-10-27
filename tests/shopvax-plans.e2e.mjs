@@ -11,7 +11,7 @@ try{
  for(const [width,height] of [[320,568],[390,844],[1440,900]]){
   const page=await browser.newPage({viewport:{width,height}})
   await page.route('**/api/public/plans',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({plans})}))
-  await page.goto('http://127.0.0.1:5173/')
+  await page.goto('http://127.0.0.1:5173/para-lojas')
   const table=page.getByRole('region',{name:'Comparação dos planos Shopvax'})
   await table.waitFor()
   assert.equal(await table.locator('table thead th').count(),4)
