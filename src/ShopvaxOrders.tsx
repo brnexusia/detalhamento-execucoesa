@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { ArrowLeft, Check, ChevronRight, Clipboard, Package, ReceiptText, Search, XCircle } from 'lucide-react'
 import type { AdminBootstrap, AdminOrder } from './types'
 import { api } from './api'
+import { confirmAction } from './ui-dialogs'
 import { SVRibbon, SVStamp } from './ShopvaxDesignSystem'
 
 const money = new Intl.NumberFormat('pt-BR', { style:'currency', currency:'BRL' })
@@ -54,7 +55,7 @@ export default function ShopvaxOrders({data,onUpdated}: Props) {
   }
   const cancel = async (order: AdminOrder) => {
     if (busy || order.status==='cancelled') return
-    if (!window.confirm(`Cancelar o talão ${order.code}? O estoque reservado será devolvido. Esta ação não pode ser desfeita.`)) return
+    if (!(await confirmAction(`Cancelar o talão ${order.code}? O estoque reservado será devolvido. Esta ação não pode ser desfeita.`, 'Cancelar talão', 'Cancelar e devolver estoque'))) return
     setError(''); setBusy(order.id)
     try {
       await api.cancelOrder(order.id)
