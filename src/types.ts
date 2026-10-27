@@ -138,6 +138,8 @@ export type AdminOrder = {
   seller_id?: string | null
   catalog_id?: string | null
   stock_reverted?: boolean
+  buyer?: { name?: string; city?: string; cep?: string; phone?: string }
+  notes?: string
   created_at: string
 }
 
