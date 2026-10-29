@@ -10,6 +10,12 @@ on:
       - 'src/product-gallery.css'
       - 'src/styles.css'
       - 'src/main.tsx'
+      - 'src/Home.tsx'
+      - 'src/HomeRoute.tsx'
+      - 'src/shopvax-home.css'
+      - 'public/favicon.svg'
+      - 'index.html'
+      - 'tests/shopvax-home-brand.e2e.mjs'
       - 'tests/product-picker-responsive.e2e.mjs'
       - 'tests/brand-phase1.e2e.mjs'
       - 'tests/shopvax-grade.e2e.mjs'
@@ -60,6 +66,8 @@ jobs:
           exit 1
       - name: Browser regression across viewport sizes
         run: node tests/product-picker-responsive.e2e.mjs
+      - name: Shopvax institutional identity across viewports
+        run: node tests/shopvax-home-brand.e2e.mjs
       - name: Brand foundation regression across stores
         run: node tests/brand-phase1.e2e.mjs
       - name: Wholesale grade browser regression
