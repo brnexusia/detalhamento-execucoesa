@@ -173,8 +173,8 @@ test('a PDF beyond page limit reports its real page count', async () => {
 
 test('image indices are per page, not global across the PDF', () => {
   const entries = assertPdfImageBudget(
-    'page num type width height color comp bpc enc interp object ID x-ppi y-ppi size ratio\\n' +
-    '   2   0 image 500 500 rgb 3 8 jpeg no 1 0 72 72 2K 2%\\n' +
+    'page num type width height color comp bpc enc interp object ID x-ppi y-ppi size ratio\n' +
+    '   2   0 image 500 500 rgb 3 8 jpeg no 1 0 72 72 2K 2%\n' +
     '   3   0 image 550 550 rgb 3 8 jpeg no 2 0 72 72 2K 2%'
   )
   assert.equal(entries.length, 2)
