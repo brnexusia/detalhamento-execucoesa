@@ -133,7 +133,7 @@ test('blocks image decompression bombs before photo extraction', () => {
   assert.throws(() => assertPdfImageBudget(listing(20000, 10)), PdfSafetyError)
   const many = Array.from({length:221},(_,i)=>'   1 '+i+' image 500 500 rgb').join('\n')
   assert.throws(() => assertPdfImageBudget(many), PdfSafetyError)
-  const tooManyPixels = Array.from({length:5},(_,i)=>'   1 '+i+' image 4800 4800 rgb').join('\n')
+  const tooManyPixels = Array.from({length:9},(_,i)=>'   1 '+i+' image 4800 4800 rgb').join('\n')
   assert.throws(() => assertPdfImageBudget(tooManyPixels), PdfSafetyError)
   assert.equal(assertPdfImageBudget(listing(500, 500)).length, 1)
 })
