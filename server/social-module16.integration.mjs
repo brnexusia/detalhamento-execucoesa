@@ -19,11 +19,11 @@ if (!store.includes('brand__mark') || !store.includes("(store?.name || 'L').slic
 if (!store.includes('<strong>{store?.name}</strong>')) throw new Error('Nome da loja deixou de ser protagonista no cabeçalho.')
 
 const admin = await fs.readFile('src/AdminApp.tsx', 'utf8')
-if (!admin.includes('<strong>Shopvax</strong>')) throw new Error('Painel do lojista não exibe Shopvax.')
-if (!admin.includes('store-preview-logo">{form.logoUrl ? <img src={form.logoUrl} alt="" /> : <span>SV</span>}')) throw new Error('Prévia da loja ainda não usa SV.')
+if (!admin.includes('shopvax-wordmark-light.svg') || !admin.includes('shopvax-symbol-dark.svg')) throw new Error('Painel do lojista não usa a marca vetorizada oficial.')
+if (!admin.includes('store-preview-logo') || !admin.includes("(form.name || 'L').trim().slice(0, 1).toUpperCase()") || admin.includes('<span>SV</span>')) throw new Error('Prévia da loja precisa usar sua própria marca ou inicial, nunca SV.')
 
 const platform = await fs.readFile('src/PlatformAdmin.tsx', 'utf8')
-if (!platform.includes('<div><strong>Shopvax</strong><small>Administração</small></div>')) throw new Error('Administração da plataforma não exibe Shopvax.')
-if (!platform.includes('<div><span>Shopvax</span><strong>')) throw new Error('Topbar administrativa não exibe Shopvax.')
+if (!platform.includes('shopvax-wordmark-light.svg') || !platform.includes('shopvax-symbol-dark.svg')) throw new Error('Administração não exibe marca oficial Shopvax.')
+if (!platform.includes('<div><span><img className="svx-brand-wordmark" src="/brand/shopvax-wordmark.svg"')) throw new Error('Topbar administrativa não exibe o wordmark oficial.')
 
 console.log('social module 16 ok')
