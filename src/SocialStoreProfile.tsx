@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, ExternalLink, Grid2X2, Play, Store, X } from 'lucide-react'
 import './social-profile.css'
+import './shopvax-social-official.css'
+import { shopvaxAccentTextColor } from './ShopvaxDesignSystem'
 
 type VariationGroup = { name: string; options: string[] }
 type Publication = {
@@ -108,12 +110,12 @@ export default function SocialStoreProfile() {
   return <div className="social-profile-page">
     <header className="social-profile-nav">
       <button onClick={() => go('/')}><ArrowLeft size={18}/> Feed</button>
-      <strong onClick={() => go('/')}>SHOPVAX</strong>
+      <strong>SHOPVAX</strong>
       <a href="/entrar">Entrar</a>
     </header>
 
     <main className="social-profile-shell">
-      <section className="social-profile-card" style={{ '--profile-accent': store.accent || '#111318' } as React.CSSProperties}>
+      <section className="social-profile-card" style={{ '--profile-accent': store.accent || '#F25C05', '--profile-text': shopvaxAccentTextColor(store.accent || '#F25C05') } as React.CSSProperties}>
         <div className="social-profile-main">
           <div className="social-profile-avatar">{store.logoUrl ? <img src={store.logoUrl} alt={store.name}/> : <Store size={32}/>}</div>
           <div className="social-profile-identity">
@@ -127,7 +129,7 @@ export default function SocialStoreProfile() {
           </div>
         </div>
         <div className="social-profile-stats">
-          <div><strong>{store.productCount}</strong><span>publicações</span></div>
+          <div><strong>{store.productCount}</strong><span>produtos publicados</span></div>
           <div><strong>{stats.followers}</strong><span>seguidores</span></div>
           <div><strong>{stats.views}</strong><span>views</span></div>
         </div>
