@@ -32,7 +32,7 @@ try {
   assert(rects.login.top>=rects.header.top-2 && rects.login.bottom<=rects.header.bottom+2,JSON.stringify(rects))
   assert(rects.scrollWidth<=rects.viewport+2,'Horizontal overflow: '+JSON.stringify(rects))
   await page.screenshot({path:'artifacts/shopvax-redesign/store-navigation-'+width+'.png'})
-  await page.getByRole('button',{name:'Feed',exact:true}).last().click()
+  await page.locator('.view-switch').getByRole('button',{name:'Feed',exact:true}).click()
   await page.locator('.feed-card').first().waitFor()
   const feed=await page.evaluate(()=>{
     const header=document.querySelector('.topbar').getBoundingClientRect()
