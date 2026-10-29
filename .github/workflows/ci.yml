@@ -74,6 +74,12 @@ jobs:
           grep -Fq '"./server/page-metadata-hooks.mjs"' Dockerfile
           grep -Fq 'href="/favicon.svg"' index.html
           test -s public/favicon.svg
+      - name: Validate official Shopvax identity assets
+        run: |
+          grep -Fq "import './shopvax-home.css'" src/main.tsx
+          grep -Fq '#F25C05' public/favicon.svg
+          ! grep -Eiq '#c8ff38' public/favicon.svg
+          grep -Fq 'content="#161514"' index.html
       - name: Scanner PDF catalog tests
         run: npm run test:scanner:pdf
       - name: Scanner URL tests
