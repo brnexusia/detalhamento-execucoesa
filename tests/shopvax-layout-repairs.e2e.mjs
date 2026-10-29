@@ -10,9 +10,10 @@ mkdirSync('artifacts/shopvax-redesign',{recursive:true})
 try {
  for(const width of [390,768,1440]) {
   const page=await browser.newPage({viewport:{width,height:844}})
+  await page.route('**/api/public/store/**',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify(payload)}))
   await page.route('**/api/public/store/**/phase2-config',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({customerLoginEnabled:true,theme:{background:'#F3F0E8',textColor:'#161514',font:'system'}})}))
   await page.route('**/api/public/store/**/customers/me',r=>r.fulfill({status:401,body:'{}',contentType:'application/json'}))
-  await page.route('**/api/public/store/**',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify(payload)}))
+
   await page.route('**/api/public/events',r=>r.fulfill({status:204,body:''}))
   await page.goto('http://127.0.0.1:5173/look-premium')
   await page.locator('.store-intro h1').waitFor()
