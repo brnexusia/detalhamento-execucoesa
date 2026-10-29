@@ -148,7 +148,7 @@ async function command(bin, args, timeout = 30000, deadline = Infinity) {
     })
     return result.stdout || ''
   } catch (error) {
-    if (error?.killed || error?.signal === 'SIGXFSZ' ||
+    if (error?.killed || ['SIGXFSZ', 'SIGXCPU', 'SIGKILL'].includes(error?.signal) ||
         error?.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER' ||
         /(?:file size limit exceeded|cannot allocate memory|out of memory|memory allocation failed|resource temporarily unavailable)/i.test(String(error?.stderr || '') + String(error?.message || ''))) {
       throw new PdfSafetyError(UNSAFE_PDF_MESSAGE)
@@ -254,6 +254,7 @@ export async function collectPdfCatalog(buffer, options = {}) {
               ).sort((a, b) => (b.width * b.height) - (a.width * a.height)).slice(0, 3)
               const hashes = new Set()
               for (const photo of photos) {
+                if (Date.now() >= deadline) throw new PdfSafetyError(UNSAFE_PDF_MESSAGE)
                 const file = media.get(photo.index)
                 if (!file) continue
                 try {
