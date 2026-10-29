@@ -1,16 +1,34 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { mkdtemp, writeFile, readFile, readdir, rm } from 'node:fs/promises'
+import { mkdtemp, writeFile, readFile, readdir, rm, stat } from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
 import crypto from 'node:crypto'
 import sharp from 'sharp'
 
 const run = promisify(execFile)
-export const MAX_PDF_BYTES = 16 * 1024 * 1024
+export const MAX_PDF_BYTES = 50 * 1024 * 1024
 export const MAX_PDF_PAGES = 80
 const MAX_PRODUCTS = 500
 const MAX_IMAGES = 220
+// PDF/image expansion bomb guardrails. All conversions run with OS-enforced
+// address-space, CPU and generated-file limits; image metadata is checked
+// before extracting even a single embedded photo.
+const MAX_IMAGE_EDGE = 10_000
+const MAX_IMAGE_PIXELS = 25_000_000
+const MAX_TOTAL_IMAGE_PIXELS = 96_000_000
+const MAX_EXTRACTED_BYTES = 256 * 1024 * 1024
+const MAX_GENERATED_FILE_BYTES = 16 * 1024 * 1024
+const MAX_PDF_PROCESSING_MS = 5 * 60_000
+const MAX_TOOL_OUTPUT_BYTES = 8 * 1024 * 1024
+const PDF_PROCESS_LIMITS = [
+  '--as=1073741824', // 1 GiB virtual address space per converter, not the Node worker
+  '--cpu=75',          // CPU seconds (also have short wall-clock timeouts)
+  '--fsize=' + MAX_GENERATED_FILE_BYTES,
+  '--',
+]
+export class PdfSafetyError extends Error { constructor(message) { super(message); this.name = 'PdfSafetyError' } }
+const UNSAFE_PDF_MESSAGE = 'O PDF excedeu os limites seguros de processamento (tempo, memória, imagens ou dados descompactados). Reduza a complexidade do arquivo e tente novamente.'
 
 function text(value) {
   return String(value || '').replace(/\u00a0/g, ' ').replace(/[ \t]+/g, ' ').trim()
@@ -114,27 +132,75 @@ function parseImageListing(list) {
   return items
 }
 
-async function command(bin, args, timeout = 30000) {
-  const result = await run(bin, args, { timeout, maxBuffer: 8 * 1024 * 1024 })
-  return result.stdout || ''
+/**
+ * prlimit execs the requested tool and imposes kernel resource quotas BEFORE
+ * Poppler/Tesseract parses untrusted bytes. Do not replace with a JS-only timer:
+ * a decompression bomb can exhaust native memory while JS is waiting.
+ */
+async function command(bin, args, timeout = 30000, deadline = Infinity) {
+  const remaining = deadline - Date.now()
+  if (remaining <= 0) throw new PdfSafetyError(UNSAFE_PDF_MESSAGE)
+  try {
+    const result = await run('prlimit', [...PDF_PROCESS_LIMITS, bin, ...args], {
+      timeout: Math.max(1, Math.min(timeout, remaining)),
+      maxBuffer: MAX_TOOL_OUTPUT_BYTES,
+      killSignal: 'SIGKILL',
+    })
+    return result.stdout || ''
+  } catch (error) {
+    if (error?.killed || ['SIGXFSZ', 'SIGXCPU', 'SIGKILL'].includes(error?.signal) ||
+        error?.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER' ||
+        /(?:file size limit exceeded|cannot allocate memory|out of memory|memory allocation failed|resource temporarily unavailable)/i.test(String(error?.stderr || '') + String(error?.message || ''))) {
+      throw new PdfSafetyError(UNSAFE_PDF_MESSAGE)
+    }
+    throw error
+  }
+}
+
+export function assertPdfImageBudget(listing) {
+  const images = parseImageListing(listing)
+  if (images.length > MAX_IMAGES) throw new PdfSafetyError(UNSAFE_PDF_MESSAGE)
+  let totalPixels = 0
+  for (const image of images) {
+    const pixels = image.width * image.height
+    if (!Number.isSafeInteger(pixels) || pixels <= 0 ||
+        image.width > MAX_IMAGE_EDGE || image.height > MAX_IMAGE_EDGE ||
+        pixels > MAX_IMAGE_PIXELS) throw new PdfSafetyError(UNSAFE_PDF_MESSAGE)
+    totalPixels += pixels
+    if (totalPixels > MAX_TOTAL_IMAGE_PIXELS) throw new PdfSafetyError(UNSAFE_PDF_MESSAGE)
+  }
+  return images
+}
+
+async function assertExtractedImageBudget(dir, filenames) {
+  if (filenames.length > MAX_IMAGES + 5) throw new PdfSafetyError(UNSAFE_PDF_MESSAGE)
+  let totalBytes = 0
+  for (const name of filenames) {
+    if (!/^photo-\d+\.(?:jpg|jpeg|png)$/i.test(name)) continue
+    const file = await stat(path.join(dir, name))
+    if (!file.isFile() || file.size > MAX_GENERATED_FILE_BYTES) throw new PdfSafetyError(UNSAFE_PDF_MESSAGE)
+    totalBytes += file.size
+    if (totalBytes > MAX_EXTRACTED_BYTES) throw new PdfSafetyError(UNSAFE_PDF_MESSAGE)
+  }
 }
 
 export async function collectPdfCatalog(buffer, options = {}) {
   if (!Buffer.isBuffer(buffer) || buffer.length < 8 || buffer.length > MAX_PDF_BYTES ||
       !buffer.subarray(0, 1024).toString('latin1').includes('%PDF-')) {
-    throw new Error('Envie um PDF válido de até 16 MB.')
+    throw new Error('Envie um PDF válido de até 50 MB.')
   }
   const dir = await mkdtemp(path.join(os.tmpdir(), 'shopvax-pdf-'))
   const pdf = path.join(dir, 'catalogo.pdf')
+  const deadline = Date.now() + MAX_PDF_PROCESSING_MS
   try {
     await writeFile(pdf, buffer, { mode: 0o600 })
-    const info = await command('pdfinfo', [pdf], 12000)
+    const info = await command('pdfinfo', [pdf], 12000, deadline)
     const totalPages = Number(/^Pages:\s*(\d+)/mi.exec(info)?.[1] || 0)
     if (!totalPages || totalPages > MAX_PDF_PAGES) {
       throw new Error('O catálogo PDF deve ter de 1 a ' + MAX_PDF_PAGES + ' páginas.')
     }
     await options.onProgress?.({ progress: 10, pagesScanned: 0, platform: 'pdf' })
-    let raw = await command('pdftotext', ['-layout', '-enc', 'UTF-8', pdf, '-'], 40000)
+    let raw = await command('pdftotext', ['-layout', '-enc', 'UTF-8', pdf, '-'], 40000, deadline)
     const pages = raw.replace(/\r/g, '').split('\f').slice(0, totalPages)
 
     // OCR is a fallback only for pages without a usable text layer.
@@ -142,11 +208,15 @@ export async function collectPdfCatalog(buffer, options = {}) {
       if ((pages[i] || '').replace(/\W/g, '').length >= 20) continue
       const prefix = path.join(dir, 'ocr-' + i)
       try {
-        await command('pdftoppm', ['-f', String(i + 1), '-l', String(i + 1), '-scale-to', '1600', '-singlefile', '-gray', '-png', pdf, prefix], 25000)
-        const fallback = await command('tesseract', [prefix + '.png', 'stdout', '-l', 'por+eng'], 18000)
+        await command('pdftoppm', ['-f', String(i + 1), '-l', String(i + 1), '-scale-to', '1600', '-singlefile', '-gray', '-png', pdf, prefix], 25000, deadline)
+        const fallback = await command('tesseract', [prefix + '.png', 'stdout', '-l', 'por+eng'], 18000, deadline)
         if (fallback.trim()) pages[i] = fallback
       } catch (error) {
+        if (error instanceof PdfSafetyError) throw error
         console.warn('[pdf import] OCR page skipped:', i + 1, error.message)
+      } finally {
+        // Never accumulate 80 rasterized pages in the temporary directory.
+        await rm(prefix + '.png', { force: true })
       }
       await options.onProgress?.({ progress: Math.min(65, 12 + Math.round(50 * (i + 1) / totalPages)), pagesScanned: i + 1, platform: 'pdf' })
     }
@@ -161,16 +231,17 @@ export async function collectPdfCatalog(buffer, options = {}) {
     // This avoids assigning the wrong image to a product in grid-style PDFs.
     if (options.onImage) {
       try {
-        const listing = parseImageListing(await command('pdfimages', ['-list', pdf], 16000))
-        if (listing.length <= MAX_IMAGES) {
+        const listing = assertPdfImageBudget(await command('pdfimages', ['-list', pdf], 16000, deadline))
+        {
           const eligible = new Set()
           const byPage = new Map()
           for (const item of candidates) byPage.set(item.pdf_page, (byPage.get(item.pdf_page) || 0) + 1)
           for (const [page, count] of byPage.entries()) if (count === 1) eligible.add(page)
           if (listing.some((item) => eligible.has(item.page) && item.kind === 'image' && item.width >= 220 && item.height >= 220)) {
             const prefix = path.join(dir, 'photo')
-            await command('pdfimages', ['-j', '-png', pdf, prefix], 60000)
+            await command('pdfimages', ['-j', '-png', pdf, prefix], 60000, deadline)
             const files = await readdir(dir)
+            await assertExtractedImageBudget(dir, files)
             const media = new Map()
             for (const file of files) {
               const match = /^photo-(\d+)\.(?:jpg|jpeg|png)$/i.exec(file)
@@ -183,18 +254,21 @@ export async function collectPdfCatalog(buffer, options = {}) {
               ).sort((a, b) => (b.width * b.height) - (a.width * a.height)).slice(0, 3)
               const hashes = new Set()
               for (const photo of photos) {
+                if (Date.now() >= deadline) throw new PdfSafetyError(UNSAFE_PDF_MESSAGE)
                 const file = media.get(photo.index)
                 if (!file) continue
                 try {
                   const image = await sharp(await readFile(path.join(dir, file)), { limitInputPixels: 35_000_000 })
                     .rotate().resize({ width: 1200, height: 1200, fit: 'inside', withoutEnlargement: true })
                     .webp({ quality: 82 }).toBuffer()
+                  if (image.length > 5 * 1024 * 1024) throw new PdfSafetyError(UNSAFE_PDF_MESSAGE)
                   const hash = crypto.createHash('sha256').update(image).digest('hex')
                   if (hashes.has(hash)) continue
                   hashes.add(hash)
                   const url = await options.onImage(image, 'image/webp', 'catalogo-p' + candidate.pdf_page + '.webp')
                   if (url) candidate.images.push(url)
                 } catch (error) {
+                  if (error instanceof PdfSafetyError) throw error
                   console.warn('[pdf import] image skipped:', error.message)
                 }
               }
@@ -202,6 +276,7 @@ export async function collectPdfCatalog(buffer, options = {}) {
           }
         }
       } catch (error) {
+        if (error instanceof PdfSafetyError) throw error
         console.warn('[pdf import] PDF pictures unavailable:', error.message)
       }
     }

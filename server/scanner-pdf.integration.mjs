@@ -101,6 +101,12 @@ try {
   })
   assert.equal(response.status, 200, 'descartar histórico não apaga produto publicado')
 
+  const oversized = new FormData()
+  const overLimit = Buffer.alloc(50 * 1024 * 1024 + 1)
+  overLimit.write('%PDF-1.4', 0, 'ascii')
+  oversized.append('file', new Blob([overLimit], { type: 'application/pdf' }), 'grande.pdf')
+  response = await fetch(base + '/api/admin/imports/pdf', { method: 'POST', headers: { Cookie: first }, body: oversized })
+  assert.equal(response.status, 413, 'upload acima de 50 MB deve ser bloqueado sem criar job')
   const invalid = new FormData()
   invalid.append('file', new Blob([Buffer.from('not a PDF')], { type: 'application/pdf' }), 'fake.pdf')
   response = await fetch(base + '/api/admin/imports/pdf', { method: 'POST', headers: { Cookie: first }, body: invalid })
