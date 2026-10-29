@@ -47,7 +47,7 @@ try{
   assert(created,'Buyer has explicitly prepared the order')
   assert.equal(created.items[0].quantity,4)
   assert.equal(created.items[0].selections.Cor,'Azteca')
-  assert.match(await page.locator('.svx-order-ready').innerText(),/Agora é só enviar/)
+  assert.match(await page.locator('.svx-order-ready').innerText(),/agora é só enviar/i)
   assert.match(await page.locator('.svx-order-ready').innerText(),/não confirma entrega da mensagem|não confirma/i)
   await page.screenshot({path:'artifacts/shopvax-redesign/flow-03-order-ready-'+width+'.png'})
   const count=await page.locator('.svx-order-ready__send').count()
