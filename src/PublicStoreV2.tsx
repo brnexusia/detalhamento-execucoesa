@@ -10,6 +10,7 @@ import StoreSocialNav from './StoreSocialNav'
 import CustomerAccountLauncher from './CustomerAccountLauncher'
 import './shopvax-store-layout-fixes.css'
 import './shopvax-desktop-product-page.css'
+import './shopvax-desktop-ticket-05.css'
 import type { CartItem, Product, PublicPayload } from './types'
 
 type ViewMode = 'store' | 'feed'
