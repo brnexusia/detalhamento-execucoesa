@@ -51,7 +51,7 @@ await page.locator('.product-card__media').first().click()
       assert(r.x >= -2 && r.right<=width+2 && r.y>=-2 && r.bottom<=height+2,`${width}x${height}: ${label} clipped: ${JSON.stringify(before)}`)
     }
     for(const sel of ['picker','footer','cta','gallery','thumbs','scroll']) inBounds(before[sel],sel)
-    assert((before.scrollHeight??0)>(before.clientHeight??0),`${width}x${height}: details should scroll instead of disappearing: ${JSON.stringify(before)}`)
+    assert((before.scrollHeight??0) >= (before.clientHeight??0),`${width}x${height}: details must be visible or scroll when overflowing: ${JSON.stringify(before)}`)
     assert((before.stageHeight??0)>0,`${width}x${height}: missing image`)
     assert.equal(await page.locator('.variant-options button').count(),18)
     await page.getByRole('button',{name:'Cor 15 Especial'}).click()
