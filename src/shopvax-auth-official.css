@@ -131,3 +131,104 @@
 @media(prefers-reduced-motion:reduce) {
   .auth-shell *, .auth-shell *::before, .auth-shell *::after {animation:none!important;transition:none!important;}
 }
+
+/* Desktop: composição adaptada à altura útil do navegador, inclusive zoom de 100–125%.
+ * Uma tela baixa não deve exigir reduzir zoom; formulários muito extensos mantêm
+ * rolagem LOCAL para não cortar campos (cadastro, erros ou acessibilidade). */
+@media (min-width:701px) {
+  .auth-shell {
+    height:100dvh;
+    min-height:0;
+    overflow:hidden;
+  }
+  .auth-shell .auth-poster {
+    height:100%;
+    min-height:0;
+    overflow-y:auto;
+    padding:clamp(14px,2.5dvh,32px) clamp(20px,2.6vw,42px);
+    gap:clamp(6px,1.4dvh,15px);
+  }
+  .auth-shell .auth-poster__copy {
+    padding:clamp(4px,1.2dvh,14px) 0;
+    max-width:100%;
+  }
+  .auth-shell .auth-poster__copy>p {
+    margin-bottom:clamp(5px,1dvh,12px);
+    font-size:clamp(9px,1.4dvh,11px);
+  }
+  .auth-shell .auth-poster__copy h1 {
+    max-width:15ch;
+    margin:0 0 clamp(7px,1.8dvh,19px);
+    font-size:clamp(38px,min(5.4vw,8.6dvh),82px);
+    line-height:.87;
+  }
+  .auth-shell .auth-poster__copy .poster-note {
+    padding-top:clamp(6px,1.1dvh,11px);
+    font-size:clamp(9px,1.3dvh,11px);
+  }
+  .auth-shell .auth-poster__ribbon {
+    padding:clamp(6px,1dvh,10px) 10px;
+  }
+  .auth-shell .auth-poster__steps {
+    padding-top:clamp(7px,1.2dvh,13px);
+    gap:8px;
+  }
+  .auth-shell .auth-poster__steps b {
+    font-size:clamp(18px,3.1dvh,26px);
+    margin-bottom:2px;
+  }
+  .auth-shell .auth-panel {
+    height:100%;
+    min-height:0;
+    overflow-y:auto;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:clamp(12px,2.7dvh,32px) clamp(20px,3vw,48px);
+  }
+  .auth-shell .auth-form {
+    width:min(100%,460px);
+    flex:0 1 460px;
+    margin:auto;
+    padding:clamp(4px,.9dvh,10px) 0;
+    gap:clamp(5px,1dvh,12px);
+  }
+  .auth-shell .auth-form__head {
+    margin-bottom:clamp(0px,.6dvh,7px);
+    padding-bottom:clamp(8px,1.5dvh,15px);
+  }
+  .auth-shell .auth-form__head .brand__mark {
+    width:clamp(32px,5dvh,42px);
+    height:clamp(32px,5dvh,42px);
+  }
+  .auth-shell .auth-form__head .brand__mark .svx-brand-symbol {
+    height:clamp(23px,3.9dvh,29px);
+  }
+  .auth-shell .auth-form__head>p {
+    margin:clamp(5px,1dvh,11px) 0 3px;
+  }
+  .auth-shell .auth-form__head h2 {
+    max-width:17ch;
+    font-size:clamp(31px,min(4vw,6.4dvh),54px);
+    line-height:.93;
+  }
+  .auth-shell .auth-form>label {gap:3px;}
+  .auth-shell .auth-form input {
+    min-height:clamp(37px,6.3dvh,46px);
+    padding:8px 11px;
+  }
+  .auth-shell .auth-form .password-input button {
+    min-height:clamp(36px,6.3dvh,44px);
+  }
+  .auth-shell .auth-form>.primary-action {
+    min-height:clamp(40px,6.4dvh,50px);
+    padding:9px 14px;
+  }
+  .auth-shell .auth-switch {margin:0;}
+}
+/* Em acessibilidade/zoom extremo, priorizar campos acessíveis à ausência de
+ * scroll. A composição normal de desktop não precisa dessas barras. */
+@media (min-width:701px) and (max-height:520px) {
+  .auth-shell .auth-poster, .auth-shell .auth-panel {overscroll-behavior:contain;}
+  .auth-shell .auth-poster__steps {font-size:9px;}
+}
