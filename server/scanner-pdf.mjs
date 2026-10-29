@@ -72,7 +72,7 @@ function pageCandidates(pageText, page) {
       properties: [],
       variants: [],
       source: 'pdf',
-      source_url: 'https://shopvax-pdf-import.invalid/page/' + page + '/item/' + result.length,
+      source_url: 'pdf://page/' + page + '/item/' + result.length,
       external_id: 'pdf-p' + page + '-' + result.length,
       pdf_page: page,
     })
