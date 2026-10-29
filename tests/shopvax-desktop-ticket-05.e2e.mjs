@@ -46,7 +46,7 @@ try {
     assert(await review.isEnabled(),'Talão deve liberar revisão após mínimo')
     await review.click()
     await page.getByRole('dialog',{name:/Confira seu talão/i}).waitFor()
-    await page.getByRole('dialog',{name:/Confira seu talão/i}).getByRole('button',{name:'Fechar revisão'}).click()
+    await page.getByRole('dialog',{name:/Confira seu talão/i}).getByRole('button',{name:'Fechar revisão'}).last().click()
     await page.screenshot({path:'artifacts/shopvax-redesign/desktop-ticket-'+width+'x'+height+'.png',fullPage:false})
     console.log('DESKTOP_TICKET_PASS',width,height)
   } else console.log('MOBILE_TICKET_NOT_SHOWN_PASS',width,height)
