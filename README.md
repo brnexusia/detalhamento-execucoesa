@@ -17,15 +17,15 @@ O cliente descobre produtos no feed ou entra pelo link da loja/vendedora, escolh
 
 ## Importação de catálogo por PDF
 
-Na aba **Produtos → Importar catálogo → Arquivo PDF**, o lojista pode enviar um catálogo próprio em PDF (até **16 MB e 80 páginas**). O arquivo entra na mesma fila de importações de lojas por link.
+Na aba **Produtos → Importar catálogo → Arquivo PDF**, o lojista pode enviar um catálogo próprio em PDF (até **50 MB e 80 páginas**). O arquivo entra na mesma fila de importações de lojas por link.
 
 - **Leitura:** Poppler extrai o texto. Páginas sem camada de texto legível recebem OCR em português/inglês via Tesseract.
 - **Produtos:** o importador identifica produtos com nome e preço, tenta extrair referências/SKU e captura fotografias embutidas quando há **apenas um produto reconhecido na página**. Em páginas com várias peças não faz associação automática de fotos para evitar trocas de imagem.
 - **Revisão obrigatória:** nenhum item é publicado diretamente. O lojista pode revisar nome, referência, preço, categoria, imagens, variações e seleção antes de confirmar a publicação.
-- **Segurança:** upload autenticado, assinatura PDF validada, limites de páginas/tamanho, processamento local (sem enviar o PDF a IA externa), arquivo original descartado após processamento. Cada importação e suas mídias são atribuídas à loja.
+- **Segurança:** upload autenticado, assinatura PDF validada, limite de 50 MB e 80 páginas, processamento local (sem enviar o PDF a IA externa), arquivo original descartado após processamento. Poppler/Tesseract executam com cotas de tempo, memória, CPU e tamanho de arquivos gerados via `prlimit`; a extração limita pixels, dimensões, quantidade e tamanho acumulado de imagens para mitigar PDF bombs. Exceder o orçamento interrompe o processamento. Cada importação e suas mídias são atribuídas à loja.
 - **Limitação:** layouts muito livres, preços em imagens de baixa qualidade e catálogos com muitas peças por página podem precisar de correção manual. O sistema não inventa valores não reconhecidos.
 
-A imagem dos produtos é guardada na loja como mídia local. Não confundir essa operação com o botão **Gerar PDF**, que exporta os produtos já cadastrados. O container de produção instala `poppler-utils` e `tesseract-ocr` com os idiomas `por` e `eng`.
+A imagem dos produtos é guardada na loja como mídia local. Não confundir essa operação com o botão **Gerar PDF**, que exporta os produtos já cadastrados. O container de produção instala `poppler-utils`, `tesseract-ocr` (idiomas `por` e `eng`) e `util-linux` (`prlimit`). Isso reduz o risco de arquivos maliciosos; o servidor ainda deve ter limites próprios de RAM/CPU/disco e as ferramentas devem receber atualizações de segurança.
 
 ## Painel do lojista
 
