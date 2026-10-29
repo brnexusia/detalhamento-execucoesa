@@ -32,7 +32,9 @@ function referenceFrom(textValue) {
 
 function isNonTitle(line) {
   const value = text(line)
-  return !value || value.length < 3 || /^R\$\s*[\d.,]+/i.test(value) ||
+  const label = value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[:.#\s-]+$/g, '').toLowerCase()
+  const priceLabel = /^(?:preco(?:\s+de)?(?:\s+(?:atacado|varejo|promocional))?|valor(?:\s+(?:atacado|varejo))?|atacado|varejo)$/.test(label)
+  return !value || value.length < 3 || priceLabel || /^R\$\s*[\d.,]+/i.test(value) ||
     /^(?:pre[cç]o|valor|atacado|varejo|ref(?:er[eê]ncia)?|c[oó]digo|sku|modelo|tam(?:anho)?|cor(?:es)?|p[aá]g(?:ina)?|whats(?:app)?|tel(?:efone)?|instagram|pedido m[ií]nimo|quantidade|dispon[ií]vel|pix)\s*[:.#-]/i.test(value) ||
     /^[\d\s.,/()\-]+$/.test(value) || /^(?:cat[aá]logo|cole[cç][aã]o|tabela de pre[cç]os|nova cole[cç][aã]o|frete|envio)$/i.test(value)
 }
