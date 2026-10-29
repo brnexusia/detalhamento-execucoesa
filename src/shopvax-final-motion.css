@@ -141,3 +141,63 @@
 @media (prefers-reduced-motion:reduce) {
   .app--feed .feed-list { scroll-snap-type:none !important; scroll-behavior:auto !important; }
 }
+
+/* Prancha 08 — movimentos funcionais do talão. Render na GPU sempre que possível.
+ * 01 A fita avança 40 px/s de direita para esquerda; pausa em hover de desktop. */
+.svx-motion-ticker {overflow:hidden;display:block!important;max-width:100%;white-space:nowrap;}
+.svx-motion-ticker__track {display:flex;width:max-content;animation:svx-ribbon-scroll var(--svx-ticker-duration,18s) linear infinite;will-change:transform;}
+.svx-motion-ticker__unit {display:inline-flex;flex:0 0 auto;align-items:center;gap:32px;justify-content:space-around;padding-right:32px;}
+.svx-motion-ticker__unit>span {display:inline-block;flex:0 0 auto;}
+@keyframes svx-ribbon-scroll {to {transform:translate3d(-50%,0,0);}}
+@media(hover:hover) and (pointer:fine){.svx-motion-ticker:hover .svx-motion-ticker__track{animation-play-state:paused;}}
+
+/* 02 Batida da confirmação: 220ms, overshoot, sem alterar valores do carrinho. */
+@keyframes svx-stamp-hit {
+  0% {opacity:0;transform:rotate(-12deg) scale(1.2);}
+  62% {opacity:1;transform:rotate(-6deg) scale(.92);}
+  100% {opacity:1;transform:rotate(-5deg) scale(1);}
+}
+@media(prefers-reduced-motion:no-preference) {
+ .svx-stamp{animation:svx-stamp-hit 220ms cubic-bezier(.2,1.4,.4,1.1) both;}
+}
+
+.svx-motion-toast-stamp {display:inline-block;padding:5px 12px;border:2px solid currentColor;font:800 17px/1 var(--svx-font-display,'Archivo Narrow',sans-serif);transform:rotate(-5deg);}
+@media(prefers-reduced-motion:no-preference){.svx-motion-toast-stamp{animation:svx-stamp-hit 220ms cubic-bezier(.2,1.4,.4,1.1) both;}}
+
+/* 03 Toque 80ms, número subindo 8px em 160ms. */
+@keyframes svx-number-up {from{opacity:.35;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:no-preference){
+ .svx-motion-count{display:inline-block;min-width:1ch;animation:svx-number-up 160ms ease-out both;}
+ .svx-grade__stepper button:not(:disabled):active,
+ .quantity-control button:not(:disabled):active,
+ .svx-grade__colors button:active {transform:scale(.9);transition:transform 80ms ease-out;}
+}
+
+/* 04 Mínimo: vinte segmentos de 5%, 30ms de acendimento por segmento. */
+.app .minimum-track {position:relative;overflow:hidden;isolation:isolate;}
+.app .minimum-track>span {opacity:0;pointer-events:none;}
+.svx-minimum-segments {position:absolute;inset:0;display:grid;grid-template-columns:repeat(20,minmax(0,1fr));gap:3px;padding:0;pointer-events:none;}
+.svx-minimum-segments i {background:#66635e;opacity:.65;transition:background-color 30ms linear,opacity 30ms linear;}
+.svx-minimum-segments i.is-filled {background:var(--accent,#F25C05);opacity:1;}
+@keyframes svx-minimum-confirm {50% {filter:brightness(1.5);}100%{filter:brightness(1);}}
+@media(prefers-reduced-motion:no-preference) {
+ .minimum-track.is-reached .svx-minimum-segments {animation:svx-minimum-confirm 240ms ease-out 1;}
+}
+
+/* 05 Rasgo na linha pontilhada; nunca confundir 'abrir WhatsApp' com
+ * mensagem realmente enviada. Nada é marcado como ENVIADO pela animação. */
+.svx-order-ready>header {transform-origin:50% 100%;position:relative;}
+.svx-order-ready>header::after {content:'';position:absolute;bottom:-2px;left:16px;right:16px;border-bottom:2px dashed #6B665C;pointer-events:none;}
+@keyframes svx-ticket-tear {0%{transform:translateY(0) rotate(0);opacity:1;}65%{transform:translateY(-8px) rotate(-1.3deg);opacity:1;}100%{transform:translateY(-18px) rotate(-2deg);opacity:.82;}}
+@media(prefers-reduced-motion:no-preference){
+ .svx-order-ready.is-tearing>header {animation:svx-ticket-tear 420ms cubic-bezier(.2,.8,.2,1) both;}
+}
+@media(prefers-reduced-motion:reduce){
+ .svx-motion-ticker__track {animation:none!important;transform:none!important;will-change:auto;}
+ .svx-motion-ticker__unit[aria-hidden="true"]{display:none;}
+ .svx-stamp,.svx-motion-count,.minimum-track.is-reached .svx-minimum-segments,.svx-order-ready.is-tearing>header{
+   animation:none!important;transition:opacity 120ms ease-out!important;transform:none!important;opacity:1!important;
+ }
+ .svx-grade__stepper button,.quantity-control button{transform:none!important;transition:opacity 120ms ease-out!important;}
+ .svx-minimum-segments i{transition:opacity 120ms ease-out!important;}
+}
