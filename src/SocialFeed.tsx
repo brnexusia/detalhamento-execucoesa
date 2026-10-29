@@ -3,6 +3,7 @@ import { showToast } from './ui-dialogs'
 import { ChevronRight, Eye, Heart, MessageCircleQuestion, Minus, Play, Plus, Share2, ShoppingBag, Store, Volume2, VolumeX, X } from 'lucide-react'
 import './social-feed.css'
 import './shopvax-social-official.css'
+import './shopvax-social-feed-layout.css'
 import { shopvaxAccentTextColor } from './ShopvaxDesignSystem'
 
 type VariationGroup = { name: string; options: string[] }

@@ -8,7 +8,7 @@ import sharp from 'sharp'
 
 const run = promisify(execFile)
 export const MAX_PDF_BYTES = 50 * 1024 * 1024
-export const MAX_PDF_PAGES = 80
+export const MAX_PDF_PAGES = 200
 const MAX_PRODUCTS = 500
 const MAX_IMAGES = 220
 // PDF/image expansion bomb guardrails. All conversions run with OS-enforced
@@ -16,7 +16,9 @@ const MAX_IMAGES = 220
 // before extracting even a single embedded photo.
 const MAX_IMAGE_EDGE = 10_000
 const MAX_IMAGE_PIXELS = 25_000_000
-const MAX_TOTAL_IMAGE_PIXELS = 96_000_000
+const MAX_TOTAL_IMAGE_PIXELS = 192_000_000
+const MAX_IMAGE_LIST_ENTRIES = 2_000
+const MAX_EXTRACTED_PRODUCT_PHOTOS = 90
 const MAX_EXTRACTED_BYTES = 256 * 1024 * 1024
 const MAX_GENERATED_FILE_BYTES = 16 * 1024 * 1024
 const MAX_PDF_PROCESSING_MS = 5 * 60_000
@@ -119,14 +121,14 @@ export function parsePdfCatalogText(pdfText, maxPages = MAX_PDF_PAGES) {
 function parseImageListing(list) {
   const items = []
   for (const row of String(list || '').split('\n')) {
-    const match = /^\s*(\d+)\s+\d+\s+(image|smask|mask|stencil)\s+(\d+)\s+(\d+)\s+/i.exec(row)
+    const match = /^\s*(\d+)\s+(\d+)\s+(image|smask|mask|stencil)\s+(\d+)\s+(\d+)\s+/i.exec(row)
     if (!match) continue
     items.push({
       page: Number(match[1]),
-      kind: match[2].toLowerCase(),
-      width: Number(match[3]),
-      height: Number(match[4]),
-      index: items.length,
+      kind: match[3].toLowerCase(),
+      width: Number(match[4]),
+      height: Number(match[5]),
+      index: Number(match[2]),
     })
   }
   return items
@@ -158,7 +160,7 @@ async function command(bin, args, timeout = 30000, deadline = Infinity) {
 }
 
 export function assertPdfImageBudget(listing) {
-  const images = parseImageListing(listing)
+  const images = Array.isArray(listing) ? listing : parseImageListing(listing)
   if (images.length > MAX_IMAGES) throw new PdfSafetyError(UNSAFE_PDF_MESSAGE)
   let totalPixels = 0
   for (const image of images) {
@@ -176,7 +178,7 @@ async function assertExtractedImageBudget(dir, filenames) {
   if (filenames.length > MAX_IMAGES + 5) throw new PdfSafetyError(UNSAFE_PDF_MESSAGE)
   let totalBytes = 0
   for (const name of filenames) {
-    if (!/^photo-\d+\.(?:jpg|jpeg|png)$/i.test(name)) continue
+    if (!/^photo-\d+-\d+\.(?:jpg|jpeg|png)$/i.test(name)) continue
     const file = await stat(path.join(dir, name))
     if (!file.isFile() || file.size > MAX_GENERATED_FILE_BYTES) throw new PdfSafetyError(UNSAFE_PDF_MESSAGE)
     totalBytes += file.size
@@ -196,15 +198,28 @@ export async function collectPdfCatalog(buffer, options = {}) {
     await writeFile(pdf, buffer, { mode: 0o600 })
     const info = await command('pdfinfo', [pdf], 12000, deadline)
     const totalPages = Number(/^Pages:\s*(\d+)/mi.exec(info)?.[1] || 0)
-    if (!totalPages || totalPages > MAX_PDF_PAGES) {
-      throw new Error('O catálogo PDF deve ter de 1 a ' + MAX_PDF_PAGES + ' páginas.')
+    if (!totalPages) {
+      throw new Error('Não foi possível identificar as páginas do PDF. Confira se o arquivo está íntegro e não possui senha.')
+    }
+    if (totalPages > MAX_PDF_PAGES) {
+      throw new Error('Este catálogo tem ' + totalPages + ' páginas; o limite é ' + MAX_PDF_PAGES + ' páginas por PDF.')
     }
     await options.onProgress?.({ progress: 10, pagesScanned: 0, platform: 'pdf' })
     let raw = await command('pdftotext', ['-layout', '-enc', 'UTF-8', pdf, '-'], 40000, deadline)
     const pages = raw.replace(/\r/g, '').split('\f').slice(0, totalPages)
 
     // OCR is a fallback only for pages without a usable text layer.
+    // This class of Canva catalog mixes text pages (with name/price) and
+    // image-only facing pages: running OCR on dozens of pure photo pages
+    // wastes minutes and may hit the processing deadline. A full scan with
+    // no detected text products STILL goes through OCR on every page.
+    const textLayerCandidates = parsePdfCatalogText(pages.join('\f'), totalPages).candidates.length
+    const mixedTextAndPhotoCatalog = textLayerCandidates >= 8 && totalPages >= 30
     for (let i = 0; i < totalPages; i += 1) {
+      if (mixedTextAndPhotoCatalog && !(pages[i] || '').trim()) {
+        await options.onProgress?.({ progress: Math.min(65, 12 + Math.round(50 * (i + 1) / totalPages)), pagesScanned: i + 1, platform: 'pdf' })
+        continue
+      }
       if ((pages[i] || '').replace(/\W/g, '').length >= 20) continue
       const prefix = path.join(dir, 'ocr-' + i)
       try {
@@ -227,52 +242,70 @@ export async function collectPdfCatalog(buffer, options = {}) {
       throw new Error('Nenhum produto com nome e preço reconhecíveis foi encontrado. Use um PDF com preços legíveis ou cadastre os produtos manualmente.')
     }
 
-    // Only link embedded photos when a page has exactly one candidate.
-    // This avoids assigning the wrong image to a product in grid-style PDFs.
+    // Preserve product names/prices even when a long Canva export embeds many
+    // masks, icons and background images. Inspect the listing first, then
+    // extract ONE PAGE at a time: never decompress the whole catalog.
+    // One candidate per page is required to avoid assigning a wrong photo.
     if (options.onImage) {
       try {
-        const listing = assertPdfImageBudget(await command('pdfimages', ['-list', pdf], 16000, deadline))
-        {
-          const eligible = new Set()
-          const byPage = new Map()
-          for (const item of candidates) byPage.set(item.pdf_page, (byPage.get(item.pdf_page) || 0) + 1)
-          for (const [page, count] of byPage.entries()) if (count === 1) eligible.add(page)
-          if (listing.some((item) => eligible.has(item.page) && item.kind === 'image' && item.width >= 220 && item.height >= 220)) {
-            const prefix = path.join(dir, 'photo')
-            await command('pdfimages', ['-j', '-png', pdf, prefix], 60000, deadline)
-            const files = await readdir(dir)
+        const listing = parseImageListing(await command('pdfimages', ['-list', pdf], 16000, deadline))
+        if (listing.length > MAX_IMAGE_LIST_ENTRIES) throw new PdfSafetyError(UNSAFE_PDF_MESSAGE)
+        const pageCounts = new Map()
+        for (const item of candidates) pageCounts.set(item.pdf_page, (pageCounts.get(item.pdf_page) || 0) + 1)
+        const byPage = new Map()
+        for (const item of listing) {
+          if (!byPage.has(item.page)) byPage.set(item.page, [])
+          byPage.get(item.page).push(item)
+        }
+        let processedPixels = 0
+        let savedPhotos = 0
+        for (const candidate of candidates) {
+          if (pageCounts.get(candidate.pdf_page) !== 1 || savedPhotos >= MAX_EXTRACTED_PRODUCT_PHOTOS) continue
+          const pageImages = byPage.get(candidate.pdf_page) || []
+          // Suspicious page images are skipped rather than rendered, while
+          // readable product text can still be staged for human review.
+          try { assertPdfImageBudget(pageImages) } catch (error) {
+            if (error instanceof PdfSafetyError) continue
+            throw error
+          }
+          const photo = pageImages
+            .filter((item) => item.kind === 'image' && item.width >= 220 && item.height >= 220)
+            .sort((a, b) => b.width * b.height - a.width * a.height)[0]
+          if (!photo) continue
+          const pixels = photo.width * photo.height
+          if (processedPixels + pixels > MAX_TOTAL_IMAGE_PIXELS) break
+          processedPixels += pixels
+          const page = candidate.pdf_page
+          const prefix = path.join(dir, 'photo-' + page)
+          let files = []
+          try {
+            await command('pdfimages', ['-f', String(page), '-l', String(page), '-j', '-png', pdf, prefix], 25000, deadline)
+            files = (await readdir(dir)).filter((name) =>
+              new RegExp('^photo-' + page + '-\\d+\\.(?:jpg|jpeg|png)$', 'i').test(name))
             await assertExtractedImageBudget(dir, files)
-            const media = new Map()
-            for (const file of files) {
-              const match = /^photo-(\d+)\.(?:jpg|jpeg|png)$/i.exec(file)
-              if (match) media.set(Number(match[1]), file)
+            const photoFile = files.find((file) =>
+              Number(/-(\d+)\.(?:jpg|jpeg|png)$/i.exec(file)?.[1]) === photo.index)
+            if (!photoFile) continue
+            const buffer = await readFile(path.join(dir, photoFile))
+            if (buffer.length > MAX_GENERATED_FILE_BYTES) throw new PdfSafetyError(UNSAFE_PDF_MESSAGE)
+            const image = await sharp(buffer, { limitInputPixels: MAX_IMAGE_PIXELS })
+              .rotate().resize({ width: 1200, height: 1200, fit: 'inside', withoutEnlargement: true })
+              .webp({ quality: 82 }).toBuffer()
+            if (image.length > 5 * 1024 * 1024) throw new PdfSafetyError(UNSAFE_PDF_MESSAGE)
+            const url = await options.onImage(image, 'image/webp', 'catalogo-p' + page + '.webp')
+            if (url) {
+              candidate.images.push(url)
+              savedPhotos += 1
             }
-            for (const candidate of candidates) {
-              if (!eligible.has(candidate.pdf_page)) continue
-              const photos = listing.filter((item) =>
-                item.page === candidate.pdf_page && item.kind === 'image' && item.width >= 220 && item.height >= 220
-              ).sort((a, b) => (b.width * b.height) - (a.width * a.height)).slice(0, 3)
-              const hashes = new Set()
-              for (const photo of photos) {
-                if (Date.now() >= deadline) throw new PdfSafetyError(UNSAFE_PDF_MESSAGE)
-                const file = media.get(photo.index)
-                if (!file) continue
-                try {
-                  const image = await sharp(await readFile(path.join(dir, file)), { limitInputPixels: 35_000_000 })
-                    .rotate().resize({ width: 1200, height: 1200, fit: 'inside', withoutEnlargement: true })
-                    .webp({ quality: 82 }).toBuffer()
-                  if (image.length > 5 * 1024 * 1024) throw new PdfSafetyError(UNSAFE_PDF_MESSAGE)
-                  const hash = crypto.createHash('sha256').update(image).digest('hex')
-                  if (hashes.has(hash)) continue
-                  hashes.add(hash)
-                  const url = await options.onImage(image, 'image/webp', 'catalogo-p' + candidate.pdf_page + '.webp')
-                  if (url) candidate.images.push(url)
-                } catch (error) {
-                  if (error instanceof PdfSafetyError) throw error
-                  console.warn('[pdf import] image skipped:', error.message)
-                }
-              }
-            }
+          } catch (error) {
+            if (error instanceof PdfSafetyError) throw error
+            console.warn('[pdf import] photo skipped on page', page, error.message)
+          } finally {
+            // No image file survives the current page. Disk use does not grow
+            // in proportion to the number of pages in the PDF.
+            const found = (await readdir(dir)).filter((name) =>
+              new RegExp('^photo-' + page + '-\\d+\\.(?:jpg|jpeg|png)$', 'i').test(name))
+            await Promise.all(found.map((name) => rm(path.join(dir, name), { force: true })))
           }
         }
       } catch (error) {

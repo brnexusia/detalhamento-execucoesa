@@ -1,0 +1,142 @@
+/* Shopvax: navegação integrada ao cabeçalho comercial (sem overlays fixos).
+   Marca da LOJA vem antes das ações da plataforma. */
+.app .topbar {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto auto;
+  grid-template-areas:"marca navegacao carrinho";
+  align-items:center;
+  gap:10px 18px;
+  min-height:74px;
+  height:auto;
+  padding:9px max(16px,env(safe-area-inset-right)) 9px max(16px,env(safe-area-inset-left));
+  background:#F3F0E8;
+}
+.app .topbar>.brand { grid-area:marca; min-width:0; }
+.app .topbar>.cart-trigger { grid-area:carrinho;justify-self:end; }
+.app .store-header-navigation {
+  grid-area:navegacao;
+  display:flex;align-items:center;justify-content:flex-end;gap:10px;
+  min-width:0;
+}
+.app .store-header-navigation .view-switch {
+  display:flex !important;
+  min-width:0;
+  border:1px solid #D9D3C6;
+  border-radius:0;
+  background:#FCFAF5;
+}
+.app .store-social-nav {
+  position:static !important;
+  inset:auto !important;
+  z-index:auto;
+  display:flex;align-items:center;
+  gap:0;border:1px solid #D9D3C6;
+  background:#FCFAF5;
+  box-shadow:none;filter:none;
+}
+.app .store-social-nav button {
+  display:inline-flex;align-items:center;justify-content:center;gap:5px;
+  min-height:41px;
+  padding:8px 11px;
+  border:0;
+  border-right:1px solid #D9D3C6;
+  border-radius:0;
+  box-shadow:none;
+  background:transparent;
+  color:#161514;
+  font:700 12px var(--svx-font-body,'Archivo',sans-serif);
+  backdrop-filter:none;
+  cursor:pointer;
+}
+.app .store-social-nav button:last-child {border-right:0;}
+.app .store-social-nav button:hover,
+.app .store-social-nav button:focus-visible {background:#E7E3DA;}
+.app .store-header-navigation .shopvax-customer-launcher {
+  position:static !important;
+  inset:auto !important;
+  z-index:auto;
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  min-height:43px;
+  padding:9px 12px;
+  background:#FCFAF5;
+  border:1px solid #161514;
+  border-radius:0;
+  color:#161514;
+  box-shadow:none;
+  font:700 12px var(--svx-font-body,'Archivo',sans-serif);
+}
+.app .topbar :is(button,a):focus-visible {outline:3px solid #2D2A8C;outline-offset:2px;}
+/* O quadro do feed ocupa a área realmente disponível após o cabeçalho,
+   inclusive quando o cabeçalho quebra em duas linhas em um iPhone. */
+.app.app--feed {height:100dvh;min-height:0;display:flex;flex-direction:column;overflow:hidden;}
+.app.app--feed>.topbar {flex:0 0 auto;}
+.app.app--feed>.feed-shell {
+  flex:1 1 auto;
+  height:auto !important;
+  min-height:0 !important;
+  max-height:none;
+  width:100%;
+  padding:0 !important;
+}
+.app.app--feed .feed-list {height:100%;min-height:0;}
+.app.app--feed .feed-card {height:100%;min-height:100%;max-width:100%;}
+.app.app--feed .feed-card__actions {bottom:max(140px,env(safe-area-inset-bottom) + 125px);}
+
+/* Promoções/ferramentas opcionais ficam dentro do fluxo da página,
+   sem cobrir CTAs de catálogo e a navegação do lojista. */
+.phase3-public-tools {
+  position:relative !important;
+  left:auto !important;
+  bottom:auto !important;
+  z-index:auto;
+  width:min(100%,1200px);
+  max-width:100%;
+  margin:12px auto;
+  padding:8px 16px;
+  border-block:1px solid #D9D3C6;
+  background:#F3F0E8;
+  box-shadow:none;filter:none;
+  flex-wrap:wrap;
+}
+.phase3-public-tools :is(.phase3-rating-chip,.phase3-coupon-chip,.phase3-coupon-remove) {
+  border-radius:0;
+  box-shadow:none;
+  background:#FCFAF5;
+  border:1px solid #161514;
+  color:#161514;
+}
+@media(max-width:950px) {
+ .app .topbar {
+   grid-template-columns:minmax(0,1fr) auto;
+   grid-template-areas:"marca carrinho" "navegacao navegacao";
+   gap:8px 12px;
+   min-height:0;
+   padding:10px max(12px,env(safe-area-inset-right)) 8px max(12px,env(safe-area-inset-left));
+ }
+ .app .topbar .brand__text {min-width:0;}
+ .app .topbar .brand__text strong {max-width:min(55vw,350px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+ .app .store-header-navigation {
+   justify-content:flex-start;
+   overflow-x:auto;
+   scrollbar-width:none;
+   overscroll-behavior-x:contain;
+   padding:0 0 1px;
+   gap:7px;
+ }
+ .app .store-header-navigation::-webkit-scrollbar {display:none;}
+ .app .store-header-navigation .view-switch,
+ .app .store-header-navigation .store-social-nav,
+ .app .store-header-navigation .shopvax-customer-launcher {flex:0 0 auto;}
+ .app .store-social-nav button {padding:8px 10px;}
+ .app .store-header-navigation .shopvax-customer-launcher {padding:8px 10px;}
+ .app .feed-card__info {padding-bottom:clamp(8px,1.2dvh,18px);}
+ .phase3-public-tools {margin:0;padding:10px 12px;}
+}
+@media(max-width:420px) {
+ .app .store-header-navigation .view-switch button {padding:8px 9px;font-size:11px;}
+ .app .store-social-nav button {font-size:11px;padding:8px;}
+ .app .topbar .brand__text strong {max-width:52vw;}
+}
+@media(prefers-reduced-motion:reduce) {
+ .app .store-header-navigation {scroll-behavior:auto;}
+}

@@ -15,7 +15,7 @@ export default function StoreSocialNav() {
   const slug = storeSlug()
   if (!slug) return null
   return <nav className="store-social-nav" aria-label="Navegação Shopvax">
-    <button onClick={() => go('/')}><ArrowLeft size={16}/> Feed</button>
-    <button onClick={() => go(`/perfil/${encodeURIComponent(slug)}`)}><UserRound size={16}/> Perfil</button>
+    <button type="button" onClick={() => go('/')}><ArrowLeft size={16}/> Feed</button>
+    <button type="button" onClick={() => go(`/perfil/${encodeURIComponent(slug)}`)}><UserRound size={16}/> Perfil</button>
   </nav>
 }

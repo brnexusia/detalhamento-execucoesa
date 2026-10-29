@@ -133,7 +133,50 @@ test('blocks image decompression bombs before photo extraction', () => {
   assert.throws(() => assertPdfImageBudget(listing(20000, 10)), PdfSafetyError)
   const many = Array.from({length:221},(_,i)=>'   1 '+i+' image 500 500 rgb').join('\n')
   assert.throws(() => assertPdfImageBudget(many), PdfSafetyError)
-  const tooManyPixels = Array.from({length:5},(_,i)=>'   1 '+i+' image 4800 4800 rgb').join('\n')
+  const tooManyPixels = Array.from({length:9},(_,i)=>'   1 '+i+' image 4800 4800 rgb').join('\n')
   assert.throws(() => assertPdfImageBudget(tooManyPixels), PdfSafetyError)
   assert.equal(assertPdfImageBudget(listing(500, 500)).length, 1)
+})
+
+test('accepts a long 166-page wholesale PDF (real catalog size class)', async () => {
+  const pdf = await new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ autoFirstPage: false, compress: true })
+    const chunks = []
+    doc.on('data', (chunk) => chunks.push(chunk))
+    doc.on('error', reject)
+    doc.on('end', () => resolve(Buffer.concat(chunks)))
+    for (let page = 1; page <= 166; page += 1) {
+      doc.addPage()
+      doc.fontSize(18).text('Vestido Verao ' + page)
+      doc.fontSize(12).text('REF: VV-' + page)
+      doc.text('Valor: R$ 49,90')
+    }
+    doc.end()
+  })
+  const result = await collectPdfCatalog(pdf)
+  assert.equal(result.pagesScanned, 166)
+  assert.equal(result.candidates.length, 166)
+})
+
+test('a PDF beyond page limit reports its real page count', async () => {
+  const pdf = await new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ autoFirstPage: false })
+    const chunks = []
+    doc.on('data', (chunk) => chunks.push(chunk))
+    doc.on('error', reject)
+    doc.on('end', () => resolve(Buffer.concat(chunks)))
+    for (let page = 0; page < 201; page += 1) doc.addPage().text('Produto ' + page)
+    doc.end()
+  })
+  await assert.rejects(collectPdfCatalog(pdf), /201 páginas; o limite é 200/)
+})
+
+test('image indices are per page, not global across the PDF', () => {
+  const entries = assertPdfImageBudget(
+    'page num type width height color comp bpc enc interp object ID x-ppi y-ppi size ratio\n' +
+    '   2   0 image 500 500 rgb 3 8 jpeg no 1 0 72 72 2K 2%\n' +
+    '   3   0 image 550 550 rgb 3 8 jpeg no 2 0 72 72 2K 2%'
+  )
+  assert.equal(entries.length, 2)
+  assert.deepEqual(entries.map((entry) => entry.index), [0, 0])
 })
