@@ -20,10 +20,10 @@ if (!index.includes('<title>Shopvax</title>')) throw new Error('Título público
 if (!index.includes('content="Shopvax — catálogo e feed')) throw new Error('Descrição pública não está como Shopvax.')
 if (!index.includes('href="/favicon.svg"')) throw new Error('Favicon do Shopvax não foi conectado ao HTML.')
 const favicon = await fs.readFile('public/favicon.svg', 'utf8')
-if (!favicon.includes('<svg') || !favicon.includes('#171714')) throw new Error('Favicon Shopvax inválido.')
+if (!favicon.includes('<svg') || !favicon.includes('#161514') || !favicon.includes('#F25C05')) throw new Error('Favicon Shopvax inválido.')
 
 const home = await fs.readFile('src/Home.tsx', 'utf8')
-if (!home.includes('<span>SV</span> Shopvax')) throw new Error('Landing não está identificada como Shopvax.')
+if (!/\<span(?:\s+aria-hidden="true")?\>SV\<\/span\> Shopvax/.test(home)) throw new Error('Landing não está identificada como Shopvax.')
 
 const auth = await fs.readFile('src/Auth.tsx', 'utf8')
 if (!auth.includes('<span>SV</span> Shopvax')) throw new Error('Autenticação não está identificada como Shopvax.')
