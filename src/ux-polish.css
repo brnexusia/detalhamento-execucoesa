@@ -61,7 +61,7 @@
   border: 1px solid #9fbda9;
   background: #eef5ef;
   color: #176b46;
-  font-family: 'DM Sans', Arial, sans-serif;
+  font-family: var(--svx-font-body,'Archivo',sans-serif);
   font-size: 9px;
   font-weight: 700;
   letter-spacing: .04em;
@@ -104,7 +104,7 @@
   align-items: start;
 }
 
-.settings-layout--ux .settings-card textarea { font-family: 'DM Sans', Arial, sans-serif; }
+.settings-layout--ux .settings-card textarea { font-family: var(--svx-font-body,'Archivo',sans-serif); }
 
 .logo-upload-control {
   display: grid;
@@ -212,7 +212,7 @@
 }
 .store-preview-body p {
   margin: 8px 0 0;
-  font-family: 'Libre Caslon Display', Georgia, serif;
+  font-family: var(--svx-font-display,'Archivo Narrow',sans-serif);
   font-size: 26px;
   line-height: 1;
 }
@@ -302,4 +302,4 @@
   .app--feed .feed-shell::after { bottom: 132px; }
 }
 
-.panel-nav button[aria-current="page"]{background:#f5f2eb;color:#171714}.embedded-admin-section{min-width:0}
+.panel-nav button[aria-current="page"]{background:#f5f2eb;color:#161514}.embedded-admin-section{min-width:0}

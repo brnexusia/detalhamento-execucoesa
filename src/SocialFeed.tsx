@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { showToast } from './ui-dialogs'
 import { ChevronRight, Eye, Heart, MessageCircleQuestion, Minus, Play, Plus, Share2, ShoppingBag, Store, Volume2, VolumeX, X } from 'lucide-react'
 import './social-feed.css'
+import './shopvax-social-official.css'
+import { shopvaxAccentTextColor } from './ShopvaxDesignSystem'
 
 type VariationGroup = { name: string; options: string[] }
 type FeedProduct = {
@@ -197,7 +199,8 @@ function SocialPostCard({ post, cartCount, onProfile, onAdd, onCart }: { post: S
     } finally { setAsking(false) }
   }
 
-  return <article className="social-feed-card" ref={cardRef}>
+  return <article className="social-feed-card" ref={cardRef}
+    style={{ '--social-store-accent': post.store.accent || '#F25C05', '--social-store-text': shopvaxAccentTextColor(post.store.accent || '#F25C05') } as React.CSSProperties}>
     <div className="social-feed-media" onDoubleClick={() => { if (!interactions.liked) void like() }}>
       {post.product.mediaType === 'video'
         ? <video ref={videoRef} src={post.product.mediaUrl} poster={post.product.images?.[0] || undefined} loop muted={muted} playsInline preload="metadata" />
@@ -235,7 +238,7 @@ function SocialPostCard({ post, cartCount, onProfile, onAdd, onCart }: { post: S
       <div className="social-feed-buyline">
         <strong>{money.format(post.product.price)}</strong>
         <div>
-          <button className="social-feed-add" onClick={() => onAdd(post)}><Plus size={17}/> Adicionar</button>
+          <button className="social-feed-add" onClick={() => onAdd(post)}><Plus size={17}/> Montar pedido</button>
           {cartCount > 0 && <button className="social-feed-cart" onClick={() => onCart(post.store)} aria-label={`Abrir carrinho da ${post.store.name}`}><ShoppingBag size={17}/><b>{cartCount}</b></button>}
         </div>
       </div>
@@ -354,7 +357,7 @@ export default function SocialFeed() {
   const cartTotal = cartItems.reduce((sum, item) => sum + Number(item.product.price || 0) * Number(item.quantity || 0), 0)
 
   return <div className="social-feed-page">
-    <header className="social-feed-nav"><strong>SHOPVAX</strong><span>Descobrir</span><div className="social-feed-nav__right"><a href="/para-lojas">Para lojas</a><a href="/entrar">Entrar</a></div></header>
+    <header className="social-feed-nav"><strong>SHOPVAX</strong><span>PRODUTOS DAS LOJAS</span><div className="social-feed-nav__right"><a href="/para-lojas">Para lojas</a><a href="/entrar">Entrar</a></div></header>
     <main className="social-feed-list" ref={listRef} onScroll={(event) => { scrollTopRef.current = event.currentTarget.scrollTop }}>
       {posts.map((post) => <SocialPostCard post={post} key={post.id} cartCount={cartCount(post.store.slug)} onProfile={openProfile} onAdd={requestAdd} onCart={setActiveCart}/>) }
       {!posts.length && !loading && !error && <div className="social-feed-state"><h1>O feed está começando.</h1><p>As publicações das lojas aparecerão aqui.</p></div>}

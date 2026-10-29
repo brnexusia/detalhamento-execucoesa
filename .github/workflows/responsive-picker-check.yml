@@ -13,6 +13,18 @@ on:
       - 'src/Home.tsx'
       - 'src/HomeRoute.tsx'
       - 'src/shopvax-home.css'
+      - 'src/Auth.tsx'
+      - 'src/AuthRoute.tsx'
+      - 'src/shopvax-auth-official.css'
+      - 'src/shopvax-cross-surface.css'
+      - 'src/SocialFeed.tsx'
+      - 'src/SocialStoreProfile.tsx'
+      - 'src/social-feed.css'
+      - 'src/social-profile.css'
+      - 'src/shopvax-social-official.css'
+      - 'src/CustomerAccountRoute.tsx'
+      - 'src/customer-account.css'
+      - 'tests/shopvax-surface-redesign.e2e.mjs'
       - 'public/favicon.svg'
       - 'index.html'
       - 'tests/shopvax-home-brand.e2e.mjs'
@@ -68,6 +80,8 @@ jobs:
         run: node tests/product-picker-responsive.e2e.mjs
       - name: Shopvax institutional identity across viewports
         run: node tests/shopvax-home-brand.e2e.mjs
+      - name: Official redesign for login, signup, social feed, profile and onboarding
+        run: node tests/shopvax-surface-redesign.e2e.mjs
       - name: Brand foundation regression across stores
         run: node tests/brand-phase1.e2e.mjs
       - name: Wholesale grade browser regression

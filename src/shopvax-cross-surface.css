@@ -1,0 +1,61 @@
+/* Aplicação transversal do sistema da prancha 02, sem alterar regras de negócio.
+ * Loja pública/painel, operação, administração, conta de comprador e componentes.
+ */
+:root { color-scheme:light; }
+.platform-shell, .phase2-shell, .phase3-shell, .phase4-shell,
+.phase5-panel, .customer-page, .customer-card, .admin-section-frame,
+.scanner-modal, .scanner-editor {
+  font-family:var(--svx-font-body,'Archivo',sans-serif);
+}
+.platform-shell h1,.platform-shell h2,.platform-shell h3,
+.phase2-shell h1,.phase2-shell h2,.phase3-shell h1,.phase3-shell h2,
+.phase4-shell h1,.phase4-shell h2,.phase5-panel h1,.phase5-panel h2,
+.customer-page h1,.customer-page h2,.admin-section-frame h1,.admin-section-frame h2,
+.scanner-modal h2,.scanner-editor h3 {
+  font-family:var(--svx-font-display,'Archivo Narrow',sans-serif);
+  font-weight:800;letter-spacing:-.035em;
+}
+.platform-shell {--ink:#161514;--paper:#F3F0E8;--accent:#F25C05;--line:#D9D3C6;background:#F3F0E8;color:#161514;}
+.platform-shell .platform-sidebar {background:#161514;color:#F3F0E8;}
+.platform-shell .platform-mark {border:1px solid #F3F0E8;background:#F25C05;color:#161514;}
+.platform-shell .platform-primary,.platform-shell .platform-toolbar button.is-active {
+  background:#F25C05;color:#161514;border:1px solid #161514;border-radius:0;
+}
+.platform-shell .platform-page h1,.platform-shell .platform-card__head h2 {
+  font-family:var(--svx-font-display,'Archivo Narrow',sans-serif);font-weight:800;text-transform:uppercase;
+}
+.platform-shell .platform-card {border-radius:0;}
+.phase2-shell,.phase3-shell,.phase4-shell,.phase5-panel {color:#161514;}
+.phase2-shell .phase2-title h1,.phase3-shell .phase3-title h1,
+.phase4-shell .phase4-title h1,.phase5-panel .phase5-hero h1 {
+  font-family:var(--svx-font-display,'Archivo Narrow',sans-serif);
+  font-weight:800;text-transform:uppercase;letter-spacing:-.035em;
+}
+.phase2-shell .phase2-primary,.phase3-shell .phase3-primary,.phase4-shell .phase4-primary {
+  border-radius:0;background:#F25C05;color:#161514;border:1px solid #161514;
+}
+.phase2-shell .phase2-card,.phase3-shell .phase3-card,.phase4-shell .phase4-card,.phase5-panel .phase5-card,
+.phase5-panel .phase5-section {border-radius:0;}
+.customer-page {--customer-paper:#F3F0E8;--customer-ink:#161514;--customer-line:#D9D3C6;background:var(--customer-paper);color:var(--customer-ink);}
+.customer-page .customer-card {border-radius:0;border-color:var(--customer-line);background:#FCFAF5;}
+.customer-page .customer-store-head strong {font-family:var(--svx-font-display,'Archivo Narrow',sans-serif);font-weight:800;font-size:clamp(19px,2.5vw,30px);text-transform:uppercase;}
+.customer-page .customer-store-head small,.customer-page .customer-section-head small {font-family:var(--svx-font-mono,'Fragment Mono',monospace);text-transform:uppercase;color:#6B665C;}
+.customer-page .customer-store-head img {object-fit:contain;}
+.customer-page .customer-store-head>span {background:var(--customer-accent,#F25C05);color:#161514;border:1px solid #161514;border-radius:0;}
+.customer-page .customer-back {border-radius:0;}
+.customer-page button:focus-visible,.platform-shell button:focus-visible,
+.phase2-shell button:focus-visible,.phase3-shell button:focus-visible,
+.phase4-shell button:focus-visible {outline:3px solid #2D2A8C;outline-offset:3px;}
+/* Shopvax assina discretamente as superfícies de navegação da loja */
+.store-social-nav {font-family:var(--svx-font-body,'Archivo',sans-serif);}
+.store-social-nav button {border-radius:0;font-weight:700;}
+/* Scanner: documentos e decisões reais não são páginas de marketing */
+.scanner-modal .scanner-submit,.scanner-editor .primary-action {border-radius:0;}
+@media(max-width:720px) {
+  .platform-shell,.phase2-shell,.phase3-shell,.phase4-shell,.phase5-panel,.customer-page {
+    max-width:100%;overflow-x:clip;
+  }
+}
+@media(prefers-reduced-motion:reduce) {
+  .platform-shell *, .customer-page * {animation:none!important;transition:none!important;}
+}

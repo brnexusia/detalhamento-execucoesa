@@ -88,7 +88,7 @@ export default function CustomerAccountRoute() {
   if (loading) return <div className="customer-page"><div className="customer-card customer-loading"><UserRound size={28}/><strong>Abrindo sua conta…</strong></div></div>
   if (!config) return <div className="customer-page"><div className="customer-card"><h1>Loja não encontrada</h1><p>{error}</p></div></div>
 
-  const accent = config.store.accent || '#c94c2d'
+  const accent = config.store.accent || '#F25C05'
   return <div className="customer-page" style={{ '--customer-accent': accent } as React.CSSProperties}>
     <div className="customer-wrap">
       <button className="customer-back" onClick={() => go(`/${storeSlug}`)}><ArrowLeft size={17}/> Voltar para a loja</button>
