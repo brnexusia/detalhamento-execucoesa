@@ -143,6 +143,7 @@
     background:
       linear-gradient(90deg,rgba(22,21,20,.94),rgba(22,21,20,.75)),
       url('/redesign/shopvax-panel-mosaic.webp') center/cover no-repeat;
+    background-color:#161514;
   }
 }
 @media(prefers-reduced-motion:reduce) {
