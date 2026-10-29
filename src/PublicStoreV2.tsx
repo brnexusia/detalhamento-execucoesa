@@ -312,7 +312,7 @@ export default function PublicStoreV2() {
     }
   }
 
-  if (!payload) return <div className="store-loading"><span className="brand__mark">SV</span><strong>Abrindo a loja…</strong><p>Só um instante.</p></div>
+  if (!payload) return <div className="store-loading"><span className="brand__mark"><img src="/brand/shopvax-symbol.svg" className="svx-brand-symbol" alt="Shopvax" /></span><strong>Abrindo a loja…</strong><p>Só um instante.</p></div>
 
   return <div className={`app ${view === 'feed' ? 'app--feed' : ''}`} style={{ '--accent': store?.accent || SHOPVAX_DEFAULT_ACCENT, '--svx-accent-text': shopvaxAccentTextColor(store?.accent || SHOPVAX_DEFAULT_ACCENT) } as React.CSSProperties}>
     <header className="topbar">

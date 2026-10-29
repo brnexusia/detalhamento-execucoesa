@@ -102,7 +102,7 @@ export default function SocialStoreProfile() {
     if (response.ok && body) setProfile((current) => current ? { ...current, stats: { ...current.stats, following: body.following, followers: body.followers } } : current)
   }
 
-  if (loading) return <div className="social-profile-state"><span>SV</span><strong>Abrindo perfil…</strong></div>
+  if (loading) return <div className="social-profile-state"><span><img src="/brand/shopvax-symbol.svg" className="svx-brand-symbol" alt="Shopvax" /></span><strong>Abrindo perfil…</strong></div>
   if (!profile) return <div className="social-profile-state"><strong>{error || 'Perfil não encontrado.'}</strong><button onClick={() => go('/')}>Voltar ao feed</button></div>
 
   const { store, stats } = profile
@@ -110,7 +110,7 @@ export default function SocialStoreProfile() {
   return <div className="social-profile-page">
     <header className="social-profile-nav">
       <button onClick={() => go('/')}><ArrowLeft size={18}/> Feed</button>
-      <strong>SHOPVAX</strong>
+      <strong className="svx-social-brand"><img src="/brand/shopvax-symbol-dark.svg" className="svx-brand-symbol" alt="" aria-hidden="true" /><img src="/brand/shopvax-wordmark-light.svg" className="svx-brand-wordmark" alt="Shopvax" /></strong>
       <a href="/entrar">Entrar</a>
     </header>
 

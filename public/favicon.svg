@@ -1,6 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Shopvax">
-  <rect width="64" height="64" rx="10" fill="#161514"/>
-  <rect x="6" y="6" width="52" height="52" rx="5" fill="none" stroke="#F3F0E8" stroke-width="2"/>
-  <path d="M25 22H14v7h11v6H14v7h17V23H19" fill="none" stroke="#F25C05" stroke-width="4" stroke-linejoin="miter"/>
-  <path d="M33 22l7 20h4l7-20" fill="none" stroke="#F25C05" stroke-width="4" stroke-linejoin="miter"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Shopvax"><rect width="64" height="64" rx="13" fill="#161514"/><g transform="translate(17 11) scale(0.137615 0.150538) translate(-370 -300)"><path fill="#F25C05" fill-rule="evenodd" d="M370,300 L449,430 L510,430 L588,301 L529,300 L488,387 L479,402 L430,300 Z"/><path fill="#F3F0E8" fill-rule="evenodd" d="M371,579 L431,579 L479,478 L488,493 L528,579 L588,579 L511,451 L448,451 Z"/></g></svg>

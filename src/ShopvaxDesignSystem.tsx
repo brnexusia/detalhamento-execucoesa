@@ -54,5 +54,5 @@ export function SVNumber({ value, label, className = '' }: { value: number | str
 }
 
 export function SVBrandSignature({ className = '' }: { className?: string }) {
-  return <span className={`svx-signature ${className}`.trim()}>feito com <strong>shopvax</strong><span aria-hidden="true"> × </span></span>
+  return <span className={`svx-signature ${className}`.trim()}>feito com <img className="svx-brand-wordmark" src="/brand/shopvax-wordmark.svg" alt="Shopvax" /></span>
 }

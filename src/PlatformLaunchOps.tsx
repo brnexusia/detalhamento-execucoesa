@@ -65,7 +65,7 @@ export default function PlatformLaunchOps() {
   if (!data) return <div className="launchops-state"><RefreshCw size={20}/>{error || 'Carregando homologação…'}</div>
 
   return <div className="launchops-shell">
-    <header className="launchops-topbar"><button onClick={() => go('/admin')}><ArrowLeft size={18}/> Administração</button><div><span>Shopvax</span><strong>Fechamento para lançamento</strong></div><button onClick={() => void load()}><RefreshCw size={17}/> Atualizar</button></header>
+    <header className="launchops-topbar"><button onClick={() => go('/admin')}><ArrowLeft size={18}/> Administração</button><div><span><img className="svx-brand-wordmark" src="/brand/shopvax-wordmark.svg" alt="Shopvax" /></span><strong>Fechamento para lançamento</strong></div><button onClick={() => void load()}><RefreshCw size={17}/> Atualizar</button></header>
     <main className="launchops-main">
       {notice && <div className="launchops-notice"><CheckCircle2 size={17}/>{notice}</div>}
       {error && <div className="launchops-error"><AlertTriangle size={17}/>{error}</div>}

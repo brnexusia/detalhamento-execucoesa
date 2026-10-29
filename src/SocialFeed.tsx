@@ -358,7 +358,7 @@ export default function SocialFeed() {
   const cartTotal = cartItems.reduce((sum, item) => sum + Number(item.product.price || 0) * Number(item.quantity || 0), 0)
 
   return <div className="social-feed-page">
-    <header className="social-feed-nav"><strong>SHOPVAX</strong><span>PRODUTOS DAS LOJAS</span><div className="social-feed-nav__right"><a href="/para-lojas">Para lojas</a><a href="/entrar">Entrar</a></div></header>
+    <header className="social-feed-nav"><strong className="svx-social-brand"><img src="/brand/shopvax-symbol-dark.svg" className="svx-brand-symbol" alt="" aria-hidden="true" /><img src="/brand/shopvax-wordmark-light.svg" className="svx-brand-wordmark" alt="Shopvax" /></strong><span>PRODUTOS DAS LOJAS</span><div className="social-feed-nav__right"><a href="/para-lojas">Para lojas</a><a href="/entrar">Entrar</a></div></header>
     <main className="social-feed-list" ref={listRef} onScroll={(event) => { scrollTopRef.current = event.currentTarget.scrollTop }}>
       {posts.map((post) => <SocialPostCard post={post} key={post.id} cartCount={cartCount(post.store.slug)} onProfile={openProfile} onAdd={requestAdd} onCart={setActiveCart}/>) }
       {!posts.length && !loading && !error && <div className="social-feed-state"><h1>O feed está começando.</h1><p>As publicações das lojas aparecerão aqui.</p></div>}

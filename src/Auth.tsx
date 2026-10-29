@@ -149,7 +149,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   return (
     <div className="auth-shell">
       <aside className="auth-poster">
-        <button className="wordmark" onClick={() => go('/')}><span>SV</span> Shopvax</button>
+        <button className="wordmark" onClick={() => go('/')} aria-label="Shopvax, início"><img className="svx-brand-symbol" src="/brand/shopvax-symbol-dark.svg" alt="" aria-hidden="true" /><img className="svx-brand-wordmark" src="/brand/shopvax-wordmark-light.svg" alt="" aria-hidden="true" /></button>
         <div className="auth-poster__ribbon"><span>CATÁLOGO · GRADE · TALÃO</span><span>ATENDIMENTO PELO WHATSAPP</span></div>
         <div className="auth-poster__copy">
           <p>Shopvax · o jeito do atacado vender</p>
@@ -166,7 +166,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
         <button className="auth-close" onClick={() => go('/')} aria-label="Fechar"><X size={20} /></button>
         <form className="auth-form" onSubmit={submit}>
           <div className="auth-form__head">
-            <span className="brand__mark">SV</span>
+            <span className="brand__mark"><img className="svx-brand-symbol" src="/brand/shopvax-symbol.svg" alt="Shopvax" /></span>
             <p>{registrationMode ? 'Criar conta' : 'Entrar'}</p>
             <h2>{googleSignup ? 'Complete os dados da sua loja.' : registrationMode ? 'Comece com a sua loja.' : 'Entre na sua operação.'}</h2>
           </div>

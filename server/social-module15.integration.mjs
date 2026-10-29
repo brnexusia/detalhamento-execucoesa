@@ -18,18 +18,18 @@ for (const file of files) {
 const index = await fs.readFile('index.html', 'utf8')
 if (!index.includes('<title>Shopvax</title>')) throw new Error('Título público não está como Shopvax.')
 if (!index.includes('content="Shopvax — catálogo e feed')) throw new Error('Descrição pública não está como Shopvax.')
-if (!index.includes('href="/favicon.svg"')) throw new Error('Favicon do Shopvax não foi conectado ao HTML.')
+if (!/href="\/favicon\.svg(?:\?[^"]*)?"/.test(index)) throw new Error('Favicon do Shopvax não foi conectado ao HTML.')
 const favicon = await fs.readFile('public/favicon.svg', 'utf8')
 if (!favicon.includes('<svg') || !favicon.includes('#161514') || !favicon.includes('#F25C05')) throw new Error('Favicon Shopvax inválido.')
 
 const home = await fs.readFile('src/Home.tsx', 'utf8')
-if (!/\<span(?:\s+aria-hidden="true")?\>SV\<\/span\> Shopvax/.test(home)) throw new Error('Landing não está identificada como Shopvax.')
+if (!home.includes('/brand/shopvax-wordmark.svg') || !home.includes('/brand/shopvax-symbol.svg')) throw new Error('Landing não usa a marca vetorizada oficial Shopvax.')
 
 const auth = await fs.readFile('src/Auth.tsx', 'utf8')
-if (!auth.includes('<span>SV</span> Shopvax')) throw new Error('Autenticação não está identificada como Shopvax.')
+if (!auth.includes('/brand/shopvax-wordmark-light.svg') || !auth.includes('/brand/shopvax-symbol-dark.svg')) throw new Error('Autenticação não usa o logotipo oficial no tema escuro.')
 
 const app = await fs.readFile('src/App.tsx', 'utf8')
-if (!app.includes('brand__mark">SV</span>')) throw new Error('Fallback global ainda não usa Shopvax.')
+if (!app.includes('/brand/shopvax-symbol.svg')) throw new Error('Fallback global não usa o símbolo Shopvax.')
 
 const pkg = JSON.parse(await fs.readFile('package.json', 'utf8'))
 if (pkg.name !== 'shopvax') throw new Error('Nome técnico do pacote ainda não é shopvax.')

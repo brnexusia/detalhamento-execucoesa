@@ -34,7 +34,7 @@ export default function Home() {
       <a className="svx-home-skip-link" href="#conteudo">Pular para o conteúdo</a>
       <header className="home-nav">
         <a className="wordmark" href="/para-lojas" aria-label="Shopvax — para lojistas">
-          <span aria-hidden="true">SV</span> Shopvax
+          <img src="/brand/shopvax-symbol.svg" className="svx-brand-symbol" alt="" aria-hidden="true" /><img src="/brand/shopvax-wordmark.svg" className="svx-brand-wordmark" alt="" aria-hidden="true" />
         </a>
         <nav aria-label="Acesso à plataforma">
           <button type="button" className="text-button" onClick={() => go('/entrar')}>Entrar</button>
@@ -99,7 +99,7 @@ export default function Home() {
           <p className="home-pricing__note">Os valores e limites exibidos vêm dos planos ativos da plataforma. Descontos de outros ciclos só aparecem quando disponíveis para contratação.</p>
         </section>
       </main>
-      <footer className="svx-home-footer"><strong>shopvax</strong><span>O talão de pedido, no celular.</span></footer>
+      <footer className="svx-home-footer"><strong><img className="svx-brand-wordmark" src="/brand/shopvax-wordmark.svg" alt="Shopvax" /></strong><span>O talão de pedido, no celular.</span></footer>
     </div>
   )
 }
