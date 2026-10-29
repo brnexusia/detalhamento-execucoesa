@@ -3,6 +3,7 @@ import { ArrowRight, Eye, EyeOff, Gift, Store, X } from 'lucide-react'
 import { api } from './api'
 import GoogleSignInButton from './GoogleSignInButton'
 import './shopvax-auth-official.css'
+import './shopvax-panel-login-06.css'
 
 type SignupPlan = {
   code: string
@@ -147,14 +148,14 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   }
 
   return (
-    <div className="auth-shell">
+    <div className={`auth-shell ${registrationMode ? 'auth-shell--register' : 'auth-shell--login'}`}>
       <aside className="auth-poster">
         <button className="wordmark" onClick={() => go('/')} aria-label="Shopvax, início"><img className="svx-brand-symbol" src="/brand/shopvax-symbol-dark.svg" alt="" aria-hidden="true" /><img className="svx-brand-wordmark" src="/brand/shopvax-wordmark-light.svg" alt="" aria-hidden="true" /></button>
         <div className="auth-poster__ribbon"><span>CATÁLOGO · GRADE · TALÃO</span><span>ATENDIMENTO PELO WHATSAPP</span></div>
         <div className="auth-poster__copy">
           <p>Shopvax · o jeito do atacado vender</p>
-          <h1>{registrationMode ? <>Sua loja na frente. <em>Seu talão no celular.</em></> : <>Sua operação de volta. <em>Sem perder o ritmo.</em></>}</h1>
-          <div className="poster-note">A loja apresenta · O cliente escolhe · A vendedora fecha</div>
+          <h1>{registrationMode ? <>Sua loja na frente. <em>Seu talão no celular.</em></> : <>Volta pro <em>balcão.</em></>}</h1>
+          <div className="poster-note">Os pedidos de hoje já estão te esperando.</div>
         </div>
         <div className="auth-poster__steps" aria-label="Como o Shopvax funciona">
           <span><b>01</b>Catálogo da loja</span>
@@ -168,7 +169,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
           <div className="auth-form__head">
             <span className="brand__mark"><img className="svx-brand-symbol" src="/brand/shopvax-symbol.svg" alt="Shopvax" /></span>
             <p>{registrationMode ? 'Criar conta' : 'Entrar'}</p>
-            <h2>{googleSignup ? 'Complete os dados da sua loja.' : registrationMode ? 'Comece com a sua loja.' : 'Entre na sua operação.'}</h2>
+            <h2>{googleSignup ? 'Complete os dados da sua loja.' : registrationMode ? 'Comece com a sua loja.' : 'Acesse seu painel.'}</h2>
           </div>
           {registrationMode && form.referralCode && <div className="poster-note"><Gift size={15}/> Indicação {form.referralCode} · quem indicou recebe 1 mês grátis após seu cadastro válido.</div>}
           {!googleSignup && <>

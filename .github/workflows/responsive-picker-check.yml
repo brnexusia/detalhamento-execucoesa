@@ -16,6 +16,9 @@ on:
       - 'src/HomeRoute.tsx'
       - 'src/shopvax-home.css'
       - 'src/Auth.tsx'
+      - 'src/shopvax-panel-login-06.css'
+      - 'public/redesign/shopvax-panel-mosaic.webp'
+      - 'tests/shopvax-panel-06.e2e.mjs'
       - 'src/AuthRoute.tsx'
       - 'src/shopvax-auth-official.css'
       - 'src/shopvax-cross-surface.css'
@@ -99,6 +102,8 @@ jobs:
         run: node tests/shopvax-home-brand.e2e.mjs
       - name: Official redesign for login, signup, social feed, profile and onboarding
         run: node tests/shopvax-surface-redesign.e2e.mjs
+      - name: Layer 06 panel login photo mosaic and responsive overlay
+        run: node tests/shopvax-panel-06.e2e.mjs
       - name: Official vector brand, wordmark and favicon on live DOM
         run: node tests/shopvax-official-brand.e2e.mjs
       - name: Mobile header and desktop feed layout regression
