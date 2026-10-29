@@ -7,6 +7,9 @@ import { chromium } from 'playwright'
    Respeita marca/acento da loja e não apresenta preços inventados. */
 const legacy = ['src/social-feed.css','src/social-profile.css'].map(path=>readFileSync(path,'utf8'))
 for (const sheet of legacy) assert.doesNotMatch(sheet, /#(?:c8ff38|d9ff69|ff4567)/i,'O verde neon/rosa legado não pode voltar')
+for (const path of ['src/styles.css','src/saas.css','src/platform-admin.css','src/ux-polish.css','src/customer-account.css']) {
+  assert.doesNotMatch(readFileSync(path,'utf8'),/#(?:c94c2d|171714)|Libre Caslon Display|DM Sans/i,'Fonte ou cor do tema antigo: '+path)
+}
 for (const path of ['src/shopvax-auth-official.css','src/shopvax-social-official.css','src/shopvax-cross-surface.css']) {
   const css=readFileSync(path,'utf8')
   assert.match(css,/Archivo Narrow/,'Tipografia do sistema ausente: '+path)
