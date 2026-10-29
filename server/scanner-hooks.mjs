@@ -278,6 +278,7 @@ export async function processImportJob(jobId, collector = collectCatalog) {
   if (!claimed.rowCount) return null
   const job = claimed.rows[0]
   let persistedBatches = 0
+  const storedPdfAssetIds = []
 
   const persistBatch = async (rawBatch) => {
     const candidates = (Array.isArray(rawBatch) ? rawBatch : [])
@@ -332,6 +333,7 @@ export async function processImportJob(jobId, collector = collectCatalog) {
             'INSERT INTO media_assets (id,store_id,mime_type,original_name,byte_size,data) VALUES ($1,$2,$3,$4,$5,$6)',
             [assetId, job.store_id, mime, filename, image.length, image],
           )
+          storedPdfAssetIds.push(assetId)
           return '/media/' + assetId
         },
       })
@@ -352,6 +354,10 @@ export async function processImportJob(jobId, collector = collectCatalog) {
     )
     return publicJob(updated.rows[0])
   } catch (error) {
+    if (storedPdfAssetIds.length) {
+      await pool.query('DELETE FROM media_assets WHERE store_id=$1 AND id=ANY($2::text[])', [job.store_id, storedPdfAssetIds]).catch((cleanupError) =>
+        console.warn('[scanner] PDF media cleanup:', cleanupError.message))
+    }
     try {
       await pool.query('DELETE FROM import_normalized_products WHERE job_id=$1', [job.id])
       await pool.query('DELETE FROM import_candidates WHERE job_id=$1', [job.id])
@@ -497,6 +503,11 @@ function installScannerRoutes(app) {
     storage: multer.memoryStorage(),
     limits: { fileSize: MAX_PDF_BYTES, files: 1, fields: 0 },
   })
+  const acceptPdfUpload = (req, res, next) => pdfUpload.single('file')(req, res, (error) => {
+    if (error?.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: 'PDF maior que 50 MB. Envie um arquivo de até 50 MB.' })
+    if (error) return res.status(400).json({ error: 'Não foi possível receber o PDF. Envie apenas um arquivo de até 50 MB.' })
+    next()
+  })
 
   const requireStore = asyncRoute(async (req, res, next) => {
     await ensureScannerSchema()
@@ -525,7 +536,7 @@ function installScannerRoutes(app) {
   }))
 
 
-  router.post('/pdf', requireStore, pdfUpload.single('file'), asyncRoute(async (req, res) => {
+  router.post('/pdf', requireStore, acceptPdfUpload, asyncRoute(async (req, res) => {
     const file = req.file
     if (!file || !file.buffer?.subarray(0, 1024).toString('latin1').includes('%PDF-')) {
       return res.status(400).json({ error: 'Selecione um arquivo PDF válido.' })

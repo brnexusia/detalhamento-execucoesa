@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import PDFDocument from 'pdfkit'
 import sharp from 'sharp'
-import { collectPdfCatalog, parsePdfCatalogText, MAX_PDF_BYTES } from './scanner-pdf.mjs'
+import { collectPdfCatalog, parsePdfCatalogText, assertPdfImageBudget, PdfSafetyError, MAX_PDF_BYTES } from './scanner-pdf.mjs'
 import { normalizeCandidate } from './scanner-normalizer.mjs'
 import { prepareReview } from './scanner-review.mjs'
 
@@ -118,4 +118,22 @@ test('extracts an embedded product photo only for unambiguous single-product pag
 
 test('rejects non-PDF binary before launching converters', async () => {
   await assert.rejects(collectPdfCatalog(Buffer.from('NOT A PDF')), /PDF válido/)
+})
+
+test('PDF input limit is 50 MiB and rejects larger uploads before parsing', async () => {
+  assert.equal(MAX_PDF_BYTES, 50 * 1024 * 1024)
+  const fake = Buffer.alloc(MAX_PDF_BYTES + 1)
+  fake.write('%PDF-1.4', 0, 'ascii')
+  await assert.rejects(collectPdfCatalog(fake), /50 MB/)
+})
+
+test('blocks image decompression bombs before photo extraction', () => {
+  const listing = (width, height) => 'page num  type   width height\n   1   0 image ' + width + ' ' + height + ' rgb'
+  assert.throws(() => assertPdfImageBudget(listing(10000, 10000)), PdfSafetyError)
+  assert.throws(() => assertPdfImageBudget(listing(20000, 10)), PdfSafetyError)
+  const many = Array.from({length:221},(_,i)=>'   1 '+i+' image 500 500 rgb').join('\n')
+  assert.throws(() => assertPdfImageBudget(many), PdfSafetyError)
+  const tooManyPixels = Array.from({length:5},(_,i)=>'   1 '+i+' image 4800 4800 rgb').join('\n')
+  assert.throws(() => assertPdfImageBudget(tooManyPixels), PdfSafetyError)
+  assert.equal(assertPdfImageBudget(listing(500, 500)).length, 1)
 })
