@@ -274,7 +274,7 @@ export async function collectPdfCatalog(buffer, options = {}) {
               new RegExp('^photo-' + page + '-\\d+\\.(?:jpg|jpeg|png)$', 'i').test(name))
             await assertExtractedImageBudget(dir, files)
             const photoFile = files.find((file) =>
-              Number(/-(\\d+)\\.(?:jpg|jpeg|png)$/i.exec(file)?.[1]) === photo.index)
+              Number(/-(\d+)\.(?:jpg|jpeg|png)$/i.exec(file)?.[1]) === photo.index)
             if (!photoFile) continue
             const buffer = await readFile(path.join(dir, photoFile))
             if (buffer.length > MAX_GENERATED_FILE_BYTES) throw new PdfSafetyError(UNSAFE_PDF_MESSAGE)
