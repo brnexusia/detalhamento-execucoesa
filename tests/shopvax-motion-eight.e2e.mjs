@@ -43,7 +43,7 @@ try {
    assert(state.width>0,'ticker unit must be measurable')
    if(reduce==='reduce') assert.equal(state.name,'none')
    else assert.equal(state.name,'svx-ribbon-scroll')
-   await page.getByRole('button',{name:/Carrinho/i}).first().click()
+   await page.locator('.topbar .cart-trigger').click()
    const segments=await page.locator('.svx-minimum-segments i').count()
    assert.equal(segments,20)
    await page.close()
