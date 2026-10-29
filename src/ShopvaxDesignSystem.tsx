@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from 'react'
 
 /**
@@ -39,6 +40,27 @@ export function SVButton({ variant = 'primary', className = '', children, ...pro
 
 export function SVRibbon({ children, className = '', ...props }: HTMLAttributes<HTMLDivElement>) {
   return <div className={`svx-ribbon ${className}`.trim()} {...props}>{children}</div>
+}
+
+/** Prancha 08/01 — fita de condições a 40 px/s; mede o trecho para manter velocidade constante. */
+export function SVTicker({ children, className = '', ...props }: HTMLAttributes<HTMLDivElement>) {
+  const unitRef = useRef<HTMLSpanElement>(null)
+  const [seconds, setSeconds] = useState(18)
+  useEffect(() => {
+    const unit = unitRef.current
+    if (!unit) return
+    const update = () => setSeconds(Math.max(5, unit.getBoundingClientRect().width / 40))
+    update()
+    const observer = new ResizeObserver(update)
+    observer.observe(unit)
+    return () => observer.disconnect()
+  }, [])
+  return <div className={`svx-ribbon svx-motion-ticker ${className}`.trim()} {...props}>
+    <div className="svx-motion-ticker__track" style={{'--svx-ticker-duration': `${seconds}s`} as React.CSSProperties}>
+      <span ref={unitRef} className="svx-motion-ticker__unit">{children}</span>
+      <span aria-hidden="true" className="svx-motion-ticker__unit">{children}</span>
+    </div>
+  </div>
 }
 
 export function SVStamp({ children, className = '', ...props }: HTMLAttributes<HTMLSpanElement>) {
