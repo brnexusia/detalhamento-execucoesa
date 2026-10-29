@@ -1,0 +1,149 @@
+/* Shopvax — prancha 06 · Painel de quem vende / login.
+   A imagem é composta apenas com fotos EMBUTIDAS no SVG aprovado.
+   Não usa fotos de banco ou marcas fictícias. Formulário permanece real. */
+@media(min-width:1000px) and (min-height:521px) {
+  .auth-shell.auth-shell--login {
+    display:block;
+    height:100dvh;
+    min-height:0;
+    overflow:hidden;
+    position:relative;
+    isolation:isolate;
+    background:#161514;
+  }
+  .auth-shell--login .auth-poster {
+    position:absolute;
+    inset:0;
+    display:block;
+    overflow:hidden;
+    min-height:0;
+    height:100%;
+    padding:clamp(17px,2.9dvh,38px) clamp(22px,3.2vw,60px);
+    background:
+      linear-gradient(90deg,rgba(22,21,20,.86) 0%,rgba(22,21,20,.55) 48%,rgba(22,21,20,.43) 100%),
+      linear-gradient(0deg,rgba(22,21,20,.72),transparent 70%),
+      url('/redesign/shopvax-panel-mosaic.webp') center/cover no-repeat;
+    border:0;
+    color:#F3F0E8;
+  }
+  .auth-shell--login .auth-poster .wordmark {position:relative;z-index:3;}
+  .auth-shell--login .auth-poster__ribbon {
+    position:absolute;
+    top:clamp(160px,38dvh,360px);
+    left:0;right:0;
+    z-index:1;
+    width:100%;
+    min-height:30px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:20px;
+    padding:6px clamp(22px,3.2vw,60px);
+    border:1px solid #161514;
+    background:#F25C05;
+    transform:rotate(-1deg) scale(1.03);
+    transform-origin:center;
+    font:600 10px/1.3 var(--svx-font-mono,'Fragment Mono',monospace);
+    color:#161514;
+  }
+  .auth-shell--login .auth-poster__copy {
+    position:absolute;
+    left:clamp(24px,3.4vw,70px);
+    bottom:clamp(32px,7.5dvh,110px);
+    z-index:2;
+    width:min(49vw,630px);
+    max-width:calc(100% - 530px);
+    padding:0;
+  }
+  .auth-shell--login .auth-poster__copy>p {color:#F3F0E8;font-size:10px;letter-spacing:.02em;}
+  .auth-shell--login .auth-poster__copy h1 {
+    max-width:9ch;
+    font:800 clamp(54px,min(6.2vw,10.2dvh),125px)/.85 var(--svx-font-display,'Archivo Narrow',sans-serif);
+    letter-spacing:-.065em;
+    margin:8px 0 clamp(12px,2dvh,28px);
+    color:#F3F0E8;
+  }
+  .auth-shell--login .auth-poster__copy h1 em {font-style:normal;color:#F3F0E8;}
+  .auth-shell--login .auth-poster__copy .poster-note {
+    width:max-content;max-width:100%;font-size:10px;
+    padding-top:12px;color:#F3F0E8;
+    border-top:1px solid rgba(243,240,232,.72);
+  }
+  .auth-shell--login .auth-poster__steps {display:none;}
+  .auth-shell--login .auth-panel {
+    position:absolute;
+    z-index:5;
+    top:50%;
+    right:clamp(24px,6vw,120px);
+    transform:translateY(-50%);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:min(410px,39vw);
+    height:auto;
+    min-height:0;
+    max-height:calc(100dvh - 32px);
+    overflow-y:auto;
+    padding:clamp(17px,2.9dvh,30px) clamp(18px,2.4vw,31px);
+    background:#F3F0E8;
+    border:1px solid #161514;
+    box-shadow:18px 19px 0 rgba(22,21,20,.16),0 12px 55px rgba(0,0,0,.16);
+    color:#161514;
+    scrollbar-width:thin;
+  }
+  .auth-shell--login .auth-panel .auth-close {
+    top:7px;right:7px;width:27px;height:27px;
+    border:0;background:transparent;
+  }
+  .auth-shell--login .auth-form {
+    display:grid;
+    gap:clamp(5px,1.2dvh,10px);
+    flex:0 1 100%;
+    width:100%;
+    margin:0;
+    padding:0;
+  }
+  .auth-shell--login .auth-form__head {
+    margin:0 0 clamp(2px,1dvh,10px);
+    padding-bottom:clamp(6px,1dvh,12px);
+    border-bottom:1px solid #D9D3C6;
+  }
+  .auth-shell--login .auth-form__head .brand__mark {
+    display:none;
+  }
+  .auth-shell--login .auth-form__head>p {
+    font-size:10px;
+    margin:0 0 5px;
+    color:#6B665C;
+  }
+  .auth-shell--login .auth-form__head h2 {
+    max-width:12ch;
+    font:800 clamp(34px,min(3.6vw,7dvh),53px)/.91 var(--svx-font-display,'Archivo Narrow',sans-serif);
+    letter-spacing:-.045em;
+  }
+  .auth-shell--login .auth-form input {min-height:clamp(37px,6dvh,43px);}
+  .auth-shell--login .auth-form>.primary-action {min-height:clamp(41px,6.8dvh,49px);}
+  .auth-shell--login .auth-switch {text-align:center;font-size:11px;}
+}
+@media(min-width:1000px) and (max-width:1180px){
+  .auth-shell--login .auth-poster__copy {max-width:calc(100% - 440px);}
+  .auth-shell--login .auth-poster__copy h1 {font-size:clamp(51px,5.6vw,70px);}
+  .auth-shell--login .auth-panel {right:24px;width:min(390px,40vw);}
+}
+@media(min-width:1000px) and (max-height:650px){
+  .auth-shell--login .auth-poster__copy {bottom:clamp(20px,5dvh,42px);}
+  .auth-shell--login .auth-poster__copy h1 {font-size:clamp(46px,min(5vw,9dvh),68px);}
+  .auth-shell--login .auth-panel {padding:12px 20px;max-height:calc(100dvh - 18px);}
+  .auth-shell--login .auth-form__head h2 {font-size:clamp(30px,5.6dvh,42px);}
+}
+/* Tablets e celulares mantêm painel no fluxo: nunca cobrir campos com foto. */
+@media(max-width:999px) {
+  .auth-shell .auth-poster {
+    background:
+      linear-gradient(90deg,rgba(22,21,20,.94),rgba(22,21,20,.75)),
+      url('/redesign/shopvax-panel-mosaic.webp') center/cover no-repeat;
+  }
+}
+@media(prefers-reduced-motion:reduce) {
+  .auth-shell--login .auth-poster__ribbon {animation:none;transition:opacity 120ms ease-out;}
+}
