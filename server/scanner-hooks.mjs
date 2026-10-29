@@ -1,7 +1,9 @@
 import crypto from 'node:crypto'
 import { isIP } from 'node:net'
 import express from 'express'
+import multer from 'multer'
 import pg from 'pg'
+import { collectPdfCatalog, MAX_PDF_BYTES } from './scanner-pdf.mjs'
 import { collectCatalog } from './scanner-collector.mjs'
 import { normalizeCandidates } from './scanner-normalizer.mjs'
 import { prepareReview } from './scanner-review.mjs'
@@ -105,6 +107,11 @@ export async function ensureScannerSchema() {
       ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS review_changed_count integer NOT NULL DEFAULT 0;
       CREATE INDEX IF NOT EXISTS idx_import_jobs_store_created ON import_jobs(store_id, created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_import_jobs_store_status ON import_jobs(store_id, status);
+      CREATE TABLE IF NOT EXISTS import_pdf_uploads (
+        job_id text PRIMARY KEY REFERENCES import_jobs(id) ON DELETE CASCADE,
+        data bytea NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now()
+      );
 
       CREATE TABLE IF NOT EXISTS import_candidates (
         id text PRIMARY KEY,
@@ -301,7 +308,7 @@ export async function processImportJob(jobId, collector = collectCatalog) {
     await pool.query('DELETE FROM import_normalized_products WHERE job_id=$1', [job.id])
     await pool.query('DELETE FROM import_candidates WHERE job_id=$1', [job.id])
 
-    const result = await collector(job.source_url, {
+    const collectorOptions = {
       collectInMemory: false,
       onBatch: persistBatch,
       onProgress: async ({ progress, pagesScanned, candidates, platform }) => {
@@ -312,7 +319,25 @@ export async function processImportJob(jobId, collector = collectCatalog) {
           [Math.max(1, Math.min(95, Number(progress || 1))), Number(pagesScanned || 0), Number(candidates || 0), String(platform || ''), job.id],
         )
       },
-    })
+    }
+    let result
+    if (job.platform === 'pdf') {
+      const upload = await pool.query('SELECT data FROM import_pdf_uploads WHERE job_id=$1 LIMIT 1', [job.id])
+      if (!upload.rowCount) throw new Error('Arquivo PDF temporário não encontrado. Descarte e envie o catálogo novamente.')
+      result = await collectPdfCatalog(upload.rows[0].data, {
+        ...collectorOptions,
+        onImage: async (image, mime, filename) => {
+          const assetId = id()
+          await pool.query(
+            'INSERT INTO media_assets (id,store_id,mime_type,original_name,byte_size,data) VALUES ($1,$2,$3,$4,$5,$6)',
+            [assetId, job.store_id, mime, filename, image.length, image],
+          )
+          return '/media/' + assetId
+        },
+      })
+    } else {
+      result = await collector(job.source_url, collectorOptions)
+    }
 
     // Compatibilidade com coletores de testes/integrações que ainda retornam array.
     if (!persistedBatches && Array.isArray(result?.candidates) && result.candidates.length) await persistBatch(result.candidates)
@@ -335,6 +360,11 @@ export async function processImportJob(jobId, collector = collectCatalog) {
     const failed = await pool.query(`UPDATE import_jobs SET status='failed',error=$1,updated_at=now() WHERE id=$2 RETURNING *`, [message.slice(0, 2000), job.id])
     console.error('[scanner] job failed:', job.id, message)
     return publicJob(failed.rows[0])
+  } finally {
+    if (job.platform === 'pdf') {
+      await pool.query('DELETE FROM import_pdf_uploads WHERE job_id=$1', [job.id]).catch((error) =>
+        console.warn('[scanner] PDF cleanup:', error.message))
+    }
   }
 }
 
@@ -463,6 +493,10 @@ function installScannerRoutes(app) {
   app.__atacadoScannerRoutesInstalled = true
   const router = express.Router()
   router.use(express.json({ limit: '64kb' }))
+  const pdfUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: MAX_PDF_BYTES, files: 1, fields: 0 },
+  })
 
   const requireStore = asyncRoute(async (req, res, next) => {
     await ensureScannerSchema()
@@ -488,6 +522,33 @@ function installScannerRoutes(app) {
   router.get('/', requireStore, asyncRoute(async (req, res) => {
     const result = await pool.query(`SELECT * FROM import_jobs WHERE store_id=$1 ORDER BY created_at DESC LIMIT 10`, [req.scannerStore.store_id])
     res.json({ jobs: result.rows.map(publicJob) })
+  }))
+
+
+  router.post('/pdf', requireStore, pdfUpload.single('file'), asyncRoute(async (req, res) => {
+    const file = req.file
+    if (!file || !file.buffer?.subarray(0, 1024).toString('latin1').includes('%PDF-')) {
+      return res.status(400).json({ error: 'Selecione um arquivo PDF válido.' })
+    }
+    const filename = String(file.originalname || 'catalogo.pdf').replace(/[\\/\x00-\x1f]/g, '').slice(0, 180) || 'catalogo.pdf'
+    const jobId = id()
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      const job = await client.query(
+        "INSERT INTO import_jobs (id,store_id,source_url,source_host,status,platform) VALUES ($1,$2,$3,$4,'queued','pdf') RETURNING *",
+        [jobId, req.scannerStore.store_id, 'pdf://' + jobId, filename],
+      )
+      await client.query('INSERT INTO import_pdf_uploads (job_id,data) VALUES ($1,$2)', [jobId, file.buffer])
+      await client.query('COMMIT')
+      if (!workerDisabled) setImmediate(() => void runNextWork())
+      res.status(202).json({ job: publicJob(job.rows[0]), duplicated: false })
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {})
+      throw error
+    } finally {
+      client.release()
+    }
   }))
 
 
