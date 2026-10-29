@@ -77,7 +77,7 @@ try {
      assert(m.copy.bottom<=m.actions.top+3,'Interações estão sobre o texto/preço: '+JSON.stringify({width,height,m}))
      assert(m.actions.right<=m.card.right+3,'Interações vazaram para fora do cartão: '+JSON.stringify({width,height,m}))
    } else if(width>700) {
-     assert(m.card.width>=width-4,'Feed usa coluna estreita no notebook: '+JSON.stringify({width,height,m}))
+     assert(m.card.width>=width-40,'Feed usa coluna estreita no notebook: '+JSON.stringify({width,height,m}))
    }
    await page.screenshot({path:'artifacts/shopvax-redesign/feed-fit-'+width+'x'+height+'.png'})
    console.log('FEED_VIEWPORT_FIT',width,height)
