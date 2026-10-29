@@ -44,6 +44,7 @@ on:
       - 'tests/product-picker-responsive.e2e.mjs'
       - 'tests/brand-phase1.e2e.mjs'
       - 'tests/shopvax-grade.e2e.mjs'
+      - 'tests/shopvax-multiniche-04.e2e.mjs'
       - 'tests/shopvax-feed.e2e.mjs'
       - 'tests/shopvax-checkout-review.e2e.mjs'
       - 'tests/shopvax-plans.e2e.mjs'
@@ -109,6 +110,8 @@ jobs:
         run: node tests/brand-phase1.e2e.mjs
       - name: Wholesale grade browser regression
         run: node tests/shopvax-grade.e2e.mjs
+      - name: Official layer 04 - fashion, cosmetics and home product attributes
+        run: node tests/shopvax-multiniche-04.e2e.mjs
       - name: Feed interaction browser regression
         run: node tests/shopvax-feed.e2e.mjs
       - name: Checkout review browser regression
