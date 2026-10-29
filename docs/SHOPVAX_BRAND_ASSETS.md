@@ -2,10 +2,10 @@
 
 ## Origem e decisão
 
-- Google Drive: `Shopvax_ Logo (propostas) (2).zip` (arquivo `1pIlY8Tdc4LnhTva8qvg6BrRyjAtUZ34M`).
-- São oito **propostas de apresentação**, em PNG, com o mesmo símbolo geométrico V/A formando um X e a palavra SHOPVAX com X personalizado.
-- Paleta escolhida para o código: **19 · Laranja.png**, pois identifica explicitamente o laranja `#F25C05`, coincidente com a paleta da prancha 02 do ZIP `Shopvax_ Catálogo (redesign).zip` e com o tema existente. Não alterar automaticamente a cor de cada loja.
-- O ZIP **não contém SVGs individuais nem arquivos de fonte**; por isso os SVGs abaixo foram **vetorizados por contorno da arte fornecida**, e não inventados com tipografia genérica. Se o designer fornecer os vetores nativos originais, substituí-los preservando a mesma interface.
+- Google Drive — fonte vetorial mestra: `Shopvax_ Logo (propostas).zip`, arquivo `172JowWkNMyCwoD1L0e8OTSVFrfim_L40`, prancha `19 · Laranja.svg`.
+- O mestre contém **SVGs com os caminhos vetoriais originais**, incluindo o símbolo V/A e as oito letras separadas do wordmark, com X de duas peças.
+- Paleta escolhida para o código: **19 · Laranja.svg**, pois identifica explicitamente o laranja `#F25C05`, coincidente com a paleta da prancha 02 do ZIP `Shopvax_ Catálogo (redesign).zip` e com o tema existente. Não alterar automaticamente a cor de cada loja.
+- Os SVGs menores da aplicação agora usam **exatamente os caminhos `d` das figuras da prancha 19**, recortados em `viewBox` próprios; sem rastreio de pixels ou fontes genéricas. O favicon usa o ícone quadrado original (paths do mestre). As versões clara/escura apenas trocam `fill` das mesmas geometrias.
 
 ## Arquivos
 

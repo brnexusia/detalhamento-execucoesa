@@ -12,8 +12,8 @@ for (const path of svgFiles) {
 const symbol=readFileSync(svgFiles[0],'utf8')
 const wordmark=readFileSync(svgFiles[2],'utf8')
 const favicon=readFileSync('public/favicon.svg','utf8')
-assert.match(symbol,/M370,300 L449,430 L510,430/,'Símbolo oficial V+A ausente')
-assert.match(wordmark,/M645,800/,'X vetorizado do wordmark ausente')
+assert.match(symbol,/M370 300H430.893L480 403.321/,'Símbolo oficial V+A ausente')
+assert.match(wordmark,/M644.056 721.413H662.308L677.028 752.383/,'X vetorizado do wordmark ausente')
 assert.match(favicon,/#F25C05/)
 assert.match(favicon,/#F3F0E8/)
 const home=readFileSync('src/Home.tsx','utf8')
@@ -54,7 +54,7 @@ try {
   }
   const svg=await page.request.get('http://127.0.0.1:5173/favicon.svg')
   assert.equal(svg.status(),200)
-  assert.match(await svg.text(),/M370,300 L449,430/)
+  assert.match(await svg.text(),/M1132 331\.771H1158\.57L1180 376\.857/)
   console.log('SHOPVAX_OFFICIAL_BRAND_PASS',width)
   await page.close()
  }
