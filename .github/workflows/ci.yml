@@ -40,6 +40,8 @@ jobs:
           node-version: 22
       - name: Install
         run: npm install
+      - name: Install PDF tooling for import regression tests
+        run: sudo apt-get update && sudo apt-get install -y poppler-utils tesseract-ocr tesseract-ocr-por tesseract-ocr-eng
       - name: Production dependency audit
         run: |
           test "$(node -p "require('./node_modules/multer/package.json').version")" = "2.5.0"
@@ -72,6 +74,8 @@ jobs:
           grep -Fq '"./server/page-metadata-hooks.mjs"' Dockerfile
           grep -Fq 'href="/favicon.svg"' index.html
           test -s public/favicon.svg
+      - name: Scanner PDF catalog tests
+        run: npm run test:scanner:pdf
       - name: Scanner URL tests
         run: npm run test:scanner
       - name: Scanner collector tests
@@ -167,6 +171,8 @@ jobs:
         run: node server/scanner-module1.integration.mjs
       - name: Scanner module 2 integration
         run: npm run test:scanner:module2
+      - name: PDF catalog upload-to-publish integration
+        run: node server/scanner-pdf.integration.mjs
       - name: Scanner module 3 integration
         run: npm run test:scanner:module3
       - name: Scanner module 4 integration

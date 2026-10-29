@@ -460,3 +460,40 @@
 }
 .scanner-discard:hover:not(:disabled) { opacity: 1; text-decoration: underline; }
 .scanner-discard:disabled { cursor: wait; opacity: .45; }
+
+
+/* PDF/URL import choices use the same review workflow. */
+.scanner-source-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.scanner-source-tabs button {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--line, #d1cbc0);
+  background: transparent;
+  color: var(--ink, #191919);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.scanner-source-tabs button.is-active,
+.scanner-source-tabs button[aria-pressed="true"] {
+  border-color: var(--ink, #191919);
+  background: var(--ink, #191919);
+  color: #fff;
+}
+.scanner-modal form input[type="file"] {
+  padding: 10px;
+  height: auto;
+  min-height: 48px;
+  max-width: 100%;
+  cursor: pointer;
+}
+@media (max-width: 420px) {
+  .scanner-source-tabs button { font-size: 11px; }
+}

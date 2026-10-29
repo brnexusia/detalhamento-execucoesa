@@ -15,6 +15,18 @@ O cliente descobre produtos no feed ou entra pelo link da loja/vendedora, escolh
 - prioridade de distribuição por plano e diversidade entre lojas;
 - no Ouro, cálculo de frete e finalização opcional por checkout hospedado do Asaas.
 
+## Importação de catálogo por PDF
+
+Na aba **Produtos → Importar catálogo → Arquivo PDF**, o lojista pode enviar um catálogo próprio em PDF (até **16 MB e 80 páginas**). O arquivo entra na mesma fila de importações de lojas por link.
+
+- **Leitura:** Poppler extrai o texto. Páginas sem camada de texto legível recebem OCR em português/inglês via Tesseract.
+- **Produtos:** o importador identifica produtos com nome e preço, tenta extrair referências/SKU e captura fotografias embutidas quando há **apenas um produto reconhecido na página**. Em páginas com várias peças não faz associação automática de fotos para evitar trocas de imagem.
+- **Revisão obrigatória:** nenhum item é publicado diretamente. O lojista pode revisar nome, referência, preço, categoria, imagens, variações e seleção antes de confirmar a publicação.
+- **Segurança:** upload autenticado, assinatura PDF validada, limites de páginas/tamanho, processamento local (sem enviar o PDF a IA externa), arquivo original descartado após processamento. Cada importação e suas mídias são atribuídas à loja.
+- **Limitação:** layouts muito livres, preços em imagens de baixa qualidade e catálogos com muitas peças por página podem precisar de correção manual. O sistema não inventa valores não reconhecidos.
+
+A imagem dos produtos é guardada na loja como mídia local. Não confundir essa operação com o botão **Gerar PDF**, que exporta os produtos já cadastrados. O container de produção instala `poppler-utils` e `tesseract-ocr` com os idiomas `por` e `eng`.
+
 ## Painel do lojista
 
 - produtos, múltiplas fotos/vídeos e variações;

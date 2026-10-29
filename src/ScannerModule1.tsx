@@ -9,6 +9,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Edit3,
+  FileText,
   Search,
   Trash2,
   X,
@@ -34,6 +35,7 @@ function platformLabel(value: string) {
   if (value === 'nuvemshop') return 'Nuvemshop'
   if (value === 'lojaintegrada') return 'Loja Integrada'
   if (value === 'tray') return 'Tray'
+  if (value === 'pdf') return 'Catálogo PDF'
   return value
 }
 
@@ -68,6 +70,9 @@ export default function ScannerModule1() {
   const [open, setOpen] = useState(false)
   const [mode, setMode] = useState<'scan' | 'review'>('scan')
   const [url, setUrl] = useState('')
+  const [sourceMode, setSourceMode] = useState<'site' | 'pdf'>('site')
+  const [pdfFile, setPdfFile] = useState<File | null>(null)
+  const [uploadVersion, setUploadVersion] = useState(0)
   const [jobs, setJobs] = useState<ImportJob[]>([])
   const [busy, setBusy] = useState(false)
   const [loadingJobs, setLoadingJobs] = useState(false)
@@ -186,9 +191,20 @@ export default function ScannerModule1() {
     setError('')
     setSuccess('')
     try {
-      const result = await api.createImportJob(url)
-      setSuccess(result.duplicated ? 'Essa loja já está sendo processada.' : 'Scanner iniciado. Você pode acompanhar o progresso abaixo.')
+      if (sourceMode === 'pdf' && (!pdfFile || pdfFile.size > 16 * 1024 * 1024)) {
+        throw new Error('Selecione um PDF válido de até 16 MB.')
+      }
+      const result = sourceMode === 'pdf'
+        ? await api.uploadPdfCatalog(pdfFile!)
+        : await api.createImportJob(url)
+      setSuccess(result.duplicated
+        ? 'Essa loja já está sendo processada.'
+        : sourceMode === 'pdf'
+          ? 'PDF recebido. Vamos identificar os produtos para sua revisão.'
+          : 'Scanner iniciado. Você pode acompanhar o progresso abaixo.')
       setUrl('')
+      setPdfFile(null)
+      setUploadVersion((value) => value + 1)
       await loadJobs()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível iniciar o scanner.')
@@ -320,7 +336,7 @@ export default function ScannerModule1() {
 
   return <>
     {slot && createPortal(
-      <button type="button" className="scanner-entry-button" onClick={show}><Search size={17} /> Importar de outra loja</button>,
+      <button type="button" className="scanner-entry-button" onClick={show}><FileText size={17} /> Importar catálogo</button>,
       slot,
     )}
 
@@ -330,15 +346,25 @@ export default function ScannerModule1() {
 
         {mode === 'scan' ? <section className="scanner-modal">
           <header>
-            <div><span>Migração de catálogo</span><h2 id="scanner-title">Importar de outra loja</h2></div>
+            <div><span>Migração de catálogo</span><h2 id="scanner-title">Importar catálogo</h2></div>
             <button type="button" onClick={() => setOpen(false)}><X size={20} /></button>
           </header>
           <form onSubmit={submit}>
-            <label><span>URL da sua loja atual</span><input value={url} onChange={(event) => setUrl(event.target.value)} inputMode="url" autoComplete="url" placeholder="https://minhaloja.com.br" required autoFocus /></label>
-            <p className="scanner-help">Cole o endereço público da loja que pertence à sua empresa. A coleta e a organização acontecem no servidor e não publicam nenhum produto sem revisão.</p>
+            <div className="scanner-source-tabs" role="group" aria-label="Origem do catálogo">
+              <button type="button" aria-pressed={sourceMode === 'site'} className={sourceMode === 'site' ? 'is-active' : ''} onClick={() => setSourceMode('site')}><Search size={16}/> Link de loja</button>
+              <button type="button" aria-pressed={sourceMode === 'pdf'} className={sourceMode === 'pdf' ? 'is-active' : ''} onClick={() => setSourceMode('pdf')}><FileText size={16}/> Arquivo PDF</button>
+            </div>
+            {sourceMode === 'site' ? <>
+              <label><span>URL da sua loja atual</span><input value={url} onChange={(event) => setUrl(event.target.value)} inputMode="url" autoComplete="url" placeholder="https://minhaloja.com.br" required autoFocus /></label>
+              <p className="scanner-help">Cole o endereço público da loja que pertence à sua empresa. O sistema identificará os produtos disponíveis.</p>
+            </> : <>
+              <label><span>Seu catálogo em PDF</span><input key={uploadVersion} type="file" accept=".pdf,application/pdf" required onChange={(event) => setPdfFile(event.target.files?.[0] || null)} /></label>
+              <p className="scanner-help">PDF de até 16 MB e 80 páginas. O Shopvax lê nomes, referências, preços e fotos quando possível. Catálogos digitalizados podem usar OCR. Confira cada produto antes de publicar: PDFs com várias peças por página podem precisar de ajustes manuais de imagem.</p>
+            </>}
+            <p className="scanner-help">Produtos extraídos permanecem em revisão e só entram na loja após sua confirmação.</p>
             {error && <p className="scanner-message scanner-message--error">{error}</p>}
             {success && <p className="scanner-message scanner-message--success"><Check size={16} /> {success}</p>}
-            <button className="primary-action scanner-submit" disabled={busy}>{busy ? 'Iniciando…' : 'Escanear loja'}<ArrowRight size={17} /></button>
+            <button className="primary-action scanner-submit" disabled={busy}>{busy ? 'Processando…' : sourceMode === 'pdf' ? 'Importar PDF para revisão' : 'Escanear loja'}<ArrowRight size={17} /></button>
           </form>
           <div className="scanner-jobs">
             <div><strong>Importações recentes</strong><small>{loadingJobs ? 'Atualizando…' : jobs.length ? `${jobs.length} registro(s)` : 'Nenhuma ainda'}</small></div>
