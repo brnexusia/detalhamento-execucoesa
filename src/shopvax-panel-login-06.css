@@ -24,6 +24,7 @@
       linear-gradient(0deg,rgba(22,21,20,.72),transparent 70%),
       url('/redesign/shopvax-panel-mosaic.webp') center/cover no-repeat;
     border:0;
+    background-color:#161514;
     color:#F3F0E8;
   }
   .auth-shell--login .auth-poster .wordmark {position:relative;z-index:3;}
