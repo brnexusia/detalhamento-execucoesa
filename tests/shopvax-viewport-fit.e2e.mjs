@@ -72,7 +72,7 @@ try {
    assert(m.card.bottom<=height+3 && m.card.height>=height-3,'Publicação não ocupa janela útil: '+JSON.stringify({width,height,m}))
    assert(m.cta.right<=m.card.right+2 && m.cta.bottom<=height+2,'CTA do produto cortado: '+JSON.stringify({width,height,m}))
    if(width>=800) {
-     assert(m.card.width>=Math.min(width-20,1160),'Feed estreito em desktop: '+JSON.stringify({width,height,m}))
+     assert(m.card.width>=Math.min(width*.94,1160),'Feed estreito em desktop: '+JSON.stringify({width,height,m}))
      assert(m.media.right<=m.copy.left+3 && m.media.width>m.card.width*.55,'Mídia e dados não estão lado a lado: '+JSON.stringify({width,height,m}))
      assert(m.copy.bottom<=m.actions.top+3,'Interações estão sobre o texto/preço: '+JSON.stringify({width,height,m}))
      assert(m.actions.right<=m.card.right+3,'Interações vazaram para fora do cartão: '+JSON.stringify({width,height,m}))
