@@ -34,13 +34,13 @@ try {
   await page.locator('.picker-add').click()
   if(width>=1100) {
     await ticket.getByText('Calça Pantalona').waitFor()
-    assert.equal(await ticket.locator('.svx-desktop-ticket__total strong').innerText(),'R$ 250,00')
+    assert.equal((await ticket.locator('.svx-desktop-ticket__total strong').innerText()).split('\u00a0').join(' '),'R$ 250,00')
     assert(await ticket.getByRole('button',{name:/Revisar e mandar/i}).isDisabled(),'Não pode enviar antes do mínimo')
   }
   await page.locator('.product-card__footer button').nth(1).click()
   await page.locator('.picker-add').click()
   if(width>=1100) {
-    assert.equal(await ticket.locator('.svx-desktop-ticket__total strong').innerText(),'R$ 440,00')
+    assert.equal((await ticket.locator('.svx-desktop-ticket__total strong').innerText()).split('\u00a0').join(' '),'R$ 440,00')
     assert.equal(await ticket.getByRole('progressbar').getAttribute('aria-valuenow'),'100')
     const review=ticket.getByRole('button',{name:/Revisar e mandar/i})
     assert(await review.isEnabled(),'Talão deve liberar revisão após mínimo')
