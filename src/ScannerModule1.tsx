@@ -359,7 +359,7 @@ export default function ScannerModule1() {
               <p className="scanner-help">Cole o endereço público da loja que pertence à sua empresa. O sistema identificará os produtos disponíveis.</p>
             </> : <>
               <label><span>Seu catálogo em PDF</span><input key={uploadVersion} type="file" accept=".pdf,application/pdf" required onChange={(event) => setPdfFile(event.target.files?.[0] || null)} /></label>
-              <p className="scanner-help">PDF de até 50 MB e 80 páginas. O Shopvax lê nomes, referências, preços e fotos quando possível. Catálogos digitalizados podem usar OCR. Confira cada produto antes de publicar: PDFs com várias peças por página podem precisar de ajustes manuais de imagem.</p>
+              <p className="scanner-help">PDF de até 50 MB e 200 páginas. O Shopvax lê nomes, referências, preços e fotos quando possível. Catálogos digitalizados podem usar OCR. Confira cada produto antes de publicar: PDFs com várias peças por página podem precisar de ajustes manuais de imagem.</p>
             </>}
             <p className="scanner-help">Produtos extraídos permanecem em revisão e só entram na loja após sua confirmação.</p>
             {error && <p className="scanner-message scanner-message--error">{error}</p>}

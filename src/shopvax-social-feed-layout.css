@@ -1,0 +1,109 @@
+/* Feed social — adequação desktop sem margens desperdiçadas.
+ * Preserva proporção das fotos e o fluxo vertical de posts (scroll-snap). */
+@media(min-width:960px) {
+ .social-feed-page .social-feed-card {
+   width:min(100%,1160px);
+   max-width:calc(100vw - 24px);
+   height:100dvh;
+   min-height:100dvh;
+   margin:auto;
+   border-inline:1px solid #D9D3C6;
+   background:#F3F0E8;
+   color:#161514;
+ }
+ .social-feed-page .social-feed-media {
+   top:0;left:0;right:auto;bottom:0;
+   width:64%;height:100%;
+   background:#292724;
+ }
+ .social-feed-page .social-feed-media img,
+ .social-feed-page .social-feed-media video {object-fit:contain;}
+ .social-feed-page .social-feed-shade {
+   background:linear-gradient(180deg,rgba(0,0,0,.36),transparent 35%,rgba(0,0,0,.08));
+ }
+ .social-feed-page .social-feed-store {
+   left:16px;top:78px;max-width:calc(64% - 32px);
+ }
+ .social-feed-page .social-feed-copy {
+   position:absolute;top:clamp(108px,18vh,205px);bottom:auto;
+   left:64%;right:0;max-width:none;
+   padding:0 clamp(22px,2.7vw,42px);
+   display:flex;flex-direction:column;
+   gap:12px;
+   color:#161514;
+   text-shadow:none;
+ }
+ .social-feed-page .social-feed-copy>span {
+   align-self:flex-start;background:#E7E3DA;color:#161514;border-color:#D9D3C6;
+ }
+ .social-feed-page .social-feed-copy h2 {
+   max-width:100%;margin:0;color:#161514;
+   font-size:clamp(35px,3.2vw,55px);
+   text-shadow:none;
+ }
+ .social-feed-page .social-feed-description {max-width:100%;}
+ .social-feed-page .social-feed-description p,
+ .social-feed-page .social-feed-description button,
+ .social-feed-page .social-feed-description .social-feed-description__more {
+   color:#4D4943;text-shadow:none;
+ }
+ .social-feed-page .social-feed-buyline {
+   flex-direction:column;align-items:flex-start;gap:14px;
+   padding-top:16px;margin-top:12px;border-top:1px solid #D9D3C6;
+ }
+ .social-feed-page .social-feed-buyline>strong {
+   color:#161514;text-shadow:none;font-size:clamp(28px,2.7vw,42px);
+ }
+ .social-feed-page .social-feed-buyline>div {width:100%;flex-wrap:wrap;}
+ .social-feed-page .social-feed-add {
+   min-width:175px;justify-content:center;border-color:#161514;
+ }
+ .social-feed-page .social-feed-cart {
+   border-color:#161514;
+ }
+ .social-feed-page .social-feed-actions {
+   right:clamp(22px,2.7vw,42px);
+   left:calc(64% + clamp(22px,2.7vw,42px));
+   bottom:clamp(38px,8vh,90px);
+   flex-direction:row;
+   flex-wrap:wrap;
+   justify-content:flex-start;
+   gap:9px;
+ }
+ .social-feed-page .social-feed-actions button,
+ .social-feed-page .social-feed-actions__metric {
+   flex:0 0 53px;
+   width:53px;min-height:53px;
+   color:#161514;border-color:#D9D3C6;background:#FCFAF5;
+ }
+ .social-feed-page .social-feed-actions__ask {flex-basis:70px !important;width:70px !important;}
+ .social-feed-page .social-feed-actions button.is-active {
+   background:var(--social-store-accent,#F25C05);
+   color:var(--social-store-text,#161514);
+   border-color:#161514;
+ }
+ .social-feed-page .social-feed-card:has(.social-feed-description.is-expanded) .social-feed-copy {
+   top:100px;bottom:90px;overflow-y:auto;
+ }
+}
+@media(min-width:960px) and (max-height:680px) {
+ .social-feed-page .social-feed-copy {top:88px;gap:6px;}
+ .social-feed-page .social-feed-copy h2 {font-size:clamp(30px,3vw,43px);}
+ .social-feed-page .social-feed-actions {bottom:18px;}
+ .social-feed-page .social-feed-buyline {margin-top:2px;padding-top:8px;}
+}
+@media(max-width:959px) {
+ .social-feed-page .social-feed-card {width:min(100%,640px);max-width:100%;border-inline:0;}
+ .social-feed-page .social-feed-media img,
+ .social-feed-page .social-feed-media video {object-fit:contain;}
+ .social-feed-page .social-feed-copy {max-width:calc(100% - 76px);}
+ .social-feed-page .social-feed-buyline {gap:8px;}
+ .social-feed-page .social-feed-buyline>div {flex-wrap:wrap;}
+ .social-feed-page .social-feed-actions {bottom:max(134px,env(safe-area-inset-bottom) + 125px);}
+}
+@media(max-width:390px) {
+ .social-feed-page .social-feed-nav>span {display:none;}
+ .social-feed-page .social-feed-nav {grid-template-columns:auto 1fr;}
+ .social-feed-page .social-feed-nav__right {justify-self:end;}
+ .social-feed-page .social-feed-copy h2 {font-size:clamp(27px,8vw,40px);}
+}

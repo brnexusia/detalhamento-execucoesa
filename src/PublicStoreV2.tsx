@@ -6,6 +6,9 @@ import ShopvaxCheckoutReview, { type CheckoutBuyer } from './ShopvaxCheckoutRevi
 import ShopvaxOrderReady from './ShopvaxOrderReady'
 import { SHOPVAX_DEFAULT_ACCENT, shopvaxAccentTextColor, SVBrandSignature, SVRibbon, SVStamp, SVTag } from './ShopvaxDesignSystem'
 import { demoPayload } from './data'
+import StoreSocialNav from './StoreSocialNav'
+import CustomerAccountLauncher from './CustomerAccountLauncher'
+import './shopvax-store-layout-fixes.css'
 import type { CartItem, Product, PublicPayload } from './types'
 
 type ViewMode = 'store' | 'feed'
@@ -314,7 +317,11 @@ export default function PublicStoreV2() {
   return <div className={`app ${view === 'feed' ? 'app--feed' : ''}`} style={{ '--accent': store?.accent || SHOPVAX_DEFAULT_ACCENT, '--svx-accent-text': shopvaxAccentTextColor(store?.accent || SHOPVAX_DEFAULT_ACCENT) } as React.CSSProperties}>
     <header className="topbar">
       <button className="brand" onClick={() => setView('store')}>{store?.logoUrl ? <img className="brand__logo" src={store.logoUrl} alt="" /> : <span className="brand__mark" aria-hidden="true">{(store?.name || 'L').slice(0, 1).toUpperCase()}</span>}<span className="brand__text"><strong>{store?.name}</strong><small>Catálogo de atacado</small></span></button>
-      <nav className="view-switch"><button className={view === 'store' ? 'is-active' : ''} onClick={() => setView('store')}><Grid2X2 size={16}/> Loja</button><button className={view === 'feed' ? 'is-active' : ''} onClick={() => { setCategory('Todos'); setQuery(''); setView('feed') }}><Sparkles size={16}/> Feed</button></nav>
+      <div className="store-header-navigation">
+        <nav className="view-switch"><button className={view === 'store' ? 'is-active' : ''} onClick={() => setView('store')}><Grid2X2 size={16}/> Loja</button><button className={view === 'feed' ? 'is-active' : ''} onClick={() => { setCategory('Todos'); setQuery(''); setView('feed') }}><Sparkles size={16}/> Feed</button></nav>
+        <StoreSocialNav />
+        <CustomerAccountLauncher />
+      </div>
       <button className="cart-trigger" onClick={() => setCartOpen(true)}><ShoppingBag size={19}/><span>Carrinho</span>{cartCount > 0 && <b>{cartCount}</b>}</button>
     </header>
 
