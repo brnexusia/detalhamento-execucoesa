@@ -72,7 +72,7 @@ jobs:
           grep -Fq '"./server/social-analytics-hooks.mjs"' Dockerfile
           grep -Fq '"./server/public-protection-hooks.mjs"' Dockerfile
           grep -Fq '"./server/page-metadata-hooks.mjs"' Dockerfile
-          grep -Fq 'href="/favicon.svg"' index.html
+          grep -Eq 'href="/favicon\\.svg(\\?[^"]*)?"' index.html
           test -s public/favicon.svg
       - name: Validate official Shopvax identity assets
         run: |
