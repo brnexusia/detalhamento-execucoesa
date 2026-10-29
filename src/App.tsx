@@ -26,7 +26,7 @@ function pageFor(pathname: string) {
 }
 
 function RouteFallback() {
-  return <div className="store-loading"><span className="brand__mark">SV</span><strong>Carregando…</strong></div>
+  return <div className="store-loading"><span className="brand__mark"><img src="/brand/shopvax-symbol.svg" className="svx-brand-symbol" alt="Shopvax" /></span><strong>Carregando…</strong></div>
 }
 
 export default function App() {

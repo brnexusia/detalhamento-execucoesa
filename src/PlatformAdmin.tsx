@@ -156,7 +156,7 @@ export default function PlatformAdmin() {
     return data.stores.filter((store) => `${store.name} ${store.slug} ${store.ownerName} ${store.ownerEmail} ${store.planCode}`.toLowerCase().includes(term))
   }, [data, storeQuery])
 
-  if (loading) return <div className="platform-loading"><span className="platform-mark">SV</span><strong>Abrindo administração…</strong></div>
+  if (loading) return <div className="platform-loading"><span className="platform-mark"><img src="/brand/shopvax-symbol-dark.svg" className="svx-brand-symbol" alt="" aria-hidden="true" /></span><strong>Abrindo administração…</strong></div>
 
   if (!data) {
     return <div className="platform-loading platform-loading--error">
@@ -173,7 +173,7 @@ export default function PlatformAdmin() {
 
   return <div className="platform-shell">
     <aside className="platform-sidebar">
-      <div className="platform-brand"><span className="platform-mark">SV</span><div><strong>Shopvax</strong><small>Administração</small></div></div>
+      <div className="platform-brand"><span className="platform-mark"><img src="/brand/shopvax-symbol-dark.svg" className="svx-brand-symbol" alt="" aria-hidden="true" /></span><div><strong><img className="svx-brand-wordmark" src="/brand/shopvax-wordmark-light.svg" alt="Shopvax" /></strong><small>Administração</small></div></div>
       <nav>
         <NavButton active={section === 'visao'} onClick={() => setSection('visao')} icon={<Activity size={18}/>} label="Visão geral" />
         <NavButton active={section === 'lojas'} onClick={() => setSection('lojas')} icon={<Store size={18}/>} label="Lojas" count={data.stats.stores} />
@@ -186,7 +186,7 @@ export default function PlatformAdmin() {
     </aside>
 
     <main className="platform-main">
-      <header className="platform-topbar"><div><span>Shopvax</span><strong>{sectionTitle[section]}</strong></div><a href="/painel">Painel da minha loja <ExternalLink size={14}/></a></header>
+      <header className="platform-topbar"><div><span><img className="svx-brand-wordmark" src="/brand/shopvax-wordmark.svg" alt="Shopvax" /></span><strong>{sectionTitle[section]}</strong></div><a href="/painel">Painel da minha loja <ExternalLink size={14}/></a></header>
       {notice && <div className="platform-toast"><CheckCircle2 size={16}/> {notice}</div>}
       {error && <div className="platform-error">{error}</div>}
 

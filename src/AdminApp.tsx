@@ -115,8 +115,8 @@ export default function AdminApp() {
     }
   }
 
-  if (loading) return <div className="panel-loading"><span className="brand__mark">SV</span><strong>Abrindo seu painel…</strong></div>
-  if (!data) return <div className="panel-loading panel-loading--error"><span className="brand__mark">SV</span><strong>O painel não conseguiu iniciar.</strong><p>{error}</p><button className="primary-action" onClick={load}>Tentar novamente</button></div>
+  if (loading) return <div className="panel-loading"><span className="brand__mark"><img src="/brand/shopvax-symbol-dark.svg" className="svx-brand-symbol" alt="" aria-hidden="true" /></span><strong>Abrindo seu painel…</strong></div>
+  if (!data) return <div className="panel-loading panel-loading--error"><span className="brand__mark"><img src="/brand/shopvax-symbol-dark.svg" className="svx-brand-symbol" alt="" aria-hidden="true" /></span><strong>O painel não conseguiu iniciar.</strong><p>{error}</p><button className="primary-action" onClick={load}>Tentar novamente</button></div>
 
   const baseUrl = window.location.origin
   const storeUrl = `${baseUrl}/${data.store.slug}`
@@ -125,7 +125,7 @@ export default function AdminApp() {
   return (
     <div className="panel-shell">
       <aside className={`panel-sidebar ${menuOpen ? 'is-open' : ''}`}>
-        <div className="panel-brand"><span className="brand__mark">SV</span><div><strong>Shopvax</strong><small>{data.store.name}</small></div><button className="panel-close-menu" onClick={() => setMenuOpen(false)}><X size={18} /></button></div>
+        <div className="panel-brand"><span className="brand__mark"><img src="/brand/shopvax-symbol-dark.svg" className="svx-brand-symbol" alt="" aria-hidden="true" /></span><div><strong><img className="svx-brand-wordmark" src="/brand/shopvax-wordmark-light.svg" alt="Shopvax" /></strong><small>{data.store.name}</small></div><button className="panel-close-menu" onClick={() => setMenuOpen(false)}><X size={18} /></button></div>
         <AdminNavigation
           active={section}
           counts={{ products: data.products.length, orders: data.orders.length, sellers: data.sellers.length }}

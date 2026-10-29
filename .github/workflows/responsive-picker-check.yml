@@ -22,6 +22,10 @@ on:
       - 'src/social-feed.css'
       - 'src/social-profile.css'
       - 'src/shopvax-social-official.css'
+      - 'src/shopvax-brand-assets.css'
+      - 'public/brand/**'
+      - 'public/favicon.svg'
+      - 'tests/shopvax-official-brand.e2e.mjs'
       - 'src/shopvax-social-feed-layout.css'
       - 'src/shopvax-store-layout-fixes.css'
       - 'src/PublicRoute.tsx'
@@ -88,6 +92,8 @@ jobs:
         run: node tests/shopvax-home-brand.e2e.mjs
       - name: Official redesign for login, signup, social feed, profile and onboarding
         run: node tests/shopvax-surface-redesign.e2e.mjs
+      - name: Official vector brand, wordmark and favicon on live DOM
+        run: node tests/shopvax-official-brand.e2e.mjs
       - name: Mobile header and desktop feed layout regression
         run: node tests/shopvax-layout-repairs.e2e.mjs
       - name: Brand foundation regression across stores

@@ -1,0 +1,54 @@
+/* Marca oficial Shopvax: caminhos vetoriais extraídos da proposta Laranja
+   (#F25C05), escolhida por coincidir com a paleta aprovada do redesign.
+   O wordmark inclui o X personalizado — não use texto estilizado como logo. */
+.svx-brand-symbol { display:block; width:auto; height:32px; max-width:100%; flex:0 0 auto; object-fit:contain; }
+.svx-brand-wordmark { display:block; width:auto; height:23px; max-width:100%; flex:0 1 auto; object-fit:contain; }
+.home-shell .home-nav .wordmark { display:inline-flex; align-items:center; gap:9px; min-width:0; }
+.home-shell .home-nav .wordmark .svx-brand-symbol { height:34px; }
+.home-shell .home-nav .wordmark .svx-brand-wordmark { height:26px; }
+.home-shell .svx-home-footer strong { display:inline-flex; align-items:center; }
+.home-shell .svx-home-footer .svx-brand-wordmark { height:25px; }
+.auth-shell .auth-poster .wordmark { display:inline-flex; width:max-content; max-width:100%; gap:12px; align-items:center; }
+.auth-shell .auth-poster .wordmark .svx-brand-symbol { height:41px; width:auto; background:none; border:0; padding:0; }
+.auth-shell .auth-poster .wordmark .svx-brand-wordmark { height:31px; width:auto; }
+.auth-shell .auth-form__head .brand__mark { display:grid;place-items:center; }
+.auth-shell .auth-form__head .brand__mark .svx-brand-symbol { height:29px; width:auto; }
+.panel-brand .brand__mark, .platform-brand .platform-mark {display:grid;place-items:center;}
+.panel-brand .brand__mark {background:#161514;}
+.platform-brand .platform-mark {background:#161514;}
+.panel-brand .brand__mark .svx-brand-symbol,
+.platform-brand .platform-mark .svx-brand-symbol { height:31px; max-width:100%; }
+.panel-brand .svx-brand-wordmark, .platform-brand .svx-brand-wordmark {height:19px; max-width:150px;}
+.panel-brand strong, .platform-brand strong { display:flex;align-items:center;min-width:0; }
+.panel-loading .brand__mark .svx-brand-symbol, .platform-loading .platform-mark .svx-brand-symbol,
+.store-loading .brand__mark .svx-brand-symbol {height:29px;}
+.platform-loading .platform-mark {display:grid;place-items:center;background:#161514;}
+.platform-topbar .svx-brand-wordmark, .launchops-topbar .svx-brand-wordmark {height:17px;max-width:135px;}
+.social-feed-page .social-feed-nav>strong::before {content:none !important;display:none !important;}
+.social-feed-page .social-feed-nav>strong.svx-social-brand,
+.social-profile-page .social-profile-nav>strong.svx-social-brand {
+  display:inline-flex;align-items:center;gap:9px;min-width:0;justify-self:start;
+}
+.social-feed-page .svx-social-brand .svx-brand-symbol,
+.social-profile-page .svx-social-brand .svx-brand-symbol {height:34px;}
+.social-feed-page .svx-social-brand .svx-brand-wordmark,
+.social-profile-page .svx-social-brand .svx-brand-wordmark {height:23px;max-width:165px;}
+.social-profile-page .social-profile-state .svx-brand-symbol {height:36px;max-width:31px;}
+.svx-onboarding__top strong {display:inline-flex;align-items:center;min-width:0;}
+.svx-onboarding__top .svx-brand-wordmark {height:22px;}
+.svx-signature {display:inline-flex;align-items:center;gap:7px;}
+.svx-signature .svx-brand-wordmark {height:14px;max-width:97px;}
+@media(max-width:700px) {
+ .auth-shell .auth-poster .wordmark .svx-brand-symbol {height:34px;width:auto;}
+ .auth-shell .auth-poster .wordmark .svx-brand-wordmark {height:24px;}
+ .home-shell .home-nav .wordmark .svx-brand-symbol {height:28px;}
+ .home-shell .home-nav .wordmark .svx-brand-wordmark {height:19px;}
+ .social-feed-page .svx-social-brand .svx-brand-symbol,
+ .social-profile-page .svx-social-brand .svx-brand-symbol {height:28px;}
+ .social-feed-page .svx-social-brand .svx-brand-wordmark,
+ .social-profile-page .svx-social-brand .svx-brand-wordmark {height:19px;}
+}
+@media(max-width:380px) {
+ .social-feed-page .svx-social-brand .svx-brand-wordmark {height:16px;}
+ .social-feed-page .svx-social-brand .svx-brand-symbol {height:23px;}
+}
