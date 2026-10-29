@@ -121,6 +121,8 @@ function candidatePrice(candidate) {
 }
 
 function safeImageUrl(raw) {
+  const value = String(raw || '').trim()
+  if (/^\/media\/[a-zA-Z0-9-]+$/.test(value)) return value
   try {
     const url = new URL(String(raw || ''))
     if (!['http:', 'https:'].includes(url.protocol)) return ''
