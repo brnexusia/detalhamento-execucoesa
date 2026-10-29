@@ -50,6 +50,7 @@ on:
       - 'tests/shopvax-multiniche-04.e2e.mjs'
       - 'tests/shopvax-feed.e2e.mjs'
       - 'tests/shopvax-checkout-review.e2e.mjs'
+      - 'tests/shopvax-mobile-flow-03.e2e.mjs'
       - 'tests/shopvax-plans.e2e.mjs'
       - 'tests/shopvax-product-list.e2e.mjs'
       - 'tests/shopvax-order-buyer.e2e.mjs'
@@ -121,6 +122,8 @@ jobs:
         run: node tests/shopvax-feed.e2e.mjs
       - name: Checkout review browser regression
         run: node tests/shopvax-checkout-review.e2e.mjs
+      - name: Layer 03 - mobile catalogue, minimum, review and WhatsApp handoff
+        run: node tests/shopvax-mobile-flow-03.e2e.mjs
       - name: Plans layout and navigation regression
         run: node tests/shopvax-plans.e2e.mjs
       - name: Product list browser regression
