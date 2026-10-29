@@ -209,7 +209,17 @@ export async function collectPdfCatalog(buffer, options = {}) {
     const pages = raw.replace(/\r/g, '').split('\f').slice(0, totalPages)
 
     // OCR is a fallback only for pages without a usable text layer.
+    // This class of Canva catalog mixes text pages (with name/price) and
+    // image-only facing pages: running OCR on dozens of pure photo pages
+    // wastes minutes and may hit the processing deadline. A full scan with
+    // no detected text products STILL goes through OCR on every page.
+    const textLayerCandidates = parsePdfCatalogText(pages.join('\f'), totalPages).candidates.length
+    const mixedTextAndPhotoCatalog = textLayerCandidates >= 8 && totalPages >= 30
     for (let i = 0; i < totalPages; i += 1) {
+      if (mixedTextAndPhotoCatalog && !(pages[i] || '').trim()) {
+        await options.onProgress?.({ progress: Math.min(65, 12 + Math.round(50 * (i + 1) / totalPages)), pagesScanned: i + 1, platform: 'pdf' })
+        continue
+      }
       if ((pages[i] || '').replace(/\W/g, '').length >= 20) continue
       const prefix = path.join(dir, 'ocr-' + i)
       try {
