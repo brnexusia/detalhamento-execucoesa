@@ -40,3 +40,37 @@
 @media(max-width:700px){.svx-plans__intro{flex-direction:column;align-items:flex-start;}.svx-plans__intro h2{font-size:clamp(34px,10vw,53px)}.svx-plans__comparison table{min-width:560px}.svx-plans__comparison thead th{padding:20px 10px 13px}.svx-plans__comparison tbody th,.svx-plans__comparison tbody td{padding:10px}.svx-plans__comparison thead th>p{font-size:10px}.svx-plans__comparison tfoot td{padding:10px}.svx-plans__benefits{grid-template-columns:1fr;margin:35px 0}.svx-plans__help{flex-direction:column;align-items:stretch}.svx-plans__help button{justify-content:center}}
 @media(max-width:400px){.svx-plans__comparison table{min-width:490px}.svx-plans__comparison thead h3{font-size:25px}.svx-plans__comparison thead th>strong{font-size:27px}.svx-plans__comparison tbody td{font-size:11px}.svx-plans__benefit-grid{grid-template-columns:1fr}.svx-plans__cta{font-size:10px}}
 @media(prefers-reduced-motion:reduce){.svx-plans__comparison{scroll-behavior:auto}}
+
+/* Prancha SVG 07: a comparação de planos precisa caber na tela do celular,
+ * em vez de obrigar o comprador a descobrir colunas cortadas horizontalmente.
+ * As quantidades/preços continuam vindos da API. */
+@media(max-width:700px) {
+ .svx-plans__comparison {width:100%;max-width:100%;overflow-x:visible;}
+ .svx-plans__comparison table {width:100%;min-width:0!important;table-layout:fixed;border-collapse:collapse;}
+ .svx-plans__comparison thead th {padding:18px 5px 8px;overflow-wrap:anywhere;}
+ .svx-plans__comparison thead th:first-child {width:21%;}
+ .svx-plans__comparison thead h3 {font-size:clamp(16px,5vw,25px);margin:16px 0 6px;}
+ .svx-plans__comparison thead th>strong {font-size:clamp(17px,5vw,25px);white-space:normal;}
+ .svx-plans__comparison thead th>p {min-height:0;font-size:9px;line-height:1.3;}
+ .svx-plans__comparison .svx-plans__reference p {font-size:9px;line-height:1.4;}
+ .svx-plans__comparison tbody th,
+ .svx-plans__comparison tbody td {padding:9px 5px;font-size:clamp(8px,2.4vw,11px);overflow-wrap:anywhere;}
+ .svx-plans__comparison tfoot td {padding:9px 3px;}
+ .svx-plans__comparison tfoot td:first-child {font-size:9px;overflow-wrap:anywhere;}
+ .svx-plans__cta {
+   min-height:42px;width:100%;gap:2px;justify-content:center;
+   padding:6px 2px;text-align:center;
+   font-size:clamp(8px,2.35vw,11px);font-weight:800;
+ }
+ .svx-plans__cta-prefix{display:none;}
+ .svx-plans__cta svg{width:11px;height:11px;flex:0 0 11px;}
+ .svx-plans__flag {font-size:8px;padding:4px;}
+}
+@media(max-width:360px) {
+ .home-pricing:has(.svx-plans){padding-inline:8px;}
+ .svx-plans__comparison thead th:first-child{width:20%;}
+ .svx-plans__comparison thead h3{font-size:16px;}
+ .svx-plans__comparison thead th>strong{font-size:17px;}
+ .svx-plans__comparison tbody th,.svx-plans__comparison tbody td{font-size:8px;padding:7px 3px;}
+ .svx-plans__cta{padding:7px 1px;}
+}
