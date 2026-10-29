@@ -343,6 +343,7 @@ export default function PublicStoreV2() {
         <div className="svx-discovery__rail">{visibleProducts.slice(0,6).map((product) => <button type="button" key={product.id} onClick={() => openPicker(product)}><span className="svx-discovery__image"><ProductMedia product={product}/></span><small>{product.sku || product.category}</small><strong>{product.name}</strong><b>{money.format(product.price)}</b></button>)}</div>
       </section>
       {visibleProducts.some((product) => product.featured) && <section className="svx-highlights" aria-label="Destaques da loja"><h2>Destaques da loja</h2><div>{visibleProducts.filter((product)=>product.featured).slice(0,3).map((product,index)=><button key={product.id} onClick={() => openPicker(product)}><span>{String(index+1).padStart(2,'0')}</span><strong>{product.name}</strong><small>{money.format(product.price)}</small><ArrowRight size={16}/></button>)}</div></section>}
+      <div className="svx-catalog-split"><div className="svx-catalog-split__products">
       <section className="catalog-toolbar"><label className="search-box"><Search size={18}/><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar produto ou referência" /></label><label className="svx-catalog-sort"><span>Ordenar por</span><select aria-label="Ordenação dos produtos" value={sort} onChange={(e) => setSort(e.target.value as 'newest' | 'price_asc' | 'price_desc')}><option value="newest">Mais recentes</option><option value="price_asc">Menor preço</option><option value="price_desc">Maior preço</option></select></label><div className="minimum-inline"><span>Pedido mínimo</span><strong>{money.format(minimum)}</strong></div></section>
       <section className="category-strip">{categories.map((item) => <button key={item} className={category === item ? 'is-active' : ''} onClick={() => setCategory(item)}>{item}</button>)}</section>
       <section id="colecao-atual" className="catalog-heading"><div><span>{payload.page?.hasMore ? 'Mais produtos disponíveis' : `${visibleProducts.length} produtos`}</span><h2>{category === 'Todos' ? 'Escolha suas peças' : category}</h2></div><button className="feed-callout" onClick={() => setView('feed')}>Ver como feed <ArrowRight size={17}/></button></section>
@@ -352,6 +353,26 @@ export default function PublicStoreV2() {
       {(filterLoading || loadingMore) && <div className="empty-state"><p>Carregando produtos…</p></div>}
       {catalogError && <div className="empty-state"><p>{catalogError}</p></div>}
       <footer className="store-brand-signature"><SVBrandSignature /></footer>
+      </div>
+      <aside className="svx-desktop-ticket" aria-label="Seu pedido durante a compra">
+        <div className="svx-desktop-ticket__top"><span>Pedido em andamento</span><small>{String(cartCount).padStart(2,'0')} peças</small></div>
+        <h2>Seu pedido</h2>
+        <div className="svx-desktop-ticket__items">
+          {cart.length ? cart.map((item) => <button className="svx-desktop-ticket__item" type="button" key={item.key} onClick={() => openPicker(item.product)} aria-label={`Ver ${item.product.name} no pedido`}>
+            <span className="svx-desktop-ticket__thumb"><ResilientImage src={galleryFor(item.product,item.selections)[0]||mediaUrl(item.product)} alt="" /></span>
+            <span className="svx-desktop-ticket__details"><strong>{item.product.name}</strong><small>REF. {item.product.sku || '—'} · {Object.values(item.selections).join(' / ') || 'Sem variação'}</small><small>{item.quantity} {item.quantity === 1 ? 'peça' : 'peças'}</small></span>
+            <span className="svx-desktop-ticket__price">{money.format(item.quantity * item.product.price)}</span>
+          </button>) : <p className="svx-desktop-ticket__empty">Escolha uma peça da coleção e ela aparece aqui, sem sair do catálogo.</p>}
+        </div>
+        <div className="svx-desktop-ticket__bottom">
+          <div className="svx-desktop-ticket__progress-label"><span>{minimumReached ? 'MÍNIMO ATINGIDO' : 'PARA O PEDIDO MÍNIMO'}</span><strong>{money.format(Math.max(0,minimum-cartTotal))}</strong></div>
+          <div className="svx-desktop-ticket__progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(minimumProgress)} aria-label="Progresso do pedido mínimo"><span style={{width:`${minimumProgress}%`}} /></div>
+          <div className="svx-desktop-ticket__total"><span>TOTAL DAS PEÇAS</span><strong>{money.format(cartTotal)}</strong></div>
+          <button type="button" className="svx-desktop-ticket__review" disabled={!cart.length || !minimumReached || sending} onClick={() => { setError(''); setReviewOpen(true) }}>Revisar e mandar <ArrowRight size={17} /></button>
+          {!minimumReached && <small className="svx-desktop-ticket__hint">Faltam {money.format(Math.max(0,minimum-cartTotal))} para atingir o pedido mínimo.</small>}
+          <p className="svx-desktop-ticket__notice">Pedido enviado à vendedora somente após sua confirmação no WhatsApp.</p>
+        </div>
+      </aside></div>
     </main> : <main className="feed-shell"><div className="feed-list">{products.map((product) => <article className="feed-card" key={product.id}><ProductMedia product={product}/><div className="feed-card__shade"/><div className="feed-card__top"><span>{product.category}</span><span>{product.sku}</span></div><div className="feed-card__actions"><button aria-label={`Montar grade de ${product.name}`} onClick={() => openPicker(product)}><Plus size={24}/><span>GRADE</span></button><button type="button" aria-pressed={savedProducts.includes(product.id)} aria-label={savedProducts.includes(product.id) ? `Remover ${product.name} dos salvos` : `Salvar ${product.name}`} onClick={() => toggleSaved(product.id)}><Heart size={22} fill={savedProducts.includes(product.id) ? 'currentColor' : 'none'}/><span>SALVAR</span></button><button type="button" aria-label={`Compartilhar ${product.name}`} onClick={() => void shareProduct(product)}><Share2 size={22}/><span>ENVIAR</span></button><button type="button" aria-label={`Perguntar sobre ${product.name}`} onClick={() => askProduct(product)}><MessageCircle size={22}/><span>PERGUNTAR</span></button></div><div className="feed-card__info"><span className="feed-card__seller">com {seller?.name || 'atendimento'}</span><h2>{product.name}</h2><FeedCaption description={product.description}/><div className="feed-card__buyline"><strong>{money.format(product.price)}</strong><button onClick={() => openPicker(product)}>Escolher quantidade <ChevronRight size={18}/></button></div></div></article>)}{!demo && <div ref={loadMoreRef}/>}</div></main>}
 
     <div className={`drawer-backdrop ${cartOpen ? 'is-open' : ''}`} onClick={() => setCartOpen(false)}/>
