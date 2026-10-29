@@ -5,6 +5,8 @@ on:
     paths:
       - 'src/PublicStoreV2.tsx'
       - 'src/product-picker-responsive.css'
+      - 'src/shopvax-desktop-product-page.css'
+      - 'tests/shopvax-desktop-product-05.e2e.mjs'
       - 'src/canvas.css'
       - 'src/saas.css'
       - 'src/product-gallery.css'
@@ -91,6 +93,8 @@ jobs:
           exit 1
       - name: Browser regression across viewport sizes
         run: node tests/product-picker-responsive.e2e.mjs
+      - name: Official design layer 05 - desktop product as a page, related products and mobile modal
+        run: node tests/shopvax-desktop-product-05.e2e.mjs
       - name: Shopvax institutional identity across viewports
         run: node tests/shopvax-home-brand.e2e.mjs
       - name: Official redesign for login, signup, social feed, profile and onboarding
