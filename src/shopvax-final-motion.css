@@ -161,6 +161,9 @@
  .svx-stamp{animation:svx-stamp-hit 220ms cubic-bezier(.2,1.4,.4,1.1) both;}
 }
 
+.svx-motion-toast-stamp {display:inline-block;padding:5px 12px;border:2px solid currentColor;font:800 17px/1 var(--svx-font-display,'Archivo Narrow',sans-serif);transform:rotate(-5deg);}
+@media(prefers-reduced-motion:no-preference){.svx-motion-toast-stamp{animation:svx-stamp-hit 220ms cubic-bezier(.2,1.4,.4,1.1) both;}}
+
 /* 03 Toque 80ms, número subindo 8px em 160ms. */
 @keyframes svx-number-up {from{opacity:.35;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @media(prefers-reduced-motion:no-preference){
