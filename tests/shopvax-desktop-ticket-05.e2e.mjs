@@ -28,6 +28,10 @@ try {
    assert(first.b.right<=first.a.left+2,'Talão não ocupa coluna separada: '+JSON.stringify(first))
    assert(first.a.right<=width+1 && first.pageWidth<=width+2,'Talão cria rolagem horizontal: '+JSON.stringify(first))
    assert.equal(await ticket.getByText('Seu pedido',{exact:true}).count(),1)
+   if(width>=1280){
+    const columns=await page.locator('.svx-catalog-split .product-grid').evaluate(el=>getComputedStyle(el).gridTemplateColumns.split(' ').length)
+    assert.equal(columns,4,'Prancha 05 requires four product columns beside the ticket')
+   }
    assert(await ticket.getByRole('button',{name:/Revisar e mandar/i}).isDisabled(),'Carrinho vazio não pode fechar pedido')
   } else assert(!(await ticket.isVisible()),'Talão desktop aparece no mobile/tablet')
   await page.locator('.product-card__footer button').first().click()
