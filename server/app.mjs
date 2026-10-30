@@ -307,7 +307,7 @@ function publicStoreShape(store, seller, products) {
       logoUrl: store.logo_url,
       accent: store.accent,
       seasonalTheme: store.seasonal_theme || 'padrao',
-    }
+    },
     seller,
     products: products.map((product) => ({
       id: product.id,
