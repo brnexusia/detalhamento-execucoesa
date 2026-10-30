@@ -86,6 +86,8 @@ jobs:
         run: node --test server/system-plans.test.mjs
       - name: Responsive media variants preserve originals
         run: node --test server/media-variants.test.mjs
+      - name: Revisão de ergonomia - fontes, cursor e copy
+        run: node --test tests/shopvax-ergonomics.test.mjs
       - name: Scanner PDF catalog tests
         run: npm run test:scanner:pdf
       - name: Scanner URL tests
