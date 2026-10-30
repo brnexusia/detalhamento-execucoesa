@@ -88,6 +88,8 @@ jobs:
         run: node --test server/media-variants.test.mjs
       - name: Revisão de ergonomia - fontes, cursor e copy
         run: node --test tests/shopvax-ergonomics.test.mjs
+      - name: Temas de loja e PDF por aparencia aplicada
+        run: node --test server/shopvax-theme-presets.test.mjs
       - name: Scanner PDF catalog tests
         run: npm run test:scanner:pdf
       - name: Scanner URL tests
