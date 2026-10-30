@@ -6,6 +6,7 @@
 - Confirmar ambiente, serviços, DNS e volumes do EasyPanel e inspecionar configuração real **sem compartilhar credenciais**.
 - Fazer backup e **testar restauração** do PostgreSQL e das mídias/volumes. Registrar identificador, duração e integridade do backup.
 - Registrar quantas lojas/planos personalizados ativos existem, os respectivos limites e exceções comerciais; alterações de planos de sistema podem impedir **novas inclusões** em lojas acima dos tetos, mas jamais devem apagar registros existentes.
+- Se esta versão corrigir os limites dos planos de sistema, executar o primeiro deploy com a flag `SHOPVAX_APPLY_APPROVED_PLAN_LIMITS` **desativada**. Após backup restaurável e checagem de lojas com mais de 5/15 vendedoras ou 500/2.000 produtos, programar uma inicialização controlada com `SHOPVAX_APPLY_APPROVED_PLAN_LIMITS=1` e conferir o resultado; remover a flag após a migração.
 - Confirmar recursos CPU/RAM/disco e verificar variáveis sensíveis de produção. Nunca usar `SHOPVAX_ASAAS_MOCK=1` nem bypass de limites/rate limit.
 - Para a versão a publicar, fixar o commit aprovado e configurar `SHOPVAX_RELEASE_SHA` com o SHA completo no serviço backend (não na interface do comprador). Definir `SHOPVAX_PUBLIC_URL` com o domínio real.
 

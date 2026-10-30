@@ -82,6 +82,8 @@ jobs:
           grep -Fq 'content="#161514"' index.html
       - name: Release smoke test (local, read-only)
         run: node --test tests/verify-production.test.mjs
+      - name: Aprovacao dos planos comerciais e migracao segura
+        run: node --test server/system-plans.test.mjs
       - name: Scanner PDF catalog tests
         run: npm run test:scanner:pdf
       - name: Scanner URL tests
