@@ -23,7 +23,7 @@ try{
    await page.goto('http://127.0.0.1:5173/sw-moda')
    await page.locator('.product-card__media').click()
    assert(await page.locator('.svx-grade').isVisible(),'Color/size product opens with wholesale grade')
-  await page.getByRole('button',{name:'Montar grade'}).click()
+   assert.equal(await page.getByRole('button',{name:'Montar grade'}).getAttribute('aria-pressed'),'true','Modo grade deve estar selecionado por padrão')
    await page.getByRole('button',{name:/Grena/}).click()
    await page.getByRole('button',{name:/Preta/}).click()
    await page.getByRole('button',{name:'Aumentar P na cor Grena'}).click()
