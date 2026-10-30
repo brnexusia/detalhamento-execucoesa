@@ -113,6 +113,8 @@ export default function PublicStoreV2() {
   const [readyOrder, setReadyOrder] = useState<{ code: string; url: string } | null>(null)
   const [error, setError] = useState('')
   const [catalogError, setCatalogError] = useState('')
+  const [initialLoadError, setInitialLoadError] = useState('')
+  const filterSequenceRef = useRef(0)
   const [loadingMore, setLoadingMore] = useState(false)
   const [filterLoading, setFilterLoading] = useState(false)
   const filterKeyRef = useRef('Todos||newest')
@@ -137,6 +139,8 @@ export default function PublicStoreV2() {
   })
 
   const loadFirst = useCallback(() => {
+    filterSequenceRef.current += 1
+    setInitialLoadError('')
     setCategory('Todos')
     setQuery('')
     filterKeyRef.current = 'Todos||newest'
@@ -147,10 +151,15 @@ export default function PublicStoreV2() {
         setCatalogError('')
         api.track({ storeSlug: route.storeSlug, sellerSlug: route.sellerSlug, kind: 'view' })
       })
-      .catch(() => {
+      .catch((err: unknown) => {
         if (route.storeSlug === demoPayload.store.slug) {
           setPayload({ ...demoPayload, seller: route.sellerSlug === 'bianca' ? { slug: 'bianca', name: 'Bianca', phone: '5571888888888' } : demoPayload.seller })
           setDemo(true)
+        } else {
+          const status = (err as Error & { status?: number })?.status
+          setInitialLoadError(status === 404
+            ? 'Essa loja não foi encontrada. Confira o endereço e tente novamente.'
+            : 'Não foi possível abrir a loja agora. Verifique sua conexão e tente novamente.')
         }
       })
   }, [route.storeSlug, route.sellerSlug])
@@ -162,22 +171,32 @@ export default function PublicStoreV2() {
 
   useEffect(() => {
     if (!payload || demo) return
+    // Invalida imediatamente respostas de buscas antigas, inclusive se o debounce ainda não venceu.
+    const sequence = ++filterSequenceRef.current
     const key = `${category}|${query.trim()}|${sort}`
-    if (filterKeyRef.current === key) return
+    if (filterKeyRef.current === key) { setFilterLoading(false); return }
+    const controller = new AbortController()
+    setFilterLoading(true)
+    setCatalogError('')
     const timer = window.setTimeout(() => {
-      setFilterLoading(true)
-      setCatalogError('')
       api.publicStore(route.storeSlug, route.sellerSlug, {
         q: query.trim() || undefined,
         category: category === 'Todos' ? undefined : category,
         sort,
+        signal: controller.signal,
       }).then((data) => {
+        if (filterSequenceRef.current !== sequence) return
         filterKeyRef.current = key
         setPayload(data)
-      }).catch((err) => setCatalogError(err instanceof Error ? err.message : 'Não foi possível carregar os produtos.'))
-        .finally(() => setFilterLoading(false))
+      }).catch((err) => {
+        if (filterSequenceRef.current !== sequence || controller.signal.aborted) return
+        setCatalogError(err instanceof Error && err.name !== 'AbortError'
+          ? err.message : 'A busca demorou demais. Confira a conexão e tente novamente.')
+      }).finally(() => {
+        if (filterSequenceRef.current === sequence) setFilterLoading(false)
+      })
     }, 300)
-    return () => window.clearTimeout(timer)
+    return () => { window.clearTimeout(timer); controller.abort() }
   }, [category, query, sort, demo, payload?.store.slug, route.storeSlug, route.sellerSlug])
 
   const store = payload?.store
@@ -199,7 +218,8 @@ export default function PublicStoreV2() {
 
   const loadMore = useCallback(async () => {
     const cursor = payload?.page?.nextCursor
-    if (demo || loadingMore || !payload?.page?.hasMore || !cursor) return
+    if (demo || loadingMore || filterLoading || !payload?.page?.hasMore || !cursor) return
+    const sequence = filterSequenceRef.current
     setLoadingMore(true)
     try {
       const data = await api.publicStore(route.storeSlug, route.sellerSlug, {
@@ -208,15 +228,16 @@ export default function PublicStoreV2() {
         category: category === 'Todos' ? undefined : category,
         sort,
       })
+      if (sequence !== filterSequenceRef.current) return
       setPayload((current) => {
         if (!current) return data
         const seen = new Set(current.products.map((item) => item.id))
         return { ...current, categories: data.categories || current.categories, products: [...current.products, ...data.products.filter((item) => !seen.has(item.id))], page: data.page }
       })
     } catch (err) {
-      setCatalogError(err instanceof Error ? err.message : 'Não foi possível carregar mais produtos.')
+      if (sequence === filterSequenceRef.current) setCatalogError(err instanceof Error ? err.message : 'Não foi possível carregar mais produtos.')
     } finally { setLoadingMore(false) }
-  }, [payload?.page, demo, loadingMore, route.storeSlug, route.sellerSlug, query, category, sort])
+  }, [payload?.page, demo, loadingMore, filterLoading, route.storeSlug, route.sellerSlug, query, category, sort])
 
   useEffect(() => {
     const target = loadMoreRef.current
@@ -317,7 +338,7 @@ export default function PublicStoreV2() {
     }
   }
 
-  if (!payload) return <div className="store-loading"><span className="brand__mark"><img src="/brand/shopvax-symbol.svg" className="svx-brand-symbol" alt="Shopvax" /></span><strong>Abrindo a loja…</strong><p>Só um instante.</p></div>
+  if (!payload) return <div className="store-loading"><span className="brand__mark"><img src="/brand/shopvax-symbol.svg" className="svx-brand-symbol" alt="Shopvax" /></span>{initialLoadError ? <><strong role="alert">{initialLoadError}</strong><button type="button" onClick={() => { void loadFirst() }}>Tentar novamente</button></> : <><strong>Abrindo a loja…</strong><p>Só um instante.</p></>}</div>
 
   return <div className={`app ${view === 'feed' ? 'app--feed' : ''}`} style={{ '--accent': store?.accent || SHOPVAX_DEFAULT_ACCENT, '--svx-accent-text': shopvaxAccentTextColor(store?.accent || SHOPVAX_DEFAULT_ACCENT) } as React.CSSProperties}>
     <header className="topbar">
