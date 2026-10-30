@@ -17,6 +17,7 @@ import './shopvax-feed-redesign.css'
 import './shopvax-final-motion.css'
 import './shopvax-cross-surface.css'
 import './shopvax-brand-assets.css'
+import './shopvax-accessibility-polish.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
