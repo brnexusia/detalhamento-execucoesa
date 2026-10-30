@@ -28,6 +28,10 @@ try {
    assert(first.b.right<=first.a.left+2,'Talão não ocupa coluna separada: '+JSON.stringify(first))
    assert(first.a.right<=width+1 && first.pageWidth<=width+2,'Talão cria rolagem horizontal: '+JSON.stringify(first))
    assert.equal(await ticket.getByText('Seu pedido',{exact:true}).count(),1)
+   if(width>=1280){
+    const columns=await page.locator('.svx-catalog-split .product-grid').evaluate(el=>getComputedStyle(el).gridTemplateColumns.split(' ').length)
+    assert.equal(columns,4,'Prancha 05 requires four product columns beside the ticket')
+   }
    assert(await ticket.getByRole('button',{name:/Revisar e mandar/i}).isDisabled(),'Carrinho vazio não pode fechar pedido')
   } else assert(!(await ticket.isVisible()),'Talão desktop aparece no mobile/tablet')
   await page.locator('.product-card__footer button').first().click()
@@ -42,6 +46,7 @@ try {
   if(width>=1100) {
     assert.equal((await ticket.locator('.svx-desktop-ticket__total strong').innerText()).split('\u00a0').join(' '),'R$ 440,00')
     assert.equal(await ticket.getByRole('progressbar').getAttribute('aria-valuenow'),'100')
+    assert.equal(await ticket.locator('.svx-desktop-ticket__progress-label strong').count(),0,'Do not show R$ 0,00 after minimum reached')
     const review=ticket.getByRole('button',{name:/Revisar e mandar/i})
     assert(await review.isEnabled(),'Talão deve liberar revisão após mínimo')
     await review.click()

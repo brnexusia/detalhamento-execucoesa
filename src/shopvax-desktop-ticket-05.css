@@ -124,3 +124,7 @@
 @media(prefers-reduced-motion:reduce){
  .app:not(.app--feed) .svx-desktop-ticket__progress>span{transition:width 120ms ease-out}
 }
+
+@media(min-width:1200px){
+ .app:not(.app--feed) .svx-catalog-split .product-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
