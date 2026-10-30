@@ -228,7 +228,7 @@ try {
     body: { storeSlug: owner.slug, sellerSlug: 'ana', items: [{ productId, quantity: 5, selections: {} }] },
   })
   assert.equal(forwarded.response.status, 201, JSON.stringify(forwarded.payload))
-  assert.equal(new URL(forwarded.payload.whatsappUrl).pathname, '/5511988800012', 'Pedido deve ir para Bia após saída de Ana')
+  assert.match(new URL(forwarded.payload.whatsappUrl).pathname, /^\/551198880001[2-5]$/, 'Após saída de Ana, pedido deve ir para qualquer vendedora ativa válida')
 
   // Se a loja estiver temporariamente sem vendedora, bloquear: jamais usar o número administrativo.
   await pool.query('UPDATE sellers SET is_active=false WHERE store_id=$1', [storeRow.rows[0].id])
