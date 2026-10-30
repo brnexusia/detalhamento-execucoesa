@@ -57,6 +57,8 @@ try {
     const foreground=await page.locator('.svx-ribbon').evaluate(node=>getComputedStyle(node).color)
     if(sample.accent==='#121314')assert.equal(foreground,'rgb(243, 240, 232)')
     await page.locator('.product-card__media').click()
+    assert(await page.locator('.svx-grade').isVisible(),'Grade no atacado deve ser o padrão em produtos com Cor/Tamanho')
+    await page.getByRole('button',{name:'Uma variação'}).click()
     await page.getByRole('button',{name:'Preta',exact:true}).click()
     await page.getByRole('button',{name:'P',exact:true}).click()
     await page.locator('.picker-add').click()
