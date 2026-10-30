@@ -218,7 +218,7 @@ async function downloadCatalogPdf(req, res) {
   await schemaReady()
   const catalogResult = await pool.query('SELECT * FROM catalogs WHERE id=$1 AND store_id=$2 LIMIT 1', [req.params.catalogId, storeId])
   if (!catalogResult.rowCount) return res.status(404).json({ error: 'Catálogo não encontrado.' })
-  const storeResult = await pool.query('SELECT id,slug,name,logo_url,minimum_order,whatsapp FROM stores WHERE id=$1 LIMIT 1', [storeId])
+  const storeResult = await pool.query('SELECT id,slug,name,logo_url,minimum_order,whatsapp,accent,seasonal_theme FROM stores WHERE id=$1 LIMIT 1', [storeId])
   if (!storeResult.rowCount) return res.status(404).json({ error: 'Loja não encontrada.' })
   const catalog = catalogResult.rows[0]
   const products = await pool.query(
@@ -243,7 +243,7 @@ async function downloadProductsPdf(req, res) {
   const storeId = req.catalogStore.store_id
   await schemaReady()
   const storeResult = await pool.query(
-    'SELECT id,slug,name,logo_url,minimum_order,whatsapp FROM stores WHERE id=$1 LIMIT 1',
+    'SELECT id,slug,name,logo_url,minimum_order,whatsapp,accent,seasonal_theme FROM stores WHERE id=$1 LIMIT 1',
     [storeId],
   )
   if (!storeResult.rowCount) return res.status(404).json({ error: 'Loja não encontrada.' })
@@ -450,7 +450,7 @@ async function protectedStore(req, res) {
   )
   const catalogsResult = await pool.query('SELECT * FROM catalogs WHERE store_id=$1 AND active=true ORDER BY is_default DESC,created_at ASC', [store.id])
   return res.json({
-    store: { slug: store.slug, name: store.name, eyebrow: store.eyebrow, tagline: store.tagline, minimumOrder: catalog.minimum_order == null ? Number(store.minimum_order) : Number(catalog.minimum_order), whatsapp: store.whatsapp, logoUrl: store.logo_url, accent: store.accent },
+    store: { slug: store.slug, name: store.name, eyebrow: store.eyebrow, tagline: store.tagline, minimumOrder: catalog.minimum_order == null ? Number(store.minimum_order) : Number(catalog.minimum_order), whatsapp: store.whatsapp, logoUrl: store.logo_url, accent: store.accent, seasonalTheme: store.seasonal_theme || 'padrao' },
     seller,
     catalogs: catalogsResult.rows.map(catalogShape),
     activeCatalog: catalogShape(catalog),
