@@ -149,3 +149,7 @@
 @media(prefers-reduced-motion:reduce) {
   .auth-shell--login .auth-poster__ribbon {animation:none;transition:opacity 120ms ease-out;}
 }
+
+/* The Google separator is only meaningful while Google login is available. */
+.auth-shell .auth-form > .auth-divider { display:none; }
+.auth-shell .auth-form > .google-auth-button + .auth-divider { display:flex; }
