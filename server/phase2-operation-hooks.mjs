@@ -570,7 +570,7 @@ async function enrichOrder(req, res, next) {
     if (!preferred) {
       const seller = await assignedSeller(store, req, res)
       if (seller) req.body.sellerSlug = seller.slug
-      else delete req.body.sellerSlug
+      else return res.status(409).json({ code: 'NO_AVAILABLE_SELLER', error: 'Nenhuma vendedora disponível para receber o pedido. Ative uma vendedora antes de continuar.' })
     }
     const customer = await currentCustomer(req, store.id)
     if (customer) {
