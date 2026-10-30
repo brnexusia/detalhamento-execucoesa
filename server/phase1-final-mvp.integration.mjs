@@ -58,13 +58,13 @@ try {
   assert.equal(result.response.status, 200)
   assert.equal(result.payload.plan.code, 'bronze')
   assert.equal(result.payload.plan.name, 'Bronze')
-  assert.equal(result.payload.plan.limits.sellers, 2)
-  assert.equal(result.payload.plan.limits.products, null)
+  assert.equal(result.payload.plan.limits.sellers, 5)
+  assert.equal(result.payload.plan.limits.products, 500)
   assert.equal(result.payload.plan.limits.photosPerProduct, 5)
   assert.equal(result.payload.plan.features.whatsappOrder, true)
   assert.equal(result.payload.plan.features.sellerCommission, false)
 
-  for (let index = 0; index < 2; index += 1) {
+  for (let index = 0; index < 5; index += 1) {
     result = await request('/api/admin/sellers', {
       method: 'POST', cookie: account.cookie,
       body: { name: `Vendedora ${index + 1}`, phone: `55119888000${index + 10}`, isActive: true },
@@ -74,11 +74,11 @@ try {
 
   result = await request('/api/admin/sellers', {
     method: 'POST', cookie: account.cookie,
-    body: { name: 'Vendedora 3', phone: '5511988800099', isActive: true },
+    body: { name: 'Vendedora 6', phone: '5511988800099', isActive: true },
   })
   assert.equal(result.response.status, 409)
   assert.equal(result.payload.code, 'PLAN_LIMIT')
-  assert.equal(result.payload.max, 2)
+  assert.equal(result.payload.max, 5)
 
   result = await request('/api/admin/products', {
     method: 'POST', cookie: account.cookie,
