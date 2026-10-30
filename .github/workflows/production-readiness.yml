@@ -1,0 +1,28 @@
+name: production-readiness
+on:
+  workflow_dispatch:
+    inputs:
+      public_url:
+        description: "URL pública HTTPS do Shopvax efetivamente publicado"
+        required: true
+        type: string
+      expected_sha:
+        description: "SHA completo do commit efetivamente publicado e configurado em SHOPVAX_RELEASE_SHA"
+        required: true
+        type: string
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Confirm production website, database, release and assets (GET only)
+        env:
+          SHOPVAX_PUBLIC_URL: ${{ inputs.public_url }}
+          SHOPVAX_EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: node scripts/verify-production.mjs

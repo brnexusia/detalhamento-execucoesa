@@ -80,6 +80,8 @@ jobs:
           grep -Fq '#F25C05' public/favicon.svg
           ! grep -Eiq '#c8ff38' public/favicon.svg
           grep -Fq 'content="#161514"' index.html
+      - name: Release smoke test (local, read-only)
+        run: node --test tests/verify-production.test.mjs
       - name: Scanner PDF catalog tests
         run: npm run test:scanner:pdf
       - name: Scanner URL tests
