@@ -101,7 +101,7 @@ async function ensureSchema() {
              active=true,
              mvp_schema_version=3,
              updated_at=now()
-           WHERE platform_plans.is_system=true AND platform_plans.mvp_schema_version<3`,
+           WHERE platform_plans.is_system=true AND platform_plans.mvp_schema_version<3 AND $15::boolean`,
           [
             plan.id,
             plan.code,
@@ -117,6 +117,7 @@ async function ensureSchema() {
             plan.socialWeight,
             plan.trafficPriority,
             JSON.stringify(plan.features),
+            process.env.SHOPVAX_APPLY_APPROVED_PLAN_LIMITS === '1',
           ],
         )
       }
