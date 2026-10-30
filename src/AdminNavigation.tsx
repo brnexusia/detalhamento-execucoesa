@@ -1,6 +1,6 @@
-import { BarChart3, Home, Package, ReceiptText, Settings, Users } from 'lucide-react'
+import { BarChart3, Home, Package, Palette, ReceiptText, Settings, Users } from 'lucide-react'
 
-export type PrimaryAdminSection = 'inicio' | 'produtos' | 'pedidos' | 'vendedoras' | 'relatorios' | 'loja'
+export type PrimaryAdminSection = 'inicio' | 'produtos' | 'pedidos' | 'vendedoras' | 'relatorios' | 'loja' | 'temas'
 
 type Counts = { products?: number; orders?: number; sellers?: number }
 
@@ -19,6 +19,7 @@ const items = [
   { key: 'vendedoras', label: 'Vendedoras', path: '/painel/vendedoras', icon: Users, count: 'sellers' },
   { key: 'relatorios', label: 'Inteligência', path: '/painel/relatorios', icon: BarChart3, minPlan: 'prata' },
   { key: 'loja', label: 'Minha loja', path: '/painel/loja', icon: Settings },
+  { key: 'temas', label: 'Temas e paletas', path: '/painel/temas', icon: Palette },
 ] as const
 
 function go(path: string) {
