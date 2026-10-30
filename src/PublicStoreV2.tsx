@@ -12,6 +12,8 @@ import './shopvax-store-layout-fixes.css'
 import './shopvax-desktop-product-page.css'
 import './shopvax-desktop-ticket-05.css'
 import { responsiveLocalMedia } from './responsive-media'
+import { seasonalThemeById } from './shopvax-seasonal-themes'
+import './shopvax-seasonal-store.css'
 import type { CartItem, Product, PublicPayload } from './types'
 
 type ViewMode = 'store' | 'feed'
@@ -341,7 +343,9 @@ export default function PublicStoreV2() {
 
   if (!payload) return <div className="store-loading"><span className="brand__mark"><img src="/brand/shopvax-symbol.svg" className="svx-brand-symbol" alt="Shopvax" /></span>{initialLoadError ? <><strong role="alert">{initialLoadError}</strong><button type="button" onClick={() => { void loadFirst() }}>Tentar novamente</button></> : <><strong>Abrindo a loja…</strong><p>Só um instante.</p></>}</div>
 
-  return <div className={`app ${view === 'feed' ? 'app--feed' : ''}`} style={{ '--accent': store?.accent || SHOPVAX_DEFAULT_ACCENT, '--svx-accent-text': shopvaxAccentTextColor(store?.accent || SHOPVAX_DEFAULT_ACCENT) } as React.CSSProperties}>
+  const season = seasonalThemeById(store?.seasonalTheme)
+  const seasonalAccent = season.id === 'padrao' ? (store?.accent || SHOPVAX_DEFAULT_ACCENT) : season.accent
+  return <div className={`app ${view === 'feed' ? 'app--feed' : ''}`} data-seasonal-theme={season.id} style={{ '--accent': seasonalAccent, '--svx-accent-text': shopvaxAccentTextColor(seasonalAccent) } as React.CSSProperties}>
     <header className="topbar">
       <button className="brand" onClick={() => setView('store')}>{store?.logoUrl ? <img className="brand__logo" src={store.logoUrl} alt="" /> : <span className="brand__mark" aria-hidden="true">{(store?.name || 'L').slice(0, 1).toUpperCase()}</span>}<span className="brand__text"><strong>{store?.name}</strong><small>Catálogo de atacado</small></span></button>
       <button type="button" className="store-nav-toggle" aria-controls="shopvax-store-navigation" aria-expanded={storeNavOpen} onClick={() => setStoreNavOpen(value => !value)}><Menu size={18}/><span>Menu</span></button>
@@ -357,8 +361,8 @@ export default function PublicStoreV2() {
       <section className="store-intro svx-vitrine">
         <div className="svx-vitrine__media" aria-hidden="true">{products[0] && <ProductMedia product={products[0]}/>}</div>
         <div className="svx-vitrine__shade" aria-hidden="true"/>
-        <SVTicker className="store-intro__ribbon"><span>Preço à vista · Pedido via WhatsApp</span><span>{minimum > 0 ? `Pedido mínimo ${money.format(minimum)}` : 'Seu pedido, sua grade'}</span></SVTicker>
-        <div className="store-intro__identity">{store?.logoUrl && <img className="store-intro__logo" src={store.logoUrl} alt={`Logo da loja ${store.name}`} />}<p className="eyebrow">{store?.eyebrow || 'Catálogo de atacado'}</p><h1>{store?.name}</h1><p className="store-intro__tagline">{store?.tagline}</p>
+        <SVTicker className="store-intro__ribbon"><span>{season.id === 'padrao' ? 'Preço à vista · Pedido via WhatsApp' : season.decoration}</span><span>{minimum > 0 ? `Pedido mínimo ${money.format(minimum)}` : 'Seu pedido, sua grade'}</span></SVTicker>
+        <div className="store-intro__identity">{store?.logoUrl && <img className="store-intro__logo" src={store.logoUrl} alt={`Logo da loja ${store.name}`} />}<p className="eyebrow">{season.id === 'padrao' ? (store?.eyebrow || 'Catálogo de atacado') : season.headline}</p><h1>{store?.name}</h1><p className="store-intro__tagline">{season.id === 'padrao' ? store?.tagline : season.message}</p>
           <div className="svx-vitrine__facts"><span><strong>{visibleProducts.length}{payload.page?.hasMore ? '+' : ''}</strong> referências</span><span><strong>{money.format(minimum)}</strong> pedido mínimo</span><span><strong>WhatsApp</strong> atendimento</span></div>
           <div className="svx-vitrine__actions"><button onClick={() => document.getElementById('colecao-atual')?.scrollIntoView({ behavior: 'smooth' })}>Ver catálogo <ArrowRight size={16}/></button><button onClick={() => setView('feed')}>Passar uma por uma <ArrowRight size={16}/></button></div>
         </div><div className="seller-note"><span>Seu atendimento</span><strong>{seller?.name || 'Atendimento'}</strong><small>Monte o pedido e converse direto com sua vendedora.</small></div>

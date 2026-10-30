@@ -44,7 +44,7 @@ export default function App() {
     const panelTitles: Record<string, string> = {
       produtos: 'Produtos', pedidos: 'Pedidos', vendedoras: 'Vendedoras', relatorios: 'Inteligência',
       operacao: 'Clientes e domínio', crescimento: 'Crescimento', recursos: 'Estoque e catálogos',
-      integracoes: 'Integrações', assinatura: 'Plano e uso', loja: 'Minha loja',
+      integracoes: 'Integrações', assinatura: 'Plano e uso', loja: 'Minha loja', temas: 'Temas e paletas',
     }
     const title = page === 'admin' ? (panelTitles[segment] || 'Painel')
       : page === 'platform' ? 'Administração'
