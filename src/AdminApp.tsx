@@ -76,9 +76,10 @@ export default function AdminApp() {
   const [storeDirty, setStoreDirty] = useState(false)
   const loadVersion = useRef(0)
 
-  const load = async () => {
+  const load = async (silent = false) => {
     const version = ++loadVersion.current
-    setLoading(true); setError('')
+    if (!silent) setLoading(true)
+    setError('')
     try {
       const next = await api.bootstrap()
       if (version === loadVersion.current) setData(next)
@@ -89,7 +90,7 @@ export default function AdminApp() {
       if ((err as Error & { status?: number }).status === 401 || /sessão/i.test(message)) go('/entrar')
       else setError(message)
     } finally {
-      if (version === loadVersion.current) setLoading(false)
+      if (version === loadVersion.current && !silent) setLoading(false)
     }
   }
   useEffect(() => {
@@ -155,7 +156,7 @@ export default function AdminApp() {
   }
 
   if (loading) return <div className="panel-loading"><span className="brand__mark"><img src="/brand/shopvax-symbol-dark.svg" className="svx-brand-symbol" alt="" aria-hidden="true" /></span><strong>Abrindo seu painel…</strong></div>
-  if (!data) return <div className="panel-loading panel-loading--error"><span className="brand__mark"><img src="/brand/shopvax-symbol-dark.svg" className="svx-brand-symbol" alt="" aria-hidden="true" /></span><strong>O painel não conseguiu iniciar.</strong><p>{error}</p><button className="primary-action" onClick={load}>Tentar novamente</button></div>
+  if (!data) return <div className="panel-loading panel-loading--error"><span className="brand__mark"><img src="/brand/shopvax-symbol-dark.svg" className="svx-brand-symbol" alt="" aria-hidden="true" /></span><strong>O painel não conseguiu iniciar.</strong><p>{error}</p><button className="primary-action" onClick={() => { void load() }}>Tentar novamente</button></div>
 
   const baseUrl = window.location.origin
   const storeUrl = `${baseUrl}/${data.store.slug}`
@@ -182,7 +183,7 @@ export default function AdminApp() {
         {section === 'produtos' && <Products data={data} query={query} setQuery={setQuery} onCreate={() => setProductModal({ ...blankProduct })} onEdit={(product) => setProductModal(productDraft(product))} onVisibility={async (product) => { await api.setProductVisibility(product.id, !product.active); flash(product.active ? 'Produto escondido da loja e do feed.' : 'Produto publicado novamente.'); await load() }} onDelete={async (product) => { if (!(await confirmAction(`Excluir ${product.name}? Esta ação não pode ser desfeita.`, 'Excluir produto', 'Excluir'))) return; await api.deleteProduct(product.id); flash('Produto excluído.'); load() }} onBulkDelete={deleteProductsBulk} onDownloadPdf={downloadProductsPdf} />}
         {section === 'pedidos' && <Orders data={data} onUpdated={load} />}
         {section === 'vendedoras' && <Sellers data={data} baseUrl={baseUrl} onCopy={copy} onCreate={() => setSellerModal({ name: '', phone: '', slug: '', is_active: true })} onEdit={(seller) => setSellerModal({ ...seller })} onDelete={async (seller) => { if (!(await confirmAction(`Excluir ${seller.name}? O link individual deixará de funcionar.`, 'Excluir vendedora', 'Excluir'))) return; await api.deleteSeller(seller.id); flash('Vendedora excluída.'); load() }} />}
-        {section === 'temas' && <ShopvaxThemesPanel data={data} onSaved={() => { flash('Tema e paleta atualizados.'); void load() }} />}
+        {section === 'temas' && <ShopvaxThemesPanel data={data} onSaved={() => { flash('Tema e paleta atualizados.'); void load(true) }} />}
          {section === 'loja' && <><StoreSettings data={data} onSaved={() => { flash('Loja atualizada.'); load() }} onCopy={copy} onDirtyChange={setStoreDirty} /><CommercialSettingsPanel embedded/><StoreTools data={data}/></>}
       </main>
       {productModal && <ProductEditor draft={productModal} setDraft={setProductModal} onClose={() => setProductModal(null)} onSaved={() => { setProductModal(null); flash(productModal.id ? 'Produto atualizado.' : 'Produto cadastrado.'); load() }} />}
