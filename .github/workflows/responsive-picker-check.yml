@@ -4,6 +4,11 @@ on:
   pull_request:
     paths:
       - 'src/PublicStoreV2.tsx'
+      - 'src/ShopvaxThemesPanel.tsx'
+      - 'src/shopvax-seasonal-themes.ts'
+      - 'src/shopvax-seasonal-store.css'
+      - 'src/shopvax-themes-panel.css'
+      - 'tests/shopvax-themes.e2e.mjs'
       - 'src/responsive-media.ts'
       - 'tests/shopvax-responsive-media.e2e.mjs'
       - 'src/api.ts'
@@ -132,6 +137,8 @@ jobs:
         run: node tests/shopvax-feed.e2e.mjs
       - name: Checkout review browser regression
         run: node tests/shopvax-checkout-review.e2e.mjs
+      - name: Temas e paletas - preview, aplicar e restaurar
+        run: node tests/shopvax-themes.e2e.mjs
       - name: Layer 03 - mobile catalogue, minimum, review and WhatsApp handoff
         run: node tests/shopvax-mobile-flow-03.e2e.mjs
       - name: Resiliência de rede - erro recuperável e busca sem respostas obsoletas
