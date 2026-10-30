@@ -13,6 +13,9 @@ const payload = {
 const browser = await chromium.launch({ headless: true })
 try {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } })
+  const pixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wg8va0AAAAASUVORK5CYII=', 'base64')
+  await page.route('**/media/**', route => route.fulfill({ status: 200, contentType: 'image/png', body: pixel }))
+  await page.route('https://example.com/image.jpg', route => route.fulfill({ status: 200, contentType: 'image/png', body: pixel }))
   await page.route('**/api/public/store/**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(payload) }))
   await page.route('**/api/public/events', route => route.fulfill({ status: 204, body: '' }))
   await page.goto('http://127.0.0.1:5173/fotos-teste')
