@@ -214,6 +214,7 @@ async function protectedStore(req, res) {
       whatsapp: store.whatsapp,
       logoUrl: store.logo_url,
       accent: store.accent,
+      seasonalTheme: store.seasonal_theme || 'padrao',
     },
     seller,
     categories: categoriesResult.rows.map((row) => row.category),
