@@ -15,6 +15,7 @@ try{
   await page.route('**/api/public/auth/google-config',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({enabled:false})}))
   await page.goto('http://127.0.0.1:5173/entrar')
   await page.locator('.auth-form__head h2').waitFor()
+  assert.equal(await page.locator('.auth-divider').isVisible(),false,'No isolated OU separator without Google login')
   const d=await page.evaluate(()=>{
    const rect=(q)=>{const el=document.querySelector(q),r=el.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,height:r.height}}
    return {poster:rect('.auth-poster'),panel:rect('.auth-panel'),headline:rect('.auth-poster__copy h1'),button:rect('.auth-form>.primary-action'),
