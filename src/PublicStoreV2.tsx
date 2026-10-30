@@ -366,7 +366,7 @@ export default function PublicStoreV2() {
           </button>) : <p className="svx-desktop-ticket__empty">Escolha uma peça da coleção e ela aparece aqui, sem sair do catálogo.</p>}
         </div>
         <div className="svx-desktop-ticket__bottom">
-          <div className="svx-desktop-ticket__progress-label"><span>{minimumReached ? 'MÍNIMO ATINGIDO' : 'PARA O PEDIDO MÍNIMO'}</span><strong>{money.format(Math.max(0,minimum-cartTotal))}</strong></div>
+          <div className="svx-desktop-ticket__progress-label"><span>{minimumReached ? 'MÍNIMO ATINGIDO' : 'PARA O PEDIDO MÍNIMO'}</span>{!minimumReached && <strong>{money.format(Math.max(0,minimum-cartTotal))}</strong>}</div>
           <div className="svx-desktop-ticket__progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(minimumProgress)} aria-label="Progresso do pedido mínimo"><span style={{width:`${minimumProgress}%`}} /></div>
           <div className="svx-desktop-ticket__total"><span>TOTAL DAS PEÇAS</span><strong>{money.format(cartTotal)}</strong></div>
           <button type="button" className="svx-desktop-ticket__review" disabled={!cart.length || !minimumReached || sending} onClick={() => { setError(''); setReviewOpen(true) }}>Revisar e mandar <ArrowRight size={17} /></button>
