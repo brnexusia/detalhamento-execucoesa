@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, ArrowRight, Check, ChevronLeft, ChevronRight, Grid2X2, ImageOff, Minus, Plus, Search, ShoppingBag, Sparkles, Heart, MessageCircle, Share2, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, ChevronLeft, ChevronRight, Grid2X2, ImageOff, Minus, Plus, Search, ShoppingBag, Menu, Sparkles, Heart, MessageCircle, Share2, X } from 'lucide-react'
 import { api } from './api'
 import { ProductGrade, getGradeGroups, type GradeLine } from './ShopvaxGrade'
 import ShopvaxCheckoutReview, { type CheckoutBuyer } from './ShopvaxCheckoutReview'
@@ -78,6 +78,7 @@ export default function PublicStoreV2() {
   const [payload, setPayload] = useState<PublicPayload | null>(null)
   const [demo, setDemo] = useState(false)
   const [view, setView] = useState<ViewMode>('store')
+  const [storeNavOpen, setStoreNavOpen] = useState(false)
   const [category, setCategory] = useState('Todos')
   const [sort, setSort] = useState<'newest' | 'price_asc' | 'price_desc'>('newest')
   const [query, setQuery] = useState('')
@@ -321,7 +322,8 @@ export default function PublicStoreV2() {
   return <div className={`app ${view === 'feed' ? 'app--feed' : ''}`} style={{ '--accent': store?.accent || SHOPVAX_DEFAULT_ACCENT, '--svx-accent-text': shopvaxAccentTextColor(store?.accent || SHOPVAX_DEFAULT_ACCENT) } as React.CSSProperties}>
     <header className="topbar">
       <button className="brand" onClick={() => setView('store')}>{store?.logoUrl ? <img className="brand__logo" src={store.logoUrl} alt="" /> : <span className="brand__mark" aria-hidden="true">{(store?.name || 'L').slice(0, 1).toUpperCase()}</span>}<span className="brand__text"><strong>{store?.name}</strong><small>Catálogo de atacado</small></span></button>
-      <div className="store-header-navigation">
+      <button type="button" className="store-nav-toggle" aria-controls="shopvax-store-navigation" aria-expanded={storeNavOpen} onClick={() => setStoreNavOpen(value => !value)}><Menu size={18}/><span>Menu</span></button>
+      <div id="shopvax-store-navigation" className={`store-header-navigation ${storeNavOpen?'is-open':''}`} onClick={(event) => { if ((event.target as HTMLElement).closest('button')) setStoreNavOpen(false) }}>
         <nav className="view-switch"><button className={view === 'store' ? 'is-active' : ''} onClick={() => setView('store')}><Grid2X2 size={16}/> Loja</button><button className={view === 'feed' ? 'is-active' : ''} onClick={() => { setCategory('Todos'); setQuery(''); setView('feed') }}><Sparkles size={16}/> Feed</button></nav>
         <StoreSocialNav />
         <CustomerAccountLauncher />
