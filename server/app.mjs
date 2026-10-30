@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS stores (
   whatsapp text NOT NULL DEFAULT '',
   logo_url text NOT NULL DEFAULT '',
   accent text NOT NULL DEFAULT '#F25C05',
+  seasonal_theme text NOT NULL DEFAULT 'padrao',
   is_active boolean NOT NULL DEFAULT true,
   plan_tier text NOT NULL DEFAULT 'bronze',
   signup_plan_selected_at timestamptz,
@@ -128,6 +129,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub_unique ON users(google_su
 ALTER TABLE stores ADD COLUMN IF NOT EXISTS plan_tier text NOT NULL DEFAULT 'bronze';
 ALTER TABLE stores ADD COLUMN IF NOT EXISTS signup_plan_selected_at timestamptz;
 ALTER TABLE stores ADD COLUMN IF NOT EXISTS onboarding_palette_selected boolean NOT NULL DEFAULT false;
+ALTER TABLE stores ADD COLUMN IF NOT EXISTS seasonal_theme text NOT NULL DEFAULT 'padrao';
 `
 
 async function initDb() {
@@ -304,7 +306,8 @@ function publicStoreShape(store, seller, products) {
       whatsapp: store.whatsapp,
       logoUrl: store.logo_url,
       accent: store.accent,
-    },
+      seasonalTheme: store.seasonal_theme || 'padrao',
+    }
     seller,
     products: products.map((product) => ({
       id: product.id,
@@ -532,13 +535,19 @@ app.put(
     const logoUrl = String(req.body?.logoUrl ?? store.logo_url).trim().slice(0, 1000)
     const accent = /^#[0-9a-fA-F]{6}$/.test(req.body?.accent || '') ? req.body.accent : store.accent
     const paletteSelected = store.onboarding_palette_selected === true || req.body?.completePaletteSetup === true
+    const requestedSeason = req.body?.seasonalTheme
+    const allowedSeasons = new Set(['padrao', 'black-friday', 'natal', 'sao-joao'])
+    if (requestedSeason != null && !allowedSeasons.has(requestedSeason)) {
+      return res.status(400).json({ error: 'Tema sazonal inválido.' })
+    }
+    const seasonalTheme = requestedSeason ?? store.seasonal_theme ?? 'padrao'
 
     const updated = await pool.query(
       `UPDATE stores
-       SET slug=$1,name=$2,eyebrow=$3,tagline=$4,minimum_order=$5,whatsapp=$6,logo_url=$7,accent=$8,onboarding_palette_selected=$9,updated_at=now()
+       SET slug=$1,name=$2,eyebrow=$3,tagline=$4,minimum_order=$5,whatsapp=$6,logo_url=$7,accent=$8,onboarding_palette_selected=$9,seasonal_theme=$11,updated_at=now()
        WHERE id=$10
        RETURNING *`,
-      [slug, name, eyebrow, tagline, minimumOrder, whatsapp, logoUrl, accent, paletteSelected, store.id],
+      [slug, name, eyebrow, tagline, minimumOrder, whatsapp, logoUrl, accent, paletteSelected, store.id, seasonalTheme],
     )
     res.json({
       store: { ...updated.rows[0], minimum_order: Number(updated.rows[0].minimum_order) },
