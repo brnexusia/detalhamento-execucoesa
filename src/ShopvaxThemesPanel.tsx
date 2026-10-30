@@ -86,6 +86,7 @@ export default function ShopvaxThemesPanel({ data, onSaved }: Props) {
           '--theme-sample-accent': previewAccent,
           '--theme-sample-surface': theme.surface,
           '--theme-sample-ink': theme.ink,
+          '--theme-sample-foreground': theme.id === 'padrao' ? theme.ink : '#FFFFFF',
         } as React.CSSProperties}>
           <div className="svx-themes__sample-top"><span>{theme.decoration}</span><span>{theme.decoration}</span></div>
           <div className="svx-themes__sample-body">
