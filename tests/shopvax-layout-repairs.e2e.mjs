@@ -17,7 +17,7 @@ try {
   await page.route('**/api/public/events',r=>r.fulfill({status:204,body:''}))
   await page.goto('http://127.0.0.1:5173/look-premium')
   await page.locator('.store-intro h1').waitFor()
-  await page.locator('.app .topbar .shopvax-customer-launcher').waitFor()
+  await page.locator('.app .topbar .shopvax-customer-launcher').waitFor({state:width<=700?'attached':'visible'})
   const rects=await page.evaluate(()=>{
     const header=document.querySelector('.topbar')
     const nav=document.querySelector('.store-social-nav')
@@ -29,10 +29,23 @@ try {
   assert.equal(rects.navPosition,'static')
   assert.equal(rects.loginPosition,'static')
   assert.equal(rects.switchDisplay,'flex')
-  assert(rects.nav.top>=rects.header.top-2 && rects.nav.bottom<=rects.header.bottom+2,JSON.stringify(rects))
-  assert(rects.login.top>=rects.header.top-2 && rects.login.bottom<=rects.header.bottom+2,JSON.stringify(rects))
+  if(width<=700){
+    const toggle=page.locator('.store-nav-toggle')
+    assert(await toggle.isVisible(),'Mobile navigation menu button missing')
+    assert(!(await page.locator('.store-header-navigation').isVisible()),'Mobile navigation should not occupy a second header row')
+    assert(rects.header.bottom<=72,'Compact header should fit in one line: '+JSON.stringify(rects))
+    await page.screenshot({path:'artifacts/shopvax-redesign/store-navigation-'+width+'.png'})
+    await toggle.click()
+    assert(await page.locator('.store-header-navigation').isVisible(),'Mobile navigation should open')
+    assert.equal(await toggle.getAttribute('aria-expanded'),'true')
+    const menuRect=await page.locator('.store-header-navigation').boundingBox()
+    assert(menuRect && menuRect.x>=0 && menuRect.x+menuRect.width<=width+2,'Menu overflows mobile viewport')
+  }else{
+    assert(rects.nav.top>=rects.header.top-2 && rects.nav.bottom<=rects.header.bottom+2,JSON.stringify(rects))
+    assert(rects.login.top>=rects.header.top-2 && rects.login.bottom<=rects.header.bottom+2,JSON.stringify(rects))
+    await page.screenshot({path:'artifacts/shopvax-redesign/store-navigation-'+width+'.png'})
+  }
   assert(rects.scrollWidth<=rects.viewport+2,'Horizontal overflow: '+JSON.stringify(rects))
-  await page.screenshot({path:'artifacts/shopvax-redesign/store-navigation-'+width+'.png'})
   await page.locator('.view-switch').getByRole('button',{name:'Feed',exact:true}).click()
   await page.locator('.feed-card').first().waitFor()
   const feed=await page.evaluate(()=>{
@@ -44,6 +57,7 @@ try {
   assert(Math.abs(feed.feedBottom-feed.viewport)<5,'Feed fits viewport: '+JSON.stringify(feed))
   assert(feed.overflow<=2)
   await page.screenshot({path:'artifacts/shopvax-redesign/store-feed-'+width+'.png'})
+  if(width<=700) await page.locator('.store-nav-toggle').click()
   await page.getByRole('button',{name:'Perfil',exact:true}).click()
   await page.waitForURL('**/perfil/look-premium')
   await page.close()
