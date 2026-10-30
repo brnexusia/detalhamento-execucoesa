@@ -53,6 +53,7 @@ export type Store = {
   whatsapp: string
   logoUrl?: string
   accent?: string
+  seasonalTheme?: string
 }
 
 export type CartItem = {
