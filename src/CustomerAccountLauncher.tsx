@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { LogIn, UserRound } from 'lucide-react'
 import './customer-account.css'
 import { listenAuthChanges } from './auth-session-sync'
@@ -24,6 +24,7 @@ export default function CustomerAccountLauncher() {
   const storeSlug = useMemo(() => window.location.pathname.split('/').filter(Boolean)[0] || '', [])
   const [enabled, setEnabled] = useState(false)
   const [signedIn, setSignedIn] = useState(false)
+  const statusVersion = useRef(0)
 
   useEffect(() => {
     if (!storeSlug) return
@@ -40,18 +41,20 @@ export default function CustomerAccountLauncher() {
         root.style.setProperty('--shopvax-store-text', config.theme?.textColor || '#17211b')
         root.style.setProperty('--shopvax-store-font', fontStack(config.theme?.font || 'system'))
         if (config.customerLoginEnabled) {
+          const version = ++statusVersion.current
           fetch(`/api/public/store/${encodeURIComponent(storeSlug)}/customers/me`, { credentials: 'include' })
-            .then((response) => { if (mounted) setSignedIn(response.ok) })
+            .then((response) => { if (mounted && version === statusVersion.current) setSignedIn(response.ok) })
             .catch(() => undefined)
         }
       })
       .catch(() => undefined)
 
     const refresh = () => {
+      const version = ++statusVersion.current
       setSignedIn(false)
       fetch(`/api/public/store/${encodeURIComponent(storeSlug)}/customers/me`, { credentials: 'include' })
-        .then(response => { if (mounted) setSignedIn(response.ok) })
-        .catch(() => { if (mounted) setSignedIn(false) })
+        .then(response => { if (mounted && version === statusVersion.current) setSignedIn(response.ok) })
+        .catch(() => { if (mounted && version === statusVersion.current) setSignedIn(false) })
     }
     const unsubscribe = listenAuthChanges('customer', refresh)
     const onFocus = () => { if (document.visibilityState === 'visible') refresh() }
@@ -61,6 +64,7 @@ export default function CustomerAccountLauncher() {
       unsubscribe()
       window.removeEventListener('focus', onFocus)
       mounted = false
+      statusVersion.current += 1
       delete root.dataset.shopvaxStoreTheme
       root.style.removeProperty('--shopvax-store-bg')
       root.style.removeProperty('--shopvax-store-text')
