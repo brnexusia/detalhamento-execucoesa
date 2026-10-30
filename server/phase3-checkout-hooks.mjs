@@ -148,14 +148,15 @@ async function finalize(req, payload, coupon) {
   await pool.query('UPDATE orders SET subtotal=$1,discount=$2,total=$3,coupon_id=$4,coupon_code=$5 WHERE id=$6', [subtotal, discount, total, coupon.id, coupon.code, order.id])
 
   const [storeResult, sellerResult, catalogResult] = await Promise.all([
-    pool.query('SELECT name,whatsapp FROM stores WHERE id=$1 LIMIT 1', [order.store_id]),
+    pool.query('SELECT name FROM stores WHERE id=$1 LIMIT 1', [order.store_id]),
     order.seller_id ? pool.query('SELECT name,phone FROM sellers WHERE id=$1 LIMIT 1', [order.seller_id]) : Promise.resolve({ rows: [] }),
     order.catalog_id ? pool.query('SELECT name FROM catalogs WHERE id=$1 LIMIT 1', [order.catalog_id]) : Promise.resolve({ rows: [] }),
   ])
-  const store = storeResult.rows[0] || { name: 'Loja', whatsapp: '' }
+  const store = storeResult.rows[0] || { name: 'Loja' }
   const seller = sellerResult.rows[0] || null
   const catalog = catalogResult.rows[0] || null
-  const phone = digits(seller?.phone || store.whatsapp)
+  // Cupom não pode reintroduzir o número administrativo como fallback.
+  const phone = digits(seller?.phone || '')
   const message = buildMessage(order, store, seller, catalog, subtotal, discount, total, coupon)
   return {
     ...payload,

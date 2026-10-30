@@ -31,6 +31,11 @@ async function admin(path, cookie, options = {}) {
 try {
   await waitForServer()
   const account = await register()
+  const seller = await admin('/api/admin/sellers', account.cookie, {
+    method: 'POST',
+    body: JSON.stringify({ name: 'Vendedora Catálogo', phone: '5511987700456', isActive: true }),
+  })
+  assert.equal(seller.status, 201, 'Para criar pedido a loja deve ter vendedora ativa')
   const sourceImage = await sharp({
     create: { width: 1200, height: 600, channels: 3, background: '#d8d1c4' },
   }).jpeg({ quality: 90 }).toBuffer()
@@ -135,7 +140,12 @@ try {
   response = await fetch(`${base}/api/public/store/${account.storeSlug}?sort=price_asc&limit=1`, { headers: sortedHeaders })
   assert.equal(response.status, 200)
   const lowPricePage = await response.json()
-  const visitorCookie = response.headers.get('set-cookie')?.split(';')[0] || ''
+  // Rotas públicas podem entregar simultaneamente cookie de visitante e vendedora.
+  // O cursor é vinculado à identidade do visitante: preserve ambos nas próximas páginas.
+  const setCookies = typeof response.headers.getSetCookie === 'function'
+    ? response.headers.getSetCookie() : [response.headers.get('set-cookie')].filter(Boolean)
+  const visitorCookie = setCookies.map(value => String(value).split(';')[0]).filter(Boolean).join('; ')
+  assert.match(visitorCookie, /atacado_public=/, 'Cursor precisa preservar o cookie real do visitante')
   assert.equal(lowPricePage.products[0].id, secondProduct.id, 'menor preço deve vir primeiro')
   assert.ok(lowPricePage.page.nextCursor)
   response = await fetch(`${base}/api/public/store/${account.storeSlug}?sort=price_asc&limit=1&cursor=${encodeURIComponent(lowPricePage.page.nextCursor)}`, { headers: { ...sortedHeaders, cookie: visitorCookie } })

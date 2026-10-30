@@ -68,7 +68,15 @@ if (!askB.seller?.id || askB.seller.id === askA1.seller.id) throw new Error('Dis
 const fallback = await registerStore('Fallback', '5511977700000')
 const fallbackProduct = await createProduct(fallback.cookie, `Fallback ${unique}`)
 const fallbackVisitor = await visitorFor(fallback.storeSlug)
-const fallbackAsk = await ask(fallbackProduct.id, fallbackVisitor)
-if (fallbackAsk.seller?.id !== null || !fallbackAsk.whatsappUrl.includes('5511977700000')) throw new Error('Fallback para WhatsApp principal da loja falhou.')
+const blocked = await fetch(`${base}/api/social/posts/${fallbackProduct.id}/ask`, { method: 'POST', headers: { cookie: fallbackVisitor } })
+const blockedPayload = await blocked.json()
+if (blocked.status !== 409 || blockedPayload.code !== 'NO_AVAILABLE_SELLER') {
+  throw new Error('Perguntar sem vendedora não pode encaminhar ao WhatsApp administrativo.')
+}
+const fallbackSeller = await createSeller(fallback.cookie, 'Cris', '5511977700011')
+const recoveredAsk = await ask(fallbackProduct.id, fallbackVisitor)
+if (recoveredAsk.seller?.id !== fallbackSeller.id || !recoveredAsk.whatsappUrl.includes('5511977700011')) {
+  throw new Error('Perguntar deve encaminhar à vendedora após a ativação.')
+}
 
 console.log('social module 6 ok')

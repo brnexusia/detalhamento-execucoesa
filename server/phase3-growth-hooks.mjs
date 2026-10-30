@@ -488,14 +488,14 @@ async function finalizeOrder(req, payload, reservedCoupon) {
   `, [subtotal, discount, total, reservedCoupon.id, reservedCoupon.code, order.id])
 
   const [storeResult, sellerResult, catalogResult] = await Promise.all([
-    pool.query('SELECT name,whatsapp FROM stores WHERE id=$1 LIMIT 1', [order.store_id]),
+    pool.query('SELECT name FROM stores WHERE id=$1 LIMIT 1', [order.store_id]),
     order.seller_id ? pool.query('SELECT name,phone FROM sellers WHERE id=$1 LIMIT 1', [order.seller_id]) : Promise.resolve({ rows: [] }),
     order.catalog_id ? pool.query('SELECT name FROM catalogs WHERE id=$1 LIMIT 1', [order.catalog_id]) : Promise.resolve({ rows: [] }),
   ])
-  const store = storeResult.rows[0] || { name: 'Loja', whatsapp: '' }
+  const store = storeResult.rows[0] || { name: 'Loja' }
   const seller = sellerResult.rows[0] || null
   const catalog = catalogResult.rows[0] || null
-  const phone = digits(seller?.phone || store.whatsapp)
+  const phone = digits(seller?.phone || '')
   const message = orderMessage(order, store, seller, catalog, subtotal, discount, total, reservedCoupon.code)
   return {
     ...payload,

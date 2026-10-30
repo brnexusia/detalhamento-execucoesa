@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ArrowRight, Boxes, Check, ChevronLeft, ChevronRight, Clipboard, CreditCard, Download, Eye, EyeOff, ExternalLink, ImagePlus, Link2, LogOut, Menu, Package, Pencil, Plus, ReceiptText, Search, Settings, Store as StoreIcon, Trash2, TrendingUp, Upload, Users, X } from 'lucide-react'
 import { api } from './api'
+import { listenAuthChanges } from './auth-session-sync'
 import ShopvaxDashboard from './ShopvaxDashboard'
 import ShopvaxFirstRun from './ShopvaxFirstRun'
 import ShopvaxOrders from './ShopvaxOrders'
@@ -73,21 +74,59 @@ export default function AdminApp() {
   const [sellerModal, setSellerModal] = useState<Partial<AdminSeller> | null>(null)
   const [query, setQuery] = useState('')
   const [storeDirty, setStoreDirty] = useState(false)
+  const loadVersion = useRef(0)
 
   const load = async () => {
+    const version = ++loadVersion.current
     setLoading(true); setError('')
-    try { setData(await api.bootstrap()) }
-    catch (err) { const message = err instanceof Error ? err.message : 'Não foi possível carregar o painel.'; if (/sessão/i.test(message)) go('/entrar'); else setError(message) }
-    finally { setLoading(false) }
+    try {
+      const next = await api.bootstrap()
+      if (version === loadVersion.current) setData(next)
+    } catch (err) {
+      if (version !== loadVersion.current) return
+      const message = err instanceof Error ? err.message : 'Não foi possível carregar o painel.'
+      setData(null)
+      if ((err as Error & { status?: number }).status === 401 || /sessão/i.test(message)) go('/entrar')
+      else setError(message)
+    } finally {
+      if (version === loadVersion.current) setLoading(false)
+    }
   }
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    void load()
+    // Os cookies são compartilhados: uma aba não pode mostrar dados antigos após login/logout em outra.
+    const refreshIdentity = () => {
+      setData(null)
+      setProductModal(null)
+      setSellerModal(null)
+      setSkipFirstRun(false)
+      void load()
+    }
+    const unsubscribe = listenAuthChanges('owner', refreshIdentity)
+    const onFocus = () => { if (document.visibilityState === 'visible') refreshIdentity() }
+    window.addEventListener('focus', onFocus)
+    return () => {
+      unsubscribe()
+      window.removeEventListener('focus', onFocus)
+      loadVersion.current += 1
+    }
+  }, [])
   useEffect(() => { const onPop = () => setSection(currentSection()); window.addEventListener('popstate', onPop); return () => window.removeEventListener('popstate', onPop) }, [])
 
   const canLeaveStore = async () => section !== 'loja' || !storeDirty || await confirmAction('Você tem alterações não salvas. Deseja sair sem salvar?', 'Descartar alterações', 'Sair sem salvar')
   const changeSection = async (next: Section) => { if (next !== section && !(await canLeaveStore())) return; setStoreDirty(false); setSection(next); setMenuOpen(false); window.history.pushState({}, '', next === 'inicio' ? '/painel' : `/painel/${next}`) }
   const flash = (message: string) => { setNotice(message); window.setTimeout(() => setNotice(''), 2200) }
   const copy = async (value: string) => { await navigator.clipboard.writeText(value); flash('Link copiado.') }
-  const logout = async () => { if (!(await canLeaveStore())) return; await api.logout().catch(() => undefined); go('/entrar') }
+  const logout = async () => {
+    if (!(await canLeaveStore())) return
+    try {
+      await api.logout()
+      setData(null)
+      go('/entrar')
+    } catch {
+      setError('Não foi possível encerrar a sessão. Tente novamente.')
+    }
+  }
   const deleteProductsBulk = async (products: AdminProduct[]) => {
     if (!products.length) return false
     const label = countLabel(products.length, 'produto selecionado', 'produtos selecionados')

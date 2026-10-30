@@ -151,7 +151,8 @@ async function askAboutProduct(productId, key) {
   if (!result.rowCount) return null
   const row = result.rows[0]
   const seller = await sellerFor(row.store_id, key)
-  const phone = digits(seller?.phone || row.whatsapp)
+  // Perguntas do feed também seguem para uma vendedora, nunca para o número administrativo.
+  const phone = digits(seller?.phone || '')
   if (phone.length < 10) {
     const error = new Error('NO_WHATSAPP')
     error.code = 'NO_WHATSAPP'
@@ -204,7 +205,7 @@ function install(app) {
       if (!result) return res.status(404).json({ error: 'Publicação não encontrada.' })
       return res.json(result)
     } catch (error) {
-      if (error?.code === 'NO_WHATSAPP') return res.status(409).json({ error: 'A loja ainda não configurou um WhatsApp de atendimento.' })
+      if (error?.code === 'NO_WHATSAPP') return res.status(409).json({ code: 'NO_AVAILABLE_SELLER', error: 'Nenhuma vendedora disponível para receber a pergunta.' })
       next(error)
     }
   })

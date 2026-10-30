@@ -43,6 +43,12 @@ async function admin(path, cookie, options = {}) {
 try {
   await waitForServer()
   const account = await register()
+  // Pedidos exigem vendedora de verdade; o WhatsApp do proprietário não é destino.
+  const sellerResponse = await admin('/api/admin/sellers', account.cookie, {
+    method: 'POST',
+    body: JSON.stringify({ name: 'Atendimento Estoque', phone: '5511987700123', isActive: true }),
+  })
+  assert.equal(sellerResponse.status, 201)
   let response = await admin('/api/admin/products', account.cookie, {
     method: 'POST',
     body: JSON.stringify({

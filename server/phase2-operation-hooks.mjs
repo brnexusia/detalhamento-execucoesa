@@ -325,7 +325,7 @@ function assignmentCookieName(storeId) {
 
 async function activeSellerBySlug(storeId, slug, client = pool) {
   if (!slug) return null
-  const result = await client.query('SELECT id,slug,name,phone FROM sellers WHERE store_id=$1 AND slug=$2 AND is_active=true LIMIT 1', [storeId, slug])
+  const result = await client.query(`SELECT id,slug,name,phone FROM sellers WHERE store_id=$1 AND slug=$2 AND is_active=true AND length(regexp_replace(phone, '[^0-9]', '', 'g'))>=10 LIMIT 1`, [storeId, slug])
   return result.rows[0] || null
 }
 
@@ -339,7 +339,7 @@ async function assignedSeller(store, req, res, { advance = true } = {}) {
   try {
     await client.query('BEGIN')
     const locked = await client.query('SELECT seller_rotation_cursor FROM stores WHERE id=$1 FOR UPDATE', [store.id])
-    const sellers = await client.query('SELECT id,slug,name,phone FROM sellers WHERE store_id=$1 AND is_active=true ORDER BY created_at ASC,id ASC', [store.id])
+    const sellers = await client.query(`SELECT id,slug,name,phone FROM sellers WHERE store_id=$1 AND is_active=true AND length(regexp_replace(phone, '[^0-9]', '', 'g'))>=10 ORDER BY created_at ASC,id ASC`, [store.id])
     if (!sellers.rowCount) { await client.query('COMMIT'); return null }
     const cursor = Math.max(0, Number(locked.rows[0]?.seller_rotation_cursor || 0))
     const seller = sellers.rows[cursor % sellers.rows.length]
@@ -565,9 +565,12 @@ async function enrichOrder(req, res, next) {
     await ensureSchema()
     const store = await storeBySlug(req.body?.storeSlug)
     if (!store) return next()
-    if (!req.body?.sellerSlug) {
+    // Um link antigo de vendedora inativa não pode enviar pedido ao número principal.
+    const preferred = await activeSellerBySlug(store.id, req.body?.sellerSlug)
+    if (!preferred) {
       const seller = await assignedSeller(store, req, res)
       if (seller) req.body.sellerSlug = seller.slug
+      else return res.status(409).json({ code: 'NO_AVAILABLE_SELLER', error: 'Nenhuma vendedora disponível para receber o pedido. Ative uma vendedora antes de continuar.' })
     }
     const customer = await currentCustomer(req, store.id)
     if (customer) {

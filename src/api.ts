@@ -1,3 +1,4 @@
+import { notifyAuthChange } from './auth-session-sync'
 import type { AdminBootstrap, AdminProduct, Catalog, PublicPayload } from './types'
 
 export type ImportJob = {
@@ -83,6 +84,13 @@ export async function apiRequest<T>(url: string, options: RequestInit = {}): Pro
     error.status = response.status
     if (payload?.code) error.code = String(payload.code)
     throw error
+  }
+  if (options.method?.toUpperCase() === 'POST') {
+    const scope = /^\/api\/auth\/(login|register|google|logout)$/.test(url)
+      ? 'owner'
+      : /^\/api\/public\/(customers\/logout|store\/[^/]+\/customers\/(login|register))$/.test(url)
+        ? 'customer' : null
+    if (scope && (url !== '/api/auth/google' || payload?.ok === true)) notifyAuthChange(scope)
   }
   return payload as T
 }

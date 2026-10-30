@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, CheckCircle2, LogOut, PackageCheck, UserRound } from 'lucide-react'
 import { apiRequest } from './api'
 import './customer-account.css'
+import { listenAuthChanges } from './auth-session-sync'
 
 type Customer = { id: string; name: string; email: string; phone: string }
 type CustomerOrder = { id: string; code: string; total: number; status: string; created_at: string; seller_name?: string | null; items: Array<{ name?: string; quantity?: number }> }
@@ -41,16 +42,20 @@ export default function CustomerAccountRoute() {
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const accountVersion = useRef(0)
 
   const loadAccount = async () => {
+    const version = ++accountVersion.current
     try {
       const result = await apiRequest<AccountPayload>(`/api/public/store/${encodeURIComponent(storeSlug)}/customers/me`)
-      setAccount(result)
+      if (version === accountVersion.current) setAccount(result)
       return true
     } catch (err) {
       const status = (err as Error & { status?: number }).status
-      if (status !== 401) setError(err instanceof Error ? err.message : 'Não foi possível abrir sua conta.')
-      setAccount(null)
+      if (version === accountVersion.current) {
+        if (status !== 401) setError(err instanceof Error ? err.message : 'Não foi possível abrir sua conta.')
+        setAccount(null)
+      }
       return false
     }
   }
@@ -63,7 +68,15 @@ export default function CustomerAccountRoute() {
     ]).then(([next]) => { if (mounted) setConfig(next) })
       .catch((err) => { if (mounted) setError(err instanceof Error ? err.message : 'Loja não encontrada.') })
       .finally(() => { if (mounted) setLoading(false) })
-    return () => { mounted = false }
+    return () => { mounted = false; accountVersion.current += 1 }
+  }, [storeSlug])
+
+  useEffect(() => {
+    const revalidate = () => { setAccount(null); void loadAccount() }
+    const unsubscribe = listenAuthChanges('customer', revalidate)
+    const onFocus = () => { if (document.visibilityState === 'visible') revalidate() }
+    window.addEventListener('focus', onFocus)
+    return () => { unsubscribe(); window.removeEventListener('focus', onFocus) }
   }, [storeSlug])
 
   const submit = async () => {

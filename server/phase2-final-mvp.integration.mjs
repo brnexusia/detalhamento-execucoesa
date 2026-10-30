@@ -221,6 +221,24 @@ try {
   assert.equal(themed.payload.store.theme.background, '#f4f1ea')
   assert.equal(themed.payload.store.theme.font, 'rounded')
 
+  // Vendedora do link antigo ficou inativa: rota deve escolher outra disponível, nunca WhatsApp do lojista.
+  await pool.query("UPDATE sellers SET is_active=false WHERE store_id=$1 AND name='Ana'", [storeRow.rows[0].id])
+  const forwarded = await request('/api/business/orders', {
+    method: 'POST', cookie: customerVisitorCookie,
+    body: { storeSlug: owner.slug, sellerSlug: 'ana', items: [{ productId, quantity: 5, selections: {} }] },
+  })
+  assert.equal(forwarded.response.status, 201, JSON.stringify(forwarded.payload))
+  assert.match(new URL(forwarded.payload.whatsappUrl).pathname, /^\/551198880001[2-5]$/, 'Após saída de Ana, pedido deve ir para qualquer vendedora ativa válida')
+
+  // Se a loja estiver temporariamente sem vendedora, bloquear: jamais usar o número administrativo.
+  await pool.query('UPDATE sellers SET is_active=false WHERE store_id=$1', [storeRow.rows[0].id])
+  const unavailable = await request('/api/business/orders', {
+    method: 'POST', body: { storeSlug: owner.slug, sellerSlug: 'ana', items: [{ productId, quantity: 5, selections: {} }] },
+  })
+  assert.equal(unavailable.response.status, 409)
+  assert.equal(unavailable.payload.code, 'NO_AVAILABLE_SELLER')
+  assert.doesNotMatch(JSON.stringify(unavailable.payload), /5511900000000/)
+
   console.log('[phase2 final MVP] round-robin + customers + stock gating + domain + franchisees + orders: ok')
 } finally {
   await pool.end()

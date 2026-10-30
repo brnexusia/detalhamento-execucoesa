@@ -805,7 +805,13 @@ async function getPublicStore(req, res) {
     )
     if (sellerResult.rowCount) seller = sellerResult.rows[0]
   }
-  if (!seller) seller = { id: null, slug: '', name: 'Atendimento', phone: store.whatsapp }
+  if (!seller) {
+    const available = await pool.query(
+      'SELECT id,slug,name,phone FROM sellers WHERE store_id=$1 AND is_active=true AND length(regexp_replace(phone, \'[^0-9]\', \'\', \'g\'))>=10 ORDER BY created_at ASC,id ASC LIMIT 1',
+      [store.id],
+    )
+    seller = available.rows[0] || null
+  }
 
   const products = await pool.query(
     'SELECT * FROM products WHERE store_id=$1 AND active=true ORDER BY featured DESC,created_at DESC',
@@ -919,9 +925,16 @@ app.post(
       seller = sellerResult.rows[0] || null
     }
 
-    const phone = digits(seller?.phone || store.whatsapp)
+    if (!seller) {
+      const available = await pool.query(
+        'SELECT * FROM sellers WHERE store_id=$1 AND is_active=true AND length(regexp_replace(phone, \'[^0-9]\', \'\', \'g\'))>=10 ORDER BY created_at ASC,id ASC LIMIT 1',
+        [store.id],
+      )
+      seller = available.rows[0] || null
+    }
+    const phone = digits(seller?.phone || '')
     if (phone.length < 10) {
-      return res.status(400).json({ error: 'A loja ainda não configurou um WhatsApp de atendimento.' })
+      return res.status(409).json({ code: 'NO_AVAILABLE_SELLER', error: 'Nenhuma vendedora disponível para receber o pedido. Ative uma vendedora antes de continuar.' })
     }
 
     const code = `AS-${Date.now().toString().slice(-6)}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`

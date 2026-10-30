@@ -546,8 +546,20 @@ async function createCatalogOrder(req, res) {
       const sellerResult = await client.query('SELECT * FROM sellers WHERE store_id=$1 AND slug=$2 AND is_active=true LIMIT 1', [store.id, req.body.sellerSlug])
       seller = sellerResult.rows[0] || null
     }
-    const phone = digits(seller?.phone || store.whatsapp)
-    if (phone.length < 10) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'A loja ainda não configurou um WhatsApp de atendimento.' }) }
+    if (!seller) {
+      const available = await client.query(
+        `SELECT * FROM sellers WHERE store_id=$1 AND is_active=true
+         AND length(regexp_replace(phone, '[^0-9]', '', 'g'))>=10
+         ORDER BY created_at ASC,id ASC LIMIT 1`,
+        [store.id],
+      )
+      seller = available.rows[0] || null
+    }
+    const phone = digits(seller?.phone || '')
+    if (phone.length < 10) {
+      await client.query('ROLLBACK')
+      return res.status(409).json({ code: 'NO_AVAILABLE_SELLER', error: 'Nenhuma vendedora disponível para receber o pedido. Ative uma vendedora antes de continuar.' })
+    }
     const inputBuyer = req.body?.buyer && typeof req.body.buyer === 'object' && !Array.isArray(req.body.buyer) ? req.body.buyer : {}
     const safeText = (value, max) => String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, max)
     const buyer = {

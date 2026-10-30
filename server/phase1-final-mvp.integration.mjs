@@ -64,12 +64,14 @@ try {
   assert.equal(result.payload.plan.features.whatsappOrder, true)
   assert.equal(result.payload.plan.features.sellerCommission, false)
 
+  let firstSellerSlug = ''
   for (let index = 0; index < 5; index += 1) {
     result = await request('/api/admin/sellers', {
       method: 'POST', cookie: account.cookie,
       body: { name: `Vendedora ${index + 1}`, phone: `55119888000${index + 10}`, isActive: true },
     })
     assert.equal(result.response.status, 201)
+    if (index === 0) firstSellerSlug = result.payload.seller.slug
   }
 
   result = await request('/api/admin/sellers', {
@@ -179,13 +181,14 @@ try {
 
   result = await request('/api/business/orders', {
     method: 'POST',
-    body: { storeSlug: account.storeSlug, catalogSlug: catalog.slug, items: [{ productId, quantity: 2, selections: { Cor: 'Preto' } }] },
+    body: { storeSlug: account.storeSlug, sellerSlug: firstSellerSlug, catalogSlug: catalog.slug, items: [{ productId, quantity: 2, selections: { Cor: 'Preto' } }] },
   })
   assert.equal(result.response.status, 201)
   assert.ok(result.payload.orderId)
   assert.ok(result.payload.code)
   assert.equal(result.payload.catalog.slug, catalog.slug)
-  assert.match(result.payload.whatsappUrl, /^https:\/\/wa\.me\/5511999999999\?text=/)
+  assert.match(result.payload.whatsappUrl, /^https:\/\/wa\.me\/5511988800010\?text=/)
+  assert.doesNotMatch(result.payload.whatsappUrl, /5511999999999/, 'Número principal administrativo nunca deve receber pedidos')
   const whatsappMessage = new URL(result.payload.whatsappUrl).searchParams.get('text') || ''
   assert.match(whatsappMessage, /2x Produto Fase 1/)
   assert.match(whatsappMessage, /Cor: Preto/)

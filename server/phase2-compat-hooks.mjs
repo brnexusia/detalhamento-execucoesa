@@ -4,7 +4,6 @@ import pg from 'pg'
 const { Pool } = pg
 const databaseUrl = process.env.DATABASE_URL?.trim() || ''
 const pool = databaseUrl ? new Pool({ connectionString: databaseUrl, max: 2, connectionTimeoutMillis: 5000 }) : null
-const storeFallbackSeller = '__shopvax_store_whatsapp__'
 const planGatesDisabled = process.env.SHOPVAX_PLAN_LIMITS_DISABLED === '1'
 
 if (pool) pool.on('error', (error) => console.error('[phase2 compat] pool:', error.message))
@@ -44,11 +43,6 @@ async function ensureCompatibilitySchema() {
   return schemaPromise
 }
 
-function hasStickySeller(req) {
-  const cookie = String(req.headers.cookie || '')
-  return /(?:^|;\s*)svx_s_[a-f0-9]{12}=/.test(cookie)
-}
-
 async function prepareAdmin(_req, _res, next) {
   try {
     await ensureCompatibilitySchema()
@@ -59,10 +53,8 @@ async function prepareAdmin(_req, _res, next) {
 async function preserveDirectOrderFallback(req, _res, next) {
   try {
     await ensureCompatibilitySchema()
-    // A atribuição automática acontece quando o visitante abre o link geral e
-    // recebe o cookie de vendedora. Chamadas diretas de API sem esse contexto
-    // continuam usando o WhatsApp principal, como na fundação da Fase 1.
-    if (!req.body?.sellerSlug && !hasStickySeller(req)) req.body.sellerSlug = storeFallbackSeller
+    // Não inserir telefone administrativo como destino implícito. A fase 2
+    // atribui uma vendedora ativa ou bloqueia a criação do pedido.
     next()
   } catch (error) { next(error) }
 }
