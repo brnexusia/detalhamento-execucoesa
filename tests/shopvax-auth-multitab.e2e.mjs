@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 
 const browser = await chromium.launch({ headless: true })
 try {
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 } })
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
   let activeUser = 'A'
   const bootstrap = () => {
     const name = activeUser === 'A' ? 'Laura' : 'Beatriz'
