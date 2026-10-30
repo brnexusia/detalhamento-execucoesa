@@ -139,7 +139,7 @@ function currentCatalogSlug() {
 }
 
 export const api = {
-  publicStore: (storeSlug: string, sellerSlug?: string, options: { cursor?: string | null; q?: string; category?: string; sort?: 'newest' | 'price_asc' | 'price_desc'; limit?: number; catalog?: string } = {}) => {
+  publicStore: (storeSlug: string, sellerSlug?: string, options: { cursor?: string | null; q?: string; category?: string; sort?: 'newest' | 'price_asc' | 'price_desc'; limit?: number; catalog?: string; signal?: AbortSignal } = {}) => {
     const params = new URLSearchParams()
     if (options.cursor) params.set('cursor', options.cursor)
     if (options.q) params.set('q', options.q)
@@ -149,7 +149,14 @@ export const api = {
     const catalog = options.catalog ?? currentCatalogSlug()
     if (catalog) params.set('catalog', catalog)
     const query = params.toString()
-    return request<PublicPayload>(`/api/public/store/${encodeURIComponent(storeSlug)}${sellerSlug ? `/${encodeURIComponent(sellerSlug)}` : ''}${query ? `?${query}` : ''}`)
+    // O timeout aplica-se somente à leitura pública; pedidos e outras mutações não são repetidos.
+    const controller = new AbortController()
+    const onAbort = () => controller.abort()
+    if (options.signal?.aborted) controller.abort()
+    else options.signal?.addEventListener('abort', onAbort, { once: true })
+    const timeout = window.setTimeout(() => controller.abort(), 15000)
+    return request<PublicPayload>(`/api/public/store/${encodeURIComponent(storeSlug)}${sellerSlug ? `/${encodeURIComponent(sellerSlug)}` : ''}${query ? `?${query}` : ''}`, { signal: controller.signal })
+      .finally(() => { window.clearTimeout(timeout); options.signal?.removeEventListener('abort', onAbort) })
   },
   track: (body: { storeSlug: string; sellerSlug?: string; kind: 'view' | 'cart' | 'whatsapp' }) => request<void>('/api/public/events', { method: 'POST', body: JSON.stringify(body) }).catch(() => undefined),
   createOrder: (body: { storeSlug: string; sellerSlug?: string; catalogSlug?: string; buyer?: { name?: string; city?: string; cep?: string; phone?: string }; notes?: string; items: Array<{ productId: string; quantity: number; selections: Record<string, string> }> }) => request<{ code: string; orderId?: string; catalog?: Catalog; whatsappUrl: string }>('/api/business/orders', { method: 'POST', body: JSON.stringify({ ...body, catalogSlug: body.catalogSlug ?? currentCatalogSlug() }) }),
