@@ -3,6 +3,7 @@ import { ArrowRight, Boxes, Check, ChevronLeft, ChevronRight, Clipboard, CreditC
 import { api } from './api'
 import ShopvaxDashboard from './ShopvaxDashboard'
 import ShopvaxFirstRun from './ShopvaxFirstRun'
+import ShopvaxThemesPanel from './ShopvaxThemesPanel'
 import ShopvaxOrders from './ShopvaxOrders'
 import { SHOPVAX_PALETTES, shopvaxPaletteName } from './ShopvaxDesignSystem'
 import AdminNavigation from './AdminNavigation'
@@ -13,7 +14,7 @@ import type { AdminBootstrap, AdminProduct, AdminSeller, VariationGroup } from '
 
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 const date = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
-type Section = 'inicio' | 'produtos' | 'pedidos' | 'vendedoras' | 'loja'
+type Section = 'inicio' | 'produtos' | 'pedidos' | 'vendedoras' | 'loja' | 'temas'
 type ProductDraft = { id?: string; name: string; sku: string; description: string; price: string; category: string; pack: string; mediaUrl: string; mediaType: 'image' | 'video'; images: string[]; variationsText: string; featured: boolean; active: boolean; stockEnabled: boolean; stockQuantity: number; variantStock: Record<string, number> }
 const blankProduct: ProductDraft = { name: '', sku: '', description: '', price: '', category: '', pack: '', mediaUrl: '', mediaType: 'image', images: [], variationsText: '', featured: false, active: true, stockEnabled: false, stockQuantity: 0, variantStock: {} }
 
@@ -28,7 +29,7 @@ function downloadFile(blob: Blob, filename: string) {
   anchor.remove()
   window.setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
-function currentSection(): Section { const segment = window.location.pathname.split('/').filter(Boolean)[1]; return ['produtos', 'pedidos', 'vendedoras', 'loja'].includes(segment) ? segment as Section : 'inicio' }
+function currentSection(): Section { const segment = window.location.pathname.split('/').filter(Boolean)[1]; return ['produtos', 'pedidos', 'vendedoras', 'loja', 'temas'].includes(segment) ? segment as Section : 'inicio' }
 function variationText(groups: VariationGroup[]) { return (groups || []).map((group) => `${group.name}: ${group.options.join(', ')}`).join('\n') }
 function parseVariations(text: string): VariationGroup[] {
   return text.split('\n').map((line) => { const [name, ...rest] = line.split(':'); return { name: name?.trim() || '', options: rest.join(':').split(',').map((option) => option.trim()).filter(Boolean) } }).filter((group) => group.name && group.options.length)
@@ -143,7 +144,8 @@ export default function AdminApp() {
         {section === 'produtos' && <Products data={data} query={query} setQuery={setQuery} onCreate={() => setProductModal({ ...blankProduct })} onEdit={(product) => setProductModal(productDraft(product))} onVisibility={async (product) => { await api.setProductVisibility(product.id, !product.active); flash(product.active ? 'Produto escondido da loja e do feed.' : 'Produto publicado novamente.'); await load() }} onDelete={async (product) => { if (!(await confirmAction(`Excluir ${product.name}? Esta ação não pode ser desfeita.`, 'Excluir produto', 'Excluir'))) return; await api.deleteProduct(product.id); flash('Produto excluído.'); load() }} onBulkDelete={deleteProductsBulk} onDownloadPdf={downloadProductsPdf} />}
         {section === 'pedidos' && <Orders data={data} onUpdated={load} />}
         {section === 'vendedoras' && <Sellers data={data} baseUrl={baseUrl} onCopy={copy} onCreate={() => setSellerModal({ name: '', phone: '', slug: '', is_active: true })} onEdit={(seller) => setSellerModal({ ...seller })} onDelete={async (seller) => { if (!(await confirmAction(`Excluir ${seller.name}? O link individual deixará de funcionar.`, 'Excluir vendedora', 'Excluir'))) return; await api.deleteSeller(seller.id); flash('Vendedora excluída.'); load() }} />}
-        {section === 'loja' && <><StoreSettings data={data} onSaved={() => { flash('Loja atualizada.'); load() }} onCopy={copy} onDirtyChange={setStoreDirty} /><CommercialSettingsPanel embedded/><StoreTools data={data}/></>}
+        {section === 'temas' && <ShopvaxThemesPanel data={data} onSaved={() => { flash('Tema e paleta atualizados.'); void load() }} />}
+         {section === 'loja' && <><StoreSettings data={data} onSaved={() => { flash('Loja atualizada.'); load() }} onCopy={copy} onDirtyChange={setStoreDirty} /><CommercialSettingsPanel embedded/><StoreTools data={data}/></>}
       </main>
       {productModal && <ProductEditor draft={productModal} setDraft={setProductModal} onClose={() => setProductModal(null)} onSaved={() => { setProductModal(null); flash(productModal.id ? 'Produto atualizado.' : 'Produto cadastrado.'); load() }} />}
       {sellerModal && <SellerEditor draft={sellerModal} setDraft={setSellerModal} storeSlug={data.store.slug} onClose={() => setSellerModal(null)} onSaved={() => { setSellerModal(null); flash(sellerModal.id ? 'Vendedora atualizada.' : 'Vendedora cadastrada.'); load() }} />}
