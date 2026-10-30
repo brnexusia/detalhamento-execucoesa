@@ -72,10 +72,10 @@ try {
   let result = await request('/api/admin/phase2', { cookie: owner.cookie })
   assert.equal(result.response.status, 200)
   assert.equal(result.payload.plan.code, 'bronze')
-  assert.equal(result.payload.plan.limits.sellers, 2)
+  assert.equal(result.payload.plan.limits.sellers, 5)
   assert.equal(result.payload.store.customerLoginEnabled, true)
 
-  for (const [index, name] of ['Ana', 'Bia'].entries()) {
+  for (const [index, name] of ['Ana', 'Bia', 'Dora', 'Elisa', 'Fernanda'].entries()) {
     result = await request('/api/admin/sellers', {
       method: 'POST', cookie: owner.cookie,
       body: { name, phone: `55119888000${index + 11}`, isActive: true },
@@ -84,7 +84,7 @@ try {
   }
   result = await request('/api/admin/sellers', {
     method: 'POST', cookie: owner.cookie,
-    body: { name: 'Carla', phone: '5511988800099', isActive: true },
+    body: { name: 'Carla (sexta vendedora)', phone: '5511988800099', isActive: true },
   })
   assert.equal(result.response.status, 409)
   assert.equal(result.payload.code, 'PLAN_LIMIT')
