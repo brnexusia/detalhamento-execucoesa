@@ -6,6 +6,8 @@ on:
       - 'src/PublicStoreV2.tsx'
       - 'src/product-picker-responsive.css'
       - 'src/shopvax-desktop-product-page.css'
+      - 'src/shopvax-desktop-ticket-05.css'
+      - 'tests/shopvax-desktop-ticket-05.e2e.mjs'
       - 'tests/shopvax-desktop-product-05.e2e.mjs'
       - 'src/canvas.css'
       - 'src/saas.css'
@@ -100,6 +102,8 @@ jobs:
         run: node tests/product-picker-responsive.e2e.mjs
       - name: Official design layer 05 - desktop product as a page, related products and mobile modal
         run: node tests/shopvax-desktop-product-05.e2e.mjs
+      - name: Official design layer 05 - desktop cart ticket always visible
+        run: node tests/shopvax-desktop-ticket-05.e2e.mjs
       - name: Shopvax institutional identity across viewports
         run: node tests/shopvax-home-brand.e2e.mjs
       - name: Official redesign for login, signup, social feed, profile and onboarding
