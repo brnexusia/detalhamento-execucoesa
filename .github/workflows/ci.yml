@@ -84,6 +84,8 @@ jobs:
         run: node --test tests/verify-production.test.mjs
       - name: Aprovacao dos planos comerciais e migracao segura
         run: node --test server/system-plans.test.mjs
+      - name: Responsive media variants preserve originals
+        run: node --test server/media-variants.test.mjs
       - name: Scanner PDF catalog tests
         run: npm run test:scanner:pdf
       - name: Scanner URL tests

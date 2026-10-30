@@ -11,6 +11,7 @@ import CustomerAccountLauncher from './CustomerAccountLauncher'
 import './shopvax-store-layout-fixes.css'
 import './shopvax-desktop-product-page.css'
 import './shopvax-desktop-ticket-05.css'
+import { responsiveLocalMedia } from './responsive-media'
 import type { CartItem, Product, PublicPayload } from './types'
 
 type ViewMode = 'store' | 'feed'
@@ -37,7 +38,7 @@ function ResilientImage({ src, alt, className = '', loading = 'lazy' }: { src?: 
   const [failed, setFailed] = useState(false)
   useEffect(() => { setFailed(false) }, [src])
   if (!src || failed) return <div className={`media-fallback ${className}`} role="img" aria-label={alt}><ImageOff size={28}/><span>Imagem indisponível</span></div>
-  return <img className={className} src={src} alt={alt} loading={loading} decoding="async" onError={() => setFailed(true)} />
+  return <img className={className} src={src} srcSet={responsiveLocalMedia(src)} sizes="(max-width: 640px) 100vw, (max-width: 1100px) 50vw, 33vw" alt={alt} loading={loading} decoding="async" onError={() => setFailed(true)} />
 }
 
 function matchingVariantImages(product: Product, selections: Record<string, string>) {

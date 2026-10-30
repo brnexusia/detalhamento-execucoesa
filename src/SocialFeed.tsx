@@ -5,6 +5,7 @@ import './social-feed.css'
 import './shopvax-social-official.css'
 import './shopvax-social-feed-layout.css'
 import { shopvaxAccentTextColor } from './ShopvaxDesignSystem'
+import { responsiveLocalMedia } from './responsive-media'
 
 type VariationGroup = { name: string; options: string[] }
 type FeedProduct = {
@@ -91,7 +92,7 @@ function FeedImage({ product, className = '' }: { product: FeedProduct; classNam
   useEffect(() => { setIndex(0) }, [product.id, product.mediaUrl, JSON.stringify(product.images || [])])
   const src = candidates[index] || ''
   if (!src) return <div className={className}><Play size={34}/></div>
-  return <img className={className} src={src} alt={product.name} loading="lazy" decoding="async" onError={() => setIndex((current) => current + 1)} />
+  return <img className={className} src={src} srcSet={responsiveLocalMedia(src)} sizes="(max-width: 768px) 100vw, 560px" alt={product.name} loading="lazy" decoding="async" onError={() => setIndex((current) => current + 1)} />
 }
 
 async function copyText(value: string) {

@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import express from 'express'
 import multer from 'multer'
 import pg from 'pg'
+import { generateMediaVariants, requestedMediaWidth } from './media-variants.mjs'
 
 const { Pool } = pg
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -66,6 +67,14 @@ CREATE TABLE IF NOT EXISTS media_assets (
   byte_size integer NOT NULL,
   data bytea NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS media_variants (
+  asset_id text NOT NULL REFERENCES media_assets(id) ON DELETE CASCADE,
+  width integer NOT NULL CHECK (width IN (320,960)),
+  mime_type text NOT NULL,
+  byte_size integer NOT NULL,
+  data bytea NOT NULL,
+  PRIMARY KEY (asset_id, width)
 );
 CREATE TABLE IF NOT EXISTS products (
   id text PRIMARY KEY,
@@ -328,7 +337,12 @@ app.get(
   asyncRoute(async (req, res) => {
     if (!dbReady) await initDb()
     if (!dbReady || !pool) return res.status(503).end()
-    const result = await pool.query(
+    const width = requestedMediaWidth(req.query.w)
+    let result = width == null ? null : await pool.query(
+      'SELECT mime_type,byte_size,data FROM media_variants WHERE asset_id=$1 AND width=$2 LIMIT 1',
+      [req.params.assetId, width],
+    )
+    if (!result?.rowCount) result = await pool.query(
       'SELECT mime_type,byte_size,data FROM media_assets WHERE id=$1 LIMIT 1',
       [req.params.assetId],
     )
@@ -561,6 +575,22 @@ app.post(
         req.file.buffer,
       ],
     )
+    // Foto original mantida intacta. Falha na otimização não impede o upload.
+    if (req.file.mimetype.startsWith('image/')) {
+      try {
+        const variants = await generateMediaVariants(req.file.buffer, req.file.mimetype)
+        for (const variant of variants) {
+          await pool.query(
+            `INSERT INTO media_variants (asset_id,width,mime_type,byte_size,data)
+             VALUES ($1,$2,$3,$4,$5)
+             ON CONFLICT (asset_id,width) DO NOTHING`,
+            [assetId, variant.width, variant.mimeType, variant.bytes.length, variant.bytes],
+          )
+        }
+      } catch (error) {
+        console.warn('[shopvax-media] variante opcional indisponível:', error instanceof Error ? error.message : 'erro')
+      }
+    }
     res.status(201).json({
       url: `/media/${assetId}`,
       type: req.file.mimetype.startsWith('video/') ? 'video' : 'image',
