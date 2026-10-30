@@ -143,6 +143,12 @@ try {
   assert.equal(page3.page.hasMore, false)
 
   const lateProduct = page3.products[0]
+  // Checkout exige vendedor de atendimento; não usar o telefone administrativo como fallback.
+  const assignedSeller = await fetch(`${base}/api/admin/sellers`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: account.cookie },
+    body: JSON.stringify({ name: 'Vendedora Scanner', phone: '5511987700678', isActive: true }),
+  })
+  assert.equal(assignedSeller.status, 201)
   response = await fetch(`${base}/api/public/orders`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...browserHeaders, Cookie: visitor },
