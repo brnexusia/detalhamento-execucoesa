@@ -107,6 +107,7 @@ export type AdminStore = {
   whatsapp: string
   logo_url: string
   accent: string
+  seasonal_theme?: string
   is_active: boolean
   plan_tier?: 'bronze' | 'prata' | 'ouro' | string
   onboarding_palette_selected?: boolean
