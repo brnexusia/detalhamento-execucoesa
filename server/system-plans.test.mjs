@@ -24,6 +24,7 @@ test('Migração de planos do sistema é versionada e não exclui dados de lojas
   for (const path of ['server/platform-hooks.mjs', 'server/plan-limits-hooks.mjs']) {
     const content = readFileSync(path, 'utf8')
     assert.match(content, /mvp_schema_version<3/, path)
+    assert.match(content, /SHOPVAX_APPLY_APPROVED_PLAN_LIMITS === '1'/, 'Migração de contas existentes exige opt-in')
     assert.match(content, /platform_plans\.is_system=true/, path)
     assert.doesNotMatch(content, /DELETE FROM (products|sellers|stores)\b/i, 'Migração não pode apagar produtos/lojas')
   }
