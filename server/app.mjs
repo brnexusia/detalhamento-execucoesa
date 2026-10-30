@@ -319,6 +319,7 @@ app.get('/health', (_req, res) =>
     database: dbReady,
     databaseError: dbReady ? null : dbError,
     storage: dbReady ? 'postgres' : 'unavailable',
+    releaseSha: process.env.SHOPVAX_RELEASE_SHA?.trim() || null,
   }),
 )
 
