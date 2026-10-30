@@ -147,7 +147,7 @@
 }
 @media(min-width:860px) and (max-height:660px){
   .app .picker-layer .product-picker {
-    grid-template-rows:55px minmax(0,1fr) 148px;
+    grid-template-rows:55px minmax(0,1fr) 175px;
   }
   .app .svx-product-page__related-items strong{font-size:13px;}
 }
