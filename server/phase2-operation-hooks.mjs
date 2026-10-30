@@ -325,7 +325,7 @@ function assignmentCookieName(storeId) {
 
 async function activeSellerBySlug(storeId, slug, client = pool) {
   if (!slug) return null
-  const result = await client.query('SELECT id,slug,name,phone FROM sellers WHERE store_id=$1 AND slug=$2 AND is_active=true AND length(regexp_replace(phone, '[^0-9]', '', 'g'))>=10 LIMIT 1', [storeId, slug])
+  const result = await client.query(`SELECT id,slug,name,phone FROM sellers WHERE store_id=$1 AND slug=$2 AND is_active=true AND length(regexp_replace(phone, '[^0-9]', '', 'g'))>=10 LIMIT 1`, [storeId, slug])
   return result.rows[0] || null
 }
 
@@ -339,7 +339,7 @@ async function assignedSeller(store, req, res, { advance = true } = {}) {
   try {
     await client.query('BEGIN')
     const locked = await client.query('SELECT seller_rotation_cursor FROM stores WHERE id=$1 FOR UPDATE', [store.id])
-    const sellers = await client.query('SELECT id,slug,name,phone FROM sellers WHERE store_id=$1 AND is_active=true AND length(regexp_replace(phone, '[^0-9]', '', 'g'))>=10 ORDER BY created_at ASC,id ASC', [store.id])
+    const sellers = await client.query(`SELECT id,slug,name,phone FROM sellers WHERE store_id=$1 AND is_active=true AND length(regexp_replace(phone, '[^0-9]', '', 'g'))>=10 ORDER BY created_at ASC,id ASC`, [store.id])
     if (!sellers.rowCount) { await client.query('COMMIT'); return null }
     const cursor = Math.max(0, Number(locked.rows[0]?.seller_rotation_cursor || 0))
     const seller = sellers.rows[cursor % sellers.rows.length]
