@@ -133,7 +133,16 @@ async function protectedStore(req, res) {
     )
     if (sellerResult.rowCount) seller = sellerResult.rows[0]
   }
-  if (!seller) seller = { id: null, slug: '', name: 'Atendimento', phone: store.whatsapp }
+  if (!seller) {
+    const available = await pool.query(
+      `SELECT id,slug,name,phone FROM sellers
+       WHERE store_id=$1 AND is_active=true
+       AND length(regexp_replace(phone, '[^0-9]', '', 'g'))>=10
+       ORDER BY created_at ASC,id ASC LIMIT 1`,
+      [store.id],
+    )
+    seller = available.rows[0] || null
+  }
 
   const q = String(req.query.q || '').trim().slice(0, 100)
   const category = String(req.query.category || '').trim().slice(0, 80)
