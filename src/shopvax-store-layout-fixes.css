@@ -140,3 +140,53 @@
 @media(prefers-reduced-motion:reduce) {
  .app .store-header-navigation {scroll-behavior:auto;}
 }
+
+/* Mobile — SVG 03: cabeçalho da LOJA em uma linha, com menu acessível.
+ * Os controles sociais não ficam sobrepostos nem flutuando sobre os produtos. */
+.app .store-nav-toggle{display:none;}
+@media(max-width:700px){
+  .app .topbar{
+    position:relative;z-index:25;
+    display:grid;grid-template-columns:minmax(0,1fr) auto auto;
+    grid-template-areas:"marca menu carrinho";
+    align-items:center;gap:9px;min-height:60px;
+    padding:9px max(12px,env(safe-area-inset-right)) 9px max(12px,env(safe-area-inset-left));
+  }
+  .app .topbar>.brand{grid-area:marca;min-width:0;}
+  .app .topbar>.cart-trigger{grid-area:carrinho;justify-self:end;}
+  .app .store-nav-toggle{
+    grid-area:menu;display:inline-flex;align-items:center;justify-content:center;
+    gap:6px;min-width:43px;min-height:42px;padding:8px;
+    border:1px solid #D9D3C6;border-radius:0;background:#FCFAF5;
+    color:#161514;font:700 11px/1.2 var(--svx-font-body,'Archivo',sans-serif);
+    cursor:pointer;
+  }
+  .app .store-nav-toggle[aria-expanded=true]{border-color:#161514;background:#E7E3DA;}
+  .app .store-nav-toggle>span{display:none;}
+  .app .topbar .store-header-navigation{
+    position:absolute!important;top:calc(100% - 1px);right:12px;left:auto;
+    display:none!important;flex-direction:column;align-items:stretch;
+    justify-content:flex-start;gap:8px;
+    width:min(298px,calc(100vw - 24px));min-width:0;
+    max-height:calc(100dvh - 72px);overflow-y:auto;overflow-x:hidden;
+    padding:12px;z-index:35;
+    background:#F3F0E8;border:1px solid #161514;
+    box-shadow:0 15px 30px rgba(22,21,20,.16);
+    scrollbar-width:thin;
+  }
+  .app .topbar .store-header-navigation.is-open{display:flex!important;}
+  .app .store-header-navigation .view-switch,
+  .app .store-header-navigation .store-social-nav,
+  .app .store-header-navigation .shopvax-customer-launcher{
+    flex:0 0 auto;width:100%;max-width:100%;
+  }
+  .app .store-header-navigation .view-switch button{flex:1 1 50%;min-height:44px;}
+  .app .store-header-navigation .store-social-nav button{flex:1 1 50%;min-height:44px;}
+  .app .store-header-navigation .shopvax-customer-launcher{min-height:44px;justify-content:center;}
+  .app .store-header-navigation .store-social-nav{box-shadow:none;filter:none;}
+  .app .topbar .brand__text strong{max-width:calc(100vw - 155px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+}
+@media(max-width:360px){
+ .app .topbar .brand__text strong{max-width:calc(100vw - 140px);}
+ .app .store-nav-toggle,.app .topbar>.cart-trigger{min-width:39px;}
+}
