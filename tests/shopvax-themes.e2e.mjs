@@ -36,7 +36,11 @@ try {
   assert.equal(updates.length,1)
   assert.equal(updates[0].seasonalTheme,'black-friday')
   assert.equal(saved.seasonal_theme,'black-friday')
+  const restoreResponse = page.waitForResponse(response =>
+    response.url().endsWith('/api/admin/store') && response.request().method() === 'PUT' && response.status() === 200,
+  )
   await page.getByRole('button',{name:/Voltar ao tema padrão/}).click()
+  await restoreResponse
   await page.getByText(/Identidade aplicada à loja/).waitFor()
   assert.equal(updates.length,2)
   assert.equal(updates[1].seasonalTheme,'padrao')
