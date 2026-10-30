@@ -44,6 +44,6 @@ export default function ShopvaxPlans({plans,onChoose}:Props){
       ['Catálogo em PDF','Gere o catálogo pra quem não abre link.'],
       ['Pedidos no painel','Pedido numerado e registrado, com quem atendeu.'],
     ].map(([title,desc])=><div key={title}><Check size={14}/><span><strong>{title}</strong><small>{desc}</small></span></div>)}</div></div>
-    <div className="svx-plans__help"><div><h3>Ficou em dúvida entre dois planos?</h3><p>Compare o tamanho da sua loja e escolha o que faz sentido para sua equipe.</p></div><button onClick={()=>document.getElementById('planos')?.scrollIntoView({behavior:'smooth'})}><CircleHelp size={16}/> Comparar planos</button></div>
+    <div className="svx-plans__help"><div><h3>Ficou em dúvida entre os planos?</h3><p>Compare o tamanho da sua loja e escolha o que faz sentido para sua equipe.</p></div><button onClick={()=>document.getElementById('planos')?.scrollIntoView({behavior:'smooth'})}><CircleHelp size={16}/> Comparar planos</button></div>
   </div>
 }

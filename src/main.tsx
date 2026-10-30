@@ -17,6 +17,15 @@ import './shopvax-feed-redesign.css'
 import './shopvax-final-motion.css'
 import './shopvax-cross-surface.css'
 import './shopvax-brand-assets.css'
+import './shopvax-accessibility-polish.css'
+
+// Evita arrastar a marca como arquivo/objeto sem interferir no gesto de fotos de produtos.
+document.addEventListener('dragstart', (event) => {
+  const target = event.target
+  if (target instanceof HTMLImageElement && target.matches(
+    '.svx-brand-symbol, .svx-brand-wordmark, .brand__logo, .store-intro__logo, .panel-brand img, .customer-store-head img',
+  )) event.preventDefault()
+})
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

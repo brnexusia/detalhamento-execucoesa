@@ -1,0 +1,30 @@
+/* Correções de ergonomia da revisão #109: sem alterar dimensões dos componentes. */
+@media (hover: hover) and (pointer: fine) {
+  a[href], button:not(:disabled), [role="button"]:not([aria-disabled="true"]),
+  summary, input[type="button"]:not(:disabled), input[type="submit"]:not(:disabled),
+  input[type="checkbox"]:not(:disabled), input[type="radio"]:not(:disabled) {
+    cursor: pointer;
+  }
+  button:disabled, [aria-disabled="true"] { cursor: not-allowed; }
+}
+
+/* Marcas são identidade visual, não objetos arrastáveis; links continuam clicáveis. */
+img.svx-brand-symbol, img.svx-brand-wordmark, img.brand__logo,
+img.store-intro__logo, .panel-brand img, .customer-store-head img {
+  -webkit-user-drag: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Ajuste pequeno e responsivo do texto miúdo: não alarga cards nem altera grid. */
+.home-shell .home-trustline { font-size: clamp(13px, 1.15vw, 15px); }
+.home-shell .home-pricing__note { font-size: 12px; }
+.svx-plans__intro > p { font-size: clamp(13px, 1.1vw, 15px); }
+.svx-plans__comparison .svx-plans__reference p { font-size: 12px; }
+.svx-plans__benefits p, .svx-plans__help p { font-size: 13px; line-height: 1.5; }
+.svx-dashboard__welcome p { font-size: 13px; }
+.svx-dashboard__metric small, .svx-dashboard__order-grid article p,
+.svx-dashboard__bottom, .svx-dashboard__ready, .svx-dashboard__setup > button > strong {
+  font-size: 12px;
+}
+.svx-dashboard__link strong { font-size: 13px; }
