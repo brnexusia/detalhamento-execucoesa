@@ -8,7 +8,7 @@ const payload={store,seller:{slug:'marina',name:'Marina',phone:store.whatsapp},p
 const browser=await chromium.launch({headless:true})
 mkdirSync('artifacts/shopvax-redesign',{recursive:true})
 try {
- for(const width of [390,768,1440]) {
+ for(const width of [320,390,430,700,768,1440]) {
   const page=await browser.newPage({viewport:{width,height:844}})
   await page.route('**/api/public/store/**',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify(payload)}))
   await page.route('**/api/public/store/**/phase2-config',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({customerLoginEnabled:true,theme:{background:'#F3F0E8',textColor:'#161514',font:'system'}})}))
