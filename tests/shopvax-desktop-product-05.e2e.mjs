@@ -27,6 +27,8 @@ try{
    assert(layout.picker.width>=width-2,'desktop product should not be centered modal: '+JSON.stringify(layout))
    assert(layout.media.right<=layout.body.x+3,'gallery and product text should be in separate columns: '+JSON.stringify(layout))
    assert(layout.related.y>=layout.media.y,'related products should follow product')
+   const imageHeight=await page.locator('.svx-product-page__related-items button img').first().evaluate(el=>el.getBoundingClientRect().height)
+   assert(imageHeight>=70,'Leva junto deve usar fichas fotográficas, não miniaturas: '+imageHeight)
    assert(layout.footer.bottom<=height+2,'add to cart must remain visible: '+JSON.stringify(layout))
   } else {
    assert.equal(layout.nav.display,'none')
