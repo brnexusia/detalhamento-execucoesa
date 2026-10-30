@@ -63,7 +63,7 @@ Os planos comerciais são **Bronze, Prata e Ouro**. Os mesmos nomes são usados 
 | Feed Meta Shopping | — | — | Sim |
 | API / ERP | — | — | Sim |
 
-Produtos possuem limites aprovados de 500 no Bronze e 2.000 no Prata; o Ouro é ilimitado. A migração da versão 3 ajusta planos de sistema sem excluir produtos ou vendedoras existentes; lojas acima do teto preservam seus registros, mas não podem criar novos itens sem adequação ou upgrade. Semestral usa 5% de desconto e anual 15% por padrão na configuração comercial. O cadastro público mostra o valor mensal para não sugerir um ciclo de cobrança que ainda não é selecionável pelo lojista.
+Produtos possuem limites aprovados de 500 no Bronze e 2.000 no Prata; o Ouro é ilimitado. Em bancos existentes, a migração v3 exige `SHOPVAX_APPLY_APPROVED_PLAN_LIMITS=1` em uma inicialização controlada **após backup e auditoria de clientes**. Sem essa flag, os limites antigos continuam em contas já cadastradas. A migração não exclui produtos ou vendedoras; lojas acima do novo teto preservam dados, mas novas inclusões ficam sujeitas ao limite após migração. Semestral usa 5% de desconto e anual 15% por padrão na configuração comercial. O cadastro público mostra o valor mensal para não sugerir um ciclo de cobrança que ainda não é selecionável pelo lojista.
 
 **Vax Lar permanece como recurso futuro do Ouro e não deve ser tratado como funcionalidade pronta do MVP.**
 
