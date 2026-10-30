@@ -84,7 +84,7 @@ async function ensureSchema() {
         await pool.query(
           `INSERT INTO platform_plans
              (id,code,name,monthly_price,semester_discount,annual_discount,seller_limit,product_limit,catalog_limit,photo_limit,franchisee_limit,social_weight,traffic_priority,feature_flags,active,is_system,mvp_schema_version)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,true,true,1)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,true,true,3)
            ON CONFLICT (code) DO UPDATE SET
              name=EXCLUDED.name,
              monthly_price=EXCLUDED.monthly_price,
@@ -99,9 +99,9 @@ async function ensureSchema() {
              traffic_priority=EXCLUDED.traffic_priority,
              feature_flags=EXCLUDED.feature_flags,
              active=true,
-             mvp_schema_version=1,
+             mvp_schema_version=3,
              updated_at=now()
-           WHERE platform_plans.is_system=true AND platform_plans.mvp_schema_version<1`,
+           WHERE platform_plans.is_system=true AND platform_plans.mvp_schema_version<3`,
           [
             plan.id,
             plan.code,
