@@ -121,7 +121,7 @@ async function ensurePlatformSchema() {
         franchisee_limit integer,
         traffic_priority text NOT NULL DEFAULT 'baixa',
         feature_flags jsonb NOT NULL DEFAULT '{}'::jsonb,
-        mvp_schema_version integer NOT NULL DEFAULT 2,
+        mvp_schema_version integer NOT NULL DEFAULT 3,
         active boolean NOT NULL DEFAULT true,
         is_system boolean NOT NULL DEFAULT false,
         created_at timestamptz NOT NULL DEFAULT now(),
@@ -151,7 +151,7 @@ async function ensurePlatformSchema() {
       await pool.query(
         `INSERT INTO platform_plans
           (id,code,name,monthly_price,semester_discount,annual_discount,seller_limit,product_limit,catalog_limit,social_weight,photo_limit,franchisee_limit,traffic_priority,feature_flags,active,is_system,mvp_schema_version)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,true,true,2)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,true,true,3)
          ON CONFLICT (code) DO UPDATE SET
            name=EXCLUDED.name,
            monthly_price=EXCLUDED.monthly_price,
@@ -167,9 +167,9 @@ async function ensurePlatformSchema() {
            feature_flags=EXCLUDED.feature_flags,
            active=true,
            is_system=true,
-           mvp_schema_version=2,
+           mvp_schema_version=3,
            updated_at=now()
-         WHERE platform_plans.is_system=true AND platform_plans.mvp_schema_version<2`,
+         WHERE platform_plans.is_system=true AND platform_plans.mvp_schema_version<3`,
         [
           plan.id, plan.code, plan.name, plan.monthlyPrice, plan.semesterDiscount, plan.annualDiscount,
           plan.sellerLimit, plan.productLimit, plan.catalogLimit, plan.socialWeight, plan.photoLimit,
