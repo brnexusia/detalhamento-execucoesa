@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, CheckCircle2, LogOut, PackageCheck, UserRound } from 'lucide-react'
 import { apiRequest } from './api'
 import './customer-account.css'
+import { listenAuthChanges } from './auth-session-sync'
 
 type Customer = { id: string; name: string; email: string; phone: string }
 type CustomerOrder = { id: string; code: string; total: number; status: string; created_at: string; seller_name?: string | null; items: Array<{ name?: string; quantity?: number }> }
@@ -64,6 +65,14 @@ export default function CustomerAccountRoute() {
       .catch((err) => { if (mounted) setError(err instanceof Error ? err.message : 'Loja não encontrada.') })
       .finally(() => { if (mounted) setLoading(false) })
     return () => { mounted = false }
+  }, [storeSlug])
+
+  useEffect(() => {
+    const revalidate = () => { setAccount(null); void loadAccount() }
+    const unsubscribe = listenAuthChanges('customer', revalidate)
+    const onFocus = () => { if (document.visibilityState === 'visible') revalidate() }
+    window.addEventListener('focus', onFocus)
+    return () => { unsubscribe(); window.removeEventListener('focus', onFocus) }
   }, [storeSlug])
 
   const submit = async () => {
