@@ -72,7 +72,7 @@ try {
   let result = await request('/api/admin/phase2', { cookie: owner.cookie })
   assert.equal(result.response.status, 200)
   assert.equal(result.payload.plan.code, 'bronze')
-  assert.equal(result.payload.plan.limits.sellers, 2)
+  assert.equal(result.payload.plan.limits.sellers, 5)
   assert.equal(result.payload.store.customerLoginEnabled, true)
 
   for (const [index, name] of ['Ana', 'Bia'].entries()) {
