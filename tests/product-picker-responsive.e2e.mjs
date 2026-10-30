@@ -35,6 +35,8 @@ try {
               assert(cardsVisible.description !== 'none' && cardsVisible.variations !== 'none' && cardsVisible.category !== 'none',`${width}x${height}: product details hidden: ${JSON.stringify(cardsVisible)}`)
 await page.locator('.product-card__media').first().click()
     await page.locator('.product-picker').waitFor()
+    assert(await page.locator('.svx-grade').isVisible(),`${width}x${height}: grade should be visible by default for color and size`)
+    await page.getByRole('button',{name:'Uma variação'}).click()
     const before=await page.evaluate(() => {
       const rect = (s) => {
         const node=document.querySelector(s)

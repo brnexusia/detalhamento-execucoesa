@@ -15,6 +15,8 @@ try{
   await page.goto('http://127.0.0.1:5173/look-premium')
   await page.locator('.product-grid button.product-card__media').first().click()
   await page.locator('.product-picker').waitFor()
+  assert(await page.locator('.svx-grade').isVisible(),'Grade default missing in layered product')
+  await page.getByRole('button',{name:'Uma variação'}).click()
   const layout=await page.evaluate(()=>{
    const $=s=>document.querySelector(s)
    const rect=s=>{const el=$(s);const r=el.getBoundingClientRect();return {x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height,display:getComputedStyle(el).display}}

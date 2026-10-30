@@ -231,7 +231,7 @@ export default function PublicStoreV2() {
     product.variations.forEach((group) => { if (group.options.length === 1) defaults[group.name] = group.options[0] })
     setPicker(product)
     setPickerQty(1)
-    setGradeMode(false)
+    setGradeMode(Boolean(getGradeGroups(product)))
     setPickerSelections(defaults)
     setGalleryIndex(0)
     setError('')
