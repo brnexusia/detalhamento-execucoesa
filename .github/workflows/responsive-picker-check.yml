@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - 'src/PublicStoreV2.tsx'
+      - 'src/responsive-media.ts'
+      - 'tests/shopvax-responsive-media.e2e.mjs'
       - 'src/api.ts'
       - 'tests/shopvax-network-recovery.e2e.mjs'
       - 'src/product-picker-responsive.css'
@@ -102,6 +104,8 @@ jobs:
           exit 1
       - name: Browser regression across viewport sizes
         run: node tests/product-picker-responsive.e2e.mjs
+      - name: Fotos locais responsivas sem quebrar URLs externas
+        run: node tests/shopvax-responsive-media.e2e.mjs
       - name: Official design layer 05 - desktop product as a page, related products and mobile modal
         run: node tests/shopvax-desktop-product-05.e2e.mjs
       - name: Official design layer 05 - desktop cart ticket always visible
