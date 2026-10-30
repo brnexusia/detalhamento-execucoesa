@@ -21,6 +21,8 @@ try{
   await context.route('https://wa.me/**',route=>route.fulfill({status:200,body:'ok'}))
   await page.goto('http://127.0.0.1:5173/sw-moda')
   await page.locator('.product-card__media').first().click()
+  assert(await page.locator('.svx-grade').isVisible(),'Cor e tamanho abrem na grade por padrão')
+  await page.getByRole('button',{name:'Uma variação'}).click()
   await page.locator('.picker-add').click()
   await page.locator('.cart-trigger').click()
   await page.getByRole('button',{name:/Revisar talão/}).click()
