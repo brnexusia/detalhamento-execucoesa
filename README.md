@@ -13,7 +13,7 @@ O cliente descobre produtos no feed ou entra pelo link da loja/vendedora, escolh
 - continuidade da vendedora atribuída;
 - botão Perguntar para WhatsApp;
 - prioridade de distribuição por plano e diversidade entre lojas;
-- no Ouro, cálculo de frete e finalização opcional por checkout hospedado do Asaas.
+- pagamento e frete automáticos permanecem fora do MVP aprovado; módulos opcionais existentes no código não equivalem a funcionalidade comercial homologada.
 
 ## Importação de catálogo por PDF
 
@@ -37,7 +37,7 @@ A imagem dos produtos é guardada na loja como mídia local. Não confundir essa
 - métricas de intenção e funil;
 - crescimento: cupons, recuperação de carrinho, avaliações e indicação;
 - configurações comerciais;
-- no Ouro, área de integrações para Asaas, frete, Meta Shopping e API/ERP.
+- as integrações experimentais Asaas, frete, Meta Shopping e API/ERP existentes no código ficam fora do escopo comercial do MVP e não devem ser anunciadas como concluídas.
 
 ## Planos do MVP
 
@@ -46,8 +46,9 @@ Os planos comerciais são **Bronze, Prata e Ouro**. Os mesmos nomes são usados 
 | Regra base | Bronze | Prata | Ouro |
 | --- | ---: | ---: | ---: |
 | Mensal | R$ 49,90 | R$ 94,90 | R$ 144,90 |
-| Vendedoras | 2 | 4 | Ilimitadas |
-| Fotos por produto | 5 | 10 | 10 |
+| Produtos | 500 | 2.000 | Ilimitados |
+| Vendedoras | 5 | 15 | Ilimitadas |
+| Fotos por produto | 5 | 10 | Ilimitadas |
 | Catálogos | 1 | 3 | Ilimitados |
 | Franqueados | 0 | 2 | Ilimitados |
 | Tráfego interno | Baixa prioridade | Média prioridade | Alta prioridade |
@@ -62,9 +63,11 @@ Os planos comerciais são **Bronze, Prata e Ouro**. Os mesmos nomes são usados 
 | Feed Meta Shopping | — | — | Sim |
 | API / ERP | — | — | Sim |
 
-Produtos não possuem mais o teto legado de 500/2.000 unidades nos planos padrão. Semestral usa 5% de desconto e anual 15% por padrão na configuração comercial. O cadastro público mostra o valor mensal para não sugerir um ciclo de cobrança que ainda não é selecionável pelo lojista.
+Produtos possuem limites aprovados de 500 no Bronze e 2.000 no Prata; o Ouro é ilimitado. A migração da versão 3 ajusta planos de sistema sem excluir produtos ou vendedoras existentes; lojas acima do teto preservam seus registros, mas não podem criar novos itens sem adequação ou upgrade. Semestral usa 5% de desconto e anual 15% por padrão na configuração comercial. O cadastro público mostra o valor mensal para não sugerir um ciclo de cobrança que ainda não é selecionável pelo lojista.
 
 **Vax Lar permanece como recurso futuro do Ouro e não deve ser tratado como funcionalidade pronta do MVP.**
+
+**Fonte de verdade comercial:** decisões aprovadas para Bronze/Prata/Ouro, incluindo o Ouro sem limite de fotos. O fechamento da transação permanece com a vendedora no WhatsApp; o clique não é venda confirmada. Recursos financeiros e logísticos experimentais não alteram esse escopo sem aprovação específica.
 
 ### Fase 1 de fechamento
 
