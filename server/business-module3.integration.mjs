@@ -31,6 +31,11 @@ async function admin(path, cookie, options = {}) {
 try {
   await waitForServer()
   const account = await register()
+  const seller = await admin('/api/admin/sellers', account.cookie, {
+    method: 'POST',
+    body: JSON.stringify({ name: 'Vendedora Catálogo', phone: '5511987700456', isActive: true }),
+  })
+  assert.equal(seller.status, 201, 'Para criar pedido a loja deve ter vendedora ativa')
   const sourceImage = await sharp({
     create: { width: 1200, height: 600, channels: 3, background: '#d8d1c4' },
   }).jpeg({ quality: 90 }).toBuffer()
