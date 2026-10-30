@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { LogIn, UserRound } from 'lucide-react'
 import './customer-account.css'
+import { listenAuthChanges } from './auth-session-sync'
 
 type StoreConfig = {
   customerLoginEnabled: boolean
@@ -46,7 +47,19 @@ export default function CustomerAccountLauncher() {
       })
       .catch(() => undefined)
 
+    const refresh = () => {
+      setSignedIn(false)
+      fetch(`/api/public/store/${encodeURIComponent(storeSlug)}/customers/me`, { credentials: 'include' })
+        .then(response => { if (mounted) setSignedIn(response.ok) })
+        .catch(() => { if (mounted) setSignedIn(false) })
+    }
+    const unsubscribe = listenAuthChanges('customer', refresh)
+    const onFocus = () => { if (document.visibilityState === 'visible') refresh() }
+    window.addEventListener('focus', onFocus)
+
     return () => {
+      unsubscribe()
+      window.removeEventListener('focus', onFocus)
       mounted = false
       delete root.dataset.shopvaxStoreTheme
       root.style.removeProperty('--shopvax-store-bg')
