@@ -90,7 +90,7 @@ export async function apiRequest<T>(url: string, options: RequestInit = {}): Pro
       ? 'owner'
       : /^\/api\/public\/(customers\/logout|store\/[^/]+\/customers\/(login|register))$/.test(url)
         ? 'customer' : null
-    if (scope) notifyAuthChange(scope)
+    if (scope && (url !== '/api/auth/google' || payload?.ok === true)) notifyAuthChange(scope)
   }
   return payload as T
 }
