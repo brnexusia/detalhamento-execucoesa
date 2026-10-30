@@ -34,6 +34,10 @@ try {
    await page.goto('http://127.0.0.1:5173/'+tc.slug)
    await page.locator('.product-card__media').first().click()
    await page.locator('.product-picker').waitFor()
+   if(tc.slug==='sw-moda-feminina'){
+    assert(await page.locator('.svx-grade').isVisible(),'Fashion product starts with grade per SVG 03')
+    await page.getByRole('button',{name:'Uma variação'}).click()
+   }
    for(const group of tc.product.variations){
     await page.getByRole('button',{name:group.options[0],exact:true}).last().click()
    }
