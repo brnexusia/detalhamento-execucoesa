@@ -26,7 +26,7 @@
 .svx-themes__preview-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;font-size:11px;font-weight:800;letter-spacing:.07em;margin-bottom:15px}
 .svx-themes__preview-bar small{font-size:11px;letter-spacing:0;font-weight:400}
 .svx-themes__sample{background:var(--theme-sample-surface);min-height:315px;border:1px solid var(--theme-sample-accent);overflow:hidden}
-.svx-themes__sample-top,.svx-themes__sample-footer{background:var(--theme-sample-bg);color:#fff;font:800 11px 'Archivo Narrow',sans-serif;padding:12px 15px;display:flex;gap:18px;white-space:nowrap;overflow:hidden}
+.svx-themes__sample-top,.svx-themes__sample-footer{background:var(--theme-sample-bg);color:var(--theme-sample-foreground,#fff);font:800 11px 'Archivo Narrow',sans-serif;padding:12px 15px;display:flex;gap:18px;white-space:nowrap;overflow:hidden}
 .svx-themes__sample-top{border-bottom:4px solid var(--theme-sample-accent)}
 .svx-themes__sample-body{padding:25px 20px;color:var(--theme-sample-ink);background:var(--theme-sample-surface)}
 .svx-themes__sample-body small{color:var(--theme-sample-ink);text-transform:uppercase;font-weight:800;letter-spacing:.06em}
