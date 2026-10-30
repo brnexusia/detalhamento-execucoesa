@@ -1,0 +1,32 @@
+/* Temas salvos da loja: data-seasonal-theme vem do backend, nunca de prévia local. */
+.app[data-seasonal-theme="black-friday"]{--svx-season-bg:#171717;--svx-season-surface:#FFFAE4;--svx-season-ink:#171717;--svx-season-accent:#F6C544}
+.app[data-seasonal-theme="natal"]{--svx-season-bg:#174234;--svx-season-surface:#FFF7EA;--svx-season-ink:#143C30;--svx-season-accent:#D95645}
+.app[data-seasonal-theme="sao-joao"]{--svx-season-bg:#1E3F69;--svx-season-surface:#FFF8E5;--svx-season-ink:#20364B;--svx-season-accent:#F2B83C}
+.app[data-seasonal-theme]:not([data-seasonal-theme="padrao"]) .store-intro.svx-vitrine{
+  background:var(--svx-season-bg)!important;
+  border-bottom:5px solid var(--svx-season-accent);
+}
+.app[data-seasonal-theme]:not([data-seasonal-theme="padrao"]) .store-intro__ribbon{
+  background:var(--svx-season-accent)!important;color:var(--svx-season-ink)!important;
+  border-bottom:1px solid var(--svx-season-bg);
+}
+.app[data-seasonal-theme]:not([data-seasonal-theme="padrao"]) .store-intro__identity .eyebrow{
+  display:inline-block;
+  background:var(--svx-season-accent);color:var(--svx-season-ink);
+  padding:6px 12px;margin-bottom:12px;font-weight:800;letter-spacing:.06em;
+}
+.app[data-seasonal-theme]:not([data-seasonal-theme="padrao"]) .store-intro__identity h1,
+.app[data-seasonal-theme]:not([data-seasonal-theme="padrao"]) .store-intro__tagline{color:#fff!important}
+.app[data-seasonal-theme]:not([data-seasonal-theme="padrao"]) .svx-discovery{
+  background:var(--svx-season-surface);color:var(--svx-season-ink);
+  border-top:1px solid var(--svx-season-accent);
+}
+.app[data-seasonal-theme]:not([data-seasonal-theme="padrao"]) .svx-highlights{
+  border-top:4px solid var(--svx-season-accent);
+}
+.app[data-seasonal-theme]:not([data-seasonal-theme="padrao"]) .svx-vitrine__facts strong{
+  color:var(--svx-season-accent);
+}
+@media(prefers-reduced-motion:reduce){
+  .app[data-seasonal-theme] .store-intro__ribbon *{animation:none!important}
+}
