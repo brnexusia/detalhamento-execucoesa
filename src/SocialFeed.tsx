@@ -55,6 +55,8 @@ function go(path: string) {
   window.dispatchEvent(new PopStateEvent('popstate'))
 }
 
+function isFeedRoute() { return ['/', '/feed', '/descobrir'].includes(window.location.pathname) }
+
 function readFeedSession(): FeedSession | null {
   try {
     const raw = sessionStorage.getItem(feedSessionKey) || 'null'
@@ -296,6 +298,7 @@ export default function SocialFeed() {
   const [activeCart, setActiveCart] = useState<SocialPost['store'] | null>(null)
   const [cartVersion, setCartVersion] = useState(0)
   const [activeIndex, setActiveIndex] = useState(() => restoredIndex.current)
+  const [restoreEpoch, setRestoreEpoch] = useState(0)
   const saveData = useMemo(() => { const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection; return Boolean(connection?.saveData || ['slow-2g', '2g'].includes(connection?.effectiveType || '') || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) }, [])
 
   const persist = useCallback(() => {
@@ -377,6 +380,36 @@ export default function SocialFeed() {
       list.style.scrollSnapType = ''
       list.style.overflowAnchor = previousAnchor
     }
+  }, [restoreEpoch])
+
+  // React 19 Suspense can hide/reveal the same mounted feed when switching
+  // /feed <-> /perfil. Rehydrate on history return and on effect re-attachment,
+  // not only in the component's first-mount initializer.
+  useEffect(() => {
+    let wasFeed = isFeedRoute()
+    const resumeFromProfile = () => {
+      if (!isFeedRoute()) { wasFeed = false; return }
+      const anchor = window.history.state?.shopvaxFeedPosition as { postId?: string; index?: number } | undefined
+      if ((!anchor && wasFeed) || restorationPendingRef.current) { wasFeed = true; return }
+      wasFeed = true
+      const cached = readFeedSession()
+      if (!cached?.posts?.length) return
+      const indexById = cached.posts.findIndex((post) => post.id === (anchor?.postId || cached.activePostId))
+      const index = indexById >= 0 ? indexById : Math.min(cached.posts.length - 1,
+        Math.max(0, anchor?.index ?? Math.round(cached.scrollTop / Math.max(1, window.innerHeight))))
+      restoredIndex.current = index
+      restorationPendingRef.current = true
+      restoredAnchorLockRef.current = true
+      scrollTopRef.current = index * Math.max(1, listRef.current?.clientHeight || window.innerHeight)
+      setPosts(cached.posts)
+      setCursor(cached.cursor)
+      setHasMore(cached.hasMore)
+      setActiveIndex(index)
+      setRestoreEpoch((value) => value + 1)
+    }
+    window.addEventListener('popstate', resumeFromProfile)
+    if (isFeedRoute() && window.history.state?.shopvaxFeedPosition) resumeFromProfile()
+    return () => window.removeEventListener('popstate', resumeFromProfile)
   }, [])
 
   useEffect(() => {
