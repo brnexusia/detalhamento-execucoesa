@@ -73,7 +73,7 @@ function ProductMedia({ product, className = '', playWhenVisible = false }: { pr
   const [visible, setVisible] = useState(false)
   const saveData = useMemo(() => {
     const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection
-    return Boolean(connection?.saveData || ['slow-2g', '2g'].includes(connection?.effectiveType || ''))
+    return Boolean(connection?.saveData || ['slow-2g', '2g'].includes(connection?.effectiveType || '') || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)
   }, [])
   useEffect(() => {
     if (product.mediaType !== 'video' || !videoRef.current) return
