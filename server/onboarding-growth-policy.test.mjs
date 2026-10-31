@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { normalizePreferences, shouldShowAcquisition, validateSupportInput, ONBOARDING_CONFIRMABLE } from './onboarding-growth-policy.mjs'
+import { normalizePreferences, shouldShowAcquisition, validateSupportInput, validateSupportQuestion, ONBOARDING_CONFIRMABLE } from './onboarding-growth-policy.mjs'
 
 const stores = ['store-a', 'store-b']
 test('opt-in explícito por canal; pedido não equivale a consentimento', () => {
@@ -37,4 +37,14 @@ test('suporte exige propósito, texto proporcional e ciência da coleta', () => 
 test('somente etapas explicitamente confirmáveis podem ser registradas', () => {
   assert.deepEqual([...ONBOARDING_CONFIRMABLE], ['minimum_reviewed', 'preview_opened', 'whatsapp_understood'])
   assert.equal(ONBOARDING_CONFIRMABLE.has('seller_created'), false)
+})
+
+test('assistência IA bloqueia identificadores e exige ciência voluntária', () => {
+  const sample = { audience:'buyer',topic:'order',question:'Como preparo um talão para a vendedora?',privacyAcknowledged:true }
+  assert.equal(validateSupportQuestion(sample).topic,'order')
+  assert.throws(()=>validateSupportQuestion({...sample,question:'Contate eu@exemplo.com'}),/Não envie/)
+  assert.throws(()=>validateSupportQuestion({...sample,question:'Meu telefone 5511989999999'}),/Não envie/)
+  assert.throws(()=>validateSupportQuestion({...sample,privacyAcknowledged:false}),/Confirme/)
+  assert.throws(()=>validateSupportQuestion({...sample,question:'oi'}),/8 e 600/)
+  assert.throws(()=>validateSupportQuestion({...sample,topic:'financial-advice'}),/Assunto/)
 })
