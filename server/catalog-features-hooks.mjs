@@ -590,7 +590,7 @@ async function createCatalogOrder(req, res) {
     const notes = safeText(req.body?.notes, 500)
     const code = `AS-${Date.now().toString().slice(-6)}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`
     const orderId = id()
-    await client.query('INSERT INTO orders (id,code,store_id,seller_id,catalog_id,total,items,status,buyer,notes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [orderId, code, store.id, seller?.id || null, catalog.id, total, JSON.stringify(items), 'whatsapp', JSON.stringify(buyer), notes])
+    await client.query('INSERT INTO orders (id,code,store_id,seller_id,catalog_id,total,items,status,buyer,notes,customer_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)', [orderId, code, store.id, seller?.id || null, catalog.id, total, JSON.stringify(items), 'whatsapp', JSON.stringify(buyer), notes, req.shopvaxCustomerId || null])
     await client.query('INSERT INTO events (id,store_id,seller_id,kind) VALUES ($1,$2,$3,$4)', [id(), store.id, seller?.id || null, 'whatsapp'])
     await client.query('COMMIT')
     const formatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })

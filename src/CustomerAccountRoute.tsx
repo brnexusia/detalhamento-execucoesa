@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ArrowLeft, CheckCircle2, LogOut, PackageCheck, UserRound } from 'lucide-react'
 import { apiRequest } from './api'
 import './customer-account.css'
@@ -21,20 +21,35 @@ type StoreConfig = {
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 const date = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium', timeStyle: 'short' })
 
+function customerStoreSlug() {
+  return window.location.pathname.split('/').filter(Boolean)[1] || ''
+}
+
 function go(path: string) {
   window.history.pushState({}, '', path)
   window.dispatchEvent(new PopStateEvent('popstate'))
 }
 
 function statusLabel(value: string) {
+  if (value === 'whatsapp') return 'Pedido preparado'
   if (value === 'em_atendimento') return 'Em atendimento'
+  if (value === 'confirmado') return 'Confirmado pela loja'
   if (value === 'arquivado') return 'Arquivado'
   if (value === 'cancelled') return 'Cancelado'
-  return 'Enviado ao WhatsApp'
+  return 'Status em atualização'
+}
+
+function statusExplanation(value: string) {
+  if (value === 'whatsapp') return 'Talão registrado. Abrir o WhatsApp não confirma que a mensagem foi enviada.'
+  if (value === 'em_atendimento') return 'A loja marcou este pedido como em atendimento.'
+  if (value === 'confirmado') return 'Confirmação manual da loja; não significa pagamento recebido.'
+  if (value === 'arquivado') return 'Talão arquivado pela loja. Consulte a vendedora para detalhes.'
+  if (value === 'cancelled') return 'Pedido cancelado. Estoque devolvido quando aplicável.'
+  return 'Consulte a loja para verificar a situação deste talão.'
 }
 
 export default function CustomerAccountRoute() {
-  const storeSlug = useMemo(() => window.location.pathname.split('/').filter(Boolean)[1] || '', [])
+  const [storeSlug, setStoreSlug] = useState(customerStoreSlug)
   const [config, setConfig] = useState<StoreConfig | null>(null)
   const [account, setAccount] = useState<AccountPayload | null>(null)
   const [mode, setMode] = useState<'login' | 'register'>('login')
@@ -44,11 +59,18 @@ export default function CustomerAccountRoute() {
   const [error, setError] = useState('')
   const accountVersion = useRef(0)
 
+  // A rota de conta permanece montada quando o SPA muda entre /cliente/loja-a e /cliente/loja-b.
+  useEffect(() => {
+    const onRoute = () => setStoreSlug(customerStoreSlug())
+    window.addEventListener('popstate', onRoute)
+    return () => window.removeEventListener('popstate', onRoute)
+  }, [])
+
   const loadAccount = async () => {
     const version = ++accountVersion.current
     try {
       const result = await apiRequest<AccountPayload>(`/api/public/store/${encodeURIComponent(storeSlug)}/customers/me`)
-      if (version === accountVersion.current) setAccount(result)
+      if (version === accountVersion.current) { setAccount(result); setError('') }
       return true
     } catch (err) {
       const status = (err as Error & { status?: number }).status
@@ -62,6 +84,12 @@ export default function CustomerAccountRoute() {
 
   useEffect(() => {
     let mounted = true
+    accountVersion.current += 1
+    setConfig(null)
+    setAccount(null)
+    setError('')
+    setLoading(true)
+    setForm({ name: '', email: '', phone: '', password: '' })
     Promise.all([
       apiRequest<StoreConfig>(`/api/public/store/${encodeURIComponent(storeSlug)}/phase2-config`),
       loadAccount(),
@@ -76,7 +104,8 @@ export default function CustomerAccountRoute() {
     const unsubscribe = listenAuthChanges('customer', revalidate)
     const onFocus = () => { if (document.visibilityState === 'visible') revalidate() }
     window.addEventListener('focus', onFocus)
-    return () => { unsubscribe(); window.removeEventListener('focus', onFocus) }
+    document.addEventListener('visibilitychange', onFocus)
+    return () => { unsubscribe(); window.removeEventListener('focus', onFocus); document.removeEventListener('visibilitychange', onFocus) }
   }, [storeSlug])
 
   const submit = async () => {
@@ -93,12 +122,21 @@ export default function CustomerAccountRoute() {
   }
 
   const logout = async () => {
-    await apiRequest('/api/public/customers/logout', { method: 'POST' }).catch(() => undefined)
-    setAccount(null)
-    setMode('login')
+    if (busy) return
+    setBusy(true); setError('')
+    try {
+      // Só descartar o estado depois de o servidor confirmar a revogação.
+      await apiRequest('/api/public/customers/logout', { method: 'POST' })
+      accountVersion.current += 1
+      setAccount(null)
+      setForm({ name: '', email: '', phone: '', password: '' })
+      setMode('login')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível sair. Verifique a conexão e tente novamente.')
+    } finally { setBusy(false) }
   }
 
-  if (loading) return <div className="customer-page"><div className="customer-card customer-loading"><UserRound size={28}/><strong>Abrindo sua conta…</strong></div></div>
+  if (loading || storeSlug !== customerStoreSlug() || (config && config.store.slug !== storeSlug)) return <div className="customer-page"><div className="customer-card customer-loading"><UserRound size={28}/><strong>Abrindo sua conta…</strong></div></div>
   if (!config) return <div className="customer-page"><div className="customer-card"><h1>Loja não encontrada</h1><p>{error}</p></div></div>
 
   const accent = config.store.accent || '#F25C05'
@@ -108,8 +146,8 @@ export default function CustomerAccountRoute() {
       <header className="customer-store-head">{config.store.logoUrl ? <img src={config.store.logoUrl} alt=""/> : <span>SV</span>}<div><small>Conta do cliente</small><strong>{config.store.name}</strong></div></header>
 
       {!config.customerLoginEnabled ? <section className="customer-card"><h1>Conta de cliente indisponível</h1><p>Esta loja desativou temporariamente o acesso por conta.</p></section> : account ? <>
-        <section className="customer-card customer-profile"><div><small>Olá,</small><h1>{account.customer.name}</h1><p>{account.customer.email}</p></div><button onClick={logout}><LogOut size={16}/> Sair</button></section>
-        <section className="customer-card"><div className="customer-section-head"><div><small>Histórico</small><h2>Seus pedidos</h2></div><strong>{account.orders.length}</strong></div><p className="customer-semantics">{account.semantics}</p><div className="customer-orders">{account.orders.map((order) => <article key={order.id}><div className="customer-order-top"><div><small>{date.format(new Date(order.created_at))}</small><strong>{order.code}</strong></div><span className={`customer-status status-${order.status}`}><CheckCircle2 size={14}/>{statusLabel(order.status)}</span></div><div className="customer-order-info"><span>{(() => { const total = order.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0); return `${total} ${total === 1 ? 'item' : 'itens'}` })()}</span><span>{order.seller_name ? `Atendimento: ${order.seller_name}` : 'Atendimento da loja'}</span><b>{money.format(order.total)}</b></div></article>)}{!account.orders.length && <div className="customer-empty"><PackageCheck size={30}/><strong>Nenhum pedido ainda.</strong><p>Quando você enviar um carrinho para o atendimento, ele aparecerá aqui.</p></div>}</div></section>
+        <section className="customer-card customer-profile"><div><small>Olá,</small><h1>{account.customer.name}</h1><p>{account.customer.email}</p></div><button disabled={busy} onClick={logout}><LogOut size={16}/> {busy ? 'Saindo…' : 'Sair'}</button></section>{error && <div className="customer-error" role="alert">{error}</div>}
+        <section className="customer-card"><div className="customer-section-head"><div><small>Histórico</small><h2>Seus pedidos</h2></div><strong>{account.orders.length}</strong></div><p className="customer-semantics">{account.semantics}</p><div className="customer-orders">{account.orders.map((order) => <article key={order.id}><div className="customer-order-top"><div><small>{date.format(new Date(order.created_at))}</small><strong>{order.code}</strong></div><span className={`customer-status status-${order.status}`}><CheckCircle2 size={14}/>{statusLabel(order.status)}</span></div><div className="customer-order-info"><span>{(() => { const total = order.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0); return `${total} ${total === 1 ? 'item' : 'itens'}` })()}</span><span>{order.seller_name ? `Atendimento: ${order.seller_name}` : 'Atendimento da loja'}</span><b>{money.format(order.total)}</b></div><p className="customer-order-explanation">{statusExplanation(order.status)}</p></article>)}{!account.orders.length && <div className="customer-empty"><PackageCheck size={30}/><strong>Nenhum pedido ainda.</strong><p>Quando você preparar um pedido nesta loja com sua conta, ele aparecerá aqui.</p></div>}</div></section>
       </> : <section className="customer-card customer-auth">
         <div className="customer-tabs"><button className={mode === 'login' ? 'is-active' : ''} onClick={() => setMode('login')}>Entrar</button><button className={mode === 'register' ? 'is-active' : ''} onClick={() => setMode('register')}>Criar conta</button></div>
         <div><small>Cliente {config.store.name}</small><h1>{mode === 'login' ? 'Acesse seus pedidos' : 'Crie sua conta'}</h1><p>Use sua conta para acompanhar os pedidos registrados nesta loja.</p></div>
