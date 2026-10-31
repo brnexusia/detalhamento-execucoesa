@@ -62,6 +62,10 @@ jobs:
           PERF_NETWORK: ${{ matrix.network }}
           PERF_OUTPUT_DIR: artifacts/shopvax-public-performance
         run: node tests/shopvax-public-performance.e2e.mjs --${{ matrix.version }}
+      - name: Local public-store virtual feed and grade regression
+        if: matrix.version == 'candidate'
+        working-directory: app
+        run: node tests/shopvax-local-feed-window.e2e.mjs
       - name: Upload machine-readable benchmark
         if: always()
         uses: actions/upload-artifact@v4
