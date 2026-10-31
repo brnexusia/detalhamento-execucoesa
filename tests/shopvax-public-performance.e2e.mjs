@@ -102,6 +102,11 @@ try {
   await addButton.click()
   const countAfter = await page.evaluate(() => JSON.parse(localStorage.getItem('shopvax-cart-v1:loja-teste') || '[]').length)
   assert.equal(countAfter, countBefore + 1, 'Montar pedido precisa manter gravação do carrinho')
+  const beforeNavigation = await page.locator('.social-feed-list').evaluate((list) =>
+    list.scrollTop / Math.max(1, list.clientHeight))
+  if (mode === 'candidate') {
+    assert(beforeNavigation >= 180, `A janela virtual perdeu o scroll ANTES da navegação: ${beforeNavigation}`)
+  }
   const activeName = await page.locator('.social-feed-card h2').last().innerText()
   const firstIndex = Number(activeName.replace(/\D/g, ''))
   await page.locator('.social-feed-store').last().click()
