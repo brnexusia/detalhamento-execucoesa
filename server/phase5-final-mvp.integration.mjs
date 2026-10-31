@@ -113,6 +113,10 @@ try {
   assert.equal(ouroPlan.rows[0].photo_limit, null, 'Ouro deve permanecer sem limite de fotos por produto')
 
   await pool.query("UPDATE stores SET plan_tier='ouro',updated_at=now() WHERE id=$1", [targetStore.id])
+  result = await request('/api/admin/phase5/status', { cookie: target.cookie })
+  assert.equal(result.response.status, 200, JSON.stringify(result.payload))
+  assert.equal(result.payload.plan.limits.photosPerProduct, null,
+    'Resumo do painel Ouro deve refletir fotos ilimitadas, como a regra do banco')
   const unlimitedImages = Array.from({ length: 24 }, (_, index) => `https://cdn.example.test/ouro-${index + 1}.jpg`)
   await pool.query(
     `INSERT INTO products (id,store_id,sku,name,description,price,category,media_url,media_type,images)
