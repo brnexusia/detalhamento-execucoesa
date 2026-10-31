@@ -34,21 +34,31 @@ try {
   for(const reduce of ['no-preference','reduce']){
     const page=await browser.newPage({viewport:{width:390,height:844},reducedMotion:reduce})
     await page.route('**/api/public/auth/google-config',route=>route.fulfill({status:200,contentType:'application/json',body:'{"enabled":false}'}))
-    await page.route('**/api/auth/login',async route=>{
-      await new Promise(resolve=>setTimeout(resolve,950))
-      await route.fulfill({status:401,contentType:'application/json',body:'{"error":"Credenciais inválidas."}'})
-    })
+    await page.route('**/api/auth/login',route=>route.fulfill({status:200,contentType:'application/json',body:'{"ok":true}'}))
     await page.goto('http://127.0.0.1:5173/entrar')
     await page.locator('.auth-form input[type="email"]').fill('teste@example.test')
     await page.locator('.auth-form input[type="password"]').fill('senha-local-de-teste')
-    await page.locator('.auth-form>.primary-action').click()
-    const mark=page.locator('.svx-auth-loading-overlay .svx-brand-motion.is-animating')
-    await mark.waitFor()
-    await page.waitForTimeout(210)
-    const animation=await mark.locator('.svx-brand-motion__assembly').evaluate(el=>getComputedStyle(el).animationName)
-    assert.equal(animation,reduce==='reduce'?'none':'svx-mark-assembled-spin')
     assert.equal(await page.locator('.auth-poster .wordmark > img').count(),2,
       'O login precisa do símbolo oficial e do wordmark, sem composição improvisada')
+    await page.locator('.auth-form>.primary-action').click()
+    if(reduce==='no-preference') {
+      const mark=page.locator('.svx-auth-loading-overlay .svx-brand-motion.is-animating')
+      await mark.waitFor()
+      const state=await mark.evaluate(el=>({
+        assembly:getComputedStyle(el.querySelector('.svx-brand-motion__assembly')).animationName,
+        exit:getComputedStyle(el.querySelector('.svx-brand-motion__symbol')).animationName,
+        background:getComputedStyle(el.closest('.svx-auth-loading-overlay')).backgroundColor,
+        lower:getComputedStyle(el.querySelector('.svx-brand-motion__a')).fill,
+        upper:getComputedStyle(el.querySelector('.svx-brand-motion__v')).fill,
+      }))
+      assert.equal(state.assembly,'svx-mark-assembled-spin')
+      assert.equal(state.exit,'svx-mark-exit')
+      assert.equal(state.background,'rgb(22, 21, 20)')
+      assert.equal(state.lower,'rgb(243, 240, 232)')
+      assert.equal(state.upper,'rgb(242, 92, 5)')
+      assert.equal(new URL(page.url()).pathname,'/entrar','O login só deve navegar após o ciclo')
+    }
+    await page.waitForURL('**/painel',{timeout:7000})
     await page.close()
   }
 } finally { await browser.close() }
