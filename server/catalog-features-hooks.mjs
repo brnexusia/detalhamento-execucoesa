@@ -392,10 +392,21 @@ async function protectedStore(req, res) {
 
   let seller = null
   if (req.params.sellerSlug) {
-    const sellerResult = await pool.query('SELECT id,slug,name,phone FROM sellers WHERE store_id=$1 AND slug=$2 AND is_active=true LIMIT 1', [store.id, req.params.sellerSlug])
+    const sellerResult = await pool.query(
+      "SELECT id,slug,name,phone FROM sellers WHERE store_id=$1 AND slug=$2 AND is_active=true AND length(regexp_replace(phone,'[^0-9]','','g'))>=10 LIMIT 1",
+      [store.id, req.params.sellerSlug],
+    )
     seller = sellerResult.rows[0] || null
   }
-  if (!seller) seller = { id: null, slug: '', name: 'Atendimento', phone: store.whatsapp }
+  if (!seller) {
+    // URL geral ou vendedora indisponível: usar somente uma vendedora ativa, nunca o número da loja.
+    const available = await pool.query(
+      "SELECT id,slug,name,phone FROM sellers WHERE store_id=$1 AND is_active=true AND length(regexp_replace(phone,'[^0-9]','','g'))>=10 ORDER BY created_at ASC,id ASC LIMIT 1",
+      [store.id],
+    )
+    seller = available.rows[0] || null
+  }
+  if (!seller) seller = { id: null, slug: '', name: 'Atendimento indisponível', phone: '' }
 
   const q = String(req.query.q || '').trim().slice(0, 100)
   const category = String(req.query.category || '').trim().slice(0, 80)
