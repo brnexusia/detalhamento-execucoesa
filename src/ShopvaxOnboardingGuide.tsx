@@ -41,10 +41,10 @@ export default function ShopvaxOnboardingGuide({ data, storeUrl, onSection }: {
   const confirm = async (step: string) => {
     if (busy) return
     if (step === 'preview_opened') {
-      const opened = window.open(storeUrl, '_blank', 'noopener,noreferrer')
-      // Alguns navegadores retornam null com noopener mesmo quando abriram a aba;
-      // o registro descreve a tentativa explícita, nunca garante carregamento da loja.
-      if (!opened) setError('Se a prévia foi bloqueada, abra a loja pelo link do painel e retome esta etapa.')
+      const opened = window.open(storeUrl, '_blank')
+      if (!opened) { setError('Seu navegador bloqueou a prévia. Permita o pop-up e tente novamente.'); return }
+      opened.opener = null
+      // Confirma apenas que uma nova aba foi aberta, nunca uma venda ou pagamento.
     }
     setBusy(true); setError('')
     try {
