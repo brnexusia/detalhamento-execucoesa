@@ -211,6 +211,7 @@ function Products({ data, revision, query, setQuery, onCreate, onEdit, onVisibil
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [bulkBusy, setBulkBusy] = useState(false)
   const [pdfBusy, setPdfBusy] = useState(false)
+  useEffect(() => { window.dispatchEvent(new Event('shopvax:products-ready')) }, [])
   const pageSize = 18
   const [products, setProducts] = useState<AdminProduct[]>([])
   const [total, setTotal] = useState(0)
