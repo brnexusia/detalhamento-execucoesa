@@ -109,18 +109,39 @@ try {
   }
   const activeName = await page.locator('.social-feed-card h2').last().innerText()
   const firstIndex = Number(activeName.replace(/\D/g, ''))
+  fs.mkdirSync(outputDir, { recursive: true })
+  await page.screenshot({ path: `${outputDir}/${mode}-${network}-before-profile.png` })
   await page.locator('.social-feed-store').last().click()
   await page.waitForURL('**/perfil/loja-teste')
   await page.goBack({ waitUntil: 'domcontentloaded' })
   await page.locator('.social-feed-card').first().waitFor({ timeout: 20000 })
   if (mode === 'candidate') {
-    // Restoration is intentionally deferred by two animation frames in the feed.
-    // Wait for that real position instead of sampling as soon as the first DOM card mounts.
-    await page.waitForFunction(() => {
-      const list = document.querySelector('.social-feed-list')
-      return Boolean(list && list.scrollTop / Math.max(1, list.clientHeight) >= 180)
-    }, null, { timeout: 10000 })
+    try {
+      await page.waitForFunction(() => {
+        const list = document.querySelector('.social-feed-list')
+        const anchor = window.history.state?.shopvaxFeedPosition?.postId
+        return Boolean(list && anchor && list.scrollTop / Math.max(1, list.clientHeight) >= 180 &&
+          list.querySelector(`[data-post-id="${anchor}"]`))
+      }, null, { timeout: 10000 })
+    } catch (error) {
+      const diagnostics = await page.evaluate(() => {
+        const list = document.querySelector('.social-feed-list')
+        const cached = JSON.parse(sessionStorage.getItem('shopvax_social_feed_state_v3') || 'null')
+        return { url: location.href, state: history.state, scrollTop: list?.scrollTop,
+          clientHeight: list?.clientHeight, scrollHeight: list?.scrollHeight,
+          snap: list ? getComputedStyle(list).scrollSnapType : null,
+          firstCard: list?.querySelector('.social-feed-card')?.getAttribute('data-post-id'),
+          cardIds: Array.from(list?.querySelectorAll('.social-feed-card') || []).map(x => x.getAttribute('data-post-id')),
+          cachedScroll: cached?.scrollTop, cachedAnchor: cached?.activePostId,
+          cachedCount: cached?.posts?.length }
+      })
+      fs.writeFileSync(`${outputDir}/${mode}-${network}-restore-failure.json`, JSON.stringify(diagnostics, null, 2))
+      await page.screenshot({ path: `${outputDir}/${mode}-${network}-restore-failure.png` })
+      console.error('SHOPVAX_RESTORE_DIAGNOSTICS', JSON.stringify(diagnostics))
+      throw error
+    }
   }
+  await page.screenshot({ path: `${outputDir}/${mode}-${network}-restored.png` })
   const returnPosition = await page.locator('.social-feed-list').evaluate((list) => list.scrollTop / Math.max(1, list.clientHeight))
   if (mode === 'candidate') {
     assert(returnPosition >= 180, `Navegação de volta perdeu posição: ${returnPosition}`)
@@ -132,7 +153,9 @@ try {
     transitions, apiPayloadBytes: Buffer.byteLength(mockBody),
     samples, swipeToTwoFramesP50Ms: sorted[Math.floor(sorted.length * .5)],
     swipeToTwoFramesP95Ms: sorted[Math.floor(sorted.length * .95)],
-    restoredPositionInScreens: returnPosition, cartPersisted: countAfter === countBefore + 1, activeName, firstIndex,
+    restoredPositionInScreens: returnPosition,
+    restoredPostId: await page.evaluate(() => document.querySelector('.social-feed-card[data-post-id="' + window.history.state?.shopvaxFeedPosition?.postId + '"]')?.getAttribute('data-post-id') || null),
+    cartPersisted: countAfter === countBefore + 1, activeName, firstIndex,
     warning: 'TTFB/LCP/CLS e bytes são de laboratório com Vite e mock; não representam produção. INP real, memória Safari iOS e bateria não foram medidos.',
   }
   fs.mkdirSync(outputDir, { recursive: true })
