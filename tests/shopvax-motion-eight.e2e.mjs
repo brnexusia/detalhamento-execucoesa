@@ -43,6 +43,26 @@ try {
    assert(state.width>0,'ticker unit must be measurable')
    if(reduce==='reduce') assert.equal(state.name,'none')
    else assert.equal(state.name,'svx-ribbon-scroll')
+   // C05: ampliar a viewport não pode introduzir um espaço vazio durante a fita.
+   await page.setViewportSize({width:1440,height:900})
+   await page.waitForFunction(() => {
+     const ticker = document.querySelector('.svx-motion-ticker')
+     const first = ticker?.querySelector('.svx-motion-ticker__unit')
+     return Boolean(first && ticker && first.getBoundingClientRect().width >= ticker.getBoundingClientRect().width)
+   })
+   const ribbon = await ticker.evaluate(el => ({
+     first:el.firstElementChild?.getBoundingClientRect().width || 0,
+     second:el.lastElementChild?.getBoundingClientRect().width || 0,
+     viewport:el.parentElement?.getBoundingClientRect().width || 0,
+     repeatFirst:el.firstElementChild?.children.length || 0,
+     repeatSecond:el.lastElementChild?.children.length || 0,
+     seconds:parseFloat(getComputedStyle(el).animationDuration),
+   }))
+   assert(ribbon.first>=ribbon.viewport,'ticker group must cover viewport: '+JSON.stringify(ribbon))
+   assert(Math.abs(ribbon.first-ribbon.second)<1,'ticker groups must match for seamless loop: '+JSON.stringify(ribbon))
+   assert.equal(ribbon.repeatFirst,ribbon.repeatSecond,'ticker groups must repeat equally')
+   assert(Math.abs(ribbon.seconds-ribbon.first/40)<.15,'ticker must maintain 40px/s: '+JSON.stringify(ribbon))
+   await page.setViewportSize({width:390,height:844})
    await page.locator('.topbar .cart-trigger').click()
    const segments=await page.locator('.svx-minimum-segments i').count()
    assert.equal(segments,20)
