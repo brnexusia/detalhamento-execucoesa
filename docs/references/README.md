@@ -1,20 +1,24 @@
-# Fontes do ShopVax — acervo oficial para o Codex
+# Referências originais do ShopVax — roteiro de acesso para o Codex
 
-## Disponível no GitHub
-- [Manifesto MVP — texto integral pesquisável](Shopvax_Manifesto_MVP.texto.md) — referência histórica; **não reverter preços posteriores**.
-- [Diretrizes de produto e preços — texto integral pesquisável](Atacado_Shop_Diretrizes_Produto_e_Precos.texto.md) — documento de 29/08/2026.
-- [Propostas de marca, ZIP original SVG](Shopvax_Logo_propostas.zip) — 16 pranchas vetoriais, incluindo `19 · Laranja.svg`.
-- [Prévias da marca, ZIP original PNG](Shopvax_Logo_previews_png.zip) — oito imagens de referência.
-- [Redesign original completo — ZIP em 11 partes](redesign-original-parts/README.md) — **mesmos bytes do ZIP-fonte de 12.897.131 bytes**; recompor conforme instruções e testar com `unzip -t`. Nove pranchas SVG oficiais.
-- [Revisão histórica de UX, editada para retirar número demonstrativo](Atacado_Shop_UX_historico.md) — observações anteriores, não substituem os SVGs aprovados.
-- [Handoff integral do Codex](../CODEX_HANDOFF_FINALIZACAO.md).
+Este repositório guarda o código, testes, documentação e **transcrições pesquisáveis** de fontes de produto; os arquivos visuais originais permanecem no Google Drive. Não confundir texto extraído com o PDF/ZIP original.
 
-## Diferenças de formato
-Os PDFs de escopo originais **não foram enviados como binários ao GitHub**, mas têm a transcrição textual integral. As transcrições não reproduzem gráficos ou paginação perfeita dos originais. As fontes SVG, ao contrário, estão preservadas como ZIPs originais.
+## Fontes textuais que já estão neste Git
+- [Manifesto MVP — transcrição](Shopvax_Manifesto_MVP.texto.md), referente a `Shopvax_Manifesto_MVP.pdf` (histórico, preços antigos).
+- [Diretrizes de produto e precificação — transcrição](Atacado_Shop_Diretrizes_Produto_e_Precos.texto.md), referentes ao PDF de 29/08/2026 (posterior ao manifesto). Limites, preços e decisões aprovadas no `README.md` e na implementação atual prevalecem sobre valores anteriores.
 
-## Fontes externas com acesso autorizado
-- [ZIP redesign original — Drive](https://drive.google.com/file/d/1QzU5PkuzVpxqNGYg_7x2E_T1uHxkTudU/view?usp=drivesdk).
-- [ZIP redesign PNG — Drive](https://drive.google.com/file/d/1s-JEfhZQjazt0rJuCmWGWwAxA6EDPfgO/view?usp=drivesdk).
+## Fontes visuais originais — Google Drive, não Git
+- [Redesign do catálogo ShopVax — SVG](https://drive.google.com/file/d/1QzU5PkuzVpxqNGYg_7x2E_T1uHxkTudU/view?usp=drivesdk): ZIP de pranchas vetoriais originais do redesign.
+- [Redesign do catálogo ShopVax — PNG](https://drive.google.com/file/d/1s-JEfhZQjazt0rJuCmWGWwAxA6EDPfgO/view?usp=drivesdk): versão de referência em PNG.
+- Identidade da marca: procurar no Drive `Shopvax_ Logo (propostas).zip`; a prancha escolhida é `19 · Laranja.svg`. Detalhes em `../SHOPVAX_BRAND_ASSETS.md`.
+- PDFs originais, quando disponíveis no Drive/arquivos do projeto, são necessários para gráficos, imagens e fidelidade de layout que transcrições em Markdown não preservam.
 
-## Princípios
-A marca aprovada reside em `public/brand` e `docs/SHOPVAX_BRAND_ASSETS.md`. As decisões comerciais atuais prevalecem sobre documentos históricos. O projeto é público: não adicionar credenciais, dados pessoais nem prints de conversas. Fonte real do estado técnico: código, banco, CI e testes; fonte do aceite visual: pranchas originais e evidência comparativa.
+**Verificação obrigatória para o Codex:** antes de homologar visualmente, confirmar que a sessão possui ferramentas do plugin Google Drive operantes e autorização de leitura; abrir os arquivos reais e comparar com as telas da aplicação. Um plugin listado como instalado não prova acesso efetivo. Se o Drive não estiver acessível, documentar bloqueio e não afirmar homologação pixel a pixel.
+
+Os arquivos ZIP originais **não estão incluídos nesta pasta do Git**. Apenas links/identificadores e documentação devem ficar aqui. Evitar cópias binárias desnecessárias, duplicações e exposição pública de materiais confidenciais.
+
+## Documentação e instrução principal
+- [Prompt completo do Codex para continuar e finalizar](../CODEX_CONTINUAR_FINALIZAR.md).
+- `../SHOPVAX_REDESIGN_SURFACE_AUDIT.md`, `../SHOPVAX_RELEASE_GATE.md` e `../SHOPVAX_BRAND_ASSETS.md`.
+- Código: `src/`, `server/`, `tests/`; CI: `.github/workflows/`.
+
+Nunca publicar arquivos com contatos, conversas de WhatsApp, dados pessoais, certificados, segredos ou credenciais em repositório público.
