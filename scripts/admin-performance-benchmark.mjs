@@ -54,8 +54,13 @@ try {
   const sign=await call('/api/auth/register','', 'POST',{name:'Performance Fixture',email:prefix+'@example.test',
     password:'perf-test-12345678',storeName:'Perf '+prefix,whatsapp:'5511999999999',planCode:'ouro'})
   assert.equal(sign.status,201,JSON.stringify(sign.json))
-  const cookie=sign.response.headers.get('set-cookie')?.split(';')[0] || ''
-  assert.ok(cookie.startsWith('atacado_session='))
+  // Node's Headers may expose multiple Set-Cookie values (and cookie order is not a contract).
+  // Accept only ShopVax's authenticated session cookies; never print their values.
+  const cookies = sign.response.headers.getSetCookie?.() ||
+    [sign.response.headers.get('set-cookie') || '']
+  const sessionHeader = cookies.find(value => /^(?:atacado_session|shopvax_session)=/.test(value.trim()))
+  assert.ok(sessionHeader, 'Registro HTTP 201 deve criar um cookie de sessão reconhecido')
+  const cookie = sessionHeader.split(';')[0].trim()
   const meta=await call('/api/admin/bootstrap?compact=1',cookie)
   assert.equal(meta.status,200)
   ownerId=meta.json.user.id
