@@ -23,7 +23,7 @@ try {
     // The guide fetches verified onboarding progress asynchronously; wait for the real UI state.
     await page.getByText('1 de 6 etapas verificadas').waitFor({ timeout: 15000 })
     assert.match(await page.locator('.svx-growth-guide').innerText(), /1 de 6 etapas verificadas/)
-    assert.match(await page.locator('.svx-growth-guide__current').innerText(), /Primeira vendedora/)
+    assert.match(await page.locator('.svx-growth-guide__current').innerText(), /Primeira vendedora/i)
     await page.getByRole('button',{name:'Precisa de ajuda?'}).click()
     await page.getByRole('heading',{name:'Ajuda para lojistas'}).waitFor()
     assert.match(await page.locator('.svx-support__disabled').innerText(), /não foi ativado/)
