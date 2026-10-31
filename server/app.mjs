@@ -546,18 +546,20 @@ app.get(
     const filters = ['store_id=$1']
     if (category && category !== 'Todas') {
       params.push(category)
-      filters.push('category=
+      filters.push('category=$' + params.length)
     }
     if (query) {
       params.push(query)
-      filters.push('position(
+      filters.push('position($' + params.length + " IN lower(name || ' ' || sku || ' ' || category)) > 0")
     }
     const where = filters.join(' AND ')
     const offset = (page - 1) * limit
-    const limitBind = ' = await Promise.all([
-      pool.query(`SELECT count(*)::int AS total FROM products WHERE ${where}`, params),
+    const limitBind = '$' + (params.length + 1)
+    const offsetBind = '$' + (params.length + 2)
+    const [count, found] = await Promise.all([
+      pool.query('SELECT count(*)::int AS total FROM products WHERE ' + where, params),
       pool.query(
-        `SELECT * FROM products WHERE ${where} ORDER BY created_at DESC, id DESC LIMIT ${limitBind} OFFSET ${offsetBind}`,
+        'SELECT * FROM products WHERE ' + where + ' ORDER BY created_at DESC, id DESC LIMIT ' + limitBind + ' OFFSET ' + offsetBind,
         [...params, limit, offset],
       ),
     ])
