@@ -24,7 +24,7 @@ try {
     await page.route('**/api/public/plans', route => route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({plans})}))
     await page.goto('http://127.0.0.1:5173/para-lojas')
     await page.getByRole('heading', {name:/O TALÃO DE PEDIDO, NO CELULAR/i}).waitFor()
-    await page.getByRole('heading', {name:/Escolha o tamanho do seu atacado/i}).waitFor()
+    await page.getByRole('heading', {name:/Escolha o tamanho da sua empresa ou loja/i}).waitFor()
     assert.equal(await page.locator('.svx-home-ticket__steps > div').count(),3)
     const styles = await page.evaluate(() => {
       const body = getComputedStyle(document.querySelector('.home-shell'))
