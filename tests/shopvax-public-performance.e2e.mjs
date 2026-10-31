@@ -108,6 +108,14 @@ try {
   await page.waitForURL('**/perfil/loja-teste')
   await page.goBack({ waitUntil: 'domcontentloaded' })
   await page.locator('.social-feed-card').first().waitFor({ timeout: 20000 })
+  if (mode === 'candidate') {
+    // Restoration is intentionally deferred by two animation frames in the feed.
+    // Wait for that real position instead of sampling as soon as the first DOM card mounts.
+    await page.waitForFunction(() => {
+      const list = document.querySelector('.social-feed-list')
+      return Boolean(list && list.scrollTop / Math.max(1, list.clientHeight) >= 180)
+    }, null, { timeout: 10000 })
+  }
   const returnPosition = await page.locator('.social-feed-list').evaluate((list) => list.scrollTop / Math.max(1, list.clientHeight))
   if (mode === 'candidate') {
     assert(returnPosition >= 180, `Navegação de volta perdeu posição: ${returnPosition}`)
