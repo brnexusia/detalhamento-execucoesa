@@ -33,7 +33,7 @@ export default function ShopvaxSupport() {
       .then(config => {
         setEnabled(config.ticketsEnabled === true)
         setAiEnabled(config.aiEnabled === true)
-        setSupportWhatsapp(/^\\d{11,15}$/.test(config.supportWhatsapp || '') ? config.supportWhatsapp! : null)
+        setSupportWhatsapp(/^\d{11,15}$/.test(config.supportWhatsapp || '') ? config.supportWhatsapp! : null)
       })
       .catch(() => { setEnabled(false); setAiEnabled(false); setSupportWhatsapp(null) })
   }, [])
