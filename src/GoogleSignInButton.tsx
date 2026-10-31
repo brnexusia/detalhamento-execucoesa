@@ -55,7 +55,7 @@ function loadGoogleScript() {
     document.head.appendChild(script)
   })
 
-  return googleScriptPromise
+  return googleScriptPromise.catch((error) => { googleScriptPromise = null; throw error })
 }
 
 export default function GoogleSignInButton({
@@ -73,6 +73,8 @@ export default function GoogleSignInButton({
   const callbackRef = useRef(onCredential)
   const [clientId, setClientId] = useState('')
   const [enabled, setEnabled] = useState(false)
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [error, setError] = useState('')
 
   useEffect(() => { callbackRef.current = onCredential }, [onCredential])
 
@@ -83,9 +85,10 @@ export default function GoogleSignInButton({
         if (!active) return
         setEnabled(Boolean(config.enabled && config.clientId))
         setClientId(config.clientId || '')
+        if (!config.enabled || !config.clientId) setStatus('error')
       })
       .catch(() => {
-        if (active) setEnabled(false)
+        if (active) { setEnabled(false); setStatus('error') }
       })
     return () => { active = false }
   }, [])
@@ -94,6 +97,7 @@ export default function GoogleSignInButton({
     if (!enabled || !clientId || !mountRef.current) return
     let active = true
     let resizeObserver: ResizeObserver | null = null
+    setStatus('loading'); setError('')
 
     loadGoogleScript()
       .then(() => {
@@ -104,14 +108,14 @@ export default function GoogleSignInButton({
           cancel_on_tap_outside: true,
           callback: (response) => {
             const credential = String(response?.credential || '')
-            if (credential) void callbackRef.current(credential)
+            if (credential) { setStatus('ready'); void callbackRef.current(credential) }
           },
         })
 
         const render = () => {
           if (!active || !mountRef.current || !window.google?.accounts?.id) return
           mountRef.current.replaceChildren()
-          const width = Math.max(240, Math.min(400, Math.floor(mountRef.current.getBoundingClientRect().width || 360)))
+          const width = Math.max(180, Math.min(400, Math.floor(mountRef.current.getBoundingClientRect().width || 360)))
           window.google.accounts.id.renderButton(mountRef.current, {
             type: 'standard',
             theme: 'outline',
@@ -122,14 +126,19 @@ export default function GoogleSignInButton({
             width,
             locale: 'pt-BR',
           })
+          setStatus('ready')
         }
 
         render()
-        resizeObserver = new ResizeObserver(render)
-        resizeObserver.observe(mountRef.current)
+        if (typeof ResizeObserver !== 'undefined') { resizeObserver = new ResizeObserver(render); resizeObserver.observe(mountRef.current) }
       })
       .catch((error) => {
-        if (active) onUnavailable?.(error instanceof Error ? error.message : 'Login com Google indisponível.')
+        if (active) {
+          const message = error instanceof Error ? error.message : 'Login com Google indisponível.'
+          setError(message + ' Use e-mail e senha ou tente novamente mais tarde.')
+          setStatus('error')
+          onUnavailable?.(message)
+        }
       })
 
     return () => {
@@ -143,6 +152,9 @@ export default function GoogleSignInButton({
 
   return <div className={disabled ? 'google-auth-button is-disabled' : 'google-auth-button'} aria-disabled={disabled}>
     <div ref={mountRef} className="google-auth-button__mount" />
+    {status === 'loading' && <span role="status" className="google-auth-button__status">Preparando entrada com Google…</span>}
+    {status === 'error' && <p role="alert" className="google-auth-button__error">{error}</p>}
+    {disabled && <span role="status" className="google-auth-button__status">Autenticando com Google…</span>}
     {disabled && <span className="google-auth-button__blocker" aria-hidden="true" />}
   </div>
 }
