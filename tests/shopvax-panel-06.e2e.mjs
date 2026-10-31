@@ -24,7 +24,7 @@ try{
   assert.equal(await groups.nth(1).innerText(),first,'Ciclos precisam ter texto idêntico')
   assert.match(first,/BLACK FRIDAY/)
   assert.match(first,/WHATSAPP DA VENDEDORA/)
-  assert.doesNotMatch(first,/desconto|cupom|R\\$|%\\s*OFF/i,'Fita não deve inventar desconto')
+  assert.doesNotMatch(first,/desconto|cupom|reais|OFF/i,'Fita não deve inventar desconto')
   const tape = await page.evaluate(() => {
     const ribbon = document.querySelector('.auth-poster__ribbon--black-friday')
     const track = ribbon.querySelector('.auth-poster__ribbon-track')
