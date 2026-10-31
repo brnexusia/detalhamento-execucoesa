@@ -175,7 +175,8 @@ try {
   assert.equal(panelB.payload.orders.find(order => order.id === ownOrderB).customer_name, null, 'Join do painel deve exigir loja do comprador')
   const panelA = await call('/api/admin/phase2', { cookie: first.cookie })
   assert.equal(panelA.response.status, 200)
-  assert.equal(panelA.payload.customers.find(customer => customer.id === a1.id).orders_count, 1, 'Pedidos de outra loja não contam mesmo se customer_id estiver adulterado')
+  const validOrdersA1 = (await pool.query('SELECT count(*)::int AS total FROM orders WHERE store_id=$1 AND customer_id=$2', [rowA.id, a1.id])).rows[0].total
+  assert.equal(panelA.payload.customers.find(customer => customer.id === a1.id).orders_count, validOrdersA1, 'Pedidos de outra loja não contam mesmo se customer_id estiver adulterado')
   await pool.query('UPDATE orders SET customer_id=$1 WHERE id=$2', [b1.id, ownOrderB])
 
   await call('/api/admin/phase2/orders/' + firstOrder + '/status', {
