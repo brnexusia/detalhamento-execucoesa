@@ -1,6 +1,6 @@
 # Shopvax — Auditoria transversal do redesign oficial
 
-**Base do produto:** `docs/SHOPVAX_REDESIGN_PHASE1.md`, `docs/SHOPVAX_REDESIGN_PHASES_2_3.md`, `docs/SHOPVAX_REDESIGN_ACCEPTANCE_PHASES_2_3.md`. Pranchas originais: `Shopvax_ Catálogo (redesign).zip` (nove SVGs). O ZIP **não está versionado no repositório**, portanto este trabalho confronta o código com as **especificações documentadas**, não certifica equivalência pixel a pixel com os SVGs.
+**Base do produto:** `docs/SHOPVAX_REDESIGN_PHASE1.md`, `docs/SHOPVAX_REDESIGN_PHASES_2_3.md`, `docs/SHOPVAX_REDESIGN_ACCEPTANCE_PHASES_2_3.md`. Pranchas originais: `Shopvax_ Catálogo (redesign).zip` (nove SVGs). O ZIP original agora está preservado integralmente em partes binárias reconstruíveis em `docs/references/redesign-original-parts/`. **A auditoria anterior foi executada antes da inclusão dessas fontes e não certifica equivalência pixel a pixel**; refazer comparação com os SVGs antes do aceite.
 
 ## Regra visual obrigatória
 

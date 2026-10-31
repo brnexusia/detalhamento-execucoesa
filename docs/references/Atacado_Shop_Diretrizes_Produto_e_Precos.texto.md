@@ -3,7 +3,13 @@
 > Transcrição pesquisável do conteúdo textual do arquivo original enviado pelo usuário. Não é o PDF original: elementos gráficos, diagramas, vetores e imagens embutidas não estão preservados neste Markdown. Fonte: Atacado_Shop_Diretrizes_Produto_e_Precos(1).pdf.
 > Em caso de divergência, a referência original e decisões posteriores explicitamente aprovadas prevalecem. Não utilizar preços/limites históricos para sobrescrever parâmetros atuais.
 
-\n\n---\n\n## Página 1 de 6\n\n
+
+
+---
+
+## Página 1 de 6
+
+
 Atacado Shop - Diretrizes de Produto e Precificacao | 29/08/2026 Pagina 1
 ATACADO SHOP
 Diretrizes de Produto, Planos e Posicionamento
@@ -16,7 +22,13 @@ Posicionamento Catalogo de atacado orientado a vendas pelo WhatsApp
 Principio central
 O Atacado Shop nao pretende ser um ERP. Ele deve organizar a vitrine, transformar interesse em um pedido
 pronto para o WhatsApp e mostrar ao lojista o que esta gerando intencao de compra.
-\n\n---\n\n## Página 2 de 6\n\n
+
+
+---
+
+## Página 2 de 6
+
+
 Atacado Shop - Diretrizes de Produto e Precificacao | 29/08/2026 Pagina 2
 1. Posicionamento e precificacao
 O produto compete diretamente com plataformas de catalogo digital para vendas via WhatsApp, com foco
@@ -36,7 +48,13 @@ O FacilZap anunciou para 01/09/2026 os precos de R$ 69 (Bronze), R$ 129 (Prata) 
 estrutura acima mantem o Atacado Shop aproximadamente 26%-28% abaixo dessa referencia, preservando
 uma margem competitiva sem posicionar o produto como opcao de baixo valor.
 Fonte consultada: facilzap.com.br/noticias - anuncio publicado em 18/08/2026.
-\n\n---\n\n## Página 3 de 6\n\n
+
+
+---
+
+## Página 3 de 6
+
+
 Atacado Shop - Diretrizes de Produto e Precificacao | 29/08/2026 Pagina 3
 2. As 5 features centrais do produto
 A comunicacao comercial e o desenvolvimento devem permanecer concentrados nestes cinco pilares.
@@ -67,7 +85,13 @@ quais produtos, catalogos e vendedoras geram mais intencao.
 O que nao faz parte do escopo agora
 PDV, integracoes externas, API, webhooks, pagamento online processado pela plataforma, rastreamento
 logistico, emissao fiscal e ERP completo ficam fora do escopo atual.
-\n\n---\n\n## Página 4 de 6\n\n
+
+
+---
+
+## Página 4 de 6
+
+
 Atacado Shop - Diretrizes de Produto e Precificacao | 29/08/2026 Pagina 4
 3. Inteligencia comercial: os 5 relatorios
 Como a conclusao da negociacao ocorre no WhatsApp, o Atacado Shop nao deve apresentar faturamento,
@@ -87,7 +111,13 @@ Comissao de vendedoras
 A comissao entra como recurso opcional nos planos superiores. Pode ser configurada por percentual ou valor
 fixo. O sistema apenas calcula uma estimativa com base nos pedidos/intencoes atribuiveis; nao executa
 repasse financeiro.
-\n\n---\n\n## Página 5 de 6\n\n
+
+
+---
+
+## Página 5 de 6
+
+
 Atacado Shop - Diretrizes de Produto e Precificacao | 29/08/2026 Pagina 5
 4. Estoque, entrega e roadmap
 Estoque basico - entra no radar de implementacao
@@ -114,7 +144,13 @@ Proximo Estoque basico Implementar
 Proximo Multiplos catalogos / atacado + varejo Implementar
 Depois Cotacao automatica de frete Roadmap
 Fora agora PDV, APIs, webhooks, integracoes, fiscal, gatewayNao implementar
-\n\n---\n\n## Página 6 de 6\n\n
+
+
+---
+
+## Página 6 de 6
+
+
 Atacado Shop - Diretrizes de Produto e Precificacao | 29/08/2026 Pagina 6
 5. Regra de produto e fonte de verdade
 Este documento deve ser usado como referencia para decisoes futuras do Atacado Shop ate que uma nova

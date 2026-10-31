@@ -3,7 +3,13 @@
 > Transcrição pesquisável do conteúdo textual do arquivo original enviado pelo usuário. Não é o PDF original: elementos gráficos, diagramas, vetores e imagens embutidas não estão preservados neste Markdown. Fonte: Shopvax_Manifesto_MVP.pdf.
 > Em caso de divergência, a referência original e decisões posteriores explicitamente aprovadas prevalecem. Não utilizar preços/limites históricos para sobrescrever parâmetros atuais.
 
-\n\n---\n\n## Página 1 de 1\n\n
+
+
+---
+
+## Página 1 de 1
+
+
 SV
 SHOPVAX
 Manifesto do MVP
