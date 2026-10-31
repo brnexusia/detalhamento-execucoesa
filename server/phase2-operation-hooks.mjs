@@ -446,6 +446,7 @@ async function updateOrderStatus(req, res) {
 }
 
 async function registerCustomer(req, res) {
+  res.set('Cache-Control', 'no-store, private')
   await ensureSchema()
   const store = await storeBySlug(req.params.storeSlug)
   if (!store || store.customer_login_enabled === false) return res.status(404).json({ error: 'Cadastro de clientes indisponível nesta loja.' })
@@ -468,6 +469,7 @@ async function registerCustomer(req, res) {
 }
 
 async function loginCustomer(req, res) {
+  res.set('Cache-Control', 'no-store, private')
   await ensureSchema()
   const store = await storeBySlug(req.params.storeSlug)
   if (!store || store.customer_login_enabled === false) return res.status(404).json({ error: 'Login de clientes indisponível nesta loja.' })
@@ -484,6 +486,7 @@ async function loginCustomer(req, res) {
 }
 
 async function customerMe(req, res) {
+  res.set('Cache-Control', 'no-store, private')
   await ensureSchema()
   const store = await storeBySlug(req.params.storeSlug)
   if (!store) return res.status(404).json({ error: 'Loja não encontrada.' })
@@ -495,13 +498,18 @@ async function customerMe(req, res) {
     customer,
     store: { slug: store.slug, name: store.name, logoUrl: store.logo_url, accent: store.accent },
     orders: orders.rows.map((row) => ({ ...row, total: Number(row.total || 0) })),
-    semantics: 'O histórico mostra pedidos registrados/enviados ao atendimento. Não confirma pagamento ou faturamento.',
+    semantics: 'Este histórico reúne talões preparados ou registrados para atendimento. Abrir o WhatsApp não comprova mensagem enviada, pagamento ou venda.',
   })
 }
 
 async function logoutCustomer(req, res) {
+  res.set('Cache-Control', 'no-store, private')
   const token = parseCookies(req)[customerCookie]
-  if (token && pool) await pool.query('DELETE FROM store_customer_sessions WHERE token_hash=$1', [hashToken(token)]).catch(() => undefined)
+  // Não responder sucesso se a revogação falhar: a sessão seguiria válida no servidor.
+  if (token) {
+    if (!pool) return res.status(503).json({ error: 'Sessão indisponível. Tente novamente.' })
+    await pool.query('DELETE FROM store_customer_sessions WHERE token_hash=$1', [hashToken(token)])
+  }
   clearCustomerCookie(req, res)
   return res.json({ ok: true })
 }
@@ -509,6 +517,8 @@ async function logoutCustomer(req, res) {
 async function decoratePublicPayload(req, res, next) {
   const match = req.path.match(/^\/api\/public\/store\/([^/]+)(?:\/([^/]+))?$/)
   if (!match || req.method !== 'GET') return next()
+  // A vitrine pode incluir identidade do comprador e atribuição de vendedora por cookie.
+  res.set('Cache-Control', 'no-store, private')
   const storeSlug = decodeURIComponent(match[1])
   const originalJson = res.json.bind(res)
   res.json = (payload) => {
