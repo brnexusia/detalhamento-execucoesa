@@ -7,6 +7,8 @@ assert.match(readFileSync('src/Auth.tsx','utf8'),/auth-shell--login/)
 assert.match(readFileSync('src/Auth.tsx','utf8'),/Volta para o/)
 const image=readFileSync('public/redesign/shopvax-panel-mosaic.webp')
 assert(image.length>12000 && image.length<150000,'Official photo mosaic should be optimized for slow networks')
+const jewelry=readFileSync('public/redesign/shopvax-login-jewelry.webp')
+assert(jewelry.length>1000 && jewelry.length<10000,'Acessórios em uma faixa devem ser imagem real e leve')
 const browser=await chromium.launch({headless:true})
 mkdirSync('artifacts/shopvax-redesign',{recursive:true})
 try{
