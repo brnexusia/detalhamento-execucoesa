@@ -120,6 +120,12 @@ export default function AdminApp() {
     setProductsVersion((version) => version + 1)
     void load(true) // Compact metadata only; the product grid fetches its own page.
   }
+  useEffect(() => {
+    window.addEventListener('shopvax:catalog-changed', refreshCatalog)
+    return () => window.removeEventListener('shopvax:catalog-changed', refreshCatalog)
+    // Refresh reads only the current session and stable loadVersion ref.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const canLeaveStore = async () => section !== 'loja' || !storeDirty || await confirmAction('Você tem alterações não salvas. Deseja sair sem salvar?', 'Descartar alterações', 'Sair sem salvar')
   const changeSection = async (next: Section) => { if (next !== section && !(await canLeaveStore())) return; setStoreDirty(false); setSection(next); setMenuOpen(false); window.history.pushState({}, '', next === 'inicio' ? '/painel' : `/painel/${next}`) }
