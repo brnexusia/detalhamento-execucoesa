@@ -6,11 +6,11 @@ import './shopvax-brand-motion.css'
  */
 export type BrandMotionVariant = 'assemble' | 'mirror' | 'water'
 export default function ShopvaxBrandMotion({
-  active = false, variant = 'assemble', symbolSrc = '/brand/shopvax-symbol.svg',
-}: { active?: boolean; variant?: BrandMotionVariant; symbolSrc?: string }) {
+  active = false, exit = false, variant = 'assemble', symbolSrc = '/brand/shopvax-symbol.svg',
+}: { active?: boolean; exit?: boolean; variant?: BrandMotionVariant; symbolSrc?: string }) {
   const onDark = symbolSrc.includes('dark')
   return <span
-    className={'svx-brand-motion' + (active ? ' is-animating' : '') + (onDark ? ' svx-brand-motion--dark' : '')}
+    className={'svx-brand-motion' + (active ? ' is-animating' : '') + (onDark ? ' svx-brand-motion--dark' : '') + (exit ? ' svx-brand-motion--exit' : '')}
     data-brand-motion={variant} aria-hidden="true">
     <svg className="svx-brand-motion__symbol svx-brand-symbol"
       viewBox="370 300 220 282" xmlns="http://www.w3.org/2000/svg" focusable="false">
