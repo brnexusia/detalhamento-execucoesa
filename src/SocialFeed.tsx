@@ -1,3 +1,4 @@
+import ShopvaxLoading from './ShopvaxLoading'
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { showToast } from './ui-dialogs'
 import { ChevronRight, Eye, Heart, MessageCircleQuestion, Minus, Play, Plus, Share2, ShoppingBag, Store, Volume2, VolumeX, X } from 'lucide-react'
