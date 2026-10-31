@@ -46,6 +46,9 @@ on:
       - 'src/shopvax-growth.css'
       - 'src/GoogleSignInButton.tsx'
       - 'tests/shopvax-growth.e2e.mjs'
+      - 'tests/shopvax-support-ai.e2e.mjs'
+      - 'server/onboarding-growth-hooks.mjs'
+      - 'server/onboarding-growth-policy.mjs'
       - 'src/Phase3PublicRuntime.tsx'
       - 'tests/shopvax-cart-events.e2e.mjs'
       - 'tests/shopvax-dashboard-greeting.e2e.mjs'
@@ -133,6 +136,8 @@ jobs:
         run: node tests/product-picker-responsive.e2e.mjs
       - name: Growth onboarding, buyer preferences and support
         run: node tests/shopvax-growth.e2e.mjs
+      - name: Central Shopvax support - opt-in assistant and WhatsApp link
+        run: node tests/shopvax-support-ai.e2e.mjs
       - name: Fotos locais responsivas sem quebrar URLs externas
         run: node tests/shopvax-responsive-media.e2e.mjs
       - name: Official design layer 05 - desktop product as a page, related products and mobile modal
