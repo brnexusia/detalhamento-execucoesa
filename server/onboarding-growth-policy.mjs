@@ -30,6 +30,7 @@ export function validateSupportInput(body) {
   if (!['buyer', 'merchant'].includes(audience)) throw new Error('Tipo de atendimento inválido.')
   if (!['account', 'catalog', 'order', 'billing', 'privacy', 'other'].includes(topic)) throw new Error('Escolha um assunto de atendimento.')
   if (message.length < 15 || message.length > 2000) throw new Error('Descreva a situação entre 15 e 2.000 caracteres.')
+  if (audience === 'buyer' && !replyEmail) throw new Error('Informe um e-mail para retorno humano.')
   if (replyEmail.length > 200 || (replyEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(replyEmail))) throw new Error('E-mail de retorno inválido.')
   if (body?.privacyAcknowledged !== true) throw new Error('Confirme que entende como o relato será armazenado.')
   return { audience, topic, message, replyEmail }
