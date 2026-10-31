@@ -28,6 +28,24 @@ try {
     await title.waitFor()
     assert.equal((await title.textContent())?.trim(),expected) // CSS mantém maiúsculas visuais da prancha oficial
     assert.match(await page.locator('.svx-dashboard__welcome').innerText(),/Loja Teste/)
+    assert.equal(await page.getByText('Saudação no horário deste dispositivo').count(),0)
+    assert.equal(await page.getByRole('heading',{name:'Loja pronta'}).count(),0,
+      'Não duplicar o onboarding com um segundo cartão Loja pronta')
+    assert.equal(await page.getByRole('heading',{name:'Prepare sua loja'}).count(),1,
+      'Conservar apenas o guia detalhado Primeiros passos')
+    const panelStyle=await page.evaluate(()=>{
+      const mark=document.querySelector('.panel-brand .svx-panel-mark')
+      const store=document.querySelector('.panel-brand > div > small')
+      const wordmark=document.querySelector('.panel-brand .svx-brand-wordmark')
+      const open=document.querySelector('.panel-topbar .panel-store-link')
+      return {border:getComputedStyle(mark).borderTopWidth,bg:getComputedStyle(mark).backgroundColor,
+        endOffset:Math.abs(store.getBoundingClientRect().right-wordmark.getBoundingClientRect().right),
+        linkBg:getComputedStyle(open).backgroundColor}
+    })
+    assert.equal(panelStyle.border,'0px','Logo do painel sem contorno/caixa')
+    assert.equal(panelStyle.bg,'rgba(0, 0, 0, 0)','Logo do painel sem fundo em caixa')
+    assert(panelStyle.endOffset<3,'Nome alinhado ao X da marca: '+JSON.stringify(panelStyle))
+    assert.equal(panelStyle.linkBg,'rgb(242, 92, 5)','Abrir loja deve ser laranja')
     await context.close()
   }
 
