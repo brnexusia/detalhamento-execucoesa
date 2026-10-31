@@ -10,10 +10,11 @@ try {
     const context = await browser.newContext({ viewport:{ width,height } })
     const page = await context.newPage()
     await page.route('**/api/public/support/config', route => route.fulfill({ status:200,contentType:'application/json',body:JSON.stringify({ticketsEnabled:false,aiEnabled:false}) }))
-    await page.route('**/api/admin/bootstrap', route => route.fulfill({ status:200,contentType:'application/json',body:JSON.stringify({
+    // Bootstrap can use ?compact=1 once Frente 06 is integrated.
+    await page.route('**/api/admin/bootstrap**', route => route.fulfill({ status:200,contentType:'application/json',body:JSON.stringify({
       user:{id:'owner1',email:'owner@example.test',name:'Laura'},
       store:{id:'store1',slug:'loja-teste',name:'Loja Teste',whatsapp:'5511999999999',onboarding_palette_selected:true,minimum_order:100,accent:'#F25C05',is_active:true,plan_tier:'bronze'},
-      products:[],sellers:[],orders:[],stats:{views:0,carts:0,orders:0,value:0},
+      products:[],productCount:0,productCategories:[],sellers:[],orders:[],stats:{views:0,carts:0,orders:0,value:0},
     }) }))
     await page.route('**/api/admin/growth/onboarding', route => route.fulfill({
       status:200,contentType:'application/json',body:JSON.stringify({identity:true,sellers:false,products:false,minimumOrder:100,confirmed:[]}),
