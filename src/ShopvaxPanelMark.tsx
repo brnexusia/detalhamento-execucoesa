@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import ShopvaxBrandMotion from './ShopvaxBrandMotion'
 
-const INTERVAL_MS = 180_000
+const INTERVAL_MS = 60_000
 const DURATION_MS = 1_500
 
-/** Marca do painel: um ciclo a cada 3 minutos, somente com a aba visível.
+/** Marca do painel: um ciclo a cada minuto, somente com a aba visível.
  * O favicon da aba permanece estático e acessível em todos os navegadores.
  */
 export default function ShopvaxPanelMark() {
@@ -32,6 +32,6 @@ export default function ShopvaxPanelMark() {
     }
   }, [])
   return <span className="brand__mark svx-panel-mark">
-    <ShopvaxBrandMotion key={cycle} active={active} symbolSrc="/brand/shopvax-symbol-dark.svg" />
+    <ShopvaxBrandMotion key={cycle} active={active} variant="spin" symbolSrc="/brand/shopvax-symbol-dark.svg" />
   </span>
 }

@@ -14,12 +14,15 @@
 .auth-shell .auth-form__head .brand__mark { display:grid;place-items:center; }
 .auth-shell .auth-form__head .brand__mark .svx-brand-symbol { height:29px; width:auto; }
 .panel-brand .brand__mark, .platform-brand .platform-mark {display:grid;place-items:center;}
-.panel-brand .brand__mark {background:#161514;}
+.panel-brand .brand__mark {background:transparent;border:0;box-shadow:none;}
 .platform-brand .platform-mark {background:#161514;}
 .panel-brand .brand__mark .svx-brand-symbol,
 .platform-brand .platform-mark .svx-brand-symbol { height:31px; max-width:100%; }
 .panel-brand .svx-brand-wordmark, .platform-brand .svx-brand-wordmark {height:19px; max-width:150px;}
 .panel-brand strong, .platform-brand strong { display:flex;align-items:center;min-width:0; }
+/* Nome da loja termina no mesmo alinhamento direito do X do wordmark oficial. */
+.panel-brand > div:has(> strong > .svx-brand-wordmark){display:flex;flex-direction:column;align-items:flex-end;min-width:0;}
+.panel-brand > div:has(> strong > .svx-brand-wordmark) > small{align-self:stretch;text-align:right;overflow-wrap:anywhere;}
 .panel-loading .brand__mark .svx-brand-symbol, .platform-loading .platform-mark .svx-brand-symbol,
 .store-loading .brand__mark .svx-brand-symbol {height:29px;}
 .platform-loading .platform-mark {display:grid;place-items:center;background:#161514;}
@@ -51,4 +54,12 @@
 @media(max-width:380px) {
  .social-feed-page .svx-social-brand .svx-brand-wordmark {height:16px;}
  .social-feed-page .svx-social-brand .svx-brand-symbol {height:23px;}
+}
+
+/* Ação prioritária do cabeçalho: 'Abrir loja' na cor oficial, sem mudar o layout. */
+.panel-shell .panel-topbar .panel-store-link{
+  background:#F25C05;color:#161514;border-color:#F25C05;
+}
+.panel-shell .panel-topbar .panel-store-link:hover{
+  background:#E45400;border-color:#E45400;color:#161514;
 }

@@ -4,13 +4,13 @@ import './shopvax-brand-motion.css'
  * V chega de cima, A chega de baixo; só após o encaixe o conjunto gira 360°.
  * Não há morphing, fonte substituta, troca de imagem ou cruzamento dos caminhos.
  */
-export type BrandMotionVariant = 'assemble' | 'mirror' | 'water'
+export type BrandMotionVariant = 'assemble' | 'mirror' | 'water' | 'spin'
 export default function ShopvaxBrandMotion({
   active = false, exit = false, variant = 'assemble', symbolSrc = '/brand/shopvax-symbol.svg',
 }: { active?: boolean; exit?: boolean; variant?: BrandMotionVariant; symbolSrc?: string }) {
   const onDark = symbolSrc.includes('dark')
   return <span
-    className={'svx-brand-motion' + (active ? ' is-animating' : '') + (onDark ? ' svx-brand-motion--dark' : '') + (exit ? ' svx-brand-motion--exit' : '')}
+    className={'svx-brand-motion' + (active ? ' is-animating' : '') + (onDark ? ' svx-brand-motion--dark' : '') + (exit ? ' svx-brand-motion--exit' : '') + (variant === 'spin' ? ' svx-brand-motion--spin' : '')}
     data-brand-motion={variant} aria-hidden="true">
     {/* O rotor é um elemento HTML com caixa fixa, não um grupo SVG deslocado.
         Assim, rotate() usa o centro físico do X e nunca pode criar uma órbita. */}

@@ -137,6 +137,9 @@
   .auth-shell--login .auth-panel {padding:12px 20px;max-height:calc(100dvh - 18px);}
   .auth-shell--login .auth-form__head h2 {font-size:clamp(30px,5.6dvh,42px);}
 }
+/* Uma única faixa do mosaico apresenta joias, sem substituir as outras vitrines. */
+.auth-shell--login .auth-poster::after{content:'';position:absolute;left:0;top:clamp(126px,22dvh,240px);width:min(66%,920px);height:clamp(74px,13dvh,118px);z-index:0;pointer-events:none;background:url('/redesign/shopvax-login-jewelry.webp') center/cover no-repeat;mask-image:linear-gradient(90deg,rgba(0,0,0,.85),#000 18%,#000 78%,transparent 100%);opacity:.92;}
+@media(max-width:999px){.auth-shell--login .auth-poster{position:relative;isolation:isolate}.auth-shell--login .auth-poster::after{top:24%;width:min(74%,650px);height:72px;opacity:.76;}}
 /* Tablets e celulares mantêm painel no fluxo: nunca cobrir campos com foto. */
 @media(max-width:999px) {
   .auth-shell .auth-poster {
