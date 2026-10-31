@@ -67,7 +67,7 @@ function readFeedSession(): FeedSession | null {
 function saveFeedSession(posts: SocialPost[], cursor: string | null, hasMore: boolean, scrollTop: number, viewportHeight: number) {
   const height = Math.max(1, viewportHeight)
   const index = Math.min(Math.max(0, Math.round(scrollTop / height)), Math.max(0, posts.length - 1))
-  const first = Math.max(0, index - 12)
+  const first = posts.length <= maxFeedSessionPosts ? 0 : Math.max(0, index - 12)
   const cached = posts.slice(first, first + maxFeedSessionPosts)
   let relativeTop = Math.max(0, scrollTop - first * height)
   try {
