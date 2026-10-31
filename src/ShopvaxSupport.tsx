@@ -69,7 +69,7 @@ export default function ShopvaxSupport() {
         <strong>Abrir solicitação de suporte</strong>
         <label>Assunto<select value={topic} onChange={e => setTopic(e.target.value as Topic)}>{TOPICS.filter(t => merchant || t.value !== 'billing').map(item => <option value={item.value} key={item.value}>{item.label}</option>)}</select></label>
         <label>Descreva o que aconteceu<textarea value={message} onChange={e => setMessage(e.target.value)} minLength={15} maxLength={2000} required/></label>
-        <label>E-mail de retorno (opcional)<input type="email" value={replyEmail} onChange={e => setReplyEmail(e.target.value)} maxLength={200}/></label>
+        <label>E-mail de retorno {merchant ? '(opcional)' : '(obrigatório para resposta)'}<input type="email" value={replyEmail} onChange={e => setReplyEmail(e.target.value)} maxLength={200} required={!merchant}/></label>
         <label className="svx-support__check"><input type="checkbox" checked={acknowledged} onChange={e => setAcknowledged(e.target.checked)} required/> Autorizo o registro mínimo desta solicitação para análise humana. Não vou enviar senhas ou dados de pagamento.</label>
         <button type="submit" disabled={busy}>{busy ? 'Registrando…' : 'Registrar solicitação'}</button>
       </form> : <p className="svx-support__disabled">O canal central de solicitações ainda não foi ativado. As orientações acima estão disponíveis; não há telefone ou IA de suporte ativos nesta tela.</p>}
