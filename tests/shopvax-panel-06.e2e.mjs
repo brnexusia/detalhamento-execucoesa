@@ -4,7 +4,7 @@ import {chromium} from 'playwright'
 
 assert.match(readFileSync('src/shopvax-panel-login-06.css','utf8'),/shopvax-panel-mosaic\.webp/)
 assert.match(readFileSync('src/Auth.tsx','utf8'),/auth-shell--login/)
-assert.match(readFileSync('src/Auth.tsx','utf8'),/Volta pro/)
+assert.match(readFileSync('src/Auth.tsx','utf8'),/Volta para o/)
 const image=readFileSync('public/redesign/shopvax-panel-mosaic.webp')
 assert(image.length>12000 && image.length<150000,'Official photo mosaic should be optimized for slow networks')
 const browser=await chromium.launch({headless:true})
@@ -51,6 +51,8 @@ try{
   })
   assert.match(d.bg,/shopvax-panel-mosaic\.webp/,'Mosaic from official SVG missing: '+JSON.stringify(d))
   assert.match(d.text,/Acesse seu painel/i)
+  assert.match(await page.locator('.auth-poster__copy h1').innerText(),/Volta para o\s+balcão\./i)
+  assert.equal(await page.locator('.auth-poster').evaluate(el=>getComputedStyle(el,'::after').backgroundImage.includes('shopvax-login-jewelry.webp')),true,'Uma faixa de acessórios precisa estar no fundo do login')
   assert(d.docWidth<=width+2,'Horizontal overflow '+JSON.stringify(d))
   if(width>=1000){
    assert(d.docHeight<=height+2,'Desktop global vertical overflow '+JSON.stringify(d))
