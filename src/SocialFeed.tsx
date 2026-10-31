@@ -478,13 +478,19 @@ export default function SocialFeed() {
 
   return <div className="social-feed-page">
     <header className="social-feed-nav"><strong className="svx-social-brand"><img src="/brand/shopvax-symbol-dark.svg" className="svx-brand-symbol" alt="" aria-hidden="true" /><img src="/brand/shopvax-wordmark-light.svg" className="svx-brand-wordmark" alt="Shopvax" /></strong><span>PRODUTOS DAS LOJAS</span><div className="social-feed-nav__right"><a href="/para-lojas">Para lojas</a><a href="/entrar">Entrar</a></div></header>
-    <main className="social-feed-list" ref={listRef} style={restorationPendingRef.current ? { scrollSnapType: 'none' } : undefined}
+    <main className="social-feed-list" ref={listRef}
+      data-feed-initial-posts={initialSession?.posts.length || 0}
+      data-feed-restored-index={restoredIndex.current}
+      data-feed-active-index={activeIndex}
+      data-feed-locked={restoredAnchorLockRef.current ? 'yes' : 'no'}
+      style={restorationPendingRef.current ? { scrollSnapType: 'none' } : undefined}
       onTouchStart={releaseRestoredAnchor} onPointerDown={releaseRestoredAnchor}
       onWheel={releaseRestoredAnchor} onKeyDown={releaseRestoredAnchor}
       onScroll={(event) => {
         if (restorationPendingRef.current) return
         const list = event.currentTarget
-        if (restoredAnchorLockRef.current) { repairRestoredAnchor(list); return }
+        if (restoredAnchorLockRef.current) { repairRestoredAnchor(list); list.dataset.feedScrollEvent = 'repair'; return }
+        list.dataset.feedScrollEvent = 'unlocked'
         scrollTopRef.current = event.currentTarget.scrollTop
         setActiveIndex((index) => {
           const next = Math.max(0, Math.min(posts.length - 1, Math.round(list.scrollTop / Math.max(1, list.clientHeight))))
