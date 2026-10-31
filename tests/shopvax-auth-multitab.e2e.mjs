@@ -19,7 +19,8 @@ try {
       sellers: [], products: [], orders: [], stats: { views: 0, carts: 0, orders: 0, value: 0 },
     }
   }
-  await context.route('**/api/admin/bootstrap', async route => {
+  // Admin may request compact bootstrap; keep the same tenant fixture for both endpoints.
+  await context.route('**/api/admin/bootstrap**', async route => {
     if (!activeUser) return route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ error: 'Sessão inválida.' }) })
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(bootstrap()) })
   })
