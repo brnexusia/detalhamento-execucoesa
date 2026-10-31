@@ -18,7 +18,7 @@ try {
     ['2026-10-31T21:00:00-03:00','Boa noite, Laura.'],
   ]) {
     const context = await browser.newContext({timezoneId:'America/Bahia',viewport:{width:390,height:844}})
-    await context.route('**/api/admin/bootstrap',route=>route.fulfill({
+    await context.route('**/api/admin/bootstrap*',route=>route.fulfill({
       status:200,contentType:'application/json',body:JSON.stringify(bootstrap)
     }))
     const page = await context.newPage()

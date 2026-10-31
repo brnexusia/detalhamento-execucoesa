@@ -73,6 +73,8 @@ export default function AdminApp() {
   const [productModal, setProductModal] = useState<ProductDraft | null>(null)
   const [sellerModal, setSellerModal] = useState<Partial<AdminSeller> | null>(null)
   const [query, setQuery] = useState('')
+  const [productsVersion, setProductsVersion] = useState(0)
+  const [visitedProducts, setVisitedProducts] = useState(section === 'produtos')
   const [storeDirty, setStoreDirty] = useState(false)
   const loadVersion = useRef(0)
 
@@ -81,7 +83,7 @@ export default function AdminApp() {
     if (!silent) setLoading(true)
     setError('')
     try {
-      const next = await api.bootstrap()
+      const next = await api.bootstrapCompact()
       if (version === loadVersion.current) setData(next)
     } catch (err) {
       if (version !== loadVersion.current) return
@@ -113,6 +115,17 @@ export default function AdminApp() {
     }
   }, [])
   useEffect(() => { const onPop = () => setSection(currentSection()); window.addEventListener('popstate', onPop); return () => window.removeEventListener('popstate', onPop) }, [])
+  useEffect(() => { if (section === 'produtos') setVisitedProducts(true) }, [section])
+  const refreshCatalog = () => {
+    setProductsVersion((version) => version + 1)
+    void load(true) // Compact metadata only; the product grid fetches its own page.
+  }
+  useEffect(() => {
+    window.addEventListener('shopvax:catalog-changed', refreshCatalog)
+    return () => window.removeEventListener('shopvax:catalog-changed', refreshCatalog)
+    // Refresh reads only the current session and stable loadVersion ref.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const canLeaveStore = async () => section !== 'loja' || !storeDirty || await confirmAction('Você tem alterações não salvas. Deseja sair sem salvar?', 'Descartar alterações', 'Sair sem salvar')
   const changeSection = async (next: Section) => { if (next !== section && !(await canLeaveStore())) return; setStoreDirty(false); setSection(next); setMenuOpen(false); window.history.pushState({}, '', next === 'inicio' ? '/painel' : `/painel/${next}`) }
@@ -128,15 +141,15 @@ export default function AdminApp() {
       setError('Não foi possível encerrar a sessão. Tente novamente.')
     }
   }
-  const deleteProductsBulk = async (products: AdminProduct[]) => {
-    if (!products.length) return false
-    const label = countLabel(products.length, 'produto selecionado', 'produtos selecionados')
+  const deleteProductsBulk = async (ids: string[]) => {
+    if (!ids.length) return false
+    const label = countLabel(ids.length, 'produto selecionado', 'produtos selecionados')
     if (!(await confirmAction(`Excluir ${label}? Esta ação não pode ser desfeita.`, 'Excluir produtos em massa', 'Excluir selecionados'))) return false
     setError('')
     try {
-      const result = await api.deleteProducts(products.map((product) => product.id))
+      const result = await api.deleteProducts(ids)
       flash(countLabel(result.deleted, 'produto excluído', 'produtos excluídos'))
-      await load()
+      refreshCatalog()
       return true
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível excluir os produtos selecionados.')
@@ -160,7 +173,8 @@ export default function AdminApp() {
 
   const baseUrl = window.location.origin
   const storeUrl = `${baseUrl}/${data.store.slug}`
-  const incomplete = data.products.length === 0 || data.sellers.length === 0 || !data.store.whatsapp
+  const totalProducts = data.productCount ?? data.products.length
+  const incomplete = totalProducts === 0 || data.sellers.length === 0 || !data.store.whatsapp
 
   return (
     <div className="panel-shell">
@@ -168,7 +182,7 @@ export default function AdminApp() {
         <div className="panel-brand"><span className="brand__mark"><img src="/brand/shopvax-symbol-dark.svg" className="svx-brand-symbol" alt="" aria-hidden="true" /></span><div><strong><img className="svx-brand-wordmark" src="/brand/shopvax-wordmark-light.svg" alt="Shopvax" /></strong><small>{data.store.name}</small></div><button className="panel-close-menu" onClick={() => setMenuOpen(false)}><X size={18} /></button></div>
         <AdminNavigation
           active={section}
-          counts={{ products: data.products.length, orders: data.orders.length, sellers: data.sellers.length }}
+          counts={{ products: totalProducts, orders: data.orders.length, sellers: data.sellers.length }}
           planCode={data.store.plan_tier}
           onNavigate={() => setMenuOpen(false)}
           beforeNavigate={async () => (await canLeaveStore()) && (await confirmNavigationIfDirty())}
@@ -179,14 +193,14 @@ export default function AdminApp() {
         <header className="panel-topbar"><button className="panel-menu" onClick={() => setMenuOpen(true)}><Menu size={20} /></button><div><span>{section === 'inicio' ? 'Operação' : section}</span><strong>{section === 'inicio' ? `Olá, ${data.user.name.split(' ')[0]}.` : section[0].toUpperCase() + section.slice(1)}</strong></div><a className="panel-store-link" href={storeUrl} target="_blank" rel="noreferrer"><StoreIcon size={17} /> Abrir loja <ExternalLink size={14} /></a></header>
         {notice && <div className="toast"><Check size={16} /> {notice}</div>}
         {error && <div className="panel-error">{error}</div>}
-        {section === 'inicio' && (data.store.onboarding_palette_selected === false && !data.products.length && !skipFirstRun ? <ShopvaxFirstRun storeName={data.store.name} initialAccent={data.store.accent} onSave={async (accent) => { await api.updateStore({ accent, completePaletteSetup: true }); await load() }} onSkip={() => setSkipFirstRun(true)} onOpenThemes={() => { setSkipFirstRun(true); void changeSection('temas') }} /> : <Dashboard data={data} incomplete={incomplete} storeUrl={storeUrl} onSection={changeSection} onCopy={copy} />)}
-        {section === 'produtos' && <Products data={data} query={query} setQuery={setQuery} onCreate={() => setProductModal({ ...blankProduct })} onEdit={(product) => setProductModal(productDraft(product))} onVisibility={async (product) => { await api.setProductVisibility(product.id, !product.active); flash(product.active ? 'Produto escondido da loja e do feed.' : 'Produto publicado novamente.'); await load() }} onDelete={async (product) => { if (!(await confirmAction(`Excluir ${product.name}? Esta ação não pode ser desfeita.`, 'Excluir produto', 'Excluir'))) return; await api.deleteProduct(product.id); flash('Produto excluído.'); load() }} onBulkDelete={deleteProductsBulk} onDownloadPdf={downloadProductsPdf} />}
+        {section === 'inicio' && (data.store.onboarding_palette_selected === false && !totalProducts && !skipFirstRun ? <ShopvaxFirstRun storeName={data.store.name} initialAccent={data.store.accent} onSave={async (accent) => { await api.updateStore({ accent, completePaletteSetup: true }); await load() }} onSkip={() => setSkipFirstRun(true)} onOpenThemes={() => { setSkipFirstRun(true); void changeSection('temas') }} /> : <Dashboard data={data} incomplete={incomplete} storeUrl={storeUrl} onSection={changeSection} onCopy={copy} />)}
+        {(section === 'produtos' || visitedProducts) && <div hidden={section !== 'produtos'}><Products data={data} revision={productsVersion} query={query} setQuery={setQuery} onCreate={() => setProductModal({ ...blankProduct })} onEdit={(product) => setProductModal(productDraft(product))} onVisibility={async (product) => { await api.setProductVisibility(product.id, !product.active); flash(product.active ? 'Produto escondido da loja e do feed.' : 'Produto publicado novamente.'); refreshCatalog() }} onDelete={async (product) => { if (!(await confirmAction(`Excluir ${product.name}? Esta ação não pode ser desfeita.`, 'Excluir produto', 'Excluir'))) return; await api.deleteProduct(product.id); flash('Produto excluído.'); refreshCatalog() }} onBulkDelete={deleteProductsBulk} onDownloadPdf={downloadProductsPdf} /></div>}
         {section === 'pedidos' && <Orders data={data} onUpdated={load} />}
         {section === 'vendedoras' && <Sellers data={data} baseUrl={baseUrl} onCopy={copy} onCreate={() => setSellerModal({ name: '', phone: '', slug: '', is_active: true })} onEdit={(seller) => setSellerModal({ ...seller })} onDelete={async (seller) => { if (!(await confirmAction(`Excluir ${seller.name}? O link individual deixará de funcionar.`, 'Excluir vendedora', 'Excluir'))) return; await api.deleteSeller(seller.id); flash('Vendedora excluída.'); load() }} />}
         {section === 'temas' && <ShopvaxThemesPanel data={data} onSaved={() => { flash('Tema e paleta atualizados.'); void load(true) }} />}
          {section === 'loja' && <><StoreSettings data={data} onSaved={() => { flash('Loja atualizada.'); load() }} onCopy={copy} onDirtyChange={setStoreDirty} /><CommercialSettingsPanel embedded/><StoreTools data={data}/></>}
       </main>
-      {productModal && <ProductEditor draft={productModal} setDraft={setProductModal} onClose={() => setProductModal(null)} onSaved={() => { setProductModal(null); flash(productModal.id ? 'Produto atualizado.' : 'Produto cadastrado.'); load() }} />}
+      {productModal && <ProductEditor draft={productModal} setDraft={setProductModal} onClose={() => setProductModal(null)} onSaved={() => { setProductModal(null); flash(productModal.id ? 'Produto atualizado.' : 'Produto cadastrado.'); refreshCatalog() }} />}
       {sellerModal && <SellerEditor draft={sellerModal} setDraft={setSellerModal} storeSlug={data.store.slug} onClose={() => setSellerModal(null)} onSaved={() => { setSellerModal(null); flash(sellerModal.id ? 'Vendedora atualizada.' : 'Vendedora cadastrada.'); load() }} />}
     </div>
   )
@@ -196,24 +210,47 @@ function Dashboard({ data, incomplete, storeUrl, onSection, onCopy }: { data: Ad
   return <ShopvaxDashboard data={data} incomplete={incomplete} storeUrl={storeUrl} onSection={onSection} onCopy={onCopy}/>
 }
 
-function Products({ data, query, setQuery, onCreate, onEdit, onVisibility, onDelete, onBulkDelete, onDownloadPdf }: { data: AdminBootstrap; query: string; setQuery: (value: string) => void; onCreate: () => void; onEdit: (p: AdminProduct) => void; onVisibility: (p: AdminProduct) => void | Promise<void>; onDelete: (p: AdminProduct) => void; onBulkDelete: (products: AdminProduct[]) => Promise<boolean>; onDownloadPdf: () => Promise<void> }) {
+function Products({ data, revision, query, setQuery, onCreate, onEdit, onVisibility, onDelete, onBulkDelete, onDownloadPdf }: { data: AdminBootstrap; revision: number; query: string; setQuery: (value: string) => void; onCreate: () => void; onEdit: (p: AdminProduct) => void; onVisibility: (p: AdminProduct) => void | Promise<void>; onDelete: (p: AdminProduct) => void; onBulkDelete: (ids: string[]) => Promise<boolean>; onDownloadPdf: () => Promise<void> }) {
   const [page, setPage] = useState(1)
   const [activeCategory, setActiveCategory] = useState('Todas')
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [bulkBusy, setBulkBusy] = useState(false)
   const [pdfBusy, setPdfBusy] = useState(false)
+  useEffect(() => { window.dispatchEvent(new Event('shopvax:products-ready')) }, [])
   const pageSize = 18
-  const categories = [...new Set(data.products.map((product) => product.category || 'Geral'))].sort((x,y)=>x.localeCompare(y,'pt-BR'))
-  const products = data.products.filter((product) => (activeCategory === 'Todas' || (product.category || 'Geral') === activeCategory) && `${product.name} ${product.sku} ${product.category}`.toLowerCase().includes(query.toLowerCase()))
-  const pages = Math.max(1, Math.ceil(products.length / pageSize))
-  const visible = products.slice((page - 1) * pageSize, page * pageSize)
+  const [products, setProducts] = useState<AdminProduct[]>([])
+  const [total, setTotal] = useState(0)
+  const [pageBusy, setPageBusy] = useState(true)
+  const [pageError, setPageError] = useState('')
+  const [retry, setRetry] = useState(0)
+  const [searchTerm, setSearchTerm] = useState(query)
+  const storeTotal = data.productCount ?? data.products.length
+  const categories = data.productCategories || []
+  const pages = Math.max(1, Math.ceil(total / pageSize))
+  const visible = pageBusy || query !== searchTerm || pageError ? [] : products
   const selected = new Set(selectedIds)
-  const selectedProducts = data.products.filter((product) => selected.has(product.id))
   const allFilteredSelected = products.length > 0 && products.every((product) => selected.has(product.id))
-  useEffect(() => { setPage(1) }, [query, activeCategory, data.products.length])
-  useEffect(() => { if (page > pages) setPage(pages) }, [page, pages])
-  useEffect(() => { setSelectedIds((current) => current.filter((id) => data.products.some((product) => product.id === id))) }, [data.products])
+  useEffect(() => { setPage(1) }, [query, activeCategory])
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setSearchTerm(query), 250)
+    return () => window.clearTimeout(timeout)
+  }, [query])
+  useEffect(() => {
+    let active = true
+    setPageBusy(true)
+    setPageError('')
+    void api.listAdminProducts({ page, limit: pageSize, q: searchTerm, category: activeCategory })
+      .then((response) => {
+        if (!active) return
+        setProducts(response.products)
+        setTotal(response.pagination.total)
+      })
+      .catch((err) => { if (active) setPageError(err instanceof Error ? err.message : 'Falha ao carregar produtos.') })
+      .finally(() => { if (active) setPageBusy(false) })
+    return () => { active = false }
+  }, [page, searchTerm, activeCategory, revision, data.store.id, retry])
+  useEffect(() => { if (!pageBusy && page > pages) setPage(pages) }, [page, pages, pageBusy])
 
   const toggleSelectionMode = () => {
     setSelectionMode((current) => !current)
@@ -228,10 +265,10 @@ function Products({ data, query, setQuery, onCreate, onEdit, onVisibility, onDel
     else setSelectedIds((current) => Array.from(new Set([...current, ...filteredIds])))
   }
   const removeSelected = async () => {
-    if (!selectedProducts.length || bulkBusy) return
+    if (!selectedIds.length || bulkBusy || selectedIds.length > 5000) return
     setBulkBusy(true)
     try {
-      const deleted = await onBulkDelete(selectedProducts)
+      const deleted = await onBulkDelete(selectedIds)
       if (deleted) {
         setSelectedIds([])
         setSelectionMode(false)
@@ -239,19 +276,21 @@ function Products({ data, query, setQuery, onCreate, onEdit, onVisibility, onDel
     } finally { setBulkBusy(false) }
   }
   const generatePdf = async () => {
-    if (pdfBusy || !data.products.length) return
+    if (pdfBusy || !storeTotal) return
     setPdfBusy(true)
     try { await onDownloadPdf() } catch {}
     finally { setPdfBusy(false) }
   }
 
-  return <div className="panel-page svx-products"><div className="page-title"><div><span>Catálogo</span><h1>Produtos</h1><p>Cadastro, fotos, variações e estoque ficam juntos para evitar caminhos duplicados.</p></div><div className="page-title-actions"><button className="secondary-action" disabled={!data.products.length || pdfBusy} onClick={() => void generatePdf()}><Download size={17} /> {pdfBusy ? 'Gerando PDF…' : 'Gerar catálogo PDF'}</button><button className={`secondary-action ${selectionMode ? 'danger' : ''}`} disabled={!data.products.length || bulkBusy} onClick={toggleSelectionMode}><Trash2 size={17} /> {selectionMode ? 'Cancelar seleção' : 'Excluir em massa'}</button><button className="primary-action" onClick={onCreate}><Plus size={18} /> Novo produto</button></div></div>
-    <div className="svx-products__categories" aria-label="Filtrar produtos por categoria"><button type="button" className={activeCategory==='Todas'?'is-active':''} aria-pressed={activeCategory==='Todas'} onClick={()=>setActiveCategory('Todas')}>Todas <small>{data.products.length}</small></button>{categories.map(item=><button type="button" key={item} className={activeCategory===item?'is-active':''} aria-pressed={activeCategory===item} onClick={()=>setActiveCategory(item)}>{item} <small>{data.products.filter(product=>(product.category||'Geral')===item).length}</small></button>)}</div>
-    <div className="table-toolbar"><label><Search size={17} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar nome, SKU ou categoria" /></label><span>{products.length === data.products.length ? countLabel(products.length, 'produto') : `${products.length} de ${data.products.length} produtos`}</span></div>
-    {selectionMode && <div className="product-bulk-toolbar"><label><input type="checkbox" checked={allFilteredSelected} onChange={toggleFiltered} disabled={!products.length}/><span>Selecionar todos {products.length === data.products.length ? `os ${products.length} produtos` : `os ${products.length} deste filtro`}</span></label><div><span>{countLabel(selectedProducts.length, 'selecionado')}</span><button className="secondary-action danger" disabled={!selectedProducts.length || bulkBusy} onClick={() => void removeSelected()}><Trash2 size={15}/>{bulkBusy ? 'Excluindo…' : 'Excluir selecionados'}</button></div></div>}
+  return <div className="panel-page svx-products"><div className="page-title"><div><span>Catálogo</span><h1>Produtos</h1><p>Cadastro, fotos, variações e estoque ficam juntos para evitar caminhos duplicados.</p></div><div className="page-title-actions"><button className="secondary-action" disabled={!storeTotal || pdfBusy} onClick={() => void generatePdf()}><Download size={17} /> {pdfBusy ? 'Gerando PDF…' : 'Gerar catálogo PDF'}</button><button className={`secondary-action ${selectionMode ? 'danger' : ''}`} disabled={!storeTotal || bulkBusy} onClick={toggleSelectionMode}><Trash2 size={17} /> {selectionMode ? 'Cancelar seleção' : 'Excluir em massa'}</button><button className="primary-action" onClick={onCreate}><Plus size={18} /> Novo produto</button></div></div>
+    <div className="svx-products__categories" aria-label="Filtrar produtos por categoria"><button type="button" className={activeCategory==='Todas'?'is-active':''} aria-pressed={activeCategory==='Todas'} onClick={()=>setActiveCategory('Todas')}>Todas <small>{storeTotal}</small></button>{categories.map(item=><button type="button" key={item.category} className={activeCategory===item.category?'is-active':''} aria-pressed={activeCategory===item.category} onClick={()=>setActiveCategory(item.category)}>{item.category} <small>{item.count}</small></button>)}</div>
+    <div className="table-toolbar"><label><Search size={17} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar nome, SKU ou categoria" /></label><span>{total === storeTotal ? countLabel(total, 'produto') : `${total} de ${storeTotal} produtos`}</span></div>
+    {selectionMode && <div className="product-bulk-toolbar"><label><input type="checkbox" checked={allFilteredSelected} onChange={toggleFiltered} disabled={!products.length}/><span>Selecionar os {products.length} desta página</span></label><div><span>{countLabel(selectedIds.length, 'selecionado')}</span><button className="secondary-action danger" disabled={!selectedIds.length || bulkBusy || selectedIds.length > 5000} onClick={() => void removeSelected()}><Trash2 size={15}/>{bulkBusy ? 'Excluindo…' : 'Excluir selecionados'}</button></div></div>}
     <div className="svx-products__headings" aria-hidden="true"><span>FOTO</span><span>PEÇA / REFERÊNCIA / GRADE</span><span>GESTÃO E PREÇO</span></div><div className="product-admin-grid">{visible.map((product) => <article className={`product-admin-card ${selected.has(product.id) ? 'is-selected' : ''}`} key={product.id}><div className="product-admin-card__media"><AdminProductMedia product={product}/>{!product.active && <span>oculto</span>}{selectionMode && <label className="product-select-control"><input type="checkbox" checked={selected.has(product.id)} onChange={() => toggleProduct(product.id)}/><span>Selecionar</span></label>}</div><div className="product-admin-card__body"><small>{product.sku || 'SEM SKU'} · {product.category}</small><h3>{product.name}</h3><strong>{money.format(product.price)}</strong>{product.variations?.length > 0 && <p>{product.variations.map((group) => `${group.name}: ${group.options.join('/')}`).join(' · ')}</p>}<p>{countLabel(Array.isArray(product.images) ? product.images.length : 0, 'foto')} · {product.stock_enabled ? `${product.stock_quantity || 0} em estoque` : 'estoque livre'}</p></div><div className="product-admin-card__actions"><button onClick={() => onEdit(product)}><Pencil size={16} /> Editar</button><button onClick={() => void onVisibility(product)} aria-label={product.active ? `Esconder ${product.name}` : `Mostrar ${product.name}`}>{product.active ? <EyeOff size={16}/> : <Eye size={16}/>} {product.active ? 'Esconder' : 'Mostrar'}</button><button className="danger" aria-label={`Excluir ${product.name}`} onClick={() => onDelete(product)}><Trash2 size={16} /></button></div></article>)}</div>
-    {!products.length && <div className="admin-empty"><Package size={30} /><h2>{data.products.length ? 'Nenhum produto encontrado.' : 'Cadastre seu primeiro produto.'}</h2><p>Você pode usar fotos ou vídeo, criar variações e controlar estoque na mesma edição.</p><button className="primary-action" onClick={onCreate}><Plus size={18} /> Cadastrar produto</button></div>}
-    {products.length > pageSize && <div className="panel-pagination"><button disabled={page === 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>Anterior</button><span>Página {page} de {pages}</span><button disabled={page === pages} onClick={() => setPage((value) => Math.min(pages, value + 1))}>Próxima</button></div>}
+    {pageError && <div className="panel-error" role="alert">{pageError}<button type="button" onClick={() => setRetry((value) => value + 1)}>Tentar novamente</button></div>}
+    {(pageBusy || query !== searchTerm) && <p role="status">Carregando página de produtos…</p>}
+    {!pageBusy && query === searchTerm && !pageError && !products.length && <div className="admin-empty"><Package size={30} /><h2>{storeTotal ? 'Nenhum produto encontrado.' : 'Cadastre seu primeiro produto.'}</h2><p>Você pode usar fotos ou vídeo, criar variações e controlar estoque na mesma edição.</p><button className="primary-action" onClick={onCreate}><Plus size={18} /> Cadastrar produto</button></div>}
+    {total > pageSize && !pageError && <div className="panel-pagination"><button disabled={page === 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>Anterior</button><span>Página {page} de {pages}</span><button disabled={page === pages} onClick={() => setPage((value) => Math.min(pages, value + 1))}>Próxima</button></div>}
   </div>
 }
 

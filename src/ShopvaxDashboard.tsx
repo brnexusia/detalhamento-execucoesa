@@ -28,7 +28,7 @@ export default function ShopvaxDashboard({ data, incomplete, storeUrl, onSection
   const allItems = data.orders.reduce((n,order)=>n+order.items.reduce((subtotal,item)=>subtotal+item.quantity,0),0)
   const required = [
     { label:'WhatsApp e pedido mínimo', ready:Boolean(data.store.whatsapp),section:'loja' as DeskSection },
-    { label:'Produtos cadastrados', ready:data.products.length>0,section:'produtos' as DeskSection },
+    { label:'Produtos cadastrados', ready:(data.productCount ?? data.products.length)>0,section:'produtos' as DeskSection },
     { label:'Vendedoras com link', ready:activeSellers.length>0,section:'vendedoras' as DeskSection },
   ]
   const completed = required.filter(x=>x.ready).length

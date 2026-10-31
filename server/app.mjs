@@ -491,8 +491,11 @@ app.get(
     const store = storeResult.rows[0]
     if (!store) return res.status(404).json({ error: 'Loja não encontrada.' })
 
-    const [products, sellers, orders, stats] = await Promise.all([
-      pool.query('SELECT * FROM products WHERE store_id=$1 ORDER BY created_at DESC', [store.id]),
+    // Compact bootstrap avoids materializing the entire store catalog.
+    // Existing consumers can continue using the unchanged legacy response.
+    const compact = req.query.compact === '1'
+    const [products, sellers, orders, stats, categoryCounts] = await Promise.all([
+      compact ? Promise.resolve({ rows: [] }) : pool.query('SELECT * FROM products WHERE store_id=$1 ORDER BY created_at DESC', [store.id]),
       pool.query('SELECT * FROM sellers WHERE store_id=$1 ORDER BY created_at ASC', [store.id]),
       pool.query('SELECT * FROM orders WHERE store_id=$1 ORDER BY created_at DESC LIMIT 100', [store.id]),
       pool.query(
@@ -503,15 +506,65 @@ app.get(
           (SELECT coalesce(sum(total),0)::numeric FROM orders WHERE store_id=$1) AS value`,
         [store.id],
       ),
+      compact ? pool.query(
+        'SELECT category, count(*)::int AS count FROM products WHERE store_id=$1 GROUP BY category ORDER BY category ASC',
+        [store.id],
+      ) : Promise.resolve({ rows: [] }),
     ])
 
     res.json({
       user: req.user,
       store: { ...store, minimum_order: Number(store.minimum_order) },
       products: products.rows.map((item) => ({ ...item, price: Number(item.price) })),
+      ...(compact ? {
+        productCount: categoryCounts.rows.reduce((sum, row) => sum + Number(row.count), 0),
+        productCategories: categoryCounts.rows.map((row) => ({
+          category: row.category || 'Geral', count: Number(row.count),
+        })),
+      } : {}),
       sellers: sellers.rows,
       orders: orders.rows.map((item) => ({ ...item, total: Number(item.total) })),
       stats: { ...stats.rows[0], value: Number(stats.rows[0]?.value || 0) },
+    })
+  }),
+)
+
+// Tenant-scoped, bounded listing: store identity always comes from the session.
+app.get(
+  '/api/admin/products',
+  auth,
+  asyncRoute(async (req, res) => {
+    const ownerStore = await pool.query('SELECT id FROM stores WHERE owner_id=$1 LIMIT 1', [req.user.id])
+    if (!ownerStore.rowCount) return res.status(404).json({ error: 'Loja não encontrada.' })
+
+    const limit = Math.min(100, Math.max(1, Number.parseInt(String(req.query.limit || '18'), 10) || 18))
+    const page = Math.min(1000000, Math.max(1, Number.parseInt(String(req.query.page || '1'), 10) || 1))
+    const query = String(req.query.q || '').trim().toLowerCase().slice(0, 120)
+    const category = String(req.query.category || '').trim().slice(0, 80)
+    const params = [ownerStore.rows[0].id]
+    const filters = ['store_id=$1']
+    if (category && category !== 'Todas') {
+      params.push(category)
+      filters.push('category=$' + params.length)
+    }
+    if (query) {
+      params.push(query)
+      filters.push('position($' + params.length + " IN lower(name || ' ' || sku || ' ' || category)) > 0")
+    }
+    const where = filters.join(' AND ')
+    const limitBind = '$' + (params.length + 1)
+    const offsetBind = '$' + (params.length + 2)
+    const offset = (page - 1) * limit
+    const [count, found] = await Promise.all([
+      pool.query('SELECT count(*)::int AS total FROM products WHERE ' + where, params),
+      pool.query(
+        'SELECT * FROM products WHERE ' + where + ' ORDER BY created_at DESC, id DESC LIMIT ' + limitBind + ' OFFSET ' + offsetBind,
+        [...params, limit, offset],
+      ),
+    ])
+    res.json({
+      products: found.rows.map((item) => ({ ...item, price: Number(item.price) })),
+      pagination: { page, limit, total: Number(count.rows[0]?.total || 0) },
     })
   }),
 )
