@@ -8,7 +8,7 @@ Branch: parallel/03-onboarding-growth. Origem: issue #109 (A04–A07 e B01–B04
 - B02/B03: ajuda contextual para lojista e comprador, com perguntas por contexto. A opção de captura usa seleção voluntária e compartilhamento nativo quando disponível; navegadores não detectam screenshot. Nenhum vídeo foi inserido sem material aprovado.
 - B04: verificação de configuração real do Google, estado de carregamento, falha e responsividade; o login no backend é preservado. Falta validar OAuth com credencial/origem reais.
 - A04: opt-in separado WhatsApp/e-mail, escolha das lojas disponíveis no momento (todas ou específicas), revogação e auditoria por canal, sem disparo de mensagens.
-- A06: convite não invasivo para criar conta de comprador, apenas visitante sem sessão na loja atual, fechamento e frequência de sete dias por localStorage; nenhum fingerprint, IP ou IMEI é usado como identificador de marketing.
+- A06: convite não invasivo para criar conta de comprador, apenas visitante sem sessão na loja atual ou marca booleana local de conta conhecida, fechamento e frequência de sete dias por localStorage; nenhum fingerprint, IP ou IMEI é usado como identificador de marketing.
 - A05: ajuda central, assuntos classificados e registro técnico de suporte humano; nenhum telefone, IA ou canal externo é anunciado como ativo. Formulário de ticket desligado por padrão.
 - A07: convite de comprador não anuncia planos nem inventa preços. Contextos comerciais e assinatura pertencem ao lojista; esta frente não modifica cobrança.
 
@@ -46,7 +46,7 @@ GitHub Actions verde não comprova comportamento no iPhone/Android real, produç
 
 ## Integrações com outras frentes
 
-Frente 02: preservar rotas existentes de comprador, sessões e contas; unir identidade entre lojas somente em migração controlada, nunca ampliando consentimento implicitamente. A aquisição hoje sabe apenas se o comprador tem sessão na loja visitada, pois contas atuais são por loja.
+Frente 02: preservar rotas existentes de comprador, sessões e contas; unir identidade entre lojas somente em migração controlada, nunca ampliando consentimento implicitamente. A aquisição confirma a sessão da loja visitada e guarda somente booleano local de conta de comprador conhecida; em novos dispositivos sem login a identificação global ainda depende da Frente 02.
 
 Frente 01: integrar sem sobrescrever branches paralelas, revisar avisos comerciais no painel do lojista e executar homologação em dispositivos reais e WhatsApp de vendedoras. Não publicar a frente sem aceite dos gates.
 
