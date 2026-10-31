@@ -43,6 +43,8 @@ on:
       - 'src/ShopvaxAcquisition.tsx'
       - 'src/ShopvaxBuyerPreferences.tsx'
       - 'src/ShopvaxSupport.tsx'
+      - 'scripts/generate-shopvax-tour.mjs'
+      - 'tests/shopvax-tour.e2e.mjs'
       - 'src/shopvax-growth.css'
       - 'src/GoogleSignInButton.tsx'
       - 'tests/shopvax-growth.e2e.mjs'
@@ -119,6 +121,8 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npm install --no-save --no-audit --no-fund playwright@1.58.2
       - run: npx playwright install chromium
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-dejavu-core
+      - run: node scripts/generate-shopvax-tour.mjs
       - run: npm run build
       - name: Serve the application
         run: |
@@ -133,6 +137,8 @@ jobs:
         run: node tests/product-picker-responsive.e2e.mjs
       - name: Growth onboarding, buyer preferences and support
         run: node tests/shopvax-growth.e2e.mjs
+      - name: Short original Shopvax tour - responsive video and transcript
+        run: node tests/shopvax-tour.e2e.mjs
       - name: Fotos locais responsivas sem quebrar URLs externas
         run: node tests/shopvax-responsive-media.e2e.mjs
       - name: Official design layer 05 - desktop product as a page, related products and mobile modal
