@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { showToast } from './ui-dialogs'
 import { ChevronRight, Eye, Heart, MessageCircleQuestion, Minus, Play, Plus, Share2, ShoppingBag, Store, Volume2, VolumeX, X } from 'lucide-react'
 import './social-feed.css'
@@ -137,7 +137,7 @@ async function sellerSlugForStore(slug: string) {
   } catch { return '' }
 }
 
-function SocialPostCard({ post, cartCount, active, saveData, onProfile, onAdd, onCart }: { post: SocialPost; cartCount: number; active: boolean; saveData: boolean; onProfile: (slug: string) => void; onAdd: (post: SocialPost) => void; onCart: (store: SocialPost['store']) => void }) {
+const SocialPostCard = memo(function SocialPostCard({ post, cartCount, active, saveData, onProfile, onAdd, onCart }: { post: SocialPost; cartCount: number; active: boolean; saveData: boolean; onProfile: (slug: string) => void; onAdd: (post: SocialPost) => void; onCart: (store: SocialPost['store']) => void }) {
   const cardRef = useRef<HTMLElement | null>(null)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const viewed = useRef(false)
@@ -262,7 +262,7 @@ function SocialPostCard({ post, cartCount, active, saveData, onProfile, onAdd, o
       </div>
     </div>
   </article>
-}
+})
 
 export default function SocialFeed() {
   const restored = useRef<FeedSession | null>(readFeedSession())
@@ -361,7 +361,7 @@ export default function SocialFeed() {
   const windowEnd = Math.min(posts.length, visibleIndex + renderNeighbors + 2)
   const visiblePosts = posts.slice(windowStart, windowEnd)
 
-  const addCartItem = (post: SocialPost, selections: Record<string, string>, quantity: number) => {
+  const addCartItem = useCallback((post: SocialPost, selections: Record<string, string>, quantity: number) => {
     const items = readCart(post.store.slug)
     const key = cartItemKey(post.product, selections)
     const existing = items.find((item) => item.key === key)
@@ -369,16 +369,16 @@ export default function SocialFeed() {
       ? items.map((item) => item.key === key ? { ...item, quantity: item.quantity + quantity } : item)
       : [...items, { key, product: post.product, quantity, selections }]
     writeCart(post.store.slug, next)
-  }
+  }, [])
 
-  const requestAdd = (post: SocialPost) => {
+  const requestAdd = useCallback((post: SocialPost) => {
     const groups = Array.isArray(post.product.variations) ? post.product.variations : []
     if (!groups.length) { addCartItem(post, {}, 1); return }
     const defaults: Record<string, string> = {}
     groups.forEach((group) => { if (group.options.length === 1) defaults[group.name] = group.options[0] })
     setPicker({ post, selections: defaults, quantity: 1 })
     setPickerError('')
-  }
+  }, [addCartItem])
 
   const confirmPicker = () => {
     if (!picker) return
@@ -395,7 +395,7 @@ export default function SocialFeed() {
     writeCart(activeCart.slug, next)
   }
 
-  const openProfile = (slug: string) => { persist(); go(profilePath(slug)) }
+  const openProfile = useCallback((slug: string) => { persist(); go(profilePath(slug)) }, [persist])
   const openCommercialStore = async (slug: string) => { persist(); const seller = await sellerSlugForStore(slug); go(commercialStorePath(slug, seller)) }
   const cartItems = activeCart ? readCart(activeCart.slug) : []
   const cartTotal = cartItems.reduce((sum, item) => sum + Number(item.product.price || 0) * Number(item.quantity || 0), 0)
