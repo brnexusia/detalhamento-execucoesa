@@ -47,10 +47,10 @@ jobs:
       - name: Validate TypeScript and build
         working-directory: app
         run: npm run build
-      - name: Start isolated local Vite server
+      - name: Start compiled production frontend (same bundle settings for baseline and candidate)
         working-directory: app
         run: |
-          npm run dev -- --host 127.0.0.1 > /tmp/shopvax-public-perf.log 2>&1 &
+          npm run preview -- --host 127.0.0.1 --port 5173 > /tmp/shopvax-public-perf.log 2>&1 &
           for i in $(seq 1 60); do
             if curl -fsS http://127.0.0.1:5173/feed >/dev/null; then exit 0; fi
             sleep 1
