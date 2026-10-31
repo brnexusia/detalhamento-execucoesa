@@ -43,6 +43,8 @@ on:
       - 'src/ShopvaxAcquisition.tsx'
       - 'src/ShopvaxBuyerPreferences.tsx'
       - 'src/ShopvaxSupport.tsx'
+      - 'scripts/generate-shopvax-tour.mjs'
+      - 'tests/shopvax-tour.e2e.mjs'
       - 'src/shopvax-growth.css'
       - 'src/GoogleSignInButton.tsx'
       - 'tests/shopvax-growth.e2e.mjs'
@@ -106,6 +108,12 @@ on:
       - 'src/shopvax-brand.css'
       - 'src/ShopvaxDesignSystem.tsx'
       - '.github/workflows/responsive-picker-check.yml'
+      - 'src/ShopvaxBrandMotion.tsx'
+      - 'src/shopvax-brand-motion.css'
+      - 'tests/shopvax-issue109-visual-details.e2e.mjs'
+      - 'tests/shopvax-support-ai.e2e.mjs'
+      - 'server/onboarding-growth-hooks.mjs'
+      - 'server/onboarding-growth-policy.mjs'
   workflow_dispatch:
 
 jobs:
@@ -119,6 +127,8 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npm install --no-save --no-audit --no-fund playwright@1.58.2
       - run: npx playwright install chromium
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-dejavu-core
+      - run: node scripts/generate-shopvax-tour.mjs
       - run: npm run build
       - name: Serve the application
         run: |
@@ -133,6 +143,8 @@ jobs:
         run: node tests/product-picker-responsive.e2e.mjs
       - name: Growth onboarding, buyer preferences and support
         run: node tests/shopvax-growth.e2e.mjs
+      - name: Short original Shopvax tour - responsive video and transcript
+        run: node tests/shopvax-tour.e2e.mjs
       - name: Fotos locais responsivas sem quebrar URLs externas
         run: node tests/shopvax-responsive-media.e2e.mjs
       - name: Official design layer 05 - desktop product as a page, related products and mobile modal
@@ -209,6 +221,10 @@ jobs:
           path: artifacts/shopvax-growth/*.png
           if-no-files-found: ignore
           retention-days: 14
+      - name: Issue 109 visual details - plans, loading mark and reduced motion
+        run: node tests/shopvax-issue109-visual-details.e2e.mjs
+      - name: Central Shopvax support - opt-in assistant and WhatsApp link
+        run: node tests/shopvax-support-ai.e2e.mjs
       - name: Debug log
         if: failure()
         run: cat /tmp/vite.log || true

@@ -1,3 +1,4 @@
+import ShopvaxBrandMotion from './ShopvaxBrandMotion'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, Check, ChevronLeft, ChevronRight, Grid2X2, ImageOff, Minus, Plus, Search, ShoppingBag, Menu, Sparkles, Heart, MessageCircle, Share2, X } from 'lucide-react'
 import { api } from './api'
@@ -381,7 +382,7 @@ export default function PublicStoreV2() {
     }
   }
 
-  if (!payload) return <div className="store-loading"><span className="brand__mark"><img src="/brand/shopvax-symbol.svg" className="svx-brand-symbol" alt="Shopvax" /></span>{initialLoadError ? <><strong role="alert">{initialLoadError}</strong><button type="button" onClick={() => { void loadFirst() }}>Tentar novamente</button></> : <><strong>Abrindo a loja…</strong><p>Só um instante.</p></>}</div>
+  if (!payload) return <div className="store-loading"><span className="brand__mark"><ShopvaxBrandMotion active variant="assemble" /></span>{initialLoadError ? <><strong role="alert">{initialLoadError}</strong><button type="button" onClick={() => { void loadFirst() }}>Tentar novamente</button></> : <><strong>Abrindo a loja…</strong><p>Só um instante.</p></>}</div>
 
   const season = seasonalThemeById(store?.seasonalTheme)
   const seasonalAccent = season.id === 'padrao' ? (store?.accent || SHOPVAX_DEFAULT_ACCENT) : season.accent

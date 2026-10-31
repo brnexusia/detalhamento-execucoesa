@@ -35,3 +35,19 @@ export function validateSupportInput(body) {
   if (body?.privacyAcknowledged !== true) throw new Error('Confirme que entende como o relato será armazenado.')
   return { audience, topic, message, replyEmail }
 }
+
+
+/** Assistência pública só responde perguntas gerais sem enviar dados identificáveis à IA. */
+export function validateSupportQuestion(body) {
+  const audience = body?.audience
+  const topic = body?.topic
+  const question = String(body?.question || '').replace(/\s+/g, ' ').trim()
+  if (!['buyer','merchant'].includes(audience)) throw new Error('Público de suporte inválido.')
+  if (!['account','catalog','order','billing','privacy','other'].includes(topic)) throw new Error('Assunto de suporte inválido.')
+  if (question.length < 8 || question.length > 600) throw new Error('Digite uma dúvida entre 8 e 600 caracteres.')
+  if (/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i.test(question) || /\b\d{9,}\b/.test(question)) {
+    throw new Error('Não envie e-mail, telefone, CPF, número de pedido ou outros dados pessoais à IA.')
+  }
+  if (body?.privacyAcknowledged !== true) throw new Error('Confirme que deseja enviar a dúvida sem dados pessoais à assistência por IA.')
+  return { audience, topic, question }
+}

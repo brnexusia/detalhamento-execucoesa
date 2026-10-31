@@ -78,3 +78,17 @@
 .svx-support--store{left:10px;right:auto;bottom:76px}
 .svx-support--store .svx-support__panel{left:0;right:auto}
 @media(max-width:430px){.svx-support--store{left:8px;right:auto;bottom:82px}.svx-support--store .svx-support__trigger{padding:9px 10px;font-size:11px}}
+
+
+/* #109 A05: IA facultativa e canal central distintos dos telefones de vendedores. */
+.svx-support__ai{border-top:2px solid #f25c05;padding-top:15px;margin-top:15px}
+.svx-support__ai p{font-size:12px;line-height:1.6;color:#56534e}
+.svx-support__ai-answer{white-space:pre-wrap;overflow-wrap:anywhere;padding:13px;background:#f3f0e8;border-left:3px solid #f25c05;color:#161514;font-size:13px;line-height:1.6}
+.svx-support__whatsapp{display:flex;align-items:center;justify-content:space-between;gap:9px;padding:12px 14px;margin:16px 0;color:#161514;background:#f25c05;border:1px solid #161514;font-weight:800;font-size:12px;text-decoration:none}
+.svx-support__whatsapp:focus-visible{outline:3px solid #2D2A8C;outline-offset:3px}
+
+/* B02: vídeo original autohospedado. O usuário escolhe reproduzir; sem autoplay. */
+.svx-support__video{margin:12px 0 18px;padding:12px;border:1px solid #d9d3c6;background:#f3f0e8}
+.svx-support__video summary{cursor:pointer;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.svx-support__video video{display:block;margin-top:12px;width:100%;height:auto;max-width:640px;aspect-ratio:16/9;background:#161514}
+.svx-support__video p{font-size:12px;line-height:1.6;color:#555049}

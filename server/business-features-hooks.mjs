@@ -209,7 +209,7 @@ async function createStockOrder(req, res) {
       const sellerResult = await client.query('SELECT * FROM sellers WHERE store_id=$1 AND slug=$2 AND is_active=true LIMIT 1', [store.id, req.body.sellerSlug])
       seller = sellerResult.rows[0] || null
     }
-    if (!seller) {
+    if (!seller || digits(seller.phone).length < 10) {
       const available = await client.query(
         'SELECT * FROM sellers WHERE store_id=$1 AND is_active=true AND length(regexp_replace(phone, \'[^0-9]\', \'\', \'g\'))>=10 ORDER BY created_at ASC,id ASC LIMIT 1',
         [store.id],

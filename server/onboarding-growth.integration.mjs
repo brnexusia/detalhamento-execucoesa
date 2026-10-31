@@ -22,6 +22,11 @@ try {
   assert.equal(result.payload.ticketsEnabled, false)
   assert.equal(result.payload.aiEnabled, false)
   assert.equal(result.payload.messagingEnabled, false)
+  assert.equal(result.payload.supportWhatsapp, null)
+  const aiDisabled = await json('/api/public/support/assist', {
+    method:'POST',body:{audience:'buyer',topic:'order',question:'Como faço um talão de pedido?',privacyAcknowledged:true},
+  })
+  assert.equal(aiDisabled.response.status,503,'A assistência não pode iniciar sem chave e ativação explícita')
   const merchant = await json('/api/auth/register', { method: 'POST', body: {
     name: 'Lojista Teste', email: 'growth-' + unique + '@example.test', password: 'growth-secret-2026',
     storeName: 'Loja Growth ' + unique, whatsapp: '5511987700123', planCode: 'bronze',

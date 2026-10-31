@@ -44,6 +44,25 @@ try {
     assert(result.referenceFont>=12,'Referência do catálogo deve ser legível: '+JSON.stringify(result))
     assert(result.catalogFont>=12,'Referência da coleção deve ser legível: '+JSON.stringify(result))
     assert(result.scrollWidth<=result.viewport+2,'Overflow horizontal: '+JSON.stringify(result))
+    // Regressão C04: logos de perfis não são arrastáveis, fotos comuns continuam livres.
+    const drag = await page.evaluate(() => {
+      const profile = document.createElement('div')
+      profile.className = 'social-profile-avatar'
+      const logo = document.createElement('img')
+      profile.appendChild(logo)
+      document.body.appendChild(profile)
+      const logoEvent = new Event('dragstart', { bubbles:true, cancelable:true })
+      logo.dispatchEvent(logoEvent)
+      const product = document.createElement('img')
+      document.body.appendChild(product)
+      const productEvent = new Event('dragstart', { bubbles:true, cancelable:true })
+      product.dispatchEvent(productEvent)
+      profile.remove()
+      product.remove()
+      return { logoBlocked:logoEvent.defaultPrevented, productAllowed:!productEvent.defaultPrevented }
+    })
+    assert(drag.logoBlocked,'Logo de perfil social não pode ser arrastada: '+JSON.stringify(drag))
+    assert(drag.productAllowed,'Fotos comuns não podem ser bloqueadas globalmente: '+JSON.stringify(drag))
     await page.screenshot({ path:`artifacts/shopvax-redesign/frente04-vitrine-${width}.png`,fullPage:true })
     await context.close()
   }

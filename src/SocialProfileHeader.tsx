@@ -33,7 +33,7 @@ export default function SocialProfileHeader() {
   return <section className="social-profile" style={{ '--profile-accent': store.accent || '#111318' } as React.CSSProperties}>
     <div className="social-profile__brand"><span>SHOPVAX</span><small>Perfil da loja</small></div>
     <div className="social-profile__main">
-      <div className="social-profile__avatar">{store.logoUrl ? <img src={store.logoUrl} alt="" /> : <Store size={30} />}</div>
+      <div className="social-profile__avatar">{store.logoUrl ? <img src={store.logoUrl} alt="" draggable={false} /> : <Store size={30} />}</div>
       <div className="social-profile__identity"><h1>{store.name}</h1><p>{store.tagline}</p><span>@{store.slug}</span><button className={stats.following ? 'is-following' : ''} onClick={follow}>{stats.following ? 'Seguindo' : 'Seguir'}</button></div>
       <div className="social-profile__stats">
         <div><strong>{store.productCount}</strong><span>produtos</span></div>

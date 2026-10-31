@@ -867,7 +867,7 @@ async function getPublicStore(req, res) {
     )
     if (sellerResult.rowCount) seller = sellerResult.rows[0]
   }
-  if (!seller) {
+  if (!seller || digits(seller.phone).length < 10) {
     const available = await pool.query(
       'SELECT id,slug,name,phone FROM sellers WHERE store_id=$1 AND is_active=true AND length(regexp_replace(phone, \'[^0-9]\', \'\', \'g\'))>=10 ORDER BY created_at ASC,id ASC LIMIT 1',
       [store.id],
@@ -987,7 +987,7 @@ app.post(
       seller = sellerResult.rows[0] || null
     }
 
-    if (!seller) {
+    if (!seller || digits(seller.phone).length < 10) {
       const available = await pool.query(
         'SELECT * FROM sellers WHERE store_id=$1 AND is_active=true AND length(regexp_replace(phone, \'[^0-9]\', \'\', \'g\'))>=10 ORDER BY created_at ASC,id ASC LIMIT 1',
         [store.id],
