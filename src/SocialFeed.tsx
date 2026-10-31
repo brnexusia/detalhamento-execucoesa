@@ -547,7 +547,7 @@ export default function SocialFeed() {
       {restoredNotice && <div className="social-feed-cache-note" role="status">Feed recuperado da sessão. Confirme preço e disponibilidade ao preparar o pedido.</div>}
       {!posts.length && !loading && !error && <div className="social-feed-state"><h1>O feed está começando.</h1><p>As publicações das lojas aparecerão aqui.</p></div>}
       {error && <div className="social-feed-state"><p>{error}</p><button onClick={() => void load(cursor)}>Tentar novamente</button></div>}
-      {loading && <div className="social-feed-loading">Carregando produtos…</div>}
+      {loading && (!posts.length ? <ShopvaxLoading compact label="Carregando produtos…" /> : <div className="social-feed-loading">Carregando mais produtos…</div>)}
       <div ref={sentinel} className="social-feed-sentinel" />
     </main>
 
