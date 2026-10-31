@@ -16,6 +16,13 @@ try {
     status: 200, contentType: 'application/json',
     body: JSON.stringify({ store: { slug: 'loja-a', name: 'Loja A' }, customerLoginEnabled: true }),
   }))
+  await context.route('**/api/public/store/loja-b/phase2-config', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ store: { slug: 'loja-b', name: 'Loja B' }, customerLoginEnabled: true }),
+  }))
+  await context.route('**/api/public/store/loja-b/customers/me', route => route.fulfill({
+    status: 401, contentType: 'application/json', body: '{"error":"Sessão não pertence a esta loja."}',
+  }))
   await context.route('**/api/public/store/loja-a/customers/me', route => {
     if (offline) return route.abort('internetdisconnected')
     if (!activeUser) return route.fulfill({ status: 401, contentType: 'application/json', body: '{"error":"Entre para acessar sua conta."}' })
@@ -85,8 +92,25 @@ try {
   await one.evaluate(() => window.dispatchEvent(new Event('focus')))
   await one.getByRole('heading', { name: 'Comprador Dois' }).waitFor({ timeout: 7000 })
 
+  // Troca de loja pelo SPA sem refresh precisa destruir os dados anteriores.
+  await one.evaluate(() => {
+    window.history.pushState({}, '', '/cliente/loja-b')
+    window.dispatchEvent(new PopStateEvent('popstate'))
+  })
+  await one.getByRole('heading', { name: 'Acesse seus pedidos' }).waitFor({ timeout: 7000 })
+  await one.getByText('Loja B', { exact: true }).first().waitFor()
+  assert.equal(await one.getByText('Comprador Dois').count(), 0, 'Conta da loja A não pode persistir na loja B')
+  assert.equal(await one.getByText('AS-002').count(), 0, 'Histórico da loja A não pode persistir na loja B')
+
+  await one.evaluate(() => {
+    window.history.pushState({}, '', '/cliente/loja-a')
+    window.dispatchEvent(new PopStateEvent('popstate'))
+  })
+  await one.getByRole('heading', { name: 'Comprador Dois' }).waitFor({ timeout: 7000 })
+  await one.getByText('AS-002').waitFor()
+
   await context.close()
-  console.log('SHOPVAX_BUYER_SESSION_STATUS_PASS: two tabs, two users, errors and truthful order states')
+  console.log('SHOPVAX_BUYER_SESSION_STATUS_PASS: two tabs, two stores, two users, network errors and truthful states')
 } finally {
   await browser.close()
 }
