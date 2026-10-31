@@ -35,6 +35,7 @@ const page = await context.newPage()
 const cdp = await context.newCDPSession(page)
 await cdp.send('Network.enable')
 await cdp.send('Performance.enable')
+await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 })
 const profile = network === 'slow3g'
   ? { latency: 400, downloadThroughput: 400_000 / 8, uploadThroughput: 400_000 / 8 }
   : { latency: 120, downloadThroughput: 4_000_000 / 8, uploadThroughput: 1_000_000 / 8 }
@@ -75,12 +76,13 @@ try {
   await sample('initial')
   const swipeTimes = []
   for (let i = 1; i <= transitions; i++) {
-    const start = Date.now()
-    await page.locator('.social-feed-list').evaluate((list, number) => {
+    const paintMs = await page.locator('.social-feed-list').evaluate(async (list, number) => {
+      const start = performance.now()
       list.scrollTop = number * list.clientHeight
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+      return performance.now() - start
     }, i)
-    await page.waitForTimeout(20)
-    swipeTimes.push(Date.now() - start)
+    swipeTimes.push(paintMs)
     if (i === 50 || i === 100 || i === 200) await sample(`swipe-${i}`)
   }
   await page.evaluate(() => window.dispatchEvent(new Event('pagehide')))
@@ -110,15 +112,16 @@ try {
   }
   const sorted = swipeTimes.slice().sort((a, b) => a - b)
   const report = {
-    mode, network, environment: 'GitHub Actions Linux / Chromium / viewport 390x844 / CPU runner',
+    mode, network, environment: 'GitHub Actions Linux / Chromium / viewport 390x844 / CPU throttled 4x',
     fixture: '240 publicações sintéticas; API mockada, sem PostgreSQL, sem mídias reais',
     transitions, apiPayloadBytes: Buffer.byteLength(mockBody),
-    samples, swipeRoundtripP50Ms: sorted[Math.floor(sorted.length * .5)],
-    swipeRoundtripP95Ms: sorted[Math.floor(sorted.length * .95)],
+    samples, swipeToTwoFramesP50Ms: sorted[Math.floor(sorted.length * .5)],
+    swipeToTwoFramesP95Ms: sorted[Math.floor(sorted.length * .95)],
     restoredPositionInScreens: returnPosition, cartPersisted: countAfter === countBefore + 1, activeName, firstIndex,
     warning: 'TTFB/LCP/CLS e bytes são de laboratório com Vite e mock; não representam produção. INP real, memória Safari iOS e bateria não foram medidos.',
   }
   fs.mkdirSync(outputDir, { recursive: true })
+  await page.screenshot({ path: `${outputDir}/${mode}-${network}.png` })
   fs.writeFileSync(`${outputDir}/${mode}-${network}.json`, JSON.stringify(report, null, 2))
   console.log('SHOPVAX_PUBLIC_PERFORMANCE', JSON.stringify(report))
 } finally {
