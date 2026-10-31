@@ -4,9 +4,8 @@
 .svx-brand-motion__assembly{transform-box:view-box;transform-origin:480px 440.643px}
 .svx-brand-motion__v,.svx-brand-motion__a{transform-box:view-box;transform-origin:center}
 .svx-brand-motion__v{fill:#F25C05}
-.svx-brand-motion__a{fill:#F3F0E8}
-.svx-brand-motion:not(.svx-brand-motion--dark) .svx-brand-motion__v,
-.svx-brand-motion:not(.svx-brand-motion--dark) .svx-brand-motion__a{fill:#161514}
+.svx-brand-motion__a{fill:#161514}
+.svx-brand-motion--dark .svx-brand-motion__a{fill:#F3F0E8}
 
 @media (prefers-reduced-motion:no-preference){
   /* O V sempre chega de CIMA; o A sempre chega de BAIXO.
