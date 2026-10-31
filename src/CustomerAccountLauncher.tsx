@@ -59,10 +59,12 @@ export default function CustomerAccountLauncher() {
     const unsubscribe = listenAuthChanges('customer', refresh)
     const onFocus = () => { if (document.visibilityState === 'visible') refresh() }
     window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onFocus)
 
     return () => {
       unsubscribe()
       window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onFocus)
       mounted = false
       statusVersion.current += 1
       delete root.dataset.shopvaxStoreTheme
