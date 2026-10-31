@@ -35,6 +35,13 @@ on:
       - 'src/shopvax-home.css'
       - 'src/Auth.tsx'
       - 'src/ShopvaxDashboard.tsx'
+      - 'src/ShopvaxOnboardingGuide.tsx'
+      - 'src/ShopvaxAcquisition.tsx'
+      - 'src/ShopvaxBuyerPreferences.tsx'
+      - 'src/ShopvaxSupport.tsx'
+      - 'src/shopvax-growth.css'
+      - 'src/GoogleSignInButton.tsx'
+      - 'tests/shopvax-growth.e2e.mjs'
       - 'src/Phase3PublicRuntime.tsx'
       - 'tests/shopvax-cart-events.e2e.mjs'
       - 'tests/shopvax-dashboard-greeting.e2e.mjs'
@@ -120,6 +127,8 @@ jobs:
           exit 1
       - name: Browser regression across viewport sizes
         run: node tests/product-picker-responsive.e2e.mjs
+      - name: Growth onboarding, buyer preferences and support
+        run: node tests/shopvax-growth.e2e.mjs
       - name: Fotos locais responsivas sem quebrar URLs externas
         run: node tests/shopvax-responsive-media.e2e.mjs
       - name: Official design layer 05 - desktop product as a page, related products and mobile modal
