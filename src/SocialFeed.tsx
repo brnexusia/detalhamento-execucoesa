@@ -279,7 +279,7 @@ export default function SocialFeed() {
     return Math.max(0, Math.min(cached.posts.length - 1, estimated))
   })())
   const restorationPendingRef = useRef(Boolean(restored.current?.posts.length))
-  const skipMountCacheWriteRef = useRef(Boolean(restored.current?.posts.length))
+  const restoredAnchorLockRef = useRef(Boolean(restored.current?.posts.length))
   const listRef = useRef<HTMLElement | null>(null)
   const scrollTopRef = useRef(restored.current?.scrollTop || 0)
   const loadingRef = useRef(false)
@@ -301,7 +301,7 @@ export default function SocialFeed() {
   const persist = useCallback(() => {
     const list = listRef.current
     const height = list?.clientHeight || window.innerHeight
-    const scrollTop = restorationPendingRef.current ? restoredIndex.current * height : (list?.scrollTop ?? scrollTopRef.current)
+    const scrollTop = (restorationPendingRef.current || restoredAnchorLockRef.current) ? restoredIndex.current * height : (list?.scrollTop ?? scrollTopRef.current)
     const index = Math.max(0, Math.min(posts.length - 1, Math.round(scrollTop / Math.max(1, height))))
     saveFeedSession(posts, cursor, hasMore, scrollTop, height)
     // History entry belongs to the feed, not the profile opened by pushState.
@@ -387,11 +387,8 @@ export default function SocialFeed() {
     if (!cached?.posts?.length) void load(null)
   }, [load])
 
-  useEffect(() => {
-    // Do not overwrite the just-restored 200th item with scrollTop=0 during mount.
-    if (skipMountCacheWriteRef.current) { skipMountCacheWriteRef.current = false; return }
-    if (!restorationPendingRef.current) saveFeedSession(posts, cursor, hasMore, scrollTopRef.current, listRef.current?.clientHeight || window.innerHeight)
-  }, [posts, cursor, hasMore])
+  // Cache is written on explicit navigation and pagehide, never from a mount effect.
+  // A mount-time write can replace a correct deep-link anchor with browser scrollTop=0.
   useEffect(() => {
     const save = () => persist()
     window.addEventListener('pagehide', save)
@@ -469,9 +466,31 @@ export default function SocialFeed() {
   const cartItems = activeCart ? readCart(activeCart.slug) : []
   const cartTotal = cartItems.reduce((sum, item) => sum + Number(item.product.price || 0) * Number(item.quantity || 0), 0)
 
+  const releaseRestoredAnchor = () => { restoredAnchorLockRef.current = false }
+  const repairRestoredAnchor = (list: HTMLElement) => {
+    const desired = restoredIndex.current * Math.max(1, list.clientHeight)
+    if (Math.abs(list.scrollTop - desired) <= 2) return
+    list.style.scrollSnapType = 'none'
+    list.scrollTop = desired
+    scrollTopRef.current = desired
+    window.requestAnimationFrame(() => { if (list.isConnected) list.style.scrollSnapType = '' })
+  }
+
   return <div className="social-feed-page">
     <header className="social-feed-nav"><strong className="svx-social-brand"><img src="/brand/shopvax-symbol-dark.svg" className="svx-brand-symbol" alt="" aria-hidden="true" /><img src="/brand/shopvax-wordmark-light.svg" className="svx-brand-wordmark" alt="Shopvax" /></strong><span>PRODUTOS DAS LOJAS</span><div className="social-feed-nav__right"><a href="/para-lojas">Para lojas</a><a href="/entrar">Entrar</a></div></header>
-    <main className="social-feed-list" ref={listRef} style={restorationPendingRef.current ? { scrollSnapType: 'none' } : undefined} onScroll={(event) => { if (restorationPendingRef.current) return; scrollTopRef.current = event.currentTarget.scrollTop; const list = event.currentTarget; setActiveIndex((index) => { const next = Math.max(0, Math.min(posts.length - 1, Math.round(list.scrollTop / Math.max(1, list.clientHeight)))); return next === index ? index : next }) }}>
+    <main className="social-feed-list" ref={listRef} style={restorationPendingRef.current ? { scrollSnapType: 'none' } : undefined}
+      onTouchStart={releaseRestoredAnchor} onPointerDown={releaseRestoredAnchor}
+      onWheel={releaseRestoredAnchor} onKeyDown={releaseRestoredAnchor}
+      onScroll={(event) => {
+        if (restorationPendingRef.current) return
+        const list = event.currentTarget
+        if (restoredAnchorLockRef.current) { repairRestoredAnchor(list); return }
+        scrollTopRef.current = list.scrollTop
+        setActiveIndex((index) => {
+          const next = Math.max(0, Math.min(posts.length - 1, Math.round(list.scrollTop / Math.max(1, list.clientHeight))))
+          return next === index ? index : next
+        })
+      }}>
       {windowStart > 0 && <div className="social-feed-spacer" aria-hidden="true" style={{ height: `${windowStart * 100}dvh` }}/>}
       {visiblePosts.map((post, index) => <SocialPostCard post={post} key={post.id} active={windowStart + index === visibleIndex} saveData={saveData} cartCount={cartCount(post.store.slug)} onProfile={openProfile} onAdd={requestAdd} onCart={setActiveCart}/>)}
       {windowEnd < posts.length && <div className="social-feed-spacer" aria-hidden="true" style={{ height: `${(posts.length - windowEnd) * 100}dvh` }}/>}
