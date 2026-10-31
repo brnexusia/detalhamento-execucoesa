@@ -175,7 +175,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
         )}
         <div className="auth-poster__copy">
           <p>Shopvax · o jeito do atacado vender</p>
-          <h1>{registrationMode ? <>Sua loja na frente. <em>Seu talão no celular.</em></> : <>Volta pro <em>balcão.</em></>}</h1>
+          <h1>{registrationMode ? <>Sua loja na frente. <em>Seu talão no celular.</em></> : <>Volta para o <em>balcão.</em></>}</h1>
           <div className="poster-note">Os pedidos de hoje já estão te esperando.</div>
         </div>
         <div className="auth-poster__steps" aria-label="Como o Shopvax funciona">
