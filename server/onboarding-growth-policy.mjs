@@ -45,8 +45,15 @@ export function validateSupportQuestion(body) {
   if (!['buyer','merchant'].includes(audience)) throw new Error('Público de suporte inválido.')
   if (!['account','catalog','order','billing','privacy','other'].includes(topic)) throw new Error('Assunto de suporte inválido.')
   if (question.length < 8 || question.length > 600) throw new Error('Digite uma dúvida entre 8 e 600 caracteres.')
-  if (/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i.test(question) || /\b\d{9,}\b/.test(question)) {
-    throw new Error('Não envie e-mail, telefone, CPF, número de pedido ou outros dados pessoais à IA.')
+  // Também rejeita CPF/CNPJ/telefone formatados: +55 (11) 99999-9999 e
+  // 123.456.789-09 jamais devem escapar por não terem dígitos contíguos.
+  // Não inspecionamos nem transmitimos identificação da conta do visitante.
+  const digitRuns = question.match(/\+?\d[\d\s().-]{7,}\d/g) || []
+  const hasLongIdentifier = digitRuns.some(chunk => chunk.replace(/\D/g, '').length >= 9)
+  const hasEmail = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i.test(question)
+  const hasUrl = /\b(?:https?:\/\/|www\.)\S+/i.test(question)
+  if (hasEmail || hasLongIdentifier || hasUrl) {
+    throw new Error('Não envie e-mail, telefone, CPF, link privado, número de pedido ou outros dados pessoais à IA.')
   }
   if (body?.privacyAcknowledged !== true) throw new Error('Confirme que deseja enviar a dúvida sem dados pessoais à assistência por IA.')
   return { audience, topic, question }
