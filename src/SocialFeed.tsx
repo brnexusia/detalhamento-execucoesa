@@ -485,7 +485,7 @@ export default function SocialFeed() {
         if (restorationPendingRef.current) return
         const list = event.currentTarget
         if (restoredAnchorLockRef.current) { repairRestoredAnchor(list); return }
-        scrollTopRef.current = list.scrollTop
+        scrollTopRef.current = event.currentTarget.scrollTop
         setActiveIndex((index) => {
           const next = Math.max(0, Math.min(posts.length - 1, Math.round(list.scrollTop / Math.max(1, list.clientHeight))))
           return next === index ? index : next
