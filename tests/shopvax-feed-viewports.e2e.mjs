@@ -31,10 +31,12 @@ try {
     }))
     await page.goto('http://127.0.0.1:5173/feed')
     await page.locator('.social-feed-card').first().waitFor()
-    await page.locator('.social-feed-list').evaluate(async list => {
-      list.scrollTop = 8 * list.clientHeight
-      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
-    })
+    for (let index = 1; index <= 8; index++) {
+      await page.locator('.social-feed-list').evaluate(async (list, target) => {
+        list.scrollTop = target * list.clientHeight
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+      }, index)
+    }
     const state = await page.locator('.social-feed-list').evaluate(list => ({
       cards: list.querySelectorAll('.social-feed-card').length,
       height: list.clientHeight,
