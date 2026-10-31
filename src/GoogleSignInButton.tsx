@@ -55,7 +55,11 @@ function loadGoogleScript() {
     document.head.appendChild(script)
   })
 
-  return googleScriptPromise.catch((error) => { googleScriptPromise = null; throw error })
+  return googleScriptPromise.catch((error) => {
+    document.querySelector('script[data-shopvax-google-identity]')?.remove()
+    googleScriptPromise = null
+    throw error
+  })
 }
 
 export default function GoogleSignInButton({
@@ -101,7 +105,8 @@ export default function GoogleSignInButton({
 
     loadGoogleScript()
       .then(() => {
-        if (!active || !mountRef.current || !window.google?.accounts?.id) return
+        if (!active || !mountRef.current) return
+        if (!window.google?.accounts?.id) throw new Error('O provedor Google não iniciou corretamente.')
         window.google.accounts.id.initialize({
           client_id: clientId,
           auto_select: false,
