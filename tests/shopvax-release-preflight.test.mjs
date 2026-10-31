@@ -7,7 +7,7 @@ const fixture = () => ({
   plans: structuredClone(systemPlans),
   phase5Source: "function planExtraLimits(code) { if (code === 'ouro') return { photosPerProduct: null, franchisees: null } }",
   appSource: "app.get('/health', () => process.env.SHOPVAX_RELEASE_SHA)",
-  dockerSource: 'EXPOSE 80\nHEALTHCHECK CMD node health.js\nRUN npm ci',
+  dockerSource: 'EXPOSE 80\nHEALTHCHECK CMD node -e "if(h.database!==true)process.exit(1)"\nRUN npm ci',
   hasLockfile: true,
   workflowSource: 'SHOPVAX_EXPECTED_SHA: input\nnode scripts/verify-production.mjs',
 })
@@ -23,12 +23,18 @@ test('contratos coerentes passam estaticamente, mas nunca afirmam GO de producao
 test('detecta o limite equivocado de fotos do Ouro, lockfile ausente e npm install', () => {
   const f = fixture()
   f.phase5Source = "if (code === 'ouro') return { photosPerProduct: 10, franchisees: null }"
-  f.dockerSource = 'EXPOSE 80\nHEALTHCHECK CMD node health.js\nRUN npm install'
+  f.dockerSource = 'EXPOSE 80\nHEALTHCHECK CMD node -e "if(h.database!==true)process.exit(1)"\nRUN npm install'
   f.hasLockfile = false
   const ids = auditContract(f).findings.map(item => item.id)
   assert(ids.includes('OURO_DISPLAY_PHOTO_LIMIT'))
   assert(ids.includes('NO_LOCKFILE'))
   assert(ids.includes('NONDETERMINISTIC_INSTALL'))
+})
+
+test('Docker so pode passar se a disponibilidade do PostgreSQL for validada', () => {
+  const f = fixture()
+  f.dockerSource = 'EXPOSE 80\\nHEALTHCHECK CMD node health.js'
+  assert(auditContract(f).findings.some(item => item.id === 'DOCKER_DATABASE_HEALTH'))
 })
 
 test('rejeita alteracoes nao aprovadas de preco, limites e descontos', () => {
