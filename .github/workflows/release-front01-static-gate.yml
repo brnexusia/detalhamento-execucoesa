@@ -45,5 +45,4 @@ jobs:
         run: docker build --progress=plain --tag shopvax-release-candidate:${{ github.sha }} .
       - name: Conferir porta e Healthcheck da imagem gerada
         run: |
-          docker image inspect shopvax-release-candidate:${{ github.sha }} \\
-            --format 'PORTS={{json .Config.ExposedPorts}} HEALTH={{json .Config.Healthcheck}}'
+          docker image inspect shopvax-release-candidate:${{ github.sha }} --format 'PORTS={{json .Config.ExposedPorts}} HEALTH={{json .Config.Healthcheck}}'
