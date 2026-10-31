@@ -61,7 +61,7 @@ try {
    assert(ribbon.first>=ribbon.viewport,'ticker group must cover viewport: '+JSON.stringify(ribbon))
    assert(Math.abs(ribbon.first-ribbon.second)<1,'ticker groups must match for seamless loop: '+JSON.stringify(ribbon))
    assert.equal(ribbon.repeatFirst,ribbon.repeatSecond,'ticker groups must repeat equally')
-   assert(Math.abs(ribbon.seconds-ribbon.first/40)<.15,'ticker must maintain 40px/s: '+JSON.stringify(ribbon))
+   if(reduce==='no-preference') assert(Math.abs(ribbon.seconds-ribbon.first/40)<.15,'ticker must maintain 40px/s: '+JSON.stringify(ribbon))
    await page.setViewportSize({width:390,height:844})
    await page.locator('.topbar .cart-trigger').click()
    const segments=await page.locator('.svx-minimum-segments i').count()
