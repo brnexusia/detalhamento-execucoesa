@@ -71,3 +71,5 @@
 @media(prefers-reduced-motion:reduce){.svx-growth-guide__track span{transition:none}}
 
 .google-auth-button__status,.google-auth-button__error{display:block;font:600 12px/1.5 var(--svx-font-body,Archivo,sans-serif);padding:8px 0;color:#4a463c}.google-auth-button__error{color:#9e291e}
+
+.google-auth-button__mount{min-height:44px;max-width:100%;overflow:hidden}.google-auth-button__mount iframe{max-width:100%}
