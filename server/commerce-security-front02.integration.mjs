@@ -153,6 +153,12 @@ try {
   assert.equal(Number((await pool.query('SELECT stock_quantity FROM products WHERE id=$1', [secondProduct])).rows[0].stock_quantity), 0)
   assert.equal(await countOrders(rowA.id), 2)
 
+  // Loja B precisa ter vendedora para o teste alcançar a validação cross-tenant do produto.
+  const secondSeller = await call('/api/admin/sellers', {
+    method: 'POST', cookie: second.cookie,
+    body: { name: 'Atendimento B', phone: '5511977777700', isActive: true },
+  })
+  assert.equal(secondSeller.response.status, 201)
   const foreignProduct = await prepare(second, b1.cookie, firstProduct)
   assert.equal(foreignProduct.response.status, 400, 'Outro tenant não pode comprar produto de loja alheia')
   assert.equal(await countOrders(rowB.id), 0)
