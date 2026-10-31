@@ -22,6 +22,7 @@ export default function ShopvaxBuyerPreferences() {
       ])
       setPrefs(value)
       setStores(available.stores)
+      try { localStorage.setItem('shopvax:known-buyer-account:v1', '1') } catch { /* sem armazenamento */ }
     } catch { setPrefs(null) }
   }
   useEffect(() => {
