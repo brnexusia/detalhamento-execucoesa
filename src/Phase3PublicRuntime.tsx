@@ -93,13 +93,28 @@ export default function Phase3PublicRuntime() {
     return () => { window.fetch = originalFetch }
   }, [context.storeSlug, context.customer])
 
-  // O carrinho legado já persiste em localStorage. A Fase 3 observa essa mesma fonte e cria o snapshot recuperável.
+  // Os carrinhos existentes já disparam shopvax:cart-change no mesmo documento.
+  // storage cobre outras abas; focus recupera uma aba suspensa sem polling em repouso.
   useEffect(() => {
     if (!context.storeSlug || context.customer) return
+    const key = `shopvax-cart-v1:${encodeURIComponent(context.storeSlug)}`
     const sync = () => setCart(readCart(context.storeSlug))
-    const timer = window.setInterval(sync, 1200)
+    const onCartChange = (event: Event) => {
+      const storeSlug = (event as CustomEvent<{ storeSlug?: string }>).detail?.storeSlug
+      if (!storeSlug || storeSlug === context.storeSlug) sync()
+    }
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === key || event.key === null) sync()
+    }
+    window.addEventListener('shopvax:cart-change', onCartChange)
+    window.addEventListener('storage', onStorage)
+    window.addEventListener('focus', sync)
     sync()
-    return () => window.clearInterval(timer)
+    return () => {
+      window.removeEventListener('shopvax:cart-change', onCartChange)
+      window.removeEventListener('storage', onStorage)
+      window.removeEventListener('focus', sync)
+    }
   }, [context.storeSlug, context.customer])
 
   useEffect(() => {

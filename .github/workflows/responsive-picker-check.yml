@@ -34,6 +34,8 @@ on:
       - 'src/shopvax-home.css'
       - 'src/Auth.tsx'
       - 'src/ShopvaxDashboard.tsx'
+      - 'src/Phase3PublicRuntime.tsx'
+      - 'tests/shopvax-cart-events.e2e.mjs'
       - 'tests/shopvax-dashboard-greeting.e2e.mjs'
       - 'src/shopvax-panel-login-06.css'
       - 'public/redesign/shopvax-panel-mosaic.webp'
@@ -155,6 +157,8 @@ jobs:
         run: node tests/shopvax-mobile-flow-03.e2e.mjs
       - name: Resiliência de rede - erro recuperável e busca sem respostas obsoletas
         run: node tests/shopvax-network-recovery.e2e.mjs
+      - name: Carrinho sincronizado por eventos (sem polling ocioso)
+        run: node tests/shopvax-cart-events.e2e.mjs
       - name: Plans layout and navigation regression
         run: node tests/shopvax-plans.e2e.mjs
       - name: Product list browser regression
