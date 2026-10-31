@@ -1,3 +1,4 @@
+import ShopvaxLoading from './ShopvaxLoading'
 import { useEffect, useMemo, useState } from 'react'
 import { apiRequest } from './api'
 import {
@@ -156,7 +157,7 @@ export default function PlatformAdmin() {
     return data.stores.filter((store) => `${store.name} ${store.slug} ${store.ownerName} ${store.ownerEmail} ${store.planCode}`.toLowerCase().includes(term))
   }, [data, storeQuery])
 
-  if (loading) return <div className="platform-loading"><span className="platform-mark"><img src="/brand/shopvax-symbol-dark.svg" className="svx-brand-symbol" alt="" aria-hidden="true" /></span><strong>Abrindo administração…</strong></div>
+  if (loading) return <ShopvaxLoading label="Abrindo administração…" />
 
   if (!data) {
     return <div className="platform-loading platform-loading--error">

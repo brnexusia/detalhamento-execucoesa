@@ -3,6 +3,8 @@ import { ArrowRight, Boxes, Check, ChevronLeft, ChevronRight, Clipboard, CreditC
 import { api } from './api'
 import { listenAuthChanges } from './auth-session-sync'
 import ShopvaxDashboard from './ShopvaxDashboard'
+import ShopvaxLoading from './ShopvaxLoading'
+import ShopvaxPanelMark from './ShopvaxPanelMark'
 import ShopvaxFirstRun from './ShopvaxFirstRun'
 import ShopvaxThemesPanel from './ShopvaxThemesPanel'
 import ShopvaxOrders from './ShopvaxOrders'
@@ -168,7 +170,7 @@ export default function AdminApp() {
     }
   }
 
-  if (loading) return <div className="panel-loading"><span className="brand__mark"><img src="/brand/shopvax-symbol-dark.svg" className="svx-brand-symbol" alt="" aria-hidden="true" /></span><strong>Abrindo seu painel…</strong></div>
+  if (loading) return <ShopvaxLoading label="Abrindo seu painel…" />
   if (!data) return <div className="panel-loading panel-loading--error"><span className="brand__mark"><img src="/brand/shopvax-symbol-dark.svg" className="svx-brand-symbol" alt="" aria-hidden="true" /></span><strong>O painel não conseguiu iniciar.</strong><p>{error}</p><button className="primary-action" onClick={() => { void load() }}>Tentar novamente</button></div>
 
   const baseUrl = window.location.origin
@@ -179,7 +181,7 @@ export default function AdminApp() {
   return (
     <div className="panel-shell">
       <aside className={`panel-sidebar ${menuOpen ? 'is-open' : ''}`}>
-        <div className="panel-brand"><span className="brand__mark"><img src="/brand/shopvax-symbol-dark.svg" className="svx-brand-symbol" alt="" aria-hidden="true" /></span><div><strong><img className="svx-brand-wordmark" src="/brand/shopvax-wordmark-light.svg" alt="Shopvax" /></strong><small>{data.store.name}</small></div><button className="panel-close-menu" onClick={() => setMenuOpen(false)}><X size={18} /></button></div>
+        <div className="panel-brand"><ShopvaxPanelMark /><div><strong><img className="svx-brand-wordmark" src="/brand/shopvax-wordmark-light.svg" alt="Shopvax" /></strong><small>{data.store.name}</small></div><button className="panel-close-menu" onClick={() => setMenuOpen(false)}><X size={18} /></button></div>
         <AdminNavigation
           active={section}
           counts={{ products: totalProducts, orders: data.orders.length, sellers: data.sellers.length }}
@@ -288,7 +290,7 @@ function Products({ data, revision, query, setQuery, onCreate, onEdit, onVisibil
     {selectionMode && <div className="product-bulk-toolbar"><label><input type="checkbox" checked={allFilteredSelected} onChange={toggleFiltered} disabled={!products.length}/><span>Selecionar os {products.length} desta página</span></label><div><span>{countLabel(selectedIds.length, 'selecionado')}</span><button className="secondary-action danger" disabled={!selectedIds.length || bulkBusy || selectedIds.length > 5000} onClick={() => void removeSelected()}><Trash2 size={15}/>{bulkBusy ? 'Excluindo…' : 'Excluir selecionados'}</button></div></div>}
     <div className="svx-products__headings" aria-hidden="true"><span>FOTO</span><span>PEÇA / REFERÊNCIA / GRADE</span><span>GESTÃO E PREÇO</span></div><div className="product-admin-grid">{visible.map((product) => <article className={`product-admin-card ${selected.has(product.id) ? 'is-selected' : ''}`} key={product.id}><div className="product-admin-card__media"><AdminProductMedia product={product}/>{!product.active && <span>oculto</span>}{selectionMode && <label className="product-select-control"><input type="checkbox" checked={selected.has(product.id)} onChange={() => toggleProduct(product.id)}/><span>Selecionar</span></label>}</div><div className="product-admin-card__body"><small>{product.sku || 'SEM SKU'} · {product.category}</small><h3>{product.name}</h3><strong>{money.format(product.price)}</strong>{product.variations?.length > 0 && <p>{product.variations.map((group) => `${group.name}: ${group.options.join('/')}`).join(' · ')}</p>}<p>{countLabel(Array.isArray(product.images) ? product.images.length : 0, 'foto')} · {product.stock_enabled ? `${product.stock_quantity || 0} em estoque` : 'estoque livre'}</p></div><div className="product-admin-card__actions"><button onClick={() => onEdit(product)}><Pencil size={16} /> Editar</button><button onClick={() => void onVisibility(product)} aria-label={product.active ? `Esconder ${product.name}` : `Mostrar ${product.name}`}>{product.active ? <EyeOff size={16}/> : <Eye size={16}/>} {product.active ? 'Esconder' : 'Mostrar'}</button><button className="danger" aria-label={`Excluir ${product.name}`} onClick={() => onDelete(product)}><Trash2 size={16} /></button></div></article>)}</div>
     {pageError && <div className="panel-error" role="alert">{pageError}<button type="button" onClick={() => setRetry((value) => value + 1)}>Tentar novamente</button></div>}
-    {(pageBusy || query !== searchTerm) && <p role="status">Carregando página de produtos…</p>}
+    {(pageBusy || query !== searchTerm) && <ShopvaxLoading compact label="Carregando página de produtos…" />}
     {!pageBusy && query === searchTerm && !pageError && !products.length && <div className="admin-empty"><Package size={30} /><h2>{storeTotal ? 'Nenhum produto encontrado.' : 'Cadastre seu primeiro produto.'}</h2><p>Você pode usar fotos ou vídeo, criar variações e controlar estoque na mesma edição.</p><button className="primary-action" onClick={onCreate}><Plus size={18} /> Cadastrar produto</button></div>}
     {total > pageSize && !pageError && <div className="panel-pagination"><button disabled={page === 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>Anterior</button><span>Página {page} de {pages}</span><button disabled={page === pages} onClick={() => setPage((value) => Math.min(pages, value + 1))}>Próxima</button></div>}
   </div>

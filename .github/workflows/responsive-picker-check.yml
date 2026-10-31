@@ -109,6 +109,15 @@ on:
       - 'src/ShopvaxDesignSystem.tsx'
       - '.github/workflows/responsive-picker-check.yml'
       - 'src/ShopvaxBrandMotion.tsx'
+      - 'src/ShopvaxLoading.tsx'
+      - 'src/ShopvaxPanelMark.tsx'
+      - 'src/App.tsx'
+      - 'src/AdminApp.tsx'
+      - 'src/AdminSectionFrame.tsx'
+      - 'src/PublicStoreV2.tsx'
+      - 'src/PlatformAdmin.tsx'
+      - 'src/SocialFeed.tsx'
+      - 'tests/shopvax-brand-loading-context.e2e.mjs'
       - 'src/shopvax-brand-motion.css'
       - 'tests/shopvax-issue109-visual-details.e2e.mjs'
       - 'tests/shopvax-support-ai.e2e.mjs'
@@ -223,6 +232,8 @@ jobs:
           retention-days: 14
       - name: Issue 109 visual details - plans, loading mark and reduced motion
         run: node tests/shopvax-issue109-visual-details.e2e.mjs
+      - name: Branded loading, official login mark, panel 3-minute motion and contextual help
+        run: node tests/shopvax-brand-loading-context.e2e.mjs
       - name: Central Shopvax support - opt-in assistant and WhatsApp link
         run: node tests/shopvax-support-ai.e2e.mjs
       - name: Debug log
