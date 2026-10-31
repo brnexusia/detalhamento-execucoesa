@@ -39,7 +39,6 @@ try {
     localStorage.setItem(key, JSON.stringify(items))
     window.dispatchEvent(new CustomEvent('shopvax:cart-change',{detail:{storeSlug:'loja-teste'}}))
   }, {key,items:cart(2)})
-  await first.waitForFunction(() => false, null, {timeout:1}).catch(() => undefined)
   await first.waitForTimeout(1100)
   assert(firstRequests.some(x => x.items?.[0]?.quantity === 2 && x.subtotal === 119.8),
     'Evento shopvax:cart-change deve atualizar o snapshot com quantidade e subtotal')
