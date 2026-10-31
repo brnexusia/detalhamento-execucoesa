@@ -12,7 +12,9 @@
 .svx-dashboard__welcome p { margin:0; color:#6B665C; font:400 12px/1.4 var(--svx-font-body,'Archivo',sans-serif); }
 .svx-dashboard__welcome-actions { display:flex; flex-wrap:wrap; gap:8px; }
 .svx-dashboard__welcome-actions a,.svx-dashboard__welcome-actions button { display:flex; gap:7px; align-items:center; justify-content:center; padding:10px 12px; min-height:40px; border:1px solid #161514; background:transparent; color:#161514; text-decoration:none; white-space:nowrap; font-size:12px; font-weight:700; cursor:pointer; border-radius:0; }
-.svx-dashboard__welcome-actions button { background:#F25C05; }
+.svx-dashboard__welcome-actions a{background:#F25C05;color:#161514;border-color:#F25C05}
+.svx-dashboard__welcome-actions a:hover{background:#E45400;border-color:#E45400}
+.svx-dashboard__welcome-actions button { background:transparent; }
 .svx-dashboard__metrics { display:grid; grid-template-columns:minmax(0,1.15fr) repeat(3,minmax(0,.75fr)) minmax(0,1.15fr); gap:0; border-bottom:1px solid #D9D3C6; padding:26px 0; }
 .svx-dashboard__metrics > div { padding:10px clamp(8px,1.5vw,18px); border-right:1px solid #D9D3C6; min-width:0; }
 .svx-dashboard__metrics > div:first-child { padding-left:0; }
@@ -60,9 +62,8 @@
 @media(max-width:680px){.svx-dashboard__welcome { align-items:flex-start; flex-direction:column; }.svx-dashboard__metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }.svx-dashboard__primary-metric { grid-column:span 2; }.svx-dashboard__metric:last-child { grid-column:span 2; }.svx-dashboard__sidebar { display:flex; }.svx-dashboard__order-grid { grid-template-columns:minmax(0,1fr); }.svx-dashboard__metrics>div { padding:12px; border-right:0; border-bottom:1px solid #D9D3C6; }.svx-dashboard__metrics>div:first-child { padding-left:12px; }}
 
 
-/* #109 B05: maior destaque e respiro após a fita; horário de saudação é o do dispositivo. */
+/* #109 B05: maior destaque e respiro após a fita. */
 .svx-dashboard__welcome{margin-top:clamp(14px,2vw,26px);padding:clamp(22px,3vw,38px) 0}
 .svx-dashboard__welcome h1{font-size:clamp(39px,4.5vw,72px);line-height:.96;max-width:18ch}
 .svx-dashboard__welcome p{font-size:clamp(13px,1.12vw,15px);line-height:1.5}
-.svx-dashboard__clock-source{display:block;margin-top:7px;color:#6B665C;font:400 11px/1.4 var(--svx-font-body,'Archivo',sans-serif)}
 @media(max-width:650px){.svx-dashboard__welcome{margin-top:16px;padding-top:24px}.svx-dashboard__welcome h1{font-size:clamp(39px,9.5vw,55px)}}
