@@ -44,21 +44,40 @@ export function SVRibbon({ children, className = '', ...props }: HTMLAttributes<
 
 /** Prancha 08/01 — fita de condições a 40 px/s; mede o trecho para manter velocidade constante. */
 export function SVTicker({ children, className = '', ...props }: HTMLAttributes<HTMLDivElement>) {
-  const unitRef = useRef<HTMLSpanElement>(null)
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const itemRef = useRef<HTMLSpanElement>(null)
+  const [copies, setCopies] = useState(2)
   const [seconds, setSeconds] = useState(18)
   useEffect(() => {
-    const unit = unitRef.current
-    if (!unit) return
-    const update = () => setSeconds(Math.max(5, unit.getBoundingClientRect().width / 40))
+    const viewport = viewportRef.current
+    const item = itemRef.current
+    if (!viewport || !item) return
+    const update = () => {
+      const width = item.getBoundingClientRect().width
+      const visibleWidth = viewport.getBoundingClientRect().width
+      if (width <= 0 || visibleWidth <= 0) return
+      // Cada bloco deve cobrir a largura visível: duas cópias simples deixam
+      // espaços vazios em desktop quando a mensagem é curta.
+      const count = Math.max(2, Math.min(64, Math.ceil(visibleWidth / (width + 32)) + 1))
+      setCopies(count)
+      // Blocos idênticos repetem sem salto; deslocamento segue 40 px/s.
+      setSeconds(Math.max(5, count * (width + 32) / 40))
+    }
     update()
     const observer = new ResizeObserver(update)
-    observer.observe(unit)
+    observer.observe(viewport)
+    observer.observe(item)
     return () => observer.disconnect()
   }, [])
-  return <div className={`svx-ribbon svx-motion-ticker ${className}`.trim()} {...props}>
+  return <div ref={viewportRef} className={`svx-ribbon svx-motion-ticker ${className}`.trim()} {...props}>
     <div className="svx-motion-ticker__track" style={{'--svx-ticker-duration': `${seconds}s`} as React.CSSProperties}>
-      <span ref={unitRef} className="svx-motion-ticker__unit">{children}</span>
-      <span aria-hidden="true" className="svx-motion-ticker__unit">{children}</span>
+      <span className="svx-motion-ticker__unit">
+        <span ref={itemRef}>{children}</span>
+        {Array.from({ length: copies - 1 }, (_, index) => <span aria-hidden="true" key={index}>{children}</span>)}
+      </span>
+      <span aria-hidden="true" className="svx-motion-ticker__unit">
+        {Array.from({ length: copies }, (_, index) => <span key={index}>{children}</span>)}
+      </span>
     </div>
   </div>
 }
