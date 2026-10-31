@@ -16,6 +16,8 @@ try {
     const context = await browser.newContext({ viewport:{width,height}, reducedMotion:'reduce' })
     const page = await context.newPage()
     await page.route('**/api/public/store/**', route => route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(payload)}))
+    await page.route('**/api/public/store/**/phase2-config', route => route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({customerLoginEnabled:true,theme:{background:'#F3F0E8',textColor:'#161514',font:'system'}})}))
+    await page.route('**/api/public/store/**/customers/me', route => route.fulfill({status:401,contentType:'application/json',body:'{}'}))
     await page.route('**/api/public/events', route => route.fulfill({status:204,body:''}))
     await page.goto('http://127.0.0.1:5173/loja-teste')
     await page.locator('.store-intro.svx-vitrine h1').waitFor()
