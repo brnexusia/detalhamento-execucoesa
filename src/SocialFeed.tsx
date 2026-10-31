@@ -316,8 +316,20 @@ export default function SocialFeed() {
     const cached = restored.current
     restored.current = null
     if (cached?.posts?.length) {
-      const y = Number(cached.scrollTop || 0)
-      requestAnimationFrame(() => requestAnimationFrame(() => { if (listRef.current) listRef.current.scrollTop = y }))
+      const y = Math.max(0, Number(cached.scrollTop || 0))
+      const list = listRef.current
+      if (list) {
+        // Mandatory scroll-snap can force the first mounted virtual card into view
+        // before the cached position is restored. Disable it only for restoration.
+        const oldSnap = list.style.scrollSnapType
+        list.style.scrollSnapType = 'none'
+        list.scrollTop = y
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          if (!list.isConnected) return
+          list.scrollTop = y
+          requestAnimationFrame(() => { if (list.isConnected) list.style.scrollSnapType = oldSnap })
+        }))
+      }
     }
     else void load(null)
   }, [load])
