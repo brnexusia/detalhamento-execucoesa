@@ -231,7 +231,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
           <p className="auth-switch">{registrationMode ? 'Já tem uma conta?' : 'Ainda não tem conta?'} <button type="button" onClick={() => { setGoogleSignup(null); go(registrationMode ? '/entrar' : '/criar-conta') }}>{registrationMode ? 'Entrar' : 'Criar conta'}</button></p>
         </form>
       </main>
-      {showLoginMotion && <div className="svx-auth-loading-overlay"><ShopvaxLoading immediate exit repeat={false} label="Acesso confirmado. Abrindo sua loja…" /></div>}
+      {showLoginMotion && <div className="svx-auth-loading-overlay"><ShopvaxLoading immediate exit dark repeat={false} label="Acesso confirmado. Abrindo sua loja…" /></div>}
     </div>
   )
 }
