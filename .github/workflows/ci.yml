@@ -137,6 +137,8 @@ jobs:
           const body = await response.json()
           if (body.enabled !== false || body.clientId !== null) throw new Error('Google auth should be disabled when GOOGLE_CLIENT_ID is absent')
           NODE
+      - name: Admin compact/paged catalog multi-tenant integration
+        run: node server/admin-pagination.integration.mjs
       - name: Social module 1 network foundation
         run: node server/social-module1.integration.mjs
       - name: Social module 2 public store profile
