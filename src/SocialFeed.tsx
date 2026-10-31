@@ -37,8 +37,8 @@ type PickerState = { post: SocialPost; selections: Record<string, string>; quant
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 const feedSessionKey = 'shopvax_social_feed_state_v3'
 const feedSessionTtl = 5 * 60 * 1000
-const maxFeedSessionPosts = 48
-const maxFeedSessionBytes = 250_000
+const maxFeedSessionPosts = 320
+const maxFeedSessionBytes = 750_000
 const renderNeighbors = 2
 
 function compact(value: number) { return new Intl.NumberFormat('pt-BR', { notation: 'compact', maximumFractionDigits: 1 }).format(value || 0) }
@@ -276,6 +276,7 @@ export default function SocialFeed() {
   const [hasMore, setHasMore] = useState(() => restored.current?.hasMore ?? true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [restoredNotice] = useState(() => Boolean(restored.current?.posts?.length))
   const [picker, setPicker] = useState<PickerState | null>(null)
   const [pickerError, setPickerError] = useState('')
   const [activeCart, setActiveCart] = useState<SocialPost['store'] | null>(null)
@@ -292,7 +293,11 @@ export default function SocialFeed() {
     try {
       const query = new URLSearchParams({ limit: '12' })
       if (nextCursor) query.set('cursor', nextCursor)
-      const response = await fetch(`/api/social/feed?${query.toString()}`, { credentials: 'include' })
+      const controller = new AbortController()
+      const timeout = window.setTimeout(() => controller.abort(), 15_000)
+      let response: Response
+      try { response = await fetch(`/api/social/feed?${query.toString()}`, { credentials: 'include', signal: controller.signal }) }
+      finally { window.clearTimeout(timeout) }
       const body = await response.json().catch(() => ({})) as FeedPayload & { error?: string }
       if (!response.ok) throw new Error(body.error || 'Não foi possível carregar o feed.')
       setPosts((current) => {
@@ -401,6 +406,7 @@ export default function SocialFeed() {
       {windowStart > 0 && <div className="social-feed-spacer" aria-hidden="true" style={{ height: `${windowStart * 100}dvh` }}/>}
       {visiblePosts.map((post, index) => <SocialPostCard post={post} key={post.id} active={windowStart + index === visibleIndex} saveData={saveData} cartCount={cartCount(post.store.slug)} onProfile={openProfile} onAdd={requestAdd} onCart={setActiveCart}/>)}
       {windowEnd < posts.length && <div className="social-feed-spacer" aria-hidden="true" style={{ height: `${(posts.length - windowEnd) * 100}dvh` }}/>}
+      {restoredNotice && <div className="social-feed-cache-note" role="status">Feed recuperado da sessão. Confirme preço e disponibilidade ao preparar o pedido.</div>}
       {!posts.length && !loading && !error && <div className="social-feed-state"><h1>O feed está começando.</h1><p>As publicações das lojas aparecerão aqui.</p></div>}
       {error && <div className="social-feed-state"><p>{error}</p><button onClick={() => void load(cursor)}>Tentar novamente</button></div>}
       {loading && <div className="social-feed-loading">Carregando produtos…</div>}
