@@ -87,6 +87,8 @@ try {
   }
   await page.evaluate(() => window.dispatchEvent(new Event('pagehide')))
   await sample('session-persisted')
+  const session = await page.evaluate(() => JSON.parse(sessionStorage.getItem('shopvax_social_feed_state_v3') || 'null'))
+  if (mode === 'candidate') assert.equal(session?.posts?.length, totalPosts, 'Retorno ao feed não deve perder publicações já carregadas dentro do teto de cache')
   const last = samples.at(-1)
   if (mode === 'candidate') {
     assert(last.cards <= 6, `Feed mantém ${last.cards} cards; a janela deve ter no máximo seis`)
