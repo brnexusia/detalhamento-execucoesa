@@ -101,7 +101,7 @@ test('PDF de quatro estados salvos: padrão, paleta, sazonal e restaurado', asyn
     writeFileSync(path, output.bytes)
     const extracted = spawnSync('pdftotext', [path, '-'], { encoding:'utf8' })
     if (extracted.status === 0) {
-      assert.match(extracted.stdout, /Loja Exemplo/)
+      assert.match(extracted.stdout, /Loja de Teste/)
       assert.match(extracted.stdout, /Produto Verificado/)
       assert.match(extracted.stdout, /REF-1/)
       assert.match(extracted.stdout, /29,90/, 'Tema/paleta não modifica o preço verdadeiro')
