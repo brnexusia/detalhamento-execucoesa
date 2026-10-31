@@ -39,6 +39,9 @@ on:
       - 'src/shopvax-home.css'
       - 'src/Auth.tsx'
       - 'src/ShopvaxDashboard.tsx'
+      - 'src/ShopvaxBrandMotion.tsx'
+      - 'src/shopvax-brand-motion.css'
+      - 'tests/shopvax-issue109-visual-details.e2e.mjs'
       - 'src/ShopvaxOnboardingGuide.tsx'
       - 'src/ShopvaxAcquisition.tsx'
       - 'src/ShopvaxBuyerPreferences.tsx'
@@ -147,6 +150,8 @@ jobs:
         run: node tests/shopvax-panel-06.e2e.mjs
       - name: Dashboard local greeting in morning, afternoon and evening
         run: node tests/shopvax-dashboard-greeting.e2e.mjs
+      - name: Issue 109 visual details - plans, loading mark and reduced motion
+        run: node tests/shopvax-issue109-visual-details.e2e.mjs
       - name: Official vector brand, wordmark and favicon on live DOM
         run: node tests/shopvax-official-brand.e2e.mjs
       - name: Mobile header and desktop feed layout regression
