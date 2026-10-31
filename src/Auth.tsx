@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { ArrowRight, Eye, EyeOff, Gift, Store, X } from 'lucide-react'
 import { api } from './api'
 import GoogleSignInButton from './GoogleSignInButton'
-import ShopvaxLoading from './ShopvaxLoading'
 import './shopvax-auth-official.css'
 import './shopvax-panel-login-06.css'
 
@@ -57,7 +56,6 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const [plansLoading, setPlansLoading] = useState(mode === 'register')
   const [plansError, setPlansError] = useState('')
   const [googleBusy, setGoogleBusy] = useState(false)
-  const [showLoginMotion, setShowLoginMotion] = useState(false)
   const [googleSignup, setGoogleSignup] = useState<{ credential: string; name: string; email: string; picture?: string } | null>(null)
   const [form, setForm] = useState({
     name: '',
@@ -75,7 +73,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const finishAuthenticatedEntry = async (destination: string) => {
     // Vinheta apenas após sucesso, independentemente da latência da autenticação.
     // Com preferência por movimento reduzido, a marca estática substitui o ciclo.
-    setShowLoginMotion(true)
+    window.dispatchEvent(new Event('shopvax:login-transition-start'))
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     if (!reduced) await new Promise<void>((resolve) => window.setTimeout(resolve, 1_450))
     go(destination)
@@ -231,7 +229,6 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
           <p className="auth-switch">{registrationMode ? 'Já tem uma conta?' : 'Ainda não tem conta?'} <button type="button" onClick={() => { setGoogleSignup(null); go(registrationMode ? '/entrar' : '/criar-conta') }}>{registrationMode ? 'Entrar' : 'Criar conta'}</button></p>
         </form>
       </main>
-      {showLoginMotion && <div className="svx-auth-loading-overlay"><ShopvaxLoading immediate exit dark repeat={false} label="Acesso confirmado. Abrindo sua loja…" /></div>}
     </div>
   )
 }
