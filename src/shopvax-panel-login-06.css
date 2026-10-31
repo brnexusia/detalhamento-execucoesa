@@ -153,3 +153,54 @@
 /* The Google separator is only meaningful while Google login is available. */
 .auth-shell .auth-form > .auth-divider { display:none; }
 .auth-shell .auth-form > .google-auth-button + .auth-divider { display:flex; }
+
+
+/* Black Friday on the LOGIN screen only. Two identical groups keep the tape
+   continuous without claiming discounts or changing checkout prices. */
+.auth-shell.auth-shell--login .auth-poster__ribbon.auth-poster__ribbon--black-friday {
+  display:block;
+  overflow:hidden;
+  flex-wrap:nowrap;
+  width:100%;
+  padding:0;
+  background:#161514;
+  border-top:2px solid #F25C05;
+  border-bottom:2px solid #F25C05;
+  color:#F3F0E8;
+}
+.auth-shell--login .auth-poster__ribbon-track {
+  display:flex;
+  width:max-content;
+  animation:shopvax-login-black-friday-tape 24s linear infinite;
+  will-change:transform;
+}
+.auth-shell--login .auth-poster__ribbon-group {
+  display:flex;
+  align-items:center;
+  justify-content:space-around;
+  box-sizing:border-box;
+  min-width:100vw;
+  flex:0 0 auto;
+  gap:clamp(20px,5vw,72px);
+  padding:8px clamp(18px,3vw,48px);
+  white-space:nowrap;
+}
+.auth-shell--login .auth-poster__ribbon-group span {
+  display:inline-block;
+  flex:0 0 auto;
+  font:700 clamp(9px,1vw,12px)/1.4 var(--svx-font-mono,'Fragment Mono',monospace);
+  letter-spacing:.04em;
+}
+.auth-shell--login .auth-poster__ribbon-group span:first-child {
+  color:#F25C05;
+}
+@keyframes shopvax-login-black-friday-tape {
+  to { transform:translate3d(-50%,0,0); }
+}
+@media (prefers-reduced-motion:reduce) {
+  .auth-shell--login .auth-poster__ribbon-track {
+    animation:none;
+    will-change:auto;
+    transform:none;
+  }
+}
