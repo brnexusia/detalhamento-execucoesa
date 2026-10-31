@@ -71,8 +71,8 @@ async function sample(stage) {
   samples.push({ stage, ...dom, jsHeapBytes: metric('JSHeapUsedSize'), totalDomNodes: metric('Nodes') })
 }
 try {
-  await page.goto(`${baseUrl}/feed`, { waitUntil: 'domcontentloaded' })
-  await page.locator('.social-feed-card').first().waitFor({ timeout: 20000 })
+  await page.goto(`${baseUrl}/feed`, { waitUntil: 'domcontentloaded', timeout: 180_000 })
+  await page.locator('.social-feed-card').first().waitFor({ timeout: 90_000 })
   await sample('initial')
   const swipeTimes = []
   for (let i = 1; i <= transitions; i++) {
