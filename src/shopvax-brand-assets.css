@@ -55,3 +55,11 @@
  .social-feed-page .svx-social-brand .svx-brand-wordmark {height:16px;}
  .social-feed-page .svx-social-brand .svx-brand-symbol {height:23px;}
 }
+
+/* Ação prioritária do cabeçalho: 'Abrir loja' na cor oficial, sem mudar o layout. */
+.panel-shell .panel-topbar .panel-store-link{
+  background:#F25C05;color:#161514;border-color:#F25C05;
+}
+.panel-shell .panel-topbar .panel-store-link:hover{
+  background:#E45400;border-color:#E45400;color:#161514;
+}
