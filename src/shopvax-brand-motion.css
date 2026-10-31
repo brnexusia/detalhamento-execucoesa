@@ -12,14 +12,18 @@
   /* O V sempre chega de CIMA; o A sempre chega de BAIXO.
      Durante a translação não se cruzam nem deformam. */
   .svx-brand-motion.is-animating .svx-brand-motion__v{
-    animation:svx-mark-v-descend 1150ms cubic-bezier(.23,.81,.25,1) both
+    animation:svx-mark-v-descend 520ms cubic-bezier(.24,.82,.23,1) both
   }
   .svx-brand-motion.is-animating .svx-brand-motion__a{
-    animation:svx-mark-a-ascend 1150ms cubic-bezier(.23,.81,.25,1) both
+    animation:svx-mark-a-ascend 520ms cubic-bezier(.24,.82,.23,1) both
   }
-  /* A rotação é aplicada SOMENTE ao conjunto pronto — não às peças isoladas. */
+  /* O X gira somente depois de ambas as peças chegarem: 520 + 630 = 1150ms. */
   .svx-brand-motion.is-animating .svx-brand-motion__assembly{
-    animation:svx-mark-assembled-spin 1100ms cubic-bezier(.54,.02,.32,.99) 1150ms both
+    animation:svx-mark-assembled-spin 630ms cubic-bezier(.52,.02,.32,1) 520ms both
+  }
+  /* Apenas no login confirmado: o X completo cresce e desaparece nos 300ms finais. */
+  .svx-brand-motion.is-animating.svx-brand-motion--exit .svx-brand-motion__symbol{
+    animation:svx-mark-exit 300ms cubic-bezier(.26,.60,.55,1) 1150ms both
   }
 }
 @keyframes svx-mark-v-descend{
@@ -38,14 +42,22 @@
   0%{transform:rotate(0deg)}
   100%{transform:rotate(360deg)}
 }
+@keyframes svx-mark-exit{
+  0%{opacity:1;transform:scale(1)}
+  100%{opacity:0;transform:scale(1.42)}
+}
 
-/* Estado de carregamento; animação somente após 180ms para evitar flash. */
+/* Carregamentos normais: a paleta oficial permanece clara, sem transição para preto. */
 .svx-branded-loading{min-height:100dvh;width:100%;display:grid;align-content:center;justify-items:center;
-  gap:16px;background:#161514;color:#F3F0E8;position:relative}
-.svx-branded-loading__mark{display:inline-flex;font-size:102px;opacity:0;transition:opacity 160ms ease}
+  gap:16px;background:var(--svx-paper,#F3F0E8);color:var(--svx-ink,#161514);position:relative}
+.svx-branded-loading__mark{display:inline-flex;font-size:102px;opacity:0;transition:opacity 100ms ease}
 .svx-branded-loading__mark.is-visible{opacity:1}
-.svx-branded-loading--compact{min-height:148px;border:1px solid rgba(22,21,20,.15)}
+.svx-branded-loading--compact{min-height:148px;background:transparent;gap:12px;padding:16px;align-content:center}
 .svx-branded-loading--compact .svx-branded-loading__mark{font-size:42px}
+.svx-branded-loading__skeleton{display:grid;gap:9px;width:min(100%,600px);padding:0 16px;opacity:.65}
+.svx-branded-loading__skeleton span{height:14px;border-radius:3px;background:#DDD7CD}
+.svx-branded-loading__skeleton span:nth-child(2){width:74%}
+.svx-branded-loading__skeleton span:nth-child(3){width:88%}
 .svx-sr-only{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 
 /* No painel, o símbolo fica estático entre os ciclos de 3 minutos. */
@@ -66,12 +78,12 @@
 @media(prefers-reduced-motion:reduce){
   .svx-brand-motion *, .svx-brand-motion.is-animating *{animation:none!important;transition:none!important}
   .svx-brand-motion__assembly,.svx-brand-motion__v,.svx-brand-motion__a{transform:none!important;opacity:1!important}
-  .svx-branded-loading__mark{transition:none;opacity:1}
+  .svx-branded-loading__mark{transition:none}
 }
 
-/* Durante autenticação mantém a experiência da marca, sem spinner nativo. */
+/* Só o acesso confirmado recebe vinheta escura; demais superfícies preservam a cor da tela. */
 .svx-auth-loading-overlay{position:fixed;inset:0;z-index:1000;background:#161514}
-.svx-auth-loading-overlay .svx-branded-loading{min-height:100dvh}
+.svx-auth-loading-overlay .svx-branded-loading{min-height:100dvh;background:#161514;color:#F3F0E8}
 
 /* A estrutura do login é composta de SVGs aprovados; remove as caixas do CSS legado. */
 .auth-shell .auth-poster .wordmark{display:inline-flex;align-items:center;gap:12px}
