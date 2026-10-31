@@ -584,13 +584,14 @@ async function enrichOrder(req, res, next) {
     }
     const customer = await currentCustomer(req, store.id)
     if (customer) {
+      // O vínculo precisa participar do mesmo COMMIT do talão e da baixa de estoque.
+      // Não tentar vincular depois da confirmação: isso deixaria pedido sem histórico
+      // caso uma segunda query falhe após a criação bem-sucedida.
+      req.shopvaxCustomerId = customer.id
       const originalJson = res.json.bind(res)
       res.json = (payload) => {
         if (res.statusCode === 201 && payload?.orderId) {
-          pool.query('UPDATE orders SET customer_id=$1 WHERE id=$2 AND store_id=$3', [customer.id, payload.orderId, store.id])
-            .then(() => originalJson({ ...payload, customer: { id: customer.id, name: customer.name } }))
-            .catch((error) => { console.error('[phase2] attach customer:', error.message); originalJson(payload) })
-          return res
+          return originalJson({ ...payload, customer: { id: customer.id, name: customer.name } })
         }
         return originalJson(payload)
       }
