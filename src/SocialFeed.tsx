@@ -281,6 +281,7 @@ export default function SocialFeed() {
     return Math.max(0, Math.min(cached.posts.length - 1, estimated))
   })())
   const restorationPendingRef = useRef(Boolean(restored.current?.posts.length))
+  const routeResumesRef = useRef(0)
   const restoredAnchorLockRef = useRef(Boolean(restored.current?.posts.length))
   const listRef = useRef<HTMLElement | null>(null)
   const scrollTopRef = useRef(restored.current?.scrollTop || 0)
@@ -349,13 +350,20 @@ export default function SocialFeed() {
     let firstFrame = 0
     let secondFrame = 0
     const restore = () => {
-      const position = restoredIndex.current * Math.max(1, list.clientHeight)
+      if (!list.isConnected || list.clientHeight <= 0) return false
+      const position = restoredIndex.current * list.clientHeight
       list.scrollTop = position
       scrollTopRef.current = position
+      return true
     }
     restore()
-    firstFrame = window.requestAnimationFrame(() => {
-      restore()
+    let attempts = 0
+    const waitForVisibleLayout = () => {
+      if (!list.isConnected) return
+      if (!restore()) {
+        if (++attempts < 120) firstFrame = window.requestAnimationFrame(waitForVisibleLayout)
+        return
+      }
       secondFrame = window.requestAnimationFrame(() => {
         restore()
         // Only release the restoration lock when the identity-aligned offset is stable.
@@ -373,7 +381,8 @@ export default function SocialFeed() {
           list.style.overflowAnchor = previousAnchor
         })
       })
-    })
+    }
+    firstFrame = window.requestAnimationFrame(waitForVisibleLayout)
     return () => {
       window.cancelAnimationFrame(firstFrame)
       window.cancelAnimationFrame(secondFrame)
@@ -398,6 +407,7 @@ export default function SocialFeed() {
       const index = indexById >= 0 ? indexById : Math.min(cached.posts.length - 1,
         Math.max(0, anchor?.index ?? Math.round(cached.scrollTop / Math.max(1, window.innerHeight))))
       restoredIndex.current = index
+      routeResumesRef.current += 1
       restorationPendingRef.current = true
       restoredAnchorLockRef.current = true
       scrollTopRef.current = index * Math.max(1, listRef.current?.clientHeight || window.innerHeight)
@@ -514,6 +524,7 @@ export default function SocialFeed() {
     <main className="social-feed-list" ref={listRef}
       data-feed-initial-posts={initialSession?.posts.length || 0}
       data-feed-restored-index={restoredIndex.current}
+      data-feed-route-resumes={routeResumesRef.current}
       data-feed-active-index={activeIndex}
       data-feed-locked={restoredAnchorLockRef.current ? 'yes' : 'no'}
       style={restorationPendingRef.current ? { scrollSnapType: 'none' } : undefined}
