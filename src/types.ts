@@ -149,6 +149,8 @@ export type AdminBootstrap = {
   user: { id: string; email: string; name: string }
   store: AdminStore
   products: AdminProduct[]
+  productCount?: number
+  productCategories?: Array<{ category: string; count: number }>
   sellers: AdminSeller[]
   orders: AdminOrder[]
   stats: { views: number; carts: number; orders: number; value: number }

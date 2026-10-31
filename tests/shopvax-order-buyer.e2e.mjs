@@ -13,13 +13,48 @@ const data={
   }],
   stats:{views:1,carts:1,orders:1,value:119.80}
 }
+// Exercise the API's 100 most recent orders contract, retaining a unique buyer per row.
+for (let index = 1; index < 100; index += 1) {
+  data.orders.push({
+    ...data.orders[0],
+    id:'order-' + (index+1),
+    code:'AS-' + String(index+41).padStart(6,'0'),
+    buyer:{ name:'Comprador de teste ' + index, city:'Outra cidade', phone:'71988880000', cep:'40000000' },
+    notes:'Pedido fictício ' + index,
+    created_at:new Date(Date.now()-index*1000).toISOString(),
+  })
+}
 const browser=await chromium.launch({headless:true})
 try {
   for (const [width,height] of [[320,568],[390,844],[1366,768]]) {
     const context=await browser.newContext({viewport:{width,height},permissions:['clipboard-read','clipboard-write']})
     const page=await context.newPage()
-    await page.route('**/api/admin/bootstrap',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(data)}))
+    const bootstrapRequests = []
+    const failedApiResponses = []
+    page.on('response',response=>{
+      if (response.url().includes('/api/admin/') && !response.ok()) {
+        failedApiResponses.push({url:response.url(),status:response.status()})
+      }
+    })
+    page.on('pageerror',error=>failedApiResponses.push({pageError:error.message}))
+    await page.route('**/api/admin/bootstrap*',route=>{
+      const requestUrl = new URL(route.request().url())
+      bootstrapRequests.push(requestUrl.pathname + requestUrl.search)
+      assert.equal(requestUrl.pathname,'/api/admin/bootstrap')
+      assert.equal(requestUrl.searchParams.get('compact'),'1','Painel deve usar bootstrap compacto')
+      return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
+        ...data, productCount:0, productCategories:[],
+      })})
+    })
     await page.goto('http://127.0.0.1:5173/painel/pedidos')
+    await page.getByRole('button',{name:'Ver talão AS-000041'}).waitFor({state:'visible',timeout:10000})
+      .catch(async error=>{throw new Error(
+        'Talão ausente: '+JSON.stringify({bootstrapRequests,failedApiResponses,body:(await page.locator('body').innerText()).slice(0,1500)}),
+        {cause:error},
+      )})
+    assert.equal(await page.locator('.svx-orders__row').count(),100,'Os 100 pedidos fictícios devem permanecer consultáveis')
+    assert.ok(bootstrapRequests.length>0,'Mock do bootstrap compacto precisa interceptar a requisição')
+    assert.deepEqual(failedApiResponses,[],'Painel não pode gerar erros de API ou React')
     await page.getByRole('button',{name:'Ver talão AS-000041'}).click()
     const section=page.getByRole('region',{name:'Dados do comprador e observações'})
     await section.waitFor()
@@ -32,6 +67,10 @@ try {
     assert.match(copied,/Comprador: Maria Silva/)
     assert.match(copied,/Cidade: Salvador/)
     assert.match(copied,/Observações: Entregar na loja/)
+    await page.getByRole('button',{name:'Ver talão AS-000140'}).click()
+    const otherBuyer = page.getByRole('region',{name:'Dados do comprador e observações'})
+    assert.match(await otherBuyer.innerText(),/Comprador de teste 99/)
+    assert.doesNotMatch(await otherBuyer.innerText(),/Maria Silva/,'Talão diferente não deve herdar comprador anterior')
     console.log('ORDER_BUYER_DETAIL_PASS',width,height)
     await context.close()
   }

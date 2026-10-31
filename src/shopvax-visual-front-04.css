@@ -1,0 +1,63 @@
+/* Frente 04 — polimento verificável da referência SVG 03/05/06 e revisão C01–C03.
+   Somente tipografia e apresentação; não altera a marca do lojista nem dados. */
+.app .brand__logo,
+.app .store-intro.svx-vitrine .store-intro__logo {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  box-shadow: none;
+  object-fit: contain;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+.app .store-intro.svx-vitrine .store-intro__identity {
+  gap: clamp(7px, 1.2vw, 14px);
+}
+.app .store-intro.svx-vitrine .store-intro__identity h1 {
+  line-height: .92;
+  overflow-wrap: break-word;
+}
+.app .brand__text small,
+.app .store-intro.svx-vitrine .store-intro__identity .eyebrow,
+.app .store-intro.svx-vitrine .store-intro__ribbon,
+.svx-discovery__rail small,
+.app .product-card__meta,
+.app .product-picker__meta {
+  font-size: clamp(12px, 1vw, 13px);
+  line-height: 1.4;
+}
+.app .product-card__meta,
+.app .product-picker__meta {
+  overflow-wrap: anywhere;
+}
+.svx-themes__season-copy small,
+.svx-themes__preview-bar,
+.svx-themes__preview-bar small,
+.svx-themes__sample-product span,
+.svx-themes__sample-product em {
+  font-size: 12px;
+  line-height: 1.5;
+}
+.svx-themes__mini { min-height: 92px; height: auto; }
+.svx-themes__mini span { font-size: 15px; overflow-wrap: anywhere; }
+.svx-themes__palettes strong { font-size: 13px; }
+.svx-themes__seasons button,
+.svx-themes__palettes button { min-height: 44px; }
+.svx-themes__picker,
+.svx-themes__preview,
+.svx-themes__sample,
+.svx-themes__season-copy { min-width: 0; }
+@media (max-width: 430px) {
+  .svx-themes__seasons { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .svx-themes__preview-bar { gap: 6px; }
+  .app .store-intro.svx-vitrine .store-intro__identity h1 {
+    max-width: 100%;
+    font-size: clamp(42px, 12.5vw, 68px);
+  }
+}
+@media (max-width: 340px) {
+  .svx-themes__seasons { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .svx-themes__preview * { scroll-behavior: auto; }
+}

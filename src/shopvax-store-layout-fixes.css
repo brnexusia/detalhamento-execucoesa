@@ -190,3 +190,6 @@
  .app .topbar .brand__text strong{max-width:calc(100vw - 140px);}
  .app .store-nav-toggle,.app .topbar>.cart-trigger{min-width:39px;}
 }
+
+/* Public feed uses virtual slots measured against the scroll viewport. */
+.feed-list > .feed-spacer { width:100%; pointer-events:none; scroll-snap-align:none; overflow:hidden; }

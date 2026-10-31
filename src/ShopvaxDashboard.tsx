@@ -1,8 +1,9 @@
 import { ArrowRight, Check, Clipboard, ExternalLink, Package, ReceiptText, Send, Users } from 'lucide-react'
 import type { AdminBootstrap } from './types'
 import { SVNumber, SVRibbon, SVStamp } from './ShopvaxDesignSystem'
+import ShopvaxOnboardingGuide from './ShopvaxOnboardingGuide'
 
-type DeskSection = 'inicio' | 'produtos' | 'pedidos' | 'vendedoras' | 'loja'
+type DeskSection = 'inicio' | 'produtos' | 'pedidos' | 'vendedoras' | 'loja' | 'temas'
 type Props = {
   data: AdminBootstrap
   incomplete: boolean
@@ -28,13 +29,14 @@ export default function ShopvaxDashboard({ data, incomplete, storeUrl, onSection
   const allItems = data.orders.reduce((n,order)=>n+order.items.reduce((subtotal,item)=>subtotal+item.quantity,0),0)
   const required = [
     { label:'WhatsApp e pedido mínimo', ready:Boolean(data.store.whatsapp),section:'loja' as DeskSection },
-    { label:'Produtos cadastrados', ready:data.products.length>0,section:'produtos' as DeskSection },
+    { label:'Produtos cadastrados', ready:(data.productCount ?? data.products.length)>0,section:'produtos' as DeskSection },
     { label:'Vendedoras com link', ready:activeSellers.length>0,section:'vendedoras' as DeskSection },
   ]
   const completed = required.filter(x=>x.ready).length
   return <div className="panel-page svx-dashboard">
     <SVRibbon className="svx-dashboard__ribbon"><span>SHOPVAX · PAINEL DE QUEM VENDE</span><span>SEUS PEDIDOS NUM SÓ LUGAR</span></SVRibbon>
     <div className="svx-dashboard__welcome"><div><span className="svx-kicker">O BALCÃO ESTÁ ABERTO</span><h1>{greeting}, {firstName}.</h1><p>{data.store.name} · {data.store.is_active ? 'Loja publicada' : 'Loja pausada'}</p></div><div className="svx-dashboard__welcome-actions"><a href={storeUrl} target="_blank" rel="noreferrer"><ExternalLink size={15}/> Abrir loja</a><button onClick={() => onSection('produtos')}><Package size={15}/> Produtos <ArrowRight size={15}/></button></div></div>
+    <ShopvaxOnboardingGuide data={data} storeUrl={storeUrl} onSection={onSection} />
     <div className="svx-dashboard__metrics">
       <div className="svx-dashboard__primary-metric"><span className="svx-kicker">PEDIDOS REGISTRADOS</span><SVNumber value={data.stats.orders} label="no WhatsApp"/><SVStamp>EM MOVIMENTO</SVStamp></div>
       <div className="svx-dashboard__metric"><SVNumber value={data.stats.views} label="acessos à loja"/></div>

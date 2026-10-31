@@ -1,0 +1,80 @@
+/* Frente 03: linguagem editorial Shopvax, sem componentes promocionais invasivos. */
+.svx-growth-guide,.svx-buyer-preferences{font-family:var(--svx-font-body,Archivo,sans-serif);color:#161514;background:#fcfaf5;border:1px solid #d9d3c6}
+.svx-growth-guide{margin:22px 0;padding:clamp(16px,3vw,25px)}
+.svx-growth-guide__head{display:flex;align-items:center;justify-content:space-between;gap:14px}
+.svx-growth-guide__head h2{font:800 clamp(25px,3vw,37px)/1 var(--svx-font-display,'Archivo Narrow',sans-serif);text-transform:uppercase;margin:5px 0}
+.svx-growth-guide__head p,.svx-growth-guide__current p{margin:6px 0;color:#56534e;font-size:13px;line-height:1.65}
+.svx-growth-guide button,.svx-buyer-preferences button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:43px;padding:9px 13px;border:1px solid #161514;background:transparent;color:inherit;cursor:pointer;font-weight:700;font-size:12px}
+.svx-growth-guide button:disabled,.svx-buyer-preferences button:disabled{opacity:.55;cursor:not-allowed}
+.svx-growth-guide__body{margin-top:17px;border-top:1px solid #d9d3c6;padding-top:16px}
+.svx-growth-guide__track{height:5px;background:#e5e0d4;overflow:hidden}
+.svx-growth-guide__track span{display:block;background:#f25c05;height:100%;transition:width .25s}
+.svx-growth-guide__steps{padding:16px 0 12px;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;list-style:none;margin:0}
+.svx-growth-guide__steps li{min-width:0;display:flex;align-items:flex-start;gap:7px;color:#77736c;font:600 11px/1.4 var(--svx-font-body,Archivo,sans-serif)}
+.svx-growth-guide__steps li>span:first-child{flex:0 0 24px;width:24px;height:24px;display:grid;place-items:center;border:1px solid #aaa499}
+.svx-growth-guide__steps li.is-done>span:first-child{background:#161514;color:#fff}
+.svx-growth-guide__steps li.is-current{color:#161514;font-weight:800}
+.svx-growth-guide__steps li.is-current>span:first-child{border-color:#f25c05;background:#f25c05}
+.svx-growth-guide__current{background:#f3f0e8;border:1px solid #d9d3c6;padding:17px}
+.svx-growth-guide__current h3{font:800 22px/1 var(--svx-font-display,'Archivo Narrow',sans-serif);text-transform:uppercase;margin:7px 0}
+.svx-growth-guide__actions{display:flex;align-items:center;flex-wrap:wrap;gap:9px;margin-top:16px}
+.svx-growth-guide__actions .svx-growth-primary{background:#f25c05}
+.svx-growth-guide__body>small{display:block;color:#77736c;font-size:11px;line-height:1.5;margin-top:13px}
+.svx-growth-error{color:#a62317;font-size:12px;display:flex;align-items:center;gap:8px}
+.svx-growth-success{color:#276341;font-size:13px}
+.svx-growth-complete{display:flex;gap:8px;align-items:center;background:#fcfaf5;border:1px solid #d9d3c6;padding:14px 18px;font-size:13px}
+.svx-acquisition{position:fixed;right:22px;bottom:82px;z-index:140;width:min(360px,calc(100vw - 32px));padding:21px;background:#161514;color:#f3f0e8;box-shadow:0 8px 30px #0004;border-top:4px solid #f25c05;font-family:var(--svx-font-body,Archivo,sans-serif)}
+.svx-acquisition .svx-kicker{color:#ffab73;font-size:10px}
+.svx-acquisition>strong{display:block;font:800 25px/1 var(--svx-font-display,'Archivo Narrow',sans-serif);text-transform:uppercase;margin:10px 0}
+.svx-acquisition p{font-size:12px;line-height:1.65}
+.svx-acquisition a{display:inline-flex;align-items:center;gap:8px;background:#f25c05;color:#161514;text-decoration:none;font-size:12px;font-weight:800;padding:11px 13px}
+.svx-acquisition__close{position:absolute;top:9px;right:8px;background:transparent;color:#fff;border:0;cursor:pointer}
+.svx-buyer-preferences{max-width:820px;margin:24px auto;padding:clamp(18px,3vw,28px)}
+.svx-buyer-preferences h2{margin:6px 0 9px;font:800 28px var(--svx-font-display,'Archivo Narrow',sans-serif);text-transform:uppercase}
+.svx-buyer-preferences p{font-size:13px;line-height:1.6}
+.svx-buyer-preferences__channels{display:flex;flex-wrap:wrap;gap:10px;margin:17px 0}
+.svx-buyer-preferences__channels label{display:flex;align-items:center;gap:8px;padding:14px;border:1px solid #d9d3c6;flex:1 1 180px;font-size:13px;font-weight:700;cursor:pointer}
+.svx-buyer-preferences fieldset{border:1px solid #d9d3c6;display:grid;gap:12px;margin:10px 0;padding:18px;min-width:0}
+.svx-buyer-preferences legend{font-weight:800;padding:0 7px}
+.svx-buyer-preferences fieldset label{display:flex;gap:8px;align-items:center;font-size:13px;cursor:pointer}
+.svx-buyer-preferences input{accent-color:#f25c05;min-width:17px;min-height:17px}
+.svx-buyer-preferences__stores{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;padding:10px;background:#f3f0e8;max-height:260px;overflow:auto}
+.svx-buyer-preferences__note{font-size:11px!important;color:#6a665d}
+.svx-buyer-preferences__actions{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0}
+.svx-buyer-preferences__actions button:first-child{background:#f25c05}
+.svx-support{position:fixed;right:17px;bottom:15px;z-index:150;font-family:var(--svx-font-body,Archivo,sans-serif);color:#161514}
+.svx-support__trigger{display:flex;align-items:center;gap:8px;background:#f25c05;color:#161514;border:1px solid #161514;padding:11px 15px;min-height:47px;box-shadow:3px 3px 0 #161514;font-size:12px;font-weight:800;cursor:pointer}
+.svx-support__panel{position:absolute;right:0;bottom:59px;width:min(410px,calc(100vw - 24px));max-height:min(690px,calc(100dvh - 94px));overflow:auto;overscroll-behavior:contain;padding:20px;border:1px solid #161514;background:#fcfaf5;box-shadow:0 8px 38px #0004}
+.svx-support__panel header{display:flex;justify-content:space-between;gap:10px;align-items:start}
+.svx-support__panel h2{font:800 25px/1 var(--svx-font-display,'Archivo Narrow',sans-serif);text-transform:uppercase;margin:8px 0}
+.svx-support__panel header button{background:transparent;border:0;cursor:pointer}
+.svx-support__panel>p,.svx-support__screenshot p{font-size:12px;line-height:1.65;color:#5a554c}
+.svx-support__faqs{border-top:1px solid #d9d3c6}
+.svx-support__faqs details{border-bottom:1px solid #d9d3c6;padding:11px 0}
+.svx-support__faqs summary{display:flex;align-items:center;justify-content:space-between;cursor:pointer;font-size:13px;font-weight:800}
+.svx-support__faqs details p{font-size:12px;line-height:1.6}
+.svx-support__screenshot{margin:15px 0;border:1px dashed #aaa499;padding:10px}
+.svx-support__screenshot p{display:flex;align-items:start;gap:8px}
+.svx-support__screenshot input{width:100%;font-size:11px;max-width:100%}
+.svx-support__disabled{background:#f3f0e8;padding:13px;font-weight:600}
+.svx-support__form{display:grid;gap:11px}
+.svx-support__form strong{font-size:14px}
+.svx-support__form label{display:grid;gap:5px;font-size:12px;font-weight:700}
+.svx-support__form input:not([type=checkbox]),.svx-support__form select,.svx-support__form textarea{width:100%;border:1px solid #aaa499;border-radius:0;background:#fff;color:#161514;padding:10px;font:inherit}
+.svx-support__form textarea{resize:vertical;min-height:90px}
+.svx-support__form .svx-support__check{display:flex;align-items:start;gap:7px;line-height:1.5}
+.svx-support__check input{margin-top:4px;flex-shrink:0}
+.svx-support__form>button{background:#f25c05;border:1px solid #161514;padding:12px;font-weight:800;cursor:pointer}
+.svx-growth-status{font-size:11px;background:#f3f0e8;padding:9px;overflow-wrap:anywhere}
+@media(max-width:760px){.svx-growth-guide__steps{grid-template-columns:repeat(3,minmax(0,1fr))}.svx-acquisition{right:12px;bottom:78px}.svx-support{right:12px;bottom:12px}.svx-support__panel{max-height:calc(100dvh - 90px)}}
+@media(max-width:430px){.svx-growth-guide__steps{grid-template-columns:repeat(2,minmax(0,1fr))}.svx-growth-guide__head{align-items:flex-start}.svx-growth-guide__head h2{font-size:25px}.svx-acquisition{width:calc(100vw - 24px);padding:15px}.svx-buyer-preferences{margin:12px;padding:16px}}
+@media(prefers-reduced-motion:reduce){.svx-growth-guide__track span{transition:none}}
+
+.google-auth-button__status,.google-auth-button__error{display:block;font:600 12px/1.5 var(--svx-font-body,Archivo,sans-serif);padding:8px 0;color:#4a463c}.google-auth-button__error{color:#9e291e}
+
+.google-auth-button__mount{min-height:44px;max-width:100%;overflow:hidden}.google-auth-button__mount iframe{max-width:100%}
+
+/* Na loja pública, a ajuda não deve cobrir o botão de adicionar peça no canto direito. */
+.svx-support--store{left:10px;right:auto;bottom:76px}
+.svx-support--store .svx-support__panel{left:0;right:auto}
+@media(max-width:430px){.svx-support--store{left:8px;right:auto;bottom:82px}.svx-support--store .svx-support__trigger{padding:9px 10px;font-size:11px}}
