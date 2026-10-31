@@ -136,7 +136,7 @@ export default function ScannerModule1() {
     try {
       const result = await api.listImportJobs()
       setJobs(result.jobs)
-      window.dispatchEvent(new Event('shopvax:scanner-jobs-changed'))
+      window.dispatchEvent(new CustomEvent('shopvax:scanner-jobs-changed', { detail: { jobs: result.jobs } }))
     } catch (err) {
       if (!quiet) setError(err instanceof Error ? err.message : 'Não foi possível carregar as importações.')
     } finally {
