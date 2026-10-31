@@ -99,7 +99,7 @@ try {
   const countAfter = await page.evaluate(() => JSON.parse(localStorage.getItem('shopvax-cart-v1:loja-teste') || '[]').length)
   assert.equal(countAfter, countBefore + 1, 'Montar pedido precisa manter gravação do carrinho')
   const activeName = await page.locator('.social-feed-card h2').last().innerText()
-  const firstIndex = Number(activeName.replace(/\\D/g, ''))
+  const firstIndex = Number(activeName.replace(/\D/g, ''))
   await page.locator('.social-feed-store').last().click()
   await page.waitForURL('**/perfil/loja-teste')
   await page.goBack({ waitUntil: 'domcontentloaded' })
