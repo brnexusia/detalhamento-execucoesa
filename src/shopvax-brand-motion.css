@@ -68,3 +68,12 @@
   .svx-brand-motion__assembly,.svx-brand-motion__v,.svx-brand-motion__a{transform:none!important;opacity:1!important}
   .svx-branded-loading__mark{transition:none;opacity:1}
 }
+
+/* Durante autenticação mantém a experiência da marca, sem spinner nativo. */
+.svx-auth-loading-overlay{position:fixed;inset:0;z-index:1000;background:#161514}
+.svx-auth-loading-overlay .svx-branded-loading{min-height:100dvh}
+
+/* A estrutura do login é composta de SVGs aprovados; remove as caixas do CSS legado. */
+.auth-shell .auth-poster .wordmark{display:inline-flex;align-items:center;gap:12px}
+.auth-shell .auth-poster .wordmark>img{flex:0 0 auto;max-width:100%}
+.auth-shell .auth-form__head .brand__mark{padding:0}
