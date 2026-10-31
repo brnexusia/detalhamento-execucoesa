@@ -92,6 +92,7 @@ try {
  assert.equal(await overlay.evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(22, 21, 20)')
  assert.equal(await overlay.locator('.svx-brand-motion__symbol').evaluate(el=>getComputedStyle(el).animationName),'svx-mark-exit')
  await login.waitForURL('**/painel',{timeout:7000})
+ await overlay.waitFor({state:'detached',timeout:7000})
  assert.equal(await overlay.count(),0)
  await login.close()
 
