@@ -216,7 +216,7 @@ const SocialPostCard = memo(function SocialPostCard({ post, cartCount, active, s
     } finally { setAsking(false) }
   }
 
-  return <article className="social-feed-card" ref={cardRef}
+  return <article className="social-feed-card" data-post-id={post.id} ref={cardRef}
     style={{ '--social-store-accent': post.store.accent || '#F25C05', '--social-store-text': shopvaxAccentTextColor(post.store.accent || '#F25C05') } as React.CSSProperties}>
     <div className="social-feed-media" onDoubleClick={() => { if (!interactions.liked) void like() }}>
       {post.product.mediaType === 'video'
