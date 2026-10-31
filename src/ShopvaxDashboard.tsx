@@ -1,6 +1,7 @@
 import { ArrowRight, Check, Clipboard, ExternalLink, Package, ReceiptText, Send, Users } from 'lucide-react'
 import type { AdminBootstrap } from './types'
 import { SVNumber, SVRibbon, SVStamp } from './ShopvaxDesignSystem'
+import ShopvaxOnboardingGuide from './ShopvaxOnboardingGuide'
 
 type DeskSection = 'inicio' | 'produtos' | 'pedidos' | 'vendedoras' | 'loja'
 type Props = {
@@ -35,6 +36,7 @@ export default function ShopvaxDashboard({ data, incomplete, storeUrl, onSection
   return <div className="panel-page svx-dashboard">
     <SVRibbon className="svx-dashboard__ribbon"><span>SHOPVAX · PAINEL DE QUEM VENDE</span><span>SEUS PEDIDOS NUM SÓ LUGAR</span></SVRibbon>
     <div className="svx-dashboard__welcome"><div><span className="svx-kicker">O BALCÃO ESTÁ ABERTO</span><h1>{greeting}, {firstName}.</h1><p>{data.store.name} · {data.store.is_active ? 'Loja publicada' : 'Loja pausada'}</p></div><div className="svx-dashboard__welcome-actions"><a href={storeUrl} target="_blank" rel="noreferrer"><ExternalLink size={15}/> Abrir loja</a><button onClick={() => onSection('produtos')}><Package size={15}/> Produtos <ArrowRight size={15}/></button></div></div>
+    <ShopvaxOnboardingGuide data={data} storeUrl={storeUrl} onSection={onSection} />
     <div className="svx-dashboard__metrics">
       <div className="svx-dashboard__primary-metric"><span className="svx-kicker">PEDIDOS REGISTRADOS</span><SVNumber value={data.stats.orders} label="no WhatsApp"/><SVStamp>EM MOVIMENTO</SVStamp></div>
       <div className="svx-dashboard__metric"><SVNumber value={data.stats.views} label="acessos à loja"/></div>
