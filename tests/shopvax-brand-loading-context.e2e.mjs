@@ -12,8 +12,11 @@ assert.match(css,/svx-mark-v-descend/)
 assert.match(css,/svx-mark-a-ascend/)
 assert.match(css,/svx-mark-assembled-spin/)
 assert.match(css,/rotate\(360deg\)/)
-assert.match(css,/\.svx-brand-motion__assembly\{transform-box:view-box;transform-origin:50% 50%\}/,
- 'O X deve girar no centro do SVG, nunca ao redor de um ponto externo')
+assert.match(mark,/className="svx-brand-motion__rotor"/,'O rotor deve ser HTML, fora das coordenadas SVG')
+assert.match(css,/\.svx-brand-motion__rotor\{display:block;width:100%;height:100%;position:relative;transform-origin:50% 50%/,
+ 'O X deve girar no centro da sua caixa HTML, não do grupo SVG')
+assert.doesNotMatch(css,/\.svx-brand-motion\.is-animating \.svx-brand-motion__assembly\s*\{\s*animation:/,
+ 'É proibido rotacionar o grupo SVG para não criar órbita')
 assert.doesNotMatch(css,/transform-origin:480px 440\.643px/,
  'Coordenadas absolutas aqui causam giro orbital')
 assert.match(css,/630ms cubic-bezier[^;]*520ms both/,'Giro só inicia após o encaixe das peças')
@@ -80,7 +83,7 @@ try {
  assert.equal(await icon.getAttribute('class'), 'svx-brand-motion svx-brand-motion--dark')
  await page.clock.fastForward('03:00')
  await page.locator('.svx-panel-mark .svx-brand-motion.is-animating').waitFor()
- const animation=await page.locator('.svx-panel-mark .svx-brand-motion__assembly')
+ const animation=await page.locator('.svx-panel-mark .svx-brand-motion__rotor')
    .evaluate(el=>getComputedStyle(el).animationName)
  assert.equal(animation,'svx-mark-assembled-spin')
  await page.clock.fastForward('00:04')
@@ -104,13 +107,25 @@ try {
  assert.equal(new URL(login.url()).pathname,'/entrar','A transição precisa finalizar antes de navegar')
  assert.equal(await overlay.evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(22, 21, 20)')
  assert.equal(await overlay.locator('.svx-brand-motion__symbol').evaluate(el=>getComputedStyle(el).animationName),'svx-mark-exit')
- const pivot=await overlay.locator('.svx-brand-motion__assembly').evaluate(el=>{
-   const svg=el.ownerSVGElement
-   const pos=getComputedStyle(el).transformOrigin.split(' ').map(parseFloat)
-   return {pos,viewBox:svg?.viewBox.baseVal}
+ // Medição geométrica, não apenas presença de rotate(360deg) no CSS.
+ // Em seis ângulos diferentes, o centro físico do X precisa ficar no mesmo pixel.
+ const rotation=await overlay.locator('.svx-brand-motion__rotor').evaluate(el=>{
+   const svg=el.querySelector('svg')
+   const keyframes=el.getAnimations().find(a=>a.animationName==='svx-mark-assembled-spin')
+   if(!svg || !keyframes) throw Error('Rotor não contém SVG com animação de 360 graus')
+   keyframes.pause()
+   return [520,650,780,910,1040,1150].map(ms=>{
+     keyframes.currentTime=ms
+     const position=new DOMPoint(480,440.643).matrixTransform(svg.getScreenCTM())
+     const matrix=new DOMMatrix(getComputedStyle(el).transform)
+     return {ms,x:position.x,y:position.y,angle:Math.atan2(matrix.b,matrix.a)*180/Math.PI}
+   })
  })
- assert(Math.abs(pivot.pos[0]-110)<1 && Math.abs(pivot.pos[1]-141)<1,
-   'Giro deve pivotar no meio do viewBox (110,141), não orbitar: '+JSON.stringify(pivot))
+ const start=rotation[0]
+ const drift=Math.max(...rotation.map(p=>Math.hypot(p.x-start.x,p.y-start.y)))
+ assert(drift<1,'O X está orbitando! Centro deslocou '+drift.toFixed(2)+'px: '+JSON.stringify(rotation))
+ assert(rotation.slice(1,-1).some(p=>Math.abs(p.angle)>30),
+   'A animação deve rodar no próprio eixo, não permanecer estática')
  // Quando o URL já é /painel, a tela preta AINDA deve estar por cima do fallback.
  await login.waitForURL('**/painel',{timeout:7000})
  assert.equal(await overlay.isVisible(),true,'O preto deve cobrir o bootstrap até o painel real estar pronto')
