@@ -93,7 +93,7 @@ try {
   await page.locator('.social-profile-viewer').waitFor()
   await page.getByRole('button',{name:/Abrir na loja/i}).waitFor()
 
-  await page.route('**/api/admin/bootstrap',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify(bootstrap)}))
+  await page.route('**/api/admin/bootstrap*',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify(bootstrap)}))
   await page.goto('http://127.0.0.1:5173/painel')
   await page.getByRole('heading',{name:/Qual a cor da sua loja/i}).waitFor()
   assert.equal(await page.locator('.svx-onboarding__choices > button').count(),3)

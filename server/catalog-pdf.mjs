@@ -41,11 +41,49 @@ export async function loadCatalogMedia(query, url, variant = 'medium') {
   }
 }
 
-function drawFooter(doc) {
-  const y = doc.page.height - 20
+// A decoração sazonal é vetorial e não altera produtos, valores ou mídia.
+// Mantém a área impressa do catálogo dentro das margens de A4.
+function drawSeasonalPrintMotif(doc, theme) {
+  if (theme.id === 'padrao') return
+  const right = doc.page.width - 30
   doc.save()
-  doc.font('Helvetica').fontSize(5.5).fillColor('#8b8b86')
-  doc.text('gerado via shopvax', 32, y, { width: doc.page.width - 64, align: 'center', lineBreak: false })
+  if (theme.id === 'black-friday') {
+    for (let row = 0; row < 3; row += 1) {
+      for (let col = 0; col < 6; col += 1) {
+        doc.rect(right - col * 11, 20 + row * 11, 6, 6).fill(row === 1 ? theme.surface : theme.accent)
+      }
+    }
+  } else if (theme.id === 'natal') {
+    doc.lineWidth(2).strokeColor(theme.accent)
+    for (let step = -2; step <= 2; step += 1) {
+      const cx = right - 35 + step * 15
+      doc.moveTo(cx, 23).lineTo(cx, 52).stroke()
+      doc.circle(cx, 22, 3).fill(theme.accent)
+      doc.circle(cx, 52, 3).fill(theme.accent)
+    }
+  } else if (theme.id === 'sao-joao') {
+    doc.lineWidth(1).strokeColor(theme.surface).moveTo(right - 98, 20).lineTo(right, 20).stroke()
+    for (let i = 0; i < 6; i += 1) {
+      const x = right - 98 + i * 16
+      doc.moveTo(x, 21).lineTo(x + 7, 40).lineTo(x + 14, 21).closePath()
+        .fill(i % 2 ? theme.surface : theme.accent)
+    }
+  }
+  doc.restore()
+}
+
+function drawFooter(doc, theme, pageNumber) {
+  const y = doc.page.height - 29
+  doc.save()
+  doc.rect(0, y - 3, doc.page.width, 33).fill(theme.background)
+  doc.rect(0, y - 3, doc.page.width, 2).fill(theme.accent)
+  doc.font('Helvetica-Bold').fontSize(7.5).fillColor(theme.id === 'padrao' ? theme.ink : '#FFFFFF')
+  doc.text('CATÁLOGO · GRADE · TALÃO', 32, y + 8, { width: 240, lineBreak: false })
+  doc.text(`SHOPVAX  /  ${String(pageNumber).padStart(2, '0')}`, doc.page.width - 150, y + 8,
+    { width: 118, align: 'right', lineBreak: false })
+  doc.font('Helvetica').fontSize(5.5).fillColor(theme.id === 'padrao' ? theme.ink : '#FFFFFF')
+  doc.text('gerado via shopvax', doc.page.width / 2 - 55, y + 8,
+    { width: 110, align: 'center', lineBreak: false })
   doc.restore()
 }
 
@@ -57,6 +95,8 @@ function drawHeader(doc, store, catalog, logo, theme) {
   doc.save()
   doc.rect(0, 0, doc.page.width, 87).fill(theme.background)
   doc.rect(0, 84, doc.page.width, 3).fill(theme.accent)
+  doc.rect(0, 0, 7, 87).fill(theme.accent)
+  drawSeasonalPrintMotif(doc, theme)
   doc.font('Helvetica-Bold').fontSize(7).fillColor(darkTheme ? theme.accent : theme.ink)
     .text(theme.label, left, 11, { width: doc.page.width - 64, lineBreak: false })
   if (logo?.data?.length) {
@@ -86,6 +126,8 @@ async function drawProductCard(doc, product, x, y, w, h, imageLoader, theme) {
   const padding = 9
   doc.save()
   doc.roundedRect(x, y, w, h, 4).fillAndStroke(theme.surface, theme.line)
+  // Fita editorial discreta: preserva a foto e a identidade própria da loja.
+  doc.rect(x + 1, y + 1, w - 2, 3).fill(theme.accent)
 
   const imageW = w - padding * 2
   const imageH = 115
@@ -150,12 +192,13 @@ export async function streamCatalogPdf({ res, store, catalog, products, imageLoa
   const top = 92
   const rowGap = 10
 
+  let pageNumber = 1
   const drawChrome = () => {
     doc.save()
     doc.rect(0, 0, doc.page.width, doc.page.height).fill(theme.surface)
     doc.restore()
     drawHeader(doc, store, catalog, logo, theme)
-    drawFooter(doc)
+    drawFooter(doc, theme, pageNumber)
   }
   drawChrome()
 
@@ -168,6 +211,7 @@ export async function streamCatalogPdf({ res, store, catalog, products, imageLoa
   for (let index = 0; index < products.length; index += 1) {
     if (index > 0 && index % 6 === 0) {
       doc.addPage()
+      pageNumber += 1
       drawChrome()
     }
     const slot = index % 6

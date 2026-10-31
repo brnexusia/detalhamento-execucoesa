@@ -32,6 +32,8 @@ async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
 export default function ScannerPublishModule() {
   const [slot, setSlot] = useState<HTMLElement | null>(null)
   const [scannerOpen, setScannerOpen] = useState(false)
+  const [visible, setVisible] = useState(document.visibilityState === 'visible')
+  const [pollCount, setPollCount] = useState(0)
   const [jobs, setJobs] = useState<Job[]>([])
   const [open, setOpen] = useState(false)
   const [busyId, setBusyId] = useState('')
@@ -58,7 +60,7 @@ export default function ScannerPublishModule() {
     const sync = () => {
       const title = Array.from(document.querySelectorAll<HTMLElement>('.panel-page .page-title'))
         .find((element) => element.querySelector('h1')?.textContent?.trim() === 'Produtos')
-      setScannerOpen(Boolean(document.querySelector('.scanner-modal-layer')))
+      // Scanner visibility is delivered by an explicit event, not a global DOM rescan.
       if (!title) {
         host?.remove()
         host = null
@@ -76,17 +78,45 @@ export default function ScannerPublishModule() {
       }
     }
     sync()
-    const observer = new MutationObserver(sync)
-    observer.observe(document.body, { childList: true, subtree: true })
-    return () => { observer.disconnect(); host?.remove() }
+    const onScannerVisibility = (event: Event) => {
+      setScannerOpen(Boolean((event as CustomEvent<{ open: boolean }>).detail?.open))
+    }
+    const onScannerJobs = (event: Event) => {
+      const next = (event as CustomEvent<{ jobs: Job[] }>).detail?.jobs
+      if (Array.isArray(next)) setJobs(next)
+    }
+    window.addEventListener('shopvax:products-ready', sync)
+    window.addEventListener('shopvax:scanner-visibility', onScannerVisibility)
+    window.addEventListener('shopvax:scanner-jobs-changed', onScannerJobs)
+    return () => {
+      window.removeEventListener('shopvax:products-ready', sync)
+      window.removeEventListener('shopvax:scanner-visibility', onScannerVisibility)
+      window.removeEventListener('shopvax:scanner-jobs-changed', onScannerJobs)
+      host?.remove()
+    }
+  }, [])
+
+  useEffect(() => {
+    const onVisibility = () => setVisible(document.visibilityState === 'visible')
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => document.removeEventListener('visibilitychange', onVisibility)
   }, [])
 
   useEffect(() => {
     if (!slot && !scannerOpen) return
     void load()
-    const timer = window.setInterval(() => void load(), 2500)
-    return () => window.clearInterval(timer)
   }, [slot, scannerOpen])
+
+  useEffect(() => {
+    // When the scanner is open, its own job snapshots drive this button.
+    if (!slot || scannerOpen || !visible || !jobs.some((job) => ['queued', 'scanning', 'processing'].includes(job.status))) return
+    const delay = Math.min(30_000, 3_500 * Math.pow(1.5, Math.min(pollCount, 7)))
+    const timer = window.setTimeout(() => {
+      void load()
+      setPollCount((value) => value + 1)
+    }, delay)
+    return () => window.clearTimeout(timer)
+  }, [slot, scannerOpen, visible, jobs, pollCount])
 
   const show = () => {
     setError('')
@@ -105,6 +135,7 @@ export default function ScannerPublishModule() {
         body: '{}',
       })
       setSuccess(result)
+      window.dispatchEvent(new Event('shopvax:catalog-changed'))
       await load()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível importar os produtos.')

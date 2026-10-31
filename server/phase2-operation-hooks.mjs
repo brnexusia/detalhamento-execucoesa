@@ -366,11 +366,11 @@ async function phase2Context(req, res) {
     pool.query('SELECT id,slug,name,phone,active,created_at FROM franchisees WHERE store_id=$1 ORDER BY created_at ASC', [store.id]),
     pool.query(`SELECT c.id,c.name,c.email,c.phone,c.active,c.created_at,
       count(o.id)::int AS orders_count,COALESCE(sum(o.total),0)::numeric AS orders_value
-      FROM store_customers c LEFT JOIN orders o ON o.customer_id=c.id
+      FROM store_customers c LEFT JOIN orders o ON o.customer_id=c.id AND o.store_id=c.store_id
       WHERE c.store_id=$1 GROUP BY c.id ORDER BY c.created_at DESC LIMIT 500`, [store.id]),
     pool.query(`SELECT o.id,o.code,o.total,o.status,o.created_at,o.status_updated_at,o.customer_id,o.seller_id,o.items,
       c.name AS customer_name,c.email AS customer_email,s.name AS seller_name
-      FROM orders o LEFT JOIN store_customers c ON c.id=o.customer_id LEFT JOIN sellers s ON s.id=o.seller_id
+      FROM orders o LEFT JOIN store_customers c ON c.id=o.customer_id AND c.store_id=o.store_id LEFT JOIN sellers s ON s.id=o.seller_id AND s.store_id=o.store_id
       WHERE o.store_id=$1 ORDER BY o.created_at DESC LIMIT 200`, [store.id]),
   ])
   return res.json({
@@ -446,6 +446,7 @@ async function updateOrderStatus(req, res) {
 }
 
 async function registerCustomer(req, res) {
+  res.set('Cache-Control', 'no-store, private')
   await ensureSchema()
   const store = await storeBySlug(req.params.storeSlug)
   if (!store || store.customer_login_enabled === false) return res.status(404).json({ error: 'Cadastro de clientes indisponível nesta loja.' })
@@ -468,6 +469,7 @@ async function registerCustomer(req, res) {
 }
 
 async function loginCustomer(req, res) {
+  res.set('Cache-Control', 'no-store, private')
   await ensureSchema()
   const store = await storeBySlug(req.params.storeSlug)
   if (!store || store.customer_login_enabled === false) return res.status(404).json({ error: 'Login de clientes indisponível nesta loja.' })
@@ -484,24 +486,30 @@ async function loginCustomer(req, res) {
 }
 
 async function customerMe(req, res) {
+  res.set('Cache-Control', 'no-store, private')
   await ensureSchema()
   const store = await storeBySlug(req.params.storeSlug)
   if (!store) return res.status(404).json({ error: 'Loja não encontrada.' })
   const customer = await currentCustomer(req, store.id)
   if (!customer) return res.status(401).json({ error: 'Entre para acessar sua conta.' })
   const orders = await pool.query(`SELECT o.id,o.code,o.total,o.items,o.status,o.created_at,o.status_updated_at,s.name AS seller_name
-    FROM orders o LEFT JOIN sellers s ON s.id=o.seller_id WHERE o.customer_id=$1 AND o.store_id=$2 ORDER BY o.created_at DESC LIMIT 100`, [customer.id, store.id])
+    FROM orders o LEFT JOIN sellers s ON s.id=o.seller_id AND s.store_id=o.store_id WHERE o.customer_id=$1 AND o.store_id=$2 ORDER BY o.created_at DESC LIMIT 100`, [customer.id, store.id])
   return res.json({
     customer,
     store: { slug: store.slug, name: store.name, logoUrl: store.logo_url, accent: store.accent },
     orders: orders.rows.map((row) => ({ ...row, total: Number(row.total || 0) })),
-    semantics: 'O histórico mostra pedidos registrados/enviados ao atendimento. Não confirma pagamento ou faturamento.',
+    semantics: 'Este histórico reúne talões preparados ou registrados para atendimento. Abrir o WhatsApp não comprova mensagem enviada, pagamento ou venda.',
   })
 }
 
 async function logoutCustomer(req, res) {
+  res.set('Cache-Control', 'no-store, private')
   const token = parseCookies(req)[customerCookie]
-  if (token && pool) await pool.query('DELETE FROM store_customer_sessions WHERE token_hash=$1', [hashToken(token)]).catch(() => undefined)
+  // Não responder sucesso se a revogação falhar: a sessão seguiria válida no servidor.
+  if (token) {
+    if (!pool) return res.status(503).json({ error: 'Sessão indisponível. Tente novamente.' })
+    await pool.query('DELETE FROM store_customer_sessions WHERE token_hash=$1', [hashToken(token)])
+  }
   clearCustomerCookie(req, res)
   return res.json({ ok: true })
 }
@@ -509,6 +517,8 @@ async function logoutCustomer(req, res) {
 async function decoratePublicPayload(req, res, next) {
   const match = req.path.match(/^\/api\/public\/store\/([^/]+)(?:\/([^/]+))?$/)
   if (!match || req.method !== 'GET') return next()
+  // A vitrine pode incluir identidade do comprador e atribuição de vendedora por cookie.
+  res.set('Cache-Control', 'no-store, private')
   const storeSlug = decodeURIComponent(match[1])
   const originalJson = res.json.bind(res)
   res.json = (payload) => {
@@ -574,13 +584,14 @@ async function enrichOrder(req, res, next) {
     }
     const customer = await currentCustomer(req, store.id)
     if (customer) {
+      // O vínculo precisa participar do mesmo COMMIT do talão e da baixa de estoque.
+      // Não tentar vincular depois da confirmação: isso deixaria pedido sem histórico
+      // caso uma segunda query falhe após a criação bem-sucedida.
+      req.shopvaxCustomerId = customer.id
       const originalJson = res.json.bind(res)
       res.json = (payload) => {
         if (res.statusCode === 201 && payload?.orderId) {
-          pool.query('UPDATE orders SET customer_id=$1 WHERE id=$2 AND store_id=$3', [customer.id, payload.orderId, store.id])
-            .then(() => originalJson({ ...payload, customer: { id: customer.id, name: customer.name } }))
-            .catch((error) => { console.error('[phase2] attach customer:', error.message); originalJson(payload) })
-          return res
+          return originalJson({ ...payload, customer: { id: customer.id, name: customer.name } })
         }
         return originalJson(payload)
       }

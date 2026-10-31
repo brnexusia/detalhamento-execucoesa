@@ -18,7 +18,7 @@ try {
     ['2026-10-31T21:00:00-03:00','Boa noite, Laura.'],
   ]) {
     const context = await browser.newContext({timezoneId:'America/Bahia',viewport:{width:390,height:844}})
-    await context.route('**/api/admin/bootstrap',route=>route.fulfill({
+    await context.route('**/api/admin/bootstrap*',route=>route.fulfill({
       status:200,contentType:'application/json',body:JSON.stringify(bootstrap)
     }))
     const page = await context.newPage()
@@ -30,6 +30,24 @@ try {
     assert.match(await page.locator('.svx-dashboard__welcome').innerText(),/Loja Teste/)
     await context.close()
   }
+
+  // Inter-front contract: compact bootstrap returns products:[] even for an existing store.
+  const existing = await browser.newContext({viewport:{width:390,height:844}})
+  await existing.route('**/api/admin/bootstrap*',route=>route.fulfill({
+    status:200,contentType:'application/json',
+    body:JSON.stringify({
+      ...bootstrap,
+      store:{...bootstrap.store,id:'store-with-products',onboarding_palette_selected:false},
+      products:[],productCount:5,productCategories:[{category:'Blusas',count:5}],
+    }),
+  }))
+  const page = await existing.newPage()
+  await page.goto('http://127.0.0.1:5173/painel')
+  await page.getByRole('heading',{name:/Laura/}).waitFor()
+  assert.equal(await page.locator('.svx-onboarding').count(),0,
+    'A Frente 03 não pode exibir primeira configuração quando productCount>0 e products=[]')
+  assert.match(await page.locator('.panel-nav').innerText(),/Produtos\s*5/)
+  await existing.close()
 } finally {
   await browser.close()
 }

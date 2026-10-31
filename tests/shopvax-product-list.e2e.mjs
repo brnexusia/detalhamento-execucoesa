@@ -12,17 +12,34 @@ const browser=await chromium.launch({headless:true})
 try{
  for(const [width,height] of [[320,568],[390,844],[1440,900]]){
   const page=await browser.newPage({viewport:{width,height}})
-  await page.route('**/api/admin/bootstrap',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify(data)}))
+  await page.route('**/api/admin/bootstrap*',r=>r.fulfill({
+    status:200,contentType:'application/json',
+    body:JSON.stringify({ ...data, products:[], productCount:data.products.length,
+      productCategories:[{category:'Blusas',count:2},{category:'Calças',count:1}] }),
+  }))
+  await page.route('**/api/admin/products?*', r => {
+    const url = new URL(r.request().url())
+    const q = (url.searchParams.get('q') || '').toLowerCase()
+    const category = url.searchParams.get('category') || 'Todas'
+    const limit = Number(url.searchParams.get('limit') || 18)
+    const pageNumber = Number(url.searchParams.get('page') || 1)
+    const filtered = data.products.filter(item =>
+      (category === 'Todas' || item.category === category) &&
+      [item.name,item.sku,item.category].join(' ').toLowerCase().includes(q))
+    r.fulfill({status:200,contentType:'application/json',
+      body:JSON.stringify({products:filtered.slice((pageNumber-1)*limit,pageNumber*limit),
+        pagination:{page:pageNumber,limit,total:filtered.length}})})
+  })
   await page.goto('http://127.0.0.1:5173/painel/produtos')
   await page.locator('.svx-products .product-admin-card').first().waitFor()
   assert.equal(await page.locator('.svx-products .product-admin-card').count(),3)
   await page.locator('.svx-products__categories button').filter({hasText:'Blusas'}).click()
-  assert.equal(await page.locator('.svx-products .product-admin-card').count(),2)
+  await page.waitForFunction(() => document.querySelectorAll('.svx-products .product-admin-card').length === 2)
   await page.locator('.svx-products .table-toolbar input').fill('Azul')
-  assert.equal(await page.locator('.svx-products .product-admin-card').count(),1)
+  await page.waitForFunction(() => document.querySelectorAll('.svx-products .product-admin-card').length === 1)
   await page.locator('.svx-products .table-toolbar input').fill('')
   await page.getByRole('button',{name:'Excluir em massa'}).click()
-  assert.equal(await page.locator('.svx-products .product-select-control input').count(),2)
+  await page.waitForFunction(() => document.querySelectorAll('.svx-products .product-select-control input').length === 2)
   console.log('PRODUCT_LIST_PASS',width,height)
   await page.close()
  }

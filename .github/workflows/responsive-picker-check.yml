@@ -5,6 +5,10 @@ on:
     paths:
       - 'src/PublicStoreV2.tsx'
       - 'src/ShopvaxThemesPanel.tsx'
+      - 'src/shopvax-visual-front-04.css'
+      - 'tests/shopvax-visual-front-04.e2e.mjs'
+      - 'server/catalog-pdf.mjs'
+      - 'server/shopvax-theme-presets.test.mjs'
       - 'src/shopvax-seasonal-themes.ts'
       - 'src/shopvax-seasonal-store.css'
       - 'src/shopvax-themes-panel.css'
@@ -35,6 +39,13 @@ on:
       - 'src/shopvax-home.css'
       - 'src/Auth.tsx'
       - 'src/ShopvaxDashboard.tsx'
+      - 'src/ShopvaxOnboardingGuide.tsx'
+      - 'src/ShopvaxAcquisition.tsx'
+      - 'src/ShopvaxBuyerPreferences.tsx'
+      - 'src/ShopvaxSupport.tsx'
+      - 'src/shopvax-growth.css'
+      - 'src/GoogleSignInButton.tsx'
+      - 'tests/shopvax-growth.e2e.mjs'
       - 'src/Phase3PublicRuntime.tsx'
       - 'tests/shopvax-cart-events.e2e.mjs'
       - 'tests/shopvax-dashboard-greeting.e2e.mjs'
@@ -120,6 +131,8 @@ jobs:
           exit 1
       - name: Browser regression across viewport sizes
         run: node tests/product-picker-responsive.e2e.mjs
+      - name: Growth onboarding, buyer preferences and support
+        run: node tests/shopvax-growth.e2e.mjs
       - name: Fotos locais responsivas sem quebrar URLs externas
         run: node tests/shopvax-responsive-media.e2e.mjs
       - name: Official design layer 05 - desktop product as a page, related products and mobile modal
@@ -174,12 +187,26 @@ jobs:
         run: node tests/shopvax-final-responsive.e2e.mjs
       - name: Official motion 08 - ribbon, stamp, quantity, minimum, receipt and reduced-motion
         run: node tests/shopvax-motion-eight.e2e.mjs
+      - name: Frente 04 - logo editorial, fontes e seis viewports
+        run: node tests/shopvax-visual-front-04.e2e.mjs
+      - name: Frente 04 - PDF nos quatro estados salvos e capturas de impressao
+        run: node --test server/shopvax-theme-presets.test.mjs
       - name: Visual evidence from final responsive acceptance
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: shopvax-redesign-visual-evidence
-          path: artifacts/shopvax-redesign/*.png
+          path: |
+            artifacts/shopvax-redesign/*.png
+            artifacts/shopvax-redesign/*.pdf
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Evidence — Frente 03 (mobile + desktop)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shopvax-growth-evidence
+          path: artifacts/shopvax-growth/*.png
           if-no-files-found: ignore
           retention-days: 14
       - name: Debug log
