@@ -151,7 +151,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   return (
     <div className={`auth-shell ${registrationMode ? 'auth-shell--register' : 'auth-shell--login'}`}>
       <aside className="auth-poster">
-        <button className="wordmark" onClick={() => go('/')} aria-label="Shopvax, início"><ShopvaxBrandMotion active={busy || googleBusy} variant="assemble" /><img className="svx-brand-wordmark" src="/brand/shopvax-wordmark-light.svg" alt="" aria-hidden="true" /></button>
+        <button className="wordmark" onClick={() => go('/')} aria-label="Shopvax, início"><ShopvaxBrandMotion active={busy || googleBusy} variant="assemble" symbolSrc="/brand/shopvax-symbol-dark.svg" /><img className="svx-brand-wordmark" src="/brand/shopvax-wordmark-light.svg" alt="" aria-hidden="true" /></button>
         {mode === 'login' && !googleSignup ? (
           <div className="auth-poster__ribbon auth-poster__ribbon--black-friday" role="note" aria-label="Black Friday: prepare sua vitrine, seu catálogo e o atendimento no WhatsApp.">
             <div className="auth-poster__ribbon-track" aria-hidden="true">
