@@ -3,7 +3,7 @@ import type { AdminBootstrap } from './types'
 import { SVNumber, SVRibbon, SVStamp } from './ShopvaxDesignSystem'
 import ShopvaxOnboardingGuide from './ShopvaxOnboardingGuide'
 
-type DeskSection = 'inicio' | 'produtos' | 'pedidos' | 'vendedoras' | 'loja'
+type DeskSection = 'inicio' | 'produtos' | 'pedidos' | 'vendedoras' | 'loja' | 'temas'
 type Props = {
   data: AdminBootstrap
   incomplete: boolean
