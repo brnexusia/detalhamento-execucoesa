@@ -58,7 +58,7 @@ export default function App() {
     document.title = `${title} · Shopvax`
   }, [page])
 
-  if (page === 'store') return <><PublicRoute /><Phase3PublicRuntime /><Phase4PublicRuntime /></>
+  if (page === 'store') return <><PublicRoute /><Phase3PublicRuntime /><Phase4PublicRuntime /><ShopvaxSupport /></>
 
   let content
   if (page === 'social') content = <SocialFeed />
