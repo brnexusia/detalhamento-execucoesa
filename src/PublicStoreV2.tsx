@@ -68,8 +68,32 @@ function FeedCaption({ description }: { description: string }) {
   </details>
 }
 
-function ProductMedia({ product, className = '' }: { product: Product; className?: string }) {
-  if (product.mediaType === 'video') return <video className={className} src={product.mediaUrl} autoPlay loop muted playsInline preload="metadata" />
+function ProductMedia({ product, className = '', playWhenVisible = false }: { product: Product; className?: string; playWhenVisible?: boolean }) {
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const [visible, setVisible] = useState(false)
+  const saveData = useMemo(() => {
+    const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection
+    return Boolean(connection?.saveData || ['slow-2g', '2g'].includes(connection?.effectiveType || ''))
+  }, [])
+  useEffect(() => {
+    if (product.mediaType !== 'video' || !videoRef.current) return
+    const target = videoRef.current
+    if (typeof IntersectionObserver === 'undefined') return
+    const observer = new IntersectionObserver((entries) => {
+      const active = Boolean(entries[0]?.isIntersecting && entries[0].intersectionRatio >= .72)
+      setVisible(active)
+      if (!active) target.pause()
+    }, { threshold: [0, .72, 1] })
+    observer.observe(target)
+    return () => { observer.disconnect(); target.pause() }
+  }, [product.mediaType, product.mediaUrl])
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video || product.mediaType !== 'video') return
+    if (visible && playWhenVisible && !saveData) void video.play().catch(() => undefined)
+    else video.pause()
+  }, [visible, playWhenVisible, saveData, product.mediaType, product.mediaUrl])
+  if (product.mediaType === 'video') return <video ref={videoRef} className={className} src={visible ? product.mediaUrl : undefined} poster={product.images?.[0] || undefined} controls={playWhenVisible && saveData} loop muted playsInline preload={visible && playWhenVisible && !saveData ? 'metadata' : 'none'} />
   return <ResilientImage className={className} src={mediaUrl(product)} alt={product.name} />
 }
 
@@ -406,7 +430,7 @@ export default function PublicStoreV2() {
           <p className="svx-desktop-ticket__notice">Pedido enviado à vendedora somente após sua confirmação no WhatsApp.</p>
         </div>
       </aside></div>
-    </main> : <main className="feed-shell"><div className="feed-list">{products.map((product) => <article className="feed-card" key={product.id}><ProductMedia product={product}/><div className="feed-card__shade"/><div className="feed-card__top"><span>{product.category}</span><span>{product.sku}</span></div><div className="feed-card__actions"><button aria-label={`Montar grade de ${product.name}`} onClick={() => openPicker(product)}><Plus size={24}/><span>GRADE</span></button><button type="button" aria-pressed={savedProducts.includes(product.id)} aria-label={savedProducts.includes(product.id) ? `Remover ${product.name} dos salvos` : `Salvar ${product.name}`} onClick={() => toggleSaved(product.id)}><Heart size={22} fill={savedProducts.includes(product.id) ? 'currentColor' : 'none'}/><span>SALVAR</span></button><button type="button" aria-label={`Compartilhar ${product.name}`} onClick={() => void shareProduct(product)}><Share2 size={22}/><span>ENVIAR</span></button><button type="button" aria-label={`Perguntar sobre ${product.name}`} onClick={() => askProduct(product)}><MessageCircle size={22}/><span>PERGUNTAR</span></button></div><div className="feed-card__info"><span className="feed-card__seller">com {seller?.name || 'atendimento'}</span><h2>{product.name}</h2><FeedCaption description={product.description}/><div className="feed-card__buyline"><strong>{money.format(product.price)}</strong><button onClick={() => openPicker(product)}>Escolher quantidade <ChevronRight size={18}/></button></div></div></article>)}{!demo && <div ref={loadMoreRef}/>}</div></main>}
+    </main> : <main className="feed-shell"><div className="feed-list">{products.map((product) => <article className="feed-card" key={product.id}><ProductMedia product={product} playWhenVisible/><div className="feed-card__shade"/><div className="feed-card__top"><span>{product.category}</span><span>{product.sku}</span></div><div className="feed-card__actions"><button aria-label={`Montar grade de ${product.name}`} onClick={() => openPicker(product)}><Plus size={24}/><span>GRADE</span></button><button type="button" aria-pressed={savedProducts.includes(product.id)} aria-label={savedProducts.includes(product.id) ? `Remover ${product.name} dos salvos` : `Salvar ${product.name}`} onClick={() => toggleSaved(product.id)}><Heart size={22} fill={savedProducts.includes(product.id) ? 'currentColor' : 'none'}/><span>SALVAR</span></button><button type="button" aria-label={`Compartilhar ${product.name}`} onClick={() => void shareProduct(product)}><Share2 size={22}/><span>ENVIAR</span></button><button type="button" aria-label={`Perguntar sobre ${product.name}`} onClick={() => askProduct(product)}><MessageCircle size={22}/><span>PERGUNTAR</span></button></div><div className="feed-card__info"><span className="feed-card__seller">com {seller?.name || 'atendimento'}</span><h2>{product.name}</h2><FeedCaption description={product.description}/><div className="feed-card__buyline"><strong>{money.format(product.price)}</strong><button onClick={() => openPicker(product)}>Escolher quantidade <ChevronRight size={18}/></button></div></div></article>)}{!demo && <div ref={loadMoreRef}/>}</div></main>}
 
     <div className={`drawer-backdrop ${cartOpen ? 'is-open' : ''}`} onClick={() => setCartOpen(false)}/>
     <aside className={`cart-drawer ${cartOpen ? 'is-open' : ''}`}><div className="cart-drawer__head"><div><small>Seu pedido</small><h2>Seu pedido</h2>{cartCount > 0 && <SVStamp key={cartCount}>NA GRADE</SVStamp>}</div><button onClick={() => setCartOpen(false)} aria-label="Fechar carrinho"><X size={22}/></button></div><div className="cart-drawer__seller"><span>Talão digital · Atendimento atribuído</span><strong>{seller?.name || 'Atendimento'}</strong></div><div className="cart-items">{cart.length === 0 ? <div className="cart-empty"><ShoppingBag size={30}/><h3>Seu carrinho está vazio.</h3></div> : cart.map((item) => <div className="cart-item" key={item.key}><ResilientImage src={galleryFor(item.product, item.selections)[0] || mediaUrl(item.product)} alt={item.product.name}/><div className="cart-item__main"><span>{item.product.sku}</span><strong>{item.product.name}</strong><small>{Object.entries(item.selections).map(([k,v]) => `${k}: ${v}`).join(' · ')}</small><small>{money.format(item.product.price)} cada</small></div><div className="quantity-control"><button onClick={() => setCart((current) => current.map((x) => x.key === item.key ? {...x, quantity: Math.max(0, x.quantity - 1)} : x).filter((x) => x.quantity > 0))} aria-label={`Diminuir quantidade de ${item.product.name}`}><Minus size={14}/></button><b>{item.quantity}</b><button onClick={() => setCart((current) => current.map((x) => x.key === item.key ? {...x, quantity: x.quantity + 1} : x))} aria-label={`Aumentar quantidade de ${item.product.name}`}><Plus size={14}/></button></div></div>)}</div><div className="cart-drawer__foot"><div className="minimum-box"><div className="minimum-box__copy">{minimumReached ? <span className="minimum-ok"><Check size={15}/> Pedido mínimo atingido</span> : <span>Faltam {money.format(Math.max(0, minimum - cartTotal))}</span>}<strong>{money.format(cartTotal)} / {money.format(minimum)}</strong></div><div className={`minimum-track ${minimumReached ? 'is-reached' : ''}`} role="progressbar" aria-label="Progresso do pedido mínimo" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(minimumProgress)}><span style={{width: `${minimumProgress}%`}}/><div className="svx-minimum-segments" aria-hidden="true">{Array.from({ length: 20 }, (_, n) => <i key={n} className={minimumProgress >= (n + 1) * 5 ? 'is-filled' : ''} />)}</div></div></div><div className="cart-total"><span>Total dos produtos</span><strong>{money.format(cartTotal)}</strong></div>{error && <p className="form-error">{error}</p>}<button className="whatsapp-button" disabled={!minimumReached || !cart.length || sending} onClick={() => { setError(''); setReviewOpen(true) }}>Revisar talão e ir ao WhatsApp<ArrowRight size={19}/></button></div></aside>
