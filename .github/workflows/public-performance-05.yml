@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - 'src/SocialFeed.tsx'
+      - 'src/PublicStoreV2.tsx'
+      - 'src/shopvax-store-layout-fixes.css'
       - 'src/shopvax-social-feed-layout.css'
       - 'tests/shopvax-public-performance.e2e.mjs'
       - '.github/workflows/public-performance-05.yml'
@@ -65,7 +67,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: public-performance-05-${{ matrix.version }}-${{ matrix.network }}
-          path: app/artifacts/shopvax-public-performance/*.json
+          path: app/artifacts/shopvax-public-performance/*
           if-no-files-found: warn
           retention-days: 14
       - name: Print Vite log on failure
