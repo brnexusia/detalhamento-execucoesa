@@ -20,6 +20,8 @@ try {
     }))
     await page.goto(base + '/painel')
     await page.getByRole('heading',{name:'Prepare sua loja'}).waitFor()
+    // The guide fetches verified onboarding progress asynchronously; wait for the real UI state.
+    await page.getByText('1 de 6 etapas verificadas').waitFor({ timeout: 15000 })
     assert.match(await page.locator('.svx-growth-guide').innerText(), /1 de 6 etapas verificadas/)
     assert.match(await page.locator('.svx-growth-guide__current').innerText(), /Primeira vendedora/)
     await page.getByRole('button',{name:'Precisa de ajuda?'}).click()
