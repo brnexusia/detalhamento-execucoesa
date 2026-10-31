@@ -5,6 +5,10 @@ on:
     paths:
       - 'src/PublicStoreV2.tsx'
       - 'src/ShopvaxThemesPanel.tsx'
+      - 'src/shopvax-visual-front-04.css'
+      - 'tests/shopvax-visual-front-04.e2e.mjs'
+      - 'server/catalog-pdf.mjs'
+      - 'server/shopvax-theme-presets.test.mjs'
       - 'src/shopvax-seasonal-themes.ts'
       - 'src/shopvax-seasonal-store.css'
       - 'src/shopvax-themes-panel.css'
@@ -174,12 +178,18 @@ jobs:
         run: node tests/shopvax-final-responsive.e2e.mjs
       - name: Official motion 08 - ribbon, stamp, quantity, minimum, receipt and reduced-motion
         run: node tests/shopvax-motion-eight.e2e.mjs
+      - name: Frente 04 - logo editorial, fontes e seis viewports
+        run: node tests/shopvax-visual-front-04.e2e.mjs
+      - name: Frente 04 - PDF nos quatro estados salvos e capturas de impressao
+        run: node --test server/shopvax-theme-presets.test.mjs
       - name: Visual evidence from final responsive acceptance
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: shopvax-redesign-visual-evidence
-          path: artifacts/shopvax-redesign/*.png
+          path: |
+            artifacts/shopvax-redesign/*.png
+            artifacts/shopvax-redesign/*.pdf
           if-no-files-found: ignore
           retention-days: 14
       - name: Debug log
