@@ -60,15 +60,23 @@ try {
   assert.equal(meta.status,200)
   ownerId=meta.json.user.id
   storeId=meta.json.store.id
+  // Operational dashboard must still support a screen with 100 recent orders.
+  await pool.query(
+    "INSERT INTO orders(id,code,store_id,total,items,status) SELECT $1 || '-o-' || n, $1 || '-code-' || n, $2, 59.9, '[]'::jsonb, 'whatsapp' FROM generate_series(1,100) n",
+    [prefix,storeId],
+  )
   let previous=0
   for(const [productCount,storeTarget] of [[500,9],[5000,99],[20000,999]]) {
     await products(previous,productCount)
     previous=productCount
     await stores(storeTarget)
     const scenario={products:productCount,simulatedStores:extraStores+1}
+    await sample('legacy-bootstrap','/api/admin/bootstrap',cookie,scenario)
     await sample('compact-bootstrap','/api/admin/bootstrap?compact=1',cookie,scenario)
     await sample('product-page','/api/admin/products?page=1&limit=18',cookie,scenario)
     await sample('product-search','/api/admin/products?page=2&limit=18&q=camiseta&category=Blusas',cookie,scenario)
+    const recent=await call('/api/admin/bootstrap?compact=1',cookie)
+    assert.equal(recent.json.orders.length,100)
     const explain=await pool.query('EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) SELECT id FROM products WHERE store_id=$1 ORDER BY created_at DESC,id DESC LIMIT 18',[storeId])
     const plan=explain.rows[0]['QUERY PLAN'][0]
     const connections=await pool.query('SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname=current_database()')
