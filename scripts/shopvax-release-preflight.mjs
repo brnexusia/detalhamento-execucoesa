@@ -51,6 +51,10 @@ export function auditContract({ plans, phase5Source, appSource, dockerSource, ha
   if (!/HEALTHCHECK/.test(dockerSource) || !/EXPOSE 80/.test(dockerSource)) {
     add('DOCKER_HEALTHCHECK', 'blocker', 'Dockerfile sem porta 80 ou healthcheck.')
   }
+  if (!dockerSource.includes('h.database!==true')) {
+    add('DOCKER_DATABASE_HEALTH', 'blocker',
+      'Healthcheck Docker não exige database=true; HTTP 200 isolado não prova PostgreSQL saudável.')
+  }
   if (!hasLockfile) {
     add('NO_LOCKFILE', 'warning', 'Sem package-lock.json: builds podem resolver novas versões de dependências.')
   }
