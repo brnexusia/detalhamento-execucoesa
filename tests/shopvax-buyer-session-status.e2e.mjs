@@ -6,6 +6,7 @@ try {
   const context = await browser.newContext({ viewport: { width: 1100, height: 860 } })
   let activeUser = ''
   let offline = false
+  let denyLogout = false
   const orders = [
     { id: 'o1', code: 'AS-001', total: 500, status: 'whatsapp', created_at: '2026-10-31T13:00:00Z', seller_name: 'Carla', items: [{ name: 'Peça', quantity: 1 }] },
     { id: 'o2', code: 'AS-002', total: 250, status: 'confirmado', created_at: '2026-10-31T13:01:00Z', seller_name: 'Carla', items: [{ name: 'Peça', quantity: 1 }] },
@@ -33,6 +34,7 @@ try {
     return route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' })
   })
   await context.route('**/api/public/customers/logout', route => {
+    if (denyLogout) return route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"Falha na revogação da sessão."}' })
     activeUser = ''
     return route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' })
   })
@@ -50,6 +52,11 @@ try {
   await one.getByRole('heading', { name: 'Comprador Um' }).waitFor()
   await two.getByRole('heading', { name: 'Comprador Um' }).waitFor({ timeout: 7000 })
 
+  denyLogout = true
+  await two.getByRole('button', { name: 'Sair' }).click()
+  await two.getByRole('alert').getByText('Falha na revogação da sessão.').waitFor()
+  await two.getByRole('heading', { name: 'Comprador Um' }).waitFor()
+  denyLogout = false
   await two.getByRole('button', { name: 'Sair' }).click()
   await two.getByRole('heading', { name: 'Acesse seus pedidos' }).waitFor()
   await one.getByRole('heading', { name: 'Acesse seus pedidos' }).waitFor({ timeout: 7000 })
@@ -69,11 +76,13 @@ try {
   offline = true
   await two.bringToFront()
   await one.bringToFront()
+  await one.evaluate(() => window.dispatchEvent(new Event('focus')))
   await one.getByRole('heading', { name: 'Acesse seus pedidos' }).waitFor({ timeout: 7000 })
   await one.getByText(/Failed to fetch|Não foi possível|fetch failed/i).waitFor()
   offline = false
   await two.bringToFront()
   await one.bringToFront()
+  await one.evaluate(() => window.dispatchEvent(new Event('focus')))
   await one.getByRole('heading', { name: 'Comprador Dois' }).waitFor({ timeout: 7000 })
 
   await context.close()
