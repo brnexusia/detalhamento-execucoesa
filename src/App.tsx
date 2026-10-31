@@ -1,4 +1,5 @@
 import ShopvaxSupport from './ShopvaxSupport'
+import ShopvaxLoading from './ShopvaxLoading'
 import ShopvaxBuyerPreferences from './ShopvaxBuyerPreferences'
 import { lazy, Suspense, useEffect, useState } from 'react'
 import PublicRoute from './PublicRoute'
@@ -28,14 +29,17 @@ function pageFor(pathname: string) {
 }
 
 function RouteFallback() {
-  return <div className="store-loading"><span className="brand__mark"><img src="/brand/shopvax-symbol.svg" className="svx-brand-symbol" alt="Shopvax" /></span><strong>Carregando…</strong></div>
+  return <ShopvaxLoading label="Abrindo Shopvax…" />
 }
 
 export default function App() {
-  const [page, setPage] = useState(() => pageFor(window.location.pathname))
+  const [pathname, setPathname] = useState(() => window.location.pathname)
+  const page = pageFor(pathname)
+  const helpAllowed = page === 'login' || page === 'register' || page === 'customer' ||
+    (page === 'admin' && ['/painel','/painel/loja','/painel/temas','/painel/assinatura','/painel/integracoes','/painel/recursos','/painel/crescimento'].includes(pathname))
 
   useEffect(() => {
-    const onPop = () => setPage(pageFor(window.location.pathname))
+    const onPop = () => setPathname(window.location.pathname)
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
   }, [])
@@ -58,7 +62,7 @@ export default function App() {
     document.title = `${title} · Shopvax`
   }, [page])
 
-  if (page === 'store') return <><PublicRoute /><Phase3PublicRuntime /><Phase4PublicRuntime /><ShopvaxSupport /></>
+  if (page === 'store') return <><PublicRoute /><Phase3PublicRuntime /><Phase4PublicRuntime /></>
 
   let content
   if (page === 'social') content = <SocialFeed />
@@ -70,5 +74,5 @@ export default function App() {
   else if (page === 'platform') content = <PlatformRoute />
   else content = <AdminRoute />
 
-  return <><Suspense fallback={<RouteFallback />}>{content}</Suspense><ShopvaxSupport /></>
+  return <><Suspense fallback={<RouteFallback />}>{content}</Suspense>{helpAllowed && <ShopvaxSupport />}</>
 }
