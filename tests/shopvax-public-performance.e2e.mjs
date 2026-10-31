@@ -145,7 +145,9 @@ try {
           firstCard: list?.querySelector('.social-feed-card')?.getAttribute('data-post-id'),
           cardIds: Array.from(list?.querySelectorAll('.social-feed-card') || []).map(x => x.getAttribute('data-post-id')),
           cachedScroll: cached?.scrollTop, cachedAnchor: cached?.activePostId,
-          cachedCount: cached?.posts?.length }
+          cachedCount: cached?.posts?.length,
+          feedDataset: list ? { ...list.dataset } : null,
+          cacheNote: Boolean(document.querySelector('.social-feed-cache-note')) }
       })
       fs.writeFileSync(`${outputDir}/${mode}-${network}-restore-failure.json`, JSON.stringify(diagnostics, null, 2))
       await page.screenshot({ path: `${outputDir}/${mode}-${network}-restore-failure.png` })
