@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ArrowLeft, CheckCircle2, LogOut, PackageCheck, UserRound } from 'lucide-react'
 import { apiRequest } from './api'
 import './customer-account.css'
@@ -20,6 +20,10 @@ type StoreConfig = {
 
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 const date = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium', timeStyle: 'short' })
+
+function customerStoreSlug() {
+  return window.location.pathname.split('/').filter(Boolean)[1] || ''
+}
 
 function go(path: string) {
   window.history.pushState({}, '', path)
@@ -45,7 +49,7 @@ function statusExplanation(value: string) {
 }
 
 export default function CustomerAccountRoute() {
-  const storeSlug = useMemo(() => window.location.pathname.split('/').filter(Boolean)[1] || '', [])
+  const [storeSlug, setStoreSlug] = useState(customerStoreSlug)
   const [config, setConfig] = useState<StoreConfig | null>(null)
   const [account, setAccount] = useState<AccountPayload | null>(null)
   const [mode, setMode] = useState<'login' | 'register'>('login')
@@ -54,6 +58,13 @@ export default function CustomerAccountRoute() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const accountVersion = useRef(0)
+
+  // A rota de conta permanece montada quando o SPA muda entre /cliente/loja-a e /cliente/loja-b.
+  useEffect(() => {
+    const onRoute = () => setStoreSlug(customerStoreSlug())
+    window.addEventListener('popstate', onRoute)
+    return () => window.removeEventListener('popstate', onRoute)
+  }, [])
 
   const loadAccount = async () => {
     const version = ++accountVersion.current
@@ -73,6 +84,12 @@ export default function CustomerAccountRoute() {
 
   useEffect(() => {
     let mounted = true
+    accountVersion.current += 1
+    setConfig(null)
+    setAccount(null)
+    setError('')
+    setLoading(true)
+    setForm({ name: '', email: '', phone: '', password: '' })
     Promise.all([
       apiRequest<StoreConfig>(`/api/public/store/${encodeURIComponent(storeSlug)}/phase2-config`),
       loadAccount(),
@@ -119,7 +136,7 @@ export default function CustomerAccountRoute() {
     } finally { setBusy(false) }
   }
 
-  if (loading) return <div className="customer-page"><div className="customer-card customer-loading"><UserRound size={28}/><strong>Abrindo sua conta…</strong></div></div>
+  if (loading || storeSlug !== customerStoreSlug() || (config && config.store.slug !== storeSlug)) return <div className="customer-page"><div className="customer-card customer-loading"><UserRound size={28}/><strong>Abrindo sua conta…</strong></div></div>
   if (!config) return <div className="customer-page"><div className="customer-card"><h1>Loja não encontrada</h1><p>{error}</p></div></div>
 
   const accent = config.store.accent || '#F25C05'
