@@ -1,5 +1,6 @@
 /* Frente 04 — polimento verificável da referência SVG 03/05/06 e revisão C01–C03.
    Somente tipografia e apresentação; não altera a marca do lojista nem dados. */
+.app .brand__logo,
 .app .store-intro.svx-vitrine .store-intro__logo {
   border: 0;
   background: transparent;
