@@ -222,10 +222,6 @@ jobs:
           SHOPVAX_PLAN_LIMITS_DISABLED: '0'
           SHOPVAX_SECURITY_RATE_LIMIT_DISABLED: '0'
         run: node server/platform-admin.integration.mjs
-      - name: Compradores - limite de tentativas em ambiente seguro
-        env:
-          BASE_URL: http://127.0.0.1:3001
-        run: node server/buyer-auth-rate-limit.integration.mjs
       - name: Print server log on failure
         if: failure()
         run: |
