@@ -216,11 +216,12 @@ function Products({ data, revision, query, setQuery, onCreate, onEdit, onVisibil
   const [total, setTotal] = useState(0)
   const [pageBusy, setPageBusy] = useState(true)
   const [pageError, setPageError] = useState('')
+  const [retry, setRetry] = useState(0)
   const [searchTerm, setSearchTerm] = useState(query)
   const storeTotal = data.productCount ?? data.products.length
   const categories = data.productCategories || []
   const pages = Math.max(1, Math.ceil(total / pageSize))
-  const visible = products
+  const visible = pageBusy || query !== searchTerm || pageError ? [] : products
   const selected = new Set(selectedIds)
   const allFilteredSelected = products.length > 0 && products.every((product) => selected.has(product.id))
   useEffect(() => { setPage(1) }, [query, activeCategory])
@@ -241,7 +242,7 @@ function Products({ data, revision, query, setQuery, onCreate, onEdit, onVisibil
       .catch((err) => { if (active) setPageError(err instanceof Error ? err.message : 'Falha ao carregar produtos.') })
       .finally(() => { if (active) setPageBusy(false) })
     return () => { active = false }
-  }, [page, searchTerm, activeCategory, revision, data.store.id])
+  }, [page, searchTerm, activeCategory, revision, data.store.id, retry])
   useEffect(() => { if (!pageBusy && page > pages) setPage(pages) }, [page, pages, pageBusy])
 
   const toggleSelectionMode = () => {
@@ -279,10 +280,10 @@ function Products({ data, revision, query, setQuery, onCreate, onEdit, onVisibil
     <div className="table-toolbar"><label><Search size={17} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar nome, SKU ou categoria" /></label><span>{total === storeTotal ? countLabel(total, 'produto') : `${total} de ${storeTotal} produtos`}</span></div>
     {selectionMode && <div className="product-bulk-toolbar"><label><input type="checkbox" checked={allFilteredSelected} onChange={toggleFiltered} disabled={!products.length}/><span>Selecionar os {products.length} desta página</span></label><div><span>{countLabel(selectedIds.length, 'selecionado')}</span><button className="secondary-action danger" disabled={!selectedIds.length || bulkBusy || selectedIds.length > 5000} onClick={() => void removeSelected()}><Trash2 size={15}/>{bulkBusy ? 'Excluindo…' : 'Excluir selecionados'}</button></div></div>}
     <div className="svx-products__headings" aria-hidden="true"><span>FOTO</span><span>PEÇA / REFERÊNCIA / GRADE</span><span>GESTÃO E PREÇO</span></div><div className="product-admin-grid">{visible.map((product) => <article className={`product-admin-card ${selected.has(product.id) ? 'is-selected' : ''}`} key={product.id}><div className="product-admin-card__media"><AdminProductMedia product={product}/>{!product.active && <span>oculto</span>}{selectionMode && <label className="product-select-control"><input type="checkbox" checked={selected.has(product.id)} onChange={() => toggleProduct(product.id)}/><span>Selecionar</span></label>}</div><div className="product-admin-card__body"><small>{product.sku || 'SEM SKU'} · {product.category}</small><h3>{product.name}</h3><strong>{money.format(product.price)}</strong>{product.variations?.length > 0 && <p>{product.variations.map((group) => `${group.name}: ${group.options.join('/')}`).join(' · ')}</p>}<p>{countLabel(Array.isArray(product.images) ? product.images.length : 0, 'foto')} · {product.stock_enabled ? `${product.stock_quantity || 0} em estoque` : 'estoque livre'}</p></div><div className="product-admin-card__actions"><button onClick={() => onEdit(product)}><Pencil size={16} /> Editar</button><button onClick={() => void onVisibility(product)} aria-label={product.active ? `Esconder ${product.name}` : `Mostrar ${product.name}`}>{product.active ? <EyeOff size={16}/> : <Eye size={16}/>} {product.active ? 'Esconder' : 'Mostrar'}</button><button className="danger" aria-label={`Excluir ${product.name}`} onClick={() => onDelete(product)}><Trash2 size={16} /></button></div></article>)}</div>
-    {pageError && <div className="panel-error" role="alert">{pageError}<button type="button" onClick={() => setPage((value) => value)}>Recarregue a aba para tentar novamente</button></div>}
-    {pageBusy && <p role="status">Carregando página de produtos…</p>}
-    {!pageBusy && !pageError && !products.length && <div className="admin-empty"><Package size={30} /><h2>{storeTotal ? 'Nenhum produto encontrado.' : 'Cadastre seu primeiro produto.'}</h2><p>Você pode usar fotos ou vídeo, criar variações e controlar estoque na mesma edição.</p><button className="primary-action" onClick={onCreate}><Plus size={18} /> Cadastrar produto</button></div>}
-    {total > pageSize && <div className="panel-pagination"><button disabled={page === 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>Anterior</button><span>Página {page} de {pages}</span><button disabled={page === pages} onClick={() => setPage((value) => Math.min(pages, value + 1))}>Próxima</button></div>}
+    {pageError && <div className="panel-error" role="alert">{pageError}<button type="button" onClick={() => setRetry((value) => value + 1)}>Tentar novamente</button></div>}
+    {(pageBusy || query !== searchTerm) && <p role="status">Carregando página de produtos…</p>}
+    {!pageBusy && query === searchTerm && !pageError && !products.length && <div className="admin-empty"><Package size={30} /><h2>{storeTotal ? 'Nenhum produto encontrado.' : 'Cadastre seu primeiro produto.'}</h2><p>Você pode usar fotos ou vídeo, criar variações e controlar estoque na mesma edição.</p><button className="primary-action" onClick={onCreate}><Plus size={18} /> Cadastrar produto</button></div>}
+    {total > pageSize && !pageError && <div className="panel-pagination"><button disabled={page === 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>Anterior</button><span>Página {page} de {pages}</span><button disabled={page === pages} onClick={() => setPage((value) => Math.min(pages, value + 1))}>Próxima</button></div>}
   </div>
 }
 
