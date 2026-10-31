@@ -49,7 +49,7 @@ function verifyPassword(password, stored) {
 
 function planExtraLimits(code) {
   if (code === 'prata') return { photosPerProduct: 10, franchisees: 2 }
-  if (code === 'ouro') return { photosPerProduct: 10, franchisees: null }
+  if (code === 'ouro') return { photosPerProduct: null, franchisees: null }
   return { photosPerProduct: 5, franchisees: 0 }
 }
 
