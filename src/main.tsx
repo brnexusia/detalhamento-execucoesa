@@ -24,7 +24,7 @@ import './shopvax-visual-front-04.css'
 document.addEventListener('dragstart', (event) => {
   const target = event.target
   if (target instanceof HTMLImageElement && target.matches(
-    '.svx-brand-symbol, .svx-brand-wordmark, .brand__logo, .store-intro__logo, .panel-brand img, .customer-store-head img',
+    '.svx-brand-symbol, .svx-brand-wordmark, .brand__logo, .store-intro__logo, .panel-brand img, .customer-store-head img, .social-profile-avatar img, .social-profile__avatar img',
   )) event.preventDefault()
 })
 
