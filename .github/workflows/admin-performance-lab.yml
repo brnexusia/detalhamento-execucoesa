@@ -1,0 +1,64 @@
+name: admin-performance-lab
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'server/app.mjs'
+      - 'scripts/admin-performance-benchmark.mjs'
+      - '.github/workflows/admin-performance-lab.yml'
+  workflow_dispatch:
+
+jobs:
+  local-postgresql-lab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: shopvax
+          POSTGRES_PASSWORD: shopvax
+          POSTGRES_DB: atacado_perf
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U shopvax -d atacado_perf"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgresql://shopvax:shopvax@127.0.0.1:5432/atacado_perf
+      PORT: 3000
+      BASE_URL: http://127.0.0.1:3000
+      SHOPVAX_PERF_LOCAL_ONLY: '1'
+      SCANNER_WORKER_DISABLED: '1'
+      SHOPVAX_IMPORT_MEDIA_REPAIR_DISABLED: '1'
+      SHOPVAX_SECURITY_RATE_LIMIT_DISABLED: '1'
+      SHOPVAX_PLAN_LIMITS_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - run: npm run build
+      - name: Start disposable local API
+        run: |
+          npm start > /tmp/shopvax-performance-api.log 2>&1 &
+          for i in {1..90}; do
+            if curl -fsS http://127.0.0.1:3000/health >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/shopvax-performance-api.log
+          exit 1
+      - name: Measure admin catalog with synthetic data
+        run: node scripts/admin-performance-benchmark.mjs
+      - name: Upload reproducible report and SQL plan
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-performance-baseline
+          path: /tmp/shopvax-admin-performance.json
+          if-no-files-found: warn
+      - name: Print API logs on failure
+        if: failure()
+        run: cat /tmp/shopvax-performance-api.log

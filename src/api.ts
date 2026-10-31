@@ -175,6 +175,13 @@ export const api = {
   logout: () => request<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
   me: () => request<{ user: { id: string; name: string; email: string }; store: { id: string; slug: string; name: string; plan_tier?: string } }>('/api/auth/me'),
   bootstrap: () => request<AdminBootstrap>('/api/admin/bootstrap'),
+  bootstrapCompact: () => request<AdminBootstrap>('/api/admin/bootstrap?compact=1'),
+  listAdminProducts: (options: { page: number; limit?: number; q?: string; category?: string }) => {
+    const params = new URLSearchParams({ page: String(options.page), limit: String(options.limit || 18) })
+    if (options.q?.trim()) params.set('q', options.q.trim())
+    if (options.category && options.category !== 'Todas') params.set('category', options.category)
+    return request<{ products: AdminProduct[]; pagination: { page: number; limit: number; total: number } }>(`/api/admin/products?${params}`)
+  },
   planContext: () => request<{ plan: { code: string; name: string; monthlyPrice: number; limits: { sellers: number | null; products: number | null; catalogs: number | null; photosPerProduct: number | null; franchisees: number | null }; features: Record<string, boolean> }; usage: { products: number; sellers: number; catalogs: number } }>('/api/admin/plan-context'),
   updateStore: (body: Record<string, unknown>) => request('/api/admin/store', { method: 'PUT', body: JSON.stringify(body) }),
   createProduct: (body: Record<string, unknown>) => request<{ product: AdminProduct }>('/api/admin/products', { method: 'POST', body: JSON.stringify(body) }),
