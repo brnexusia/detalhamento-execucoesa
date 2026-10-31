@@ -1,5 +1,6 @@
 import ShopvaxSupport from './ShopvaxSupport'
 import ShopvaxLoading from './ShopvaxLoading'
+import ShopvaxLoginTransition from './ShopvaxLoginTransition'
 import ShopvaxBuyerPreferences from './ShopvaxBuyerPreferences'
 import { lazy, Suspense, useEffect, useState } from 'react'
 import PublicRoute from './PublicRoute'
@@ -62,10 +63,9 @@ export default function App() {
     document.title = `${title} · Shopvax`
   }, [page])
 
-  if (page === 'store') return <><PublicRoute /><Phase3PublicRuntime /><Phase4PublicRuntime /></>
-
   let content
-  if (page === 'social') content = <SocialFeed />
+  if (page === 'store') content = <><PublicRoute /><Phase3PublicRuntime /><Phase4PublicRuntime /></>
+  else if (page === 'social') content = <SocialFeed />
   else if (page === 'profile') content = <SocialStoreProfile />
   else if (page === 'home') content = <HomeRoute />
   else if (page === 'login') content = <AuthRoute mode="login" />
@@ -74,5 +74,5 @@ export default function App() {
   else if (page === 'platform') content = <PlatformRoute />
   else content = <AdminRoute />
 
-  return <><Suspense fallback={<RouteFallback />}>{content}</Suspense>{helpAllowed && <ShopvaxSupport />}</>
+  return <><Suspense fallback={<RouteFallback />}>{content}</Suspense>{helpAllowed && <ShopvaxSupport />}<ShopvaxLoginTransition /></>
 }

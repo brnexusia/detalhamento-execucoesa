@@ -12,6 +12,10 @@ assert.match(css,/svx-mark-v-descend/)
 assert.match(css,/svx-mark-a-ascend/)
 assert.match(css,/svx-mark-assembled-spin/)
 assert.match(css,/rotate\(360deg\)/)
+assert.match(css,/\.svx-brand-motion__assembly\{transform-box:view-box;transform-origin:50% 50%\}/,
+ 'O X deve girar no centro do SVG, nunca ao redor de um ponto externo')
+assert.doesNotMatch(css,/transform-origin:480px 440\.643px/,
+ 'Coordenadas absolutas aqui causam giro orbital')
 assert.match(css,/630ms cubic-bezier[^;]*520ms both/,'Giro só inicia após o encaixe das peças')
 assert.match(css,/svx-mark-exit 300ms cubic-bezier[^;]*1150ms both/,'Expandir e esmaecer o X nos 300ms finais')
 assert.match(css,/background:var\(--svx-paper,#F3F0E8\)/,'Loading regular deve manter fundo bege')
@@ -22,6 +26,10 @@ assert.match(loading,/1_500/,'Ciclo repetido dura no máximo 1,5s')
 const auth=readFileSync('src/Auth.tsx','utf8')
 assert.match(auth,/finishAuthenticatedEntry/,'Vinheta deve acontecer após login confirmado')
 assert.match(auth,/1_450/,'Vinheta não pode exceder 1,5s')
+const bridge=readFileSync('src/ShopvaxLoginTransition.tsx','utf8')
+assert.match(bridge,/MutationObserver/,'Transição deve aguardar destino montado')
+assert.match(bridge,/\.panel-shell/,'Transição não pode terminar durante fallback do painel')
+assert.doesNotMatch(auth,/showLoginMotion && <div/,'Cobertura não pode desmontar junto com Auth')
 assert.match(panel,/180_000/,'Repetir somente a cada 3 minutos')
 assert.match(panel,/visibilityState !== 'visible'/,'Não animar a aba oculta')
 assert.match(app,/helpAllowed/)
@@ -82,6 +90,11 @@ try {
  const login=await context.newPage()
  await login.route('**/api/public/auth/google-config',r=>r.fulfill({status:200,contentType:'application/json',body:'{"enabled":false}'}))
  await login.route('**/api/auth/login',r=>r.fulfill({status:200,contentType:'application/json',body:'{"ok":true}'}))
+ // Backend lento DEPOIS do login. A vinheta não deve expor fallback bege.
+ await login.route('**/api/admin/bootstrap*',async r=>{
+   await new Promise(resolve=>setTimeout(resolve,1600))
+   await r.fulfill({status:200,contentType:'application/json',body:JSON.stringify(fixture)})
+ })
  await login.goto('http://127.0.0.1:5173/entrar')
  await login.locator('.auth-form input[type=email]').fill('ana@example.test')
  await login.locator('.auth-form input[type=password]').fill('senha-de-teste-123')
@@ -91,7 +104,23 @@ try {
  assert.equal(new URL(login.url()).pathname,'/entrar','A transição precisa finalizar antes de navegar')
  assert.equal(await overlay.evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(22, 21, 20)')
  assert.equal(await overlay.locator('.svx-brand-motion__symbol').evaluate(el=>getComputedStyle(el).animationName),'svx-mark-exit')
+ const pivot=await overlay.locator('.svx-brand-motion__assembly').evaluate(el=>{
+   const svg=el.ownerSVGElement
+   const pos=getComputedStyle(el).transformOrigin.split(' ').map(parseFloat)
+   return {pos,viewBox:svg?.viewBox.baseVal}
+ })
+ assert(Math.abs(pivot.pos[0]-110)<1 && Math.abs(pivot.pos[1]-141)<1,
+   'Giro deve pivotar no meio do viewBox (110,141), não orbitar: '+JSON.stringify(pivot))
+ // Quando o URL já é /painel, a tela preta AINDA deve estar por cima do fallback.
  await login.waitForURL('**/painel',{timeout:7000})
+ assert.equal(await overlay.isVisible(),true,'O preto deve cobrir o bootstrap até o painel real estar pronto')
+ const stillDark=await overlay.evaluate(el=>({
+   bg:getComputedStyle(el).backgroundColor,
+   opacity:Number(getComputedStyle(el).opacity),
+ }))
+ assert.equal(stillDark.bg,'rgb(22, 21, 20)')
+ assert(stillDark.opacity>=0.99,'Não revelar fundo bege antes do painel: '+JSON.stringify(stillDark))
+ await login.locator('.panel-shell').waitFor({timeout:7000})
  await overlay.waitFor({state:'detached',timeout:7000})
  assert.equal(await overlay.count(),0)
  await login.close()
