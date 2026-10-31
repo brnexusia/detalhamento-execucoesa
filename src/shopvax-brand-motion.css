@@ -1,7 +1,10 @@
 /* Marca vetorial oficial Shopvax: duas peças, sem fontes, fusão ou substituição do X. */
 .svx-brand-motion{display:inline-block;position:relative;flex:0 0 auto;width:1em;height:1.282em;line-height:1;vertical-align:middle;isolation:isolate}
 .svx-brand-motion__symbol.svx-brand-symbol{display:block;position:relative;width:100%;height:100%;max-width:none;object-fit:contain;overflow:visible}
-.svx-brand-motion__assembly{transform-box:view-box;transform-origin:480px 440.643px}
+.svx-brand-motion__symbol{transform-box:view-box;transform-origin:50% 50%}
+/* O ponto de rotação é o CENTRO do viewBox (480,441), não coordenadas absolutas
+   medidas a partir da origem do viewport. Isso impede o movimento orbital. */
+.svx-brand-motion__assembly{transform-box:view-box;transform-origin:50% 50%}
 .svx-brand-motion__v,.svx-brand-motion__a{transform-box:view-box;transform-origin:center}
 .svx-brand-motion__v{fill:#F25C05}
 .svx-brand-motion__a{fill:#161514}
@@ -88,3 +91,11 @@
 .auth-shell .auth-poster .wordmark{display:inline-flex;align-items:center;gap:12px}
 .auth-shell .auth-poster .wordmark>img{flex:0 0 auto;max-width:100%}
 .auth-shell .auth-form__head .brand__mark{padding:0}
+
+/* Cobertura de transição controlada pelo App; permanece sobre o fallback claro
+   até a tela de destino estar renderizada. Só então revela o painel. */
+.svx-auth-login-bridge{z-index:2100;opacity:1;transition:opacity 160ms ease-out;pointer-events:auto}
+.svx-auth-login-bridge.is-revealing{opacity:0;pointer-events:none}
+@media (prefers-reduced-motion:reduce){
+  .svx-auth-login-bridge{transition:none}
+}
