@@ -46,7 +46,7 @@ try {
   await page.getByRole('heading',{name:/Laura/}).waitFor()
   assert.equal(await page.locator('.svx-onboarding').count(),0,
     'A Frente 03 não pode exibir primeira configuração quando productCount>0 e products=[]')
-  assert.match(await page.locator('.panel-nav').innerText(),/Produtos\\s*5/)
+  assert.match(await page.locator('.panel-nav').innerText(),/Produtos\s*5/)
   await existing.close()
 } finally {
   await browser.close()
