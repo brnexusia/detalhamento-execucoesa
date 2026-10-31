@@ -45,7 +45,7 @@ try {
       const mark=page.locator('.svx-auth-loading-overlay .svx-brand-motion.is-animating')
       await mark.waitFor()
       const state=await mark.evaluate(el=>({
-        assembly:getComputedStyle(el.querySelector('.svx-brand-motion__assembly')).animationName,
+        assembly:getComputedStyle(el.querySelector('.svx-brand-motion__rotor')).animationName,
         exit:getComputedStyle(el.querySelector('.svx-brand-motion__symbol')).animationName,
         background:getComputedStyle(el.closest('.svx-auth-loading-overlay')).backgroundColor,
         lower:getComputedStyle(el.querySelector('.svx-brand-motion__a')).fill,
