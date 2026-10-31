@@ -1,0 +1,24 @@
+/* C06: identidade da marca. Nenhum frame substitui o SVG oficial final. */
+.svx-brand-motion{display:inline-grid;place-items:center;position:relative;width:1em;height:1em;min-width:1em;min-height:1em;vertical-align:middle;isolation:isolate}
+.svx-brand-motion__symbol{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:contain}
+.svx-brand-motion__v,.svx-brand-motion__a{position:absolute;inset:0;display:grid;place-items:center;opacity:0;font:800 .9em/1 var(--svx-font-display,'Archivo Narrow',sans-serif);color:#F25C05;pointer-events:none}
+.svx-brand-motion__ring{position:absolute;inset:4%;border:2px solid currentColor;border-radius:50%;opacity:0;pointer-events:none}
+@media(prefers-reduced-motion:no-preference){
+ .svx-brand-motion.is-animating .svx-brand-motion__symbol{animation:svx-mark-final 1050ms ease-out both}
+ .svx-brand-motion--assemble.is-animating .svx-brand-motion__v{animation:svx-mark-v 1050ms ease-out both}
+ .svx-brand-motion--assemble.is-animating .svx-brand-motion__a{animation:svx-mark-a 1050ms ease-out both}
+ .svx-brand-motion--mirror.is-animating .svx-brand-motion__v{animation:svx-mark-v-mirror 1050ms ease-out both}
+ .svx-brand-motion--mirror.is-animating .svx-brand-motion__a{animation:svx-mark-a-mirror 1050ms ease-out both}
+ .svx-brand-motion--water.is-animating .svx-brand-motion__ring{animation:svx-mark-ripple 1050ms ease-out both}
+}
+@keyframes svx-mark-v{0%{opacity:0;transform:translate(-38%,-30%) rotate(-20deg)}20%{opacity:1}55%{opacity:1;transform:translate(0,0) rotate(0)}68%,100%{opacity:0}}
+@keyframes svx-mark-a{0%{opacity:0;transform:translate(38%,30%) rotate(20deg)}20%{opacity:1}55%{opacity:1;transform:translate(0,0) rotate(0)}68%,100%{opacity:0}}
+@keyframes svx-mark-v-mirror{0%{opacity:0;transform:translateX(-75%) scaleX(-1)}25%{opacity:1}55%{opacity:1;transform:translateX(0) scaleX(-1)}68%,100%{opacity:0}}
+@keyframes svx-mark-a-mirror{0%{opacity:0;transform:translateX(75%)}25%{opacity:1}55%{opacity:1;transform:translateX(0)}68%,100%{opacity:0}}
+@keyframes svx-mark-ripple{0%{opacity:0;transform:scale(.25)}25%{opacity:.8}70%{opacity:.4;transform:scale(1.25)}100%{opacity:0;transform:scale(1.5)}}
+@keyframes svx-mark-final{0%,52%{opacity:0;transform:rotate(-80deg) scale(.7)}72%{opacity:1}100%{opacity:1;transform:rotate(360deg) scale(1)}}
+@media(prefers-reduced-motion:reduce){
+ .svx-brand-motion *, .svx-brand-motion.is-animating *{animation:none!important;transition:none!important}
+ .svx-brand-motion__symbol{opacity:1;transform:none}
+ .svx-brand-motion__v,.svx-brand-motion__a,.svx-brand-motion__ring{display:none}
+}
