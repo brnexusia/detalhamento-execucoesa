@@ -1,0 +1,79 @@
+name: public-performance-05
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/SocialFeed.tsx'
+      - 'src/PublicStoreV2.tsx'
+      - 'src/shopvax-store-layout-fixes.css'
+      - 'src/shopvax-social-feed-layout.css'
+      - 'tests/shopvax-public-performance.e2e.mjs'
+      - '.github/workflows/public-performance-05.yml'
+  workflow_dispatch:
+
+jobs:
+  public-feed-lab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        version: [baseline, candidate]
+        network: [4g, slow3g]
+    steps:
+      - name: Checkout test harness from candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: instrumentation
+      - name: Checkout measured application
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.version == 'baseline' && github.event.pull_request.base.sha || github.event.pull_request.head.sha || github.sha }}
+          path: app
+      - name: Prepare identical test harness
+        run: cp instrumentation/tests/shopvax-public-performance.e2e.mjs app/tests/
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies and Chromium
+        working-directory: app
+        run: |
+          npm install --no-audit --no-fund
+          npm install --no-save --no-audit --no-fund playwright@1.58.2
+          npx playwright install --with-deps chromium
+      - name: Validate TypeScript and build
+        working-directory: app
+        run: npm run build
+      - name: Start isolated local Vite server
+        working-directory: app
+        run: |
+          npm run dev -- --host 127.0.0.1 > /tmp/shopvax-public-perf.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:5173/feed >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/shopvax-public-perf.log
+          exit 1
+      - name: Run 200 swipe, DOM, memory and cart checks
+        working-directory: app
+        env:
+          PERF_NETWORK: ${{ matrix.network }}
+          PERF_OUTPUT_DIR: artifacts/shopvax-public-performance
+        run: node tests/shopvax-public-performance.e2e.mjs --${{ matrix.version }}
+      - name: Local public-store virtual feed and grade regression
+        if: matrix.version == 'candidate'
+        working-directory: app
+        run: node tests/shopvax-local-feed-window.e2e.mjs
+      - name: Upload machine-readable benchmark
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-performance-05-${{ matrix.version }}-${{ matrix.network }}
+          path: app/artifacts/shopvax-public-performance/*
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Print Vite log on failure
+        if: failure()
+        run: cat /tmp/shopvax-public-perf.log || true
