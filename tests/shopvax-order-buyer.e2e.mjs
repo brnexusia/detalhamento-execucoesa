@@ -18,8 +18,31 @@ try {
   for (const [width,height] of [[320,568],[390,844],[1366,768]]) {
     const context=await browser.newContext({viewport:{width,height},permissions:['clipboard-read','clipboard-write']})
     const page=await context.newPage()
-    await page.route('**/api/admin/bootstrap',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(data)}))
+    const bootstrapRequests = []
+    const failedApiResponses = []
+    page.on('response',response=>{
+      if (response.url().includes('/api/admin/') && !response.ok()) {
+        failedApiResponses.push({url:response.url(),status:response.status()})
+      }
+    })
+    page.on('pageerror',error=>failedApiResponses.push({pageError:error.message}))
+    await page.route('**/api/admin/bootstrap*',route=>{
+      const requestUrl = new URL(route.request().url())
+      bootstrapRequests.push(requestUrl.pathname + requestUrl.search)
+      assert.equal(requestUrl.pathname,'/api/admin/bootstrap')
+      assert.equal(requestUrl.searchParams.get('compact'),'1','Painel deve usar bootstrap compacto')
+      return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
+        ...data, productCount:0, productCategories:[],
+      })})
+    })
     await page.goto('http://127.0.0.1:5173/painel/pedidos')
+    await page.getByRole('button',{name:'Ver talão AS-000041'}).waitFor({state:'visible',timeout:10000})
+      .catch(async error=>{throw new Error(
+        'Talão ausente: '+JSON.stringify({bootstrapRequests,failedApiResponses,body:(await page.locator('body').innerText()).slice(0,1500)}),
+        {cause:error},
+      )})
+    assert.ok(bootstrapRequests.length>0,'Mock do bootstrap compacto precisa interceptar a requisição')
+    assert.deepEqual(failedApiResponses,[],'Painel não pode gerar erros de API ou React')
     await page.getByRole('button',{name:'Ver talão AS-000041'}).click()
     const section=page.getByRole('region',{name:'Dados do comprador e observações'})
     await section.waitFor()
