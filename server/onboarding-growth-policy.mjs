@@ -48,7 +48,7 @@ export function validateSupportQuestion(body) {
   // Também rejeita CPF/CNPJ/telefone formatados: +55 (11) 99999-9999 e
   // 123.456.789-09 jamais devem escapar por não terem dígitos contíguos.
   // Não inspecionamos nem transmitimos identificação da conta do visitante.
-  const digitRuns = question.match(/\+?\d[\d\s().-]{7,}\d/g) || []
+  const digitRuns = question.match(/\+?\d[\d\s()./-]{7,}\d/g) || []
   const hasLongIdentifier = digitRuns.some(chunk => chunk.replace(/\D/g, '').length >= 9)
   const hasEmail = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i.test(question)
   const hasUrl = /\b(?:https?:\/\/|www\.)\S+/i.test(question)
