@@ -1,10 +1,10 @@
 /* Marca vetorial oficial Shopvax: duas peças, sem fontes, fusão ou substituição do X. */
 .svx-brand-motion{display:inline-block;position:relative;flex:0 0 auto;width:1em;height:1.282em;line-height:1;vertical-align:middle;isolation:isolate}
 .svx-brand-motion__symbol.svx-brand-symbol{display:block;position:relative;width:100%;height:100%;max-width:none;object-fit:contain;overflow:visible}
+.svx-brand-motion__rotor{display:block;width:100%;height:100%;position:relative;transform-origin:50% 50%;will-change:transform}
 .svx-brand-motion__symbol{transform-box:view-box;transform-origin:50% 50%}
-/* O ponto de rotação é o CENTRO do viewBox (480,441), não coordenadas absolutas
-   medidas a partir da origem do viewport. Isso impede o movimento orbital. */
-.svx-brand-motion__assembly{transform-box:view-box;transform-origin:50% 50%}
+/* O grupo SVG nunca recebe rotação. O contêiner HTML (rotor), com caixa fixa,
+   mantém o centro no mesmo pixel durante toda a volta de 360 graus. */
 .svx-brand-motion__v,.svx-brand-motion__a{transform-box:view-box;transform-origin:center}
 .svx-brand-motion__v{fill:#F25C05}
 .svx-brand-motion__a{fill:#161514}
@@ -20,7 +20,7 @@
     animation:svx-mark-a-ascend 520ms cubic-bezier(.24,.82,.23,1) both
   }
   /* O X gira somente depois de ambas as peças chegarem: 520 + 630 = 1150ms. */
-  .svx-brand-motion.is-animating .svx-brand-motion__assembly{
+  .svx-brand-motion.is-animating .svx-brand-motion__rotor{
     animation:svx-mark-assembled-spin 630ms cubic-bezier(.52,.02,.32,1) 520ms both
   }
   /* Apenas no login confirmado: o X completo cresce e desaparece nos 300ms finais. */
