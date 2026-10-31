@@ -5,8 +5,8 @@ import ShopvaxBrandMotion from './ShopvaxBrandMotion'
  * Para login autenticado, immediate+exit executa uma única vinheta de 1450ms.
  */
 export default function ShopvaxLoading({
-  label = 'Carregando…', compact = false, immediate = false, exit = false, repeat = true,
-}: { label?: string; compact?: boolean; immediate?: boolean; exit?: boolean; repeat?: boolean }) {
+  label = 'Carregando…', compact = false, immediate = false, exit = false, repeat = true, dark = false,
+}: { label?: string; compact?: boolean; immediate?: boolean; exit?: boolean; repeat?: boolean; dark?: boolean }) {
   const [showMotion, setShowMotion] = useState(immediate)
   const [cycle, setCycle] = useState(0)
 
@@ -26,7 +26,7 @@ export default function ShopvaxLoading({
   return <div className={'svx-branded-loading' + (compact ? ' svx-branded-loading--compact' : '')}
     role="status" aria-label={label} aria-live="polite">
     <span className={'svx-branded-loading__mark' + (showMotion ? ' is-visible' : '')}>
-      <ShopvaxBrandMotion key={cycle} active={showMotion} exit={exit} />
+      <ShopvaxBrandMotion key={cycle} active={showMotion} exit={exit} symbolSrc={dark ? '/brand/shopvax-symbol-dark.svg' : '/brand/shopvax-symbol.svg'} />
     </span>
     {compact && <div className="svx-branded-loading__skeleton" aria-hidden="true"><span/><span/><span/></div>}
     <span className="svx-sr-only">{label}</span>
