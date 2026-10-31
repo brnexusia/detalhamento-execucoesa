@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { ArrowRight, Eye, EyeOff, Gift, Store, X } from 'lucide-react'
 import { api } from './api'
 import GoogleSignInButton from './GoogleSignInButton'
+import ShopvaxBrandMotion from './ShopvaxBrandMotion'
 import './shopvax-auth-official.css'
 import './shopvax-panel-login-06.css'
 
@@ -150,7 +151,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   return (
     <div className={`auth-shell ${registrationMode ? 'auth-shell--register' : 'auth-shell--login'}`}>
       <aside className="auth-poster">
-        <button className="wordmark" onClick={() => go('/')} aria-label="Shopvax, início"><img className="svx-brand-symbol" src="/brand/shopvax-symbol-dark.svg" alt="" aria-hidden="true" /><img className="svx-brand-wordmark" src="/brand/shopvax-wordmark-light.svg" alt="" aria-hidden="true" /></button>
+        <button className="wordmark" onClick={() => go('/')} aria-label="Shopvax, início"><ShopvaxBrandMotion active={busy || googleBusy} variant="assemble" /><img className="svx-brand-wordmark" src="/brand/shopvax-wordmark-light.svg" alt="" aria-hidden="true" /></button>
         {mode === 'login' && !googleSignup ? (
           <div className="auth-poster__ribbon auth-poster__ribbon--black-friday" role="note" aria-label="Black Friday: prepare sua vitrine, seu catálogo e o atendimento no WhatsApp.">
             <div className="auth-poster__ribbon-track" aria-hidden="true">
@@ -179,7 +180,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
         <button className="auth-close" onClick={() => go('/')} aria-label="Fechar"><X size={20} /></button>
         <form className="auth-form" onSubmit={submit}>
           <div className="auth-form__head">
-            <span className="brand__mark"><img className="svx-brand-symbol" src="/brand/shopvax-symbol.svg" alt="Shopvax" /></span>
+            <span className="brand__mark"><ShopvaxBrandMotion active={busy || googleBusy} variant="assemble" /></span>
             <p>{registrationMode ? 'Criar conta' : 'Entrar'}</p>
             <h2>{googleSignup ? 'Complete os dados da sua loja.' : registrationMode ? 'Comece com a sua loja.' : 'Acesse seu painel.'}</h2>
           </div>
