@@ -36,7 +36,7 @@ async function ensureSchema() {
         "store_ids text[] NOT NULL DEFAULT '{}'::text[], updated_at timestamptz NOT NULL DEFAULT now());",
         'CREATE TABLE IF NOT EXISTS shopvax_growth_consent_audit (',
         'id uuid PRIMARY KEY, customer_id text NOT NULL REFERENCES store_customers(id) ON DELETE CASCADE,',
-        'channel text NOT NULL CHECK (channel IN (''whatsapp'',''email'')),',
+        "channel text NOT NULL CHECK (channel IN ('whatsapp','email'))," ,
         'allowed boolean NOT NULL, scope text NOT NULL, store_ids text[] NOT NULL, created_at timestamptz NOT NULL DEFAULT now());',
         'CREATE INDEX IF NOT EXISTS idx_growth_consent_audit_customer ON shopvax_growth_consent_audit(customer_id,created_at DESC);',
         'CREATE TABLE IF NOT EXISTS shopvax_growth_onboarding (',
@@ -44,9 +44,9 @@ async function ensureSchema() {
         'confirmed_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(store_id,step));',
         'CREATE TABLE IF NOT EXISTS shopvax_support_tickets (',
         'id uuid PRIMARY KEY, audience text NOT NULL, topic text NOT NULL,',
-        'message text NOT NULL, reply_email text NOT NULL DEFAULT '''',',
+        "message text NOT NULL, reply_email text NOT NULL DEFAULT '',",
         'store_id text REFERENCES stores(id) ON DELETE SET NULL,',
-        'needs_human boolean NOT NULL DEFAULT true, status text NOT NULL DEFAULT ''pending_human'',',
+        "needs_human boolean NOT NULL DEFAULT true, status text NOT NULL DEFAULT 'pending_human',",
         'created_at timestamptz NOT NULL DEFAULT now());',
         'CREATE INDEX IF NOT EXISTS idx_shopvax_support_queue ON shopvax_support_tickets(status,created_at);'
       ].join(' '))
