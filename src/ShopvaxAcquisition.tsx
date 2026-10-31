@@ -9,14 +9,16 @@ export default function ShopvaxAcquisition() {
   const storeSlug = useMemo(() => window.location.pathname.split('/').filter(Boolean)[0] || '', [])
   const [visible, setVisible] = useState(false)
   const storageKey = 'shopvax:visitor-offer-dismissed:v1:' + storeSlug
+  const knownBuyerKey = 'shopvax:known-buyer-account:v1'
   useEffect(() => {
     if (!storeSlug || storeSlug === 'demo') return
     let cancelled = false
     apiRequest('/api/public/store/' + encodeURIComponent(storeSlug) + '/customers/me')
-      .then(() => { if (!cancelled) setVisible(false) })
+      .then(() => { try { localStorage.setItem(knownBuyerKey, '1') } catch { /* armazenamento indisponível */ }; if (!cancelled) setVisible(false) })
       .catch((err: Error & { status?: number }) => {
         if (cancelled || err.status !== 401) return
         let last = 0
+        try { if (localStorage.getItem(knownBuyerKey) === '1') return } catch { /* sem armazenamento */ }
         try { last = Number(localStorage.getItem(storageKey) || 0) } catch { /* privacidade do navegador */ }
         setVisible(!last || Date.now() - last >= COOLDOWN_MS)
       })
