@@ -1,6 +1,6 @@
 # Shopvax — Auditoria transversal do redesign oficial
 
-**Base do produto:** `docs/SHOPVAX_REDESIGN_PHASE1.md`, `docs/SHOPVAX_REDESIGN_PHASES_2_3.md`, `docs/SHOPVAX_REDESIGN_ACCEPTANCE_PHASES_2_3.md`. Pranchas originais: `Shopvax_ Catálogo (redesign).zip` (nove SVGs). O ZIP original agora está preservado integralmente em partes binárias reconstruíveis em `docs/references/redesign-original-parts/`. **A auditoria anterior foi executada antes da inclusão dessas fontes e não certifica equivalência pixel a pixel**; refazer comparação com os SVGs antes do aceite.
+**Base do produto:** `docs/SHOPVAX_REDESIGN_PHASE1.md`, `docs/SHOPVAX_REDESIGN_PHASES_2_3.md`, `docs/SHOPVAX_REDESIGN_ACCEPTANCE_PHASES_2_3.md`. Pranchas originais: `Shopvax_ Catálogo (redesign).zip` (nove SVGs). O ZIP visual original permanece no Google Drive, com [SVGs](https://drive.google.com/file/d/1QzU5PkuzVpxqNGYg_7x2E_T1uHxkTudU/view?usp=drivesdk) e [pranchas PNG](https://drive.google.com/file/d/1s-JEfhZQjazt0rJuCmWGWwAxA6EDPfgO/view?usp=drivesdk); a referência não está armazenada em `docs/references/redesign-original-parts/` neste Git. Verifique a leitura do Drive antes da homologação. **A auditoria anterior foi executada antes da inclusão dessas fontes e não certifica equivalência pixel a pixel**; refazer comparação com os SVGs antes do aceite.
 
 ## Regra visual obrigatória
 
