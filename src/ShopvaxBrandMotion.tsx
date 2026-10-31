@@ -11,7 +11,7 @@ export default function ShopvaxBrandMotion({
   const onDark = symbolSrc.includes('dark') || symbolSrc === '/brand/shopvax-symbol.svg'
   return <span
     className={'svx-brand-motion' + (active ? ' is-animating' : '') + (onDark ? ' svx-brand-motion--dark' : '')}
-    data-brand-motion="assemble" aria-hidden="true">
+    data-brand-motion={variant} aria-hidden="true">
     <svg className="svx-brand-motion__symbol svx-brand-symbol"
       viewBox="370 300 220 282" xmlns="http://www.w3.org/2000/svg" focusable="false">
       <g className="svx-brand-motion__assembly">
