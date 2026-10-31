@@ -1,0 +1,36 @@
+export const ONBOARDING_CONFIRMABLE = new Set(['minimum_reviewed', 'preview_opened', 'whatsapp_understood'])
+export const CONSENT_CHANNELS = ['whatsapp', 'email']
+
+export function normalizePreferences(body, allowedIds) {
+  if (!body || typeof body.whatsapp !== 'boolean' || typeof body.email !== 'boolean') {
+    throw new Error('Escolha separadamente receber ofertas por WhatsApp e por e-mail.')
+  }
+  if (body.scope !== 'selected' && body.scope !== 'all_current') throw new Error('Escolha as lojas autorizadas.')
+  if (!Array.isArray(body.storeIds) || body.storeIds.length > 100 || body.storeIds.some(id => typeof id !== 'string')) {
+    throw new Error('Seleção de lojas inválida.')
+  }
+  const input = [...new Set(body.storeIds)]
+  if (input.some(id => !allowedIds.includes(id))) throw new Error('Há lojas indisponíveis na seleção.')
+  const storeIds = body.scope === 'all_current' ? allowedIds.slice() : input
+  if ((body.whatsapp || body.email) && storeIds.length === 0) {
+    throw new Error('Selecione ao menos uma loja para receber ofertas.')
+  }
+  return { whatsapp: body.whatsapp, email: body.email, scope: body.scope, storeIds }
+}
+
+export function shouldShowAcquisition({ authenticated, closedAt, now = Date.now(), cooldownDays = 7 }) {
+  return !authenticated && (!Number.isFinite(closedAt) || closedAt <= 0 || now - closedAt >= cooldownDays * 86400000)
+}
+
+export function validateSupportInput(body) {
+  const audience = body?.audience
+  const topic = body?.topic
+  const message = String(body?.message || '').trim()
+  const replyEmail = String(body?.replyEmail || '').trim().toLowerCase()
+  if (!['buyer', 'merchant'].includes(audience)) throw new Error('Tipo de atendimento inválido.')
+  if (!['account', 'catalog', 'order', 'billing', 'privacy', 'other'].includes(topic)) throw new Error('Escolha um assunto de atendimento.')
+  if (message.length < 15 || message.length > 2000) throw new Error('Descreva a situação entre 15 e 2.000 caracteres.')
+  if (replyEmail.length > 200 || (replyEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(replyEmail))) throw new Error('E-mail de retorno inválido.')
+  if (body?.privacyAcknowledged !== true) throw new Error('Confirme que entende como o relato será armazenado.')
+  return { audience, topic, message, replyEmail }
+}
