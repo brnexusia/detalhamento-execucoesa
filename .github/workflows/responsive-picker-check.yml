@@ -191,6 +191,14 @@ jobs:
           path: artifacts/shopvax-redesign/*.png
           if-no-files-found: ignore
           retention-days: 14
+      - name: Evidence — Frente 03 (mobile + desktop)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shopvax-growth-evidence
+          path: artifacts/shopvax-growth/*.png
+          if-no-files-found: ignore
+          retention-days: 14
       - name: Debug log
         if: failure()
         run: cat /tmp/vite.log || true
