@@ -69,3 +69,5 @@
 @media(max-width:760px){.svx-growth-guide__steps{grid-template-columns:repeat(3,minmax(0,1fr))}.svx-acquisition{right:12px;bottom:78px}.svx-support{right:12px;bottom:12px}.svx-support__panel{max-height:calc(100dvh - 90px)}}
 @media(max-width:430px){.svx-growth-guide__steps{grid-template-columns:repeat(2,minmax(0,1fr))}.svx-growth-guide__head{align-items:flex-start}.svx-growth-guide__head h2{font-size:25px}.svx-acquisition{width:calc(100vw - 24px);padding:15px}.svx-buyer-preferences{margin:12px;padding:16px}}
 @media(prefers-reduced-motion:reduce){.svx-growth-guide__track span{transition:none}}
+
+.google-auth-button__status,.google-auth-button__error{display:block;font:600 12px/1.5 var(--svx-font-body,Archivo,sans-serif);padding:8px 0;color:#4a463c}.google-auth-button__error{color:#9e291e}
