@@ -279,6 +279,7 @@ export default function SocialFeed() {
     return Math.max(0, Math.min(cached.posts.length - 1, estimated))
   })())
   const restorationPendingRef = useRef(Boolean(restored.current?.posts.length))
+  const skipMountCacheWriteRef = useRef(Boolean(restored.current?.posts.length))
   const listRef = useRef<HTMLElement | null>(null)
   const scrollTopRef = useRef(restored.current?.scrollTop || 0)
   const loadingRef = useRef(false)
@@ -338,8 +339,8 @@ export default function SocialFeed() {
   useLayoutEffect(() => {
     const list = listRef.current
     if (!list || !restorationPendingRef.current) return
-    const previousSnap = list.style.scrollSnapType
     const previousAnchor = list.style.overflowAnchor
+    // Snap is disabled by JSX from the first DOM commit, not after first paint.
     list.style.scrollSnapType = 'none'
     list.style.overflowAnchor = 'none'
     let firstFrame = 0
@@ -354,15 +355,26 @@ export default function SocialFeed() {
       restore()
       secondFrame = window.requestAnimationFrame(() => {
         restore()
-        restorationPendingRef.current = false
-        list.style.scrollSnapType = previousSnap
-        list.style.overflowAnchor = previousAnchor
+        // Only release the restoration lock when the identity-aligned offset is stable.
+        // The CSS snap targets may otherwise pull the scroll back to an old mounted card.
+        restore()
+        list.style.scrollSnapType = ''
+        window.requestAnimationFrame(() => {
+          const wanted = restoredIndex.current * Math.max(1, list.clientHeight)
+          if (Math.abs(list.scrollTop - wanted) > 2) {
+            list.style.scrollSnapType = 'none'
+            restore()
+            list.style.scrollSnapType = ''
+          }
+          restorationPendingRef.current = false
+          list.style.overflowAnchor = previousAnchor
+        })
       })
     })
     return () => {
       window.cancelAnimationFrame(firstFrame)
       window.cancelAnimationFrame(secondFrame)
-      list.style.scrollSnapType = previousSnap
+      list.style.scrollSnapType = ''
       list.style.overflowAnchor = previousAnchor
     }
   }, [])
@@ -376,6 +388,8 @@ export default function SocialFeed() {
   }, [load])
 
   useEffect(() => {
+    // Do not overwrite the just-restored 200th item with scrollTop=0 during mount.
+    if (skipMountCacheWriteRef.current) { skipMountCacheWriteRef.current = false; return }
     if (!restorationPendingRef.current) saveFeedSession(posts, cursor, hasMore, scrollTopRef.current, listRef.current?.clientHeight || window.innerHeight)
   }, [posts, cursor, hasMore])
   useEffect(() => {
@@ -457,7 +471,7 @@ export default function SocialFeed() {
 
   return <div className="social-feed-page">
     <header className="social-feed-nav"><strong className="svx-social-brand"><img src="/brand/shopvax-symbol-dark.svg" className="svx-brand-symbol" alt="" aria-hidden="true" /><img src="/brand/shopvax-wordmark-light.svg" className="svx-brand-wordmark" alt="Shopvax" /></strong><span>PRODUTOS DAS LOJAS</span><div className="social-feed-nav__right"><a href="/para-lojas">Para lojas</a><a href="/entrar">Entrar</a></div></header>
-    <main className="social-feed-list" ref={listRef} onScroll={(event) => { if (restorationPendingRef.current) return; scrollTopRef.current = event.currentTarget.scrollTop; const list = event.currentTarget; setActiveIndex((index) => { const next = Math.max(0, Math.min(posts.length - 1, Math.round(list.scrollTop / Math.max(1, list.clientHeight)))); return next === index ? index : next }) }}>
+    <main className="social-feed-list" ref={listRef} style={restorationPendingRef.current ? { scrollSnapType: 'none' } : undefined} onScroll={(event) => { if (restorationPendingRef.current) return; scrollTopRef.current = event.currentTarget.scrollTop; const list = event.currentTarget; setActiveIndex((index) => { const next = Math.max(0, Math.min(posts.length - 1, Math.round(list.scrollTop / Math.max(1, list.clientHeight)))); return next === index ? index : next }) }}>
       {windowStart > 0 && <div className="social-feed-spacer" aria-hidden="true" style={{ height: `${windowStart * 100}dvh` }}/>}
       {visiblePosts.map((post, index) => <SocialPostCard post={post} key={post.id} active={windowStart + index === visibleIndex} saveData={saveData} cartCount={cartCount(post.store.slug)} onProfile={openProfile} onAdd={requestAdd} onCart={setActiveCart}/>)}
       {windowEnd < posts.length && <div className="social-feed-spacer" aria-hidden="true" style={{ height: `${(posts.length - windowEnd) * 100}dvh` }}/>}
