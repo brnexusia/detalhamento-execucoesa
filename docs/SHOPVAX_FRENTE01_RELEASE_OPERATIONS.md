@@ -33,7 +33,7 @@ Referências em `server/system-plans.mjs`, `server/platform-hooks.mjs`, `server/
 | Franqueados | 0 | 2 | sem limite |
 | Descontos por ciclo | -5% semestre / -15% anual | -5% / -15% | -5% / -15% |
 
-**Divergência estática:** `phase5-launch-hooks.mjs`, função `planExtraLimits('ouro')`, retorna `photosPerProduct: 10` para exibição do uso/limite, enquanto o contrato aprovado e a tabela `platform_plans.photo_limit` do Ouro são ilimitados. Corrigir com a frente dona do painel/contratos e testar leitura de uso com Ouro antes de GO.
+**Divergência estática corrigida no PR #120 (ainda não integrada):** `phase5-launch-hooks.mjs`, função `planExtraLimits('ouro')`, agora retorna `photosPerProduct: null` em conformidade com o contrato aprovado e `platform_plans.photo_limit`. Adicionada regressão em `phase5-final-mvp.integration.mjs` verificando a resposta do endpoint de status do Ouro. Conferir versão publicada, dados reais e CI do último HEAD antes do GO.
 
 **Risco controlado:** as rotinas de boot executam DDL (`CREATE TABLE`, `ALTER TABLE`, triggers) e têm migração v3 opt-in. `SHOPVAX_APPLY_APPROVED_PLAN_LIMITS=1` pode atualizar limites de planos de sistema; não aplicar sem backup restaurado e levantamento dos contratos/regras customizadas. A correção específica `photo_limit=NULL` para Ouro aparece fora da condição opt-in; inspecionar efeito em assinantes existentes e aprovar a mudança.
 
@@ -107,7 +107,7 @@ Registro de PRs adicionais: **nenhum PR das frentes 02–06 identificado na cons
 | Código base / seis CI | APROVADO no SHA base | 6 runs success, reexecutar após merges |
 | Regressão visual automatizada | APROVADO no PR #119, não na main push | browser check no código candidato final |
 | Dependências/build imutável | PENDENTE | lockfile + digest de imagem |
-| Contratos e limites | BLOQUEADO | auditoria SQL, correção de limite mostrado do Ouro |
+| Contratos e limites | PARCIAL / BLOQUEADO EM PRODUÇÃO | correção estática no PR #120; auditoria SQL de contratos reais ainda pendente |
 | Ambiente, SSL, migrações, volumes | BLOQUEADO | inventário EasyPanel real |
 | Backup e restauração | BLOQUEADO | hashes, dump validado e restore isolado |
 | Health/commit realmente publicado | BLOQUEADO | HTTPS + resultado de GET + digest/commit |
