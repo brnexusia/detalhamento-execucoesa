@@ -1,24 +1,70 @@
-/* C06: identidade da marca. Nenhum frame substitui o SVG oficial final. */
-.svx-brand-motion{display:inline-grid;place-items:center;position:relative;width:1em;height:1em;min-width:1em;min-height:1em;vertical-align:middle;isolation:isolate}
-.svx-brand-motion__symbol{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:contain}
-.svx-brand-motion__v,.svx-brand-motion__a{position:absolute;inset:0;display:grid;place-items:center;opacity:0;font:800 .9em/1 var(--svx-font-display,'Archivo Narrow',sans-serif);color:#F25C05;pointer-events:none}
-.svx-brand-motion__ring{position:absolute;inset:4%;border:2px solid currentColor;border-radius:50%;opacity:0;pointer-events:none}
-@media(prefers-reduced-motion:no-preference){
- .svx-brand-motion.is-animating .svx-brand-motion__symbol{animation:svx-mark-final 1050ms ease-out both}
- .svx-brand-motion--assemble.is-animating .svx-brand-motion__v{animation:svx-mark-v 1050ms ease-out both}
- .svx-brand-motion--assemble.is-animating .svx-brand-motion__a{animation:svx-mark-a 1050ms ease-out both}
- .svx-brand-motion--mirror.is-animating .svx-brand-motion__v{animation:svx-mark-v-mirror 1050ms ease-out both}
- .svx-brand-motion--mirror.is-animating .svx-brand-motion__a{animation:svx-mark-a-mirror 1050ms ease-out both}
- .svx-brand-motion--water.is-animating .svx-brand-motion__ring{animation:svx-mark-ripple 1050ms ease-out both}
+/* Marca vetorial oficial Shopvax: duas peças, sem fontes, fusão ou substituição do X. */
+.svx-brand-motion{display:inline-block;position:relative;flex:0 0 auto;width:1em;height:1.282em;line-height:1;vertical-align:middle;isolation:isolate}
+.svx-brand-motion__symbol.svx-brand-symbol{display:block;position:relative;width:100%;height:100%;max-width:none;object-fit:contain;overflow:visible}
+.svx-brand-motion__assembly{transform-box:view-box;transform-origin:480px 440.643px}
+.svx-brand-motion__v,.svx-brand-motion__a{transform-box:view-box;transform-origin:center}
+.svx-brand-motion__v{fill:#F25C05}
+.svx-brand-motion__a{fill:#F3F0E8}
+.svx-brand-motion:not(.svx-brand-motion--dark) .svx-brand-motion__v,
+.svx-brand-motion:not(.svx-brand-motion--dark) .svx-brand-motion__a{fill:#161514}
+
+@media (prefers-reduced-motion:no-preference){
+  /* O V sempre chega de CIMA; o A sempre chega de BAIXO.
+     Durante a translação não se cruzam nem deformam. */
+  .svx-brand-motion.is-animating .svx-brand-motion__v{
+    animation:svx-mark-v-descend 1150ms cubic-bezier(.23,.81,.25,1) both
+  }
+  .svx-brand-motion.is-animating .svx-brand-motion__a{
+    animation:svx-mark-a-ascend 1150ms cubic-bezier(.23,.81,.25,1) both
+  }
+  /* A rotação é aplicada SOMENTE ao conjunto pronto — não às peças isoladas. */
+  .svx-brand-motion.is-animating .svx-brand-motion__assembly{
+    animation:svx-mark-assembled-spin 1100ms cubic-bezier(.54,.02,.32,.99) 1150ms both
+  }
 }
-@keyframes svx-mark-v{0%{opacity:0;transform:translate(-38%,-30%) rotate(-20deg)}20%{opacity:1}55%{opacity:1;transform:translate(0,0) rotate(0)}68%,100%{opacity:0}}
-@keyframes svx-mark-a{0%{opacity:0;transform:translate(38%,30%) rotate(20deg)}20%{opacity:1}55%{opacity:1;transform:translate(0,0) rotate(0)}68%,100%{opacity:0}}
-@keyframes svx-mark-v-mirror{0%{opacity:0;transform:translateX(-75%) scaleX(-1)}25%{opacity:1}55%{opacity:1;transform:translateX(0) scaleX(-1)}68%,100%{opacity:0}}
-@keyframes svx-mark-a-mirror{0%{opacity:0;transform:translateX(75%)}25%{opacity:1}55%{opacity:1;transform:translateX(0)}68%,100%{opacity:0}}
-@keyframes svx-mark-ripple{0%{opacity:0;transform:scale(.25)}25%{opacity:.8}70%{opacity:.4;transform:scale(1.25)}100%{opacity:0;transform:scale(1.5)}}
-@keyframes svx-mark-final{0%,52%{opacity:0;transform:rotate(-80deg) scale(.7)}72%{opacity:1}100%{opacity:1;transform:rotate(360deg) scale(1)}}
+@keyframes svx-mark-v-descend{
+  0%{transform:translateY(-310px);opacity:0}
+  13%{opacity:1}
+  82%{transform:translateY(0);opacity:1}
+  100%{transform:translateY(0);opacity:1}
+}
+@keyframes svx-mark-a-ascend{
+  0%{transform:translateY(310px);opacity:0}
+  13%{opacity:1}
+  82%{transform:translateY(0);opacity:1}
+  100%{transform:translateY(0);opacity:1}
+}
+@keyframes svx-mark-assembled-spin{
+  0%{transform:rotate(0deg)}
+  100%{transform:rotate(360deg)}
+}
+
+/* Estado de carregamento; animação somente após 180ms para evitar flash. */
+.svx-branded-loading{min-height:100dvh;width:100%;display:grid;align-content:center;justify-items:center;
+  gap:16px;background:#161514;color:#F3F0E8;position:relative}
+.svx-branded-loading__mark{display:inline-flex;font-size:102px;opacity:0;transition:opacity 160ms ease}
+.svx-branded-loading__mark.is-visible{opacity:1}
+.svx-branded-loading--compact{min-height:148px;border:1px solid rgba(22,21,20,.15)}
+.svx-branded-loading--compact .svx-branded-loading__mark{font-size:42px}
+.svx-sr-only{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+/* No painel, o símbolo fica estático entre os ciclos de 3 minutos. */
+.panel-brand .brand__mark.svx-panel-mark{display:grid;place-items:center;background:#161514;overflow:visible}
+.panel-brand .svx-panel-mark .svx-brand-motion{font-size:24px}
+.panel-brand .svx-panel-mark .svx-brand-motion__symbol.svx-brand-symbol{height:100%;width:100%}
+
+/* O logo do login é o lockup oficial, sem fundo laranja ou span genérico. */
+.auth-shell .auth-poster .wordmark .svx-brand-symbol{display:block;height:41px;width:auto;max-width:none;background:none;border:0;padding:0}
+.auth-shell .auth-poster .wordmark .svx-brand-wordmark{display:block;height:31px;width:auto;max-width:100%}
+.auth-shell .auth-form__head .brand__mark{background:transparent;border:0;width:auto;height:auto;justify-content:start;place-items:start}
+.auth-shell .auth-form__head .brand__mark .svx-brand-symbol{height:32px;width:auto}
+@media(max-width:700px){
+  .auth-shell .auth-poster .wordmark .svx-brand-symbol{height:34px}
+  .auth-shell .auth-poster .wordmark .svx-brand-wordmark{height:24px}
+  .svx-branded-loading__mark{font-size:76px}
+}
 @media(prefers-reduced-motion:reduce){
- .svx-brand-motion *, .svx-brand-motion.is-animating *{animation:none!important;transition:none!important}
- .svx-brand-motion__symbol{opacity:1;transform:none}
- .svx-brand-motion__v,.svx-brand-motion__a,.svx-brand-motion__ring{display:none}
+  .svx-brand-motion *, .svx-brand-motion.is-animating *{animation:none!important;transition:none!important}
+  .svx-brand-motion__assembly,.svx-brand-motion__v,.svx-brand-motion__a{transform:none!important;opacity:1!important}
+  .svx-branded-loading__mark{transition:none;opacity:1}
 }
