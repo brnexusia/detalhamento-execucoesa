@@ -32,6 +32,6 @@ export default function ShopvaxPanelMark() {
     }
   }, [])
   return <span className="brand__mark svx-panel-mark">
-    <ShopvaxBrandMotion key={cycle} active={active} symbolSrc="/brand/shopvax-symbol-dark.svg" />
+    <ShopvaxBrandMotion key={cycle} active={active} variant="spin" symbolSrc="/brand/shopvax-symbol-dark.svg" />
   </span>
 }
