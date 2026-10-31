@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { showToast } from './ui-dialogs'
 import { ChevronRight, Eye, Heart, MessageCircleQuestion, Minus, Play, Plus, Share2, ShoppingBag, Store, Volume2, VolumeX, X } from 'lucide-react'
 import './social-feed.css'
@@ -36,7 +36,10 @@ type PickerState = { post: SocialPost; selections: Record<string, string>; quant
 
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 const feedSessionKey = 'shopvax_social_feed_state_v3'
-const feedSessionTtl = 30 * 60 * 1000
+const feedSessionTtl = 5 * 60 * 1000
+const maxFeedSessionPosts = 48
+const maxFeedSessionBytes = 250_000
+const renderNeighbors = 2
 
 function compact(value: number) { return new Intl.NumberFormat('pt-BR', { notation: 'compact', maximumFractionDigits: 1 }).format(value || 0) }
 function cartStorageKey(slug: string) { return `shopvax-cart-v1:${encodeURIComponent(slug)}` }
@@ -61,9 +64,21 @@ function readFeedSession(): FeedSession | null {
   } catch { return null }
 }
 
-function saveFeedSession(posts: SocialPost[], cursor: string | null, hasMore: boolean, scrollTop: number) {
-  try { sessionStorage.setItem(feedSessionKey, JSON.stringify({ posts, cursor, hasMore, scrollTop, savedAt: Date.now() } satisfies FeedSession)) }
-  catch { /* sessão indisponível */ }
+function saveFeedSession(posts: SocialPost[], cursor: string | null, hasMore: boolean, scrollTop: number, viewportHeight: number) {
+  const height = Math.max(1, viewportHeight)
+  const index = Math.min(Math.max(0, Math.round(scrollTop / height)), Math.max(0, posts.length - 1))
+  const first = Math.max(0, index - 12)
+  const cached = posts.slice(first, first + maxFeedSessionPosts)
+  let relativeTop = Math.max(0, scrollTop - first * height)
+  try {
+    let snapshot = JSON.stringify({ posts: cached, cursor, hasMore, scrollTop: relativeTop, savedAt: Date.now() } satisfies FeedSession)
+    while (snapshot.length > maxFeedSessionBytes && cached.length > 3) {
+      if (relativeTop >= height * 2) { cached.shift(); relativeTop = Math.max(0, relativeTop - height) }
+      else cached.pop()
+      snapshot = JSON.stringify({ posts: cached, cursor, hasMore, scrollTop: relativeTop, savedAt: Date.now() } satisfies FeedSession)
+    }
+    if (snapshot.length <= maxFeedSessionBytes) sessionStorage.setItem(feedSessionKey, snapshot)
+  } catch { /* cache opcional indisponível; carrinho permanece independente */ }
 }
 
 function readCart(slug: string): FeedCartItem[] {
@@ -86,13 +101,13 @@ function productMediaCandidates(product: FeedProduct) {
   return Array.from(new Set([product.mediaUrl, ...(Array.isArray(product.images) ? product.images : [])].map((value) => String(value || '').trim()).filter(Boolean)))
 }
 
-function FeedImage({ product, className = '' }: { product: FeedProduct; className?: string }) {
+function FeedImage({ product, className = '', priority = false }: { product: FeedProduct; className?: string; priority?: boolean }) {
   const candidates = productMediaCandidates(product)
   const [index, setIndex] = useState(0)
   useEffect(() => { setIndex(0) }, [product.id, product.mediaUrl, JSON.stringify(product.images || [])])
   const src = candidates[index] || ''
   if (!src) return <div className={className}><Play size={34}/></div>
-  return <img className={className} src={src} srcSet={responsiveLocalMedia(src)} sizes="(max-width: 768px) 100vw, 560px" alt={product.name} loading="lazy" decoding="async" onError={() => setIndex((current) => current + 1)} />
+  return <img className={className} src={src} srcSet={responsiveLocalMedia(src)} sizes="(max-width: 768px) 100vw, 560px" alt={product.name} loading={priority ? "eager" : "lazy"} fetchPriority={priority ? "high" : "auto"} decoding="async" onError={() => setIndex((current) => current + 1)} />
 }
 
 async function copyText(value: string) {
@@ -122,7 +137,7 @@ async function sellerSlugForStore(slug: string) {
   } catch { return '' }
 }
 
-function SocialPostCard({ post, cartCount, onProfile, onAdd, onCart }: { post: SocialPost; cartCount: number; onProfile: (slug: string) => void; onAdd: (post: SocialPost) => void; onCart: (store: SocialPost['store']) => void }) {
+function SocialPostCard({ post, cartCount, active, saveData, onProfile, onAdd, onCart }: { post: SocialPost; cartCount: number; active: boolean; saveData: boolean; onProfile: (slug: string) => void; onAdd: (post: SocialPost) => void; onCart: (store: SocialPost['store']) => void }) {
   const cardRef = useRef<HTMLElement | null>(null)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const viewed = useRef(false)
@@ -159,7 +174,7 @@ function SocialPostCard({ post, cartCount, onProfile, onAdd, onCart }: { post: S
       const entry = entries[0]
       const active = Boolean(entry?.isIntersecting && entry.intersectionRatio >= .68)
       if (videoRef.current) {
-        if (active) void videoRef.current.play().catch(() => undefined)
+        if (active && !saveData) void videoRef.current.play().catch(() => undefined)
         else videoRef.current.pause()
       }
       if (viewed.current || !entry?.isIntersecting || entry.intersectionRatio < .58) return
@@ -171,7 +186,7 @@ function SocialPostCard({ post, cartCount, onProfile, onAdd, onCart }: { post: S
     }, { threshold: [0, .58, .68, 1] })
     observer.observe(target)
     return () => { observer.disconnect(); videoRef.current?.pause() }
-  }, [post.id])
+  }, [post.id, active, saveData])
 
   const like = async () => {
     const response = await fetch(`/api/social/posts/${post.id}/like`, { method: 'POST' })
@@ -205,12 +220,13 @@ function SocialPostCard({ post, cartCount, onProfile, onAdd, onCart }: { post: S
     style={{ '--social-store-accent': post.store.accent || '#F25C05', '--social-store-text': shopvaxAccentTextColor(post.store.accent || '#F25C05') } as React.CSSProperties}>
     <div className="social-feed-media" onDoubleClick={() => { if (!interactions.liked) void like() }}>
       {post.product.mediaType === 'video'
-        ? <video ref={videoRef} src={post.product.mediaUrl} poster={post.product.images?.[0] || undefined} loop muted={muted} playsInline preload="metadata" />
+        ? <video ref={videoRef} src={active ? post.product.mediaUrl : undefined} poster={post.product.images?.[0] || undefined} loop muted={muted} playsInline preload={active && !saveData ? 'metadata' : 'none'} />
         : productMediaCandidates(post.product).length
-          ? <FeedImage product={post.product} />
+          ? <FeedImage product={post.product} priority={active} />
           : <div className="social-feed-media__empty"><Play size={34}/></div>}
       <div className="social-feed-shade" />
-      {post.product.mediaType === 'video' && <button className="social-feed-sound" onClick={() => setMuted((value) => !value)} aria-label={muted ? 'Ativar som' : 'Silenciar vídeo'}>{muted ? <VolumeX size={18}/> : <Volume2 size={18}/>}</button>}
+      {post.product.mediaType === 'video' && saveData && active && <button className="social-feed-play" type="button" onClick={() => { void videoRef.current?.play().catch(() => undefined) }}>Reproduzir vídeo</button>}
+       {post.product.mediaType === 'video' && <button className="social-feed-sound" onClick={() => setMuted((value) => !value)} aria-label={muted ? 'Ativar som' : 'Silenciar vídeo'}>{muted ? <VolumeX size={18}/> : <Volume2 size={18}/>}</button>}
     </div>
 
     <button className="social-feed-store" onClick={() => onProfile(post.store.slug)}>
@@ -264,8 +280,10 @@ export default function SocialFeed() {
   const [pickerError, setPickerError] = useState('')
   const [activeCart, setActiveCart] = useState<SocialPost['store'] | null>(null)
   const [cartVersion, setCartVersion] = useState(0)
+  const [activeIndex, setActiveIndex] = useState(() => Math.max(0, Math.round((restored.current?.scrollTop || 0) / Math.max(1, window.innerHeight))))
+  const saveData = useMemo(() => { const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection; return Boolean(connection?.saveData || ['slow-2g', '2g'].includes(connection?.effectiveType || '')) }, [])
 
-  const persist = useCallback(() => saveFeedSession(posts, cursor, hasMore, listRef.current?.scrollTop ?? scrollTopRef.current), [posts, cursor, hasMore])
+  const persist = useCallback(() => saveFeedSession(posts, cursor, hasMore, listRef.current?.scrollTop ?? scrollTopRef.current, listRef.current?.clientHeight || window.innerHeight), [posts, cursor, hasMore])
 
   const load = useCallback(async (nextCursor?: string | null) => {
     if (loadingRef.current || (!hasMore && nextCursor)) return
@@ -296,10 +314,10 @@ export default function SocialFeed() {
       const y = Number(cached.scrollTop || 0)
       requestAnimationFrame(() => requestAnimationFrame(() => { if (listRef.current) listRef.current.scrollTop = y }))
     }
-    void load(null)
+    else void load(null)
   }, [load])
 
-  useEffect(() => { saveFeedSession(posts, cursor, hasMore, scrollTopRef.current) }, [posts, cursor, hasMore])
+  useEffect(() => { saveFeedSession(posts, cursor, hasMore, scrollTopRef.current, listRef.current?.clientHeight || window.innerHeight) }, [posts, cursor, hasMore])
   useEffect(() => {
     const save = () => persist()
     window.addEventListener('pagehide', save)
@@ -315,7 +333,28 @@ export default function SocialFeed() {
     return () => observer.disconnect()
   }, [cursor, hasMore, loading, load])
 
-  const cartCount = (slug: string) => { void cartVersion; return readCart(slug).reduce((sum, item) => sum + Math.max(1, Number(item.quantity || 1)), 0) }
+  useEffect(() => {
+    const syncCart = () => setCartVersion((value) => value + 1)
+    const onChange = (event: Event) => { if ((event as CustomEvent<{ storeSlug?: string }>).detail?.storeSlug) syncCart() }
+    const onStorage = (event: StorageEvent) => { if (event.key?.startsWith('shopvax-cart-v1:') || event.key === null) syncCart() }
+    window.addEventListener('shopvax:cart-change', onChange)
+    window.addEventListener('storage', onStorage)
+    window.addEventListener('focus', syncCart)
+    return () => { window.removeEventListener('shopvax:cart-change', onChange); window.removeEventListener('storage', onStorage); window.removeEventListener('focus', syncCart) }
+  }, [])
+  const cartCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const post of posts) {
+      if (counts.has(post.store.slug)) continue
+      counts.set(post.store.slug, readCart(post.store.slug).reduce((sum, item) => sum + Math.max(1, Number(item.quantity || 1)), 0))
+    }
+    return counts
+  }, [posts, cartVersion])
+  const cartCount = (slug: string) => cartCounts.get(slug) || 0
+  const visibleIndex = Math.min(activeIndex, Math.max(0, posts.length - 1))
+  const windowStart = Math.max(0, visibleIndex - renderNeighbors)
+  const windowEnd = Math.min(posts.length, visibleIndex + renderNeighbors + 2)
+  const visiblePosts = posts.slice(windowStart, windowEnd)
 
   const addCartItem = (post: SocialPost, selections: Record<string, string>, quantity: number) => {
     const items = readCart(post.store.slug)
@@ -325,7 +364,6 @@ export default function SocialFeed() {
       ? items.map((item) => item.key === key ? { ...item, quantity: item.quantity + quantity } : item)
       : [...items, { key, product: post.product, quantity, selections }]
     writeCart(post.store.slug, next)
-    setCartVersion((value) => value + 1)
   }
 
   const requestAdd = (post: SocialPost) => {
@@ -350,7 +388,6 @@ export default function SocialFeed() {
     if (!activeCart) return
     const next = readCart(activeCart.slug).map((item) => item.key === key ? { ...item, quantity: Math.max(0, item.quantity + delta) } : item).filter((item) => item.quantity > 0)
     writeCart(activeCart.slug, next)
-    setCartVersion((value) => value + 1)
   }
 
   const openProfile = (slug: string) => { persist(); go(profilePath(slug)) }
@@ -360,8 +397,10 @@ export default function SocialFeed() {
 
   return <div className="social-feed-page">
     <header className="social-feed-nav"><strong className="svx-social-brand"><img src="/brand/shopvax-symbol-dark.svg" className="svx-brand-symbol" alt="" aria-hidden="true" /><img src="/brand/shopvax-wordmark-light.svg" className="svx-brand-wordmark" alt="Shopvax" /></strong><span>PRODUTOS DAS LOJAS</span><div className="social-feed-nav__right"><a href="/para-lojas">Para lojas</a><a href="/entrar">Entrar</a></div></header>
-    <main className="social-feed-list" ref={listRef} onScroll={(event) => { scrollTopRef.current = event.currentTarget.scrollTop }}>
-      {posts.map((post) => <SocialPostCard post={post} key={post.id} cartCount={cartCount(post.store.slug)} onProfile={openProfile} onAdd={requestAdd} onCart={setActiveCart}/>) }
+    <main className="social-feed-list" ref={listRef} onScroll={(event) => { const list = event.currentTarget; scrollTopRef.current = list.scrollTop; setActiveIndex((index) => { const next = Math.max(0, Math.min(posts.length - 1, Math.round(list.scrollTop / Math.max(1, list.clientHeight)))); return next === index ? index : next }) }}>
+      {windowStart > 0 && <div className="social-feed-spacer" aria-hidden="true" style={{ height: `${windowStart * 100}dvh` }}/>}
+      {visiblePosts.map((post, index) => <SocialPostCard post={post} key={post.id} active={windowStart + index === visibleIndex} saveData={saveData} cartCount={cartCount(post.store.slug)} onProfile={openProfile} onAdd={requestAdd} onCart={setActiveCart}/>)}
+      {windowEnd < posts.length && <div className="social-feed-spacer" aria-hidden="true" style={{ height: `${(posts.length - windowEnd) * 100}dvh` }}/>}
       {!posts.length && !loading && !error && <div className="social-feed-state"><h1>O feed está começando.</h1><p>As publicações das lojas aparecerão aqui.</p></div>}
       {error && <div className="social-feed-state"><p>{error}</p><button onClick={() => void load(cursor)}>Tentar novamente</button></div>}
       {loading && <div className="social-feed-loading">Carregando produtos…</div>}
