@@ -142,6 +142,18 @@ try {
   assert.equal((await prepare(first, a1.cookie, firstProduct)).response.status, 409, 'Estoque não pode ficar negativo')
   assert.equal(await countOrders(rowA.id), 1)
 
+  // A01: a vendedora atribuída continua ativa, porém perdeu o telefone válido.
+  // O backend deve reatribuir antes de baixar estoque, sem usar o número da loja.
+  const invalidPhoneProduct = await product(first, 'invalid-phone-fallback')
+  await setStock(first, invalidPhoneProduct, 1)
+  const fallbackOrder = await prepare(first, a2.cookie, invalidPhoneProduct, { sellerSlug: badPhone.payload.seller.slug })
+  assert.equal(fallbackOrder.response.status, 201, JSON.stringify(fallbackOrder.payload))
+  assert.equal(new URL(fallbackOrder.payload.whatsappUrl).pathname, '/5511982222233')
+  const fallbackSeller = (await pool.query('SELECT seller_id FROM orders WHERE id=$1', [fallbackOrder.payload.orderId])).rows[0]
+  assert.equal(fallbackSeller.seller_id, active.payload.seller.id)
+  assert.equal(Number((await pool.query('SELECT stock_quantity FROM products WHERE id=$1', [invalidPhoneProduct])).rows[0].stock_quantity), 0)
+  assert.equal(await countOrders(rowA.id), 2)
+
   const secondProduct = await product(first, 'concurrent')
   await setStock(first, secondProduct, 1)
   const attempts = await Promise.all([
@@ -151,7 +163,7 @@ try {
   assert.deepEqual(attempts.map(result => result.response.status).sort(), [201, 409])
   assert.equal(new URL(attempts.find(result => result.response.status === 201).payload.whatsappUrl).pathname, '/5511982222233')
   assert.equal(Number((await pool.query('SELECT stock_quantity FROM products WHERE id=$1', [secondProduct])).rows[0].stock_quantity), 0)
-  assert.equal(await countOrders(rowA.id), 2)
+  assert.equal(await countOrders(rowA.id), 3)
 
   // Loja B precisa ter vendedora para o teste alcançar a validação cross-tenant do produto.
   const secondSeller = await call('/api/admin/sellers', {
@@ -192,7 +204,7 @@ try {
   assert.equal(meB1.payload.orders[0].id, ownOrderB)
   assert.equal(meA1.payload.orders.find(order => order.id === firstOrder)?.status, 'confirmado')
   assert.equal(meA2.payload.orders.some(order => order.id === firstOrder), false)
-  assert.equal(meA1.payload.orders.length + meA2.payload.orders.length, 2)
+  assert.equal(meA1.payload.orders.length + meA2.payload.orders.length, 3)
   assert.match(meA1.payload.semantics, /não comprova/i)
 
   res = await call('/api/admin/features/orders/' + firstOrder + '/cancel', { method: 'POST', cookie: first.cookie, body: {} })

@@ -117,7 +117,7 @@ export default function SocialStoreProfile() {
     <main className="social-profile-shell">
       <section className="social-profile-card" style={{ '--profile-accent': store.accent || '#F25C05', '--profile-text': shopvaxAccentTextColor(store.accent || '#F25C05') } as React.CSSProperties}>
         <div className="social-profile-main">
-          <div className="social-profile-avatar">{store.logoUrl ? <img src={store.logoUrl} alt={store.name}/> : <Store size={32}/>}</div>
+          <div className="social-profile-avatar">{store.logoUrl ? <img src={store.logoUrl} alt={store.name} draggable={false}/> : <Store size={32}/>}</div>
           <div className="social-profile-identity">
             <h1>{store.name}</h1>
             <span>@{store.slug}</span>

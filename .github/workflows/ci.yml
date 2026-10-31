@@ -41,7 +41,7 @@ jobs:
       - name: Install
         run: npm install
       - name: Install PDF tooling for import regression tests
-        run: sudo apt-get update && sudo apt-get install -y poppler-utils tesseract-ocr tesseract-ocr-por tesseract-ocr-eng
+        run: sudo apt-get update && sudo apt-get install -y poppler-utils tesseract-ocr tesseract-ocr-por tesseract-ocr-eng ffmpeg fonts-dejavu-core
       - name: Production dependency audit
         run: |
           test "$(node -p "require('./node_modules/multer/package.json').version")" = "2.5.0"
@@ -120,6 +120,8 @@ jobs:
         run: node --test server/onboarding-growth-policy.test.mjs
       - name: Growth hook JavaScript syntax
         run: node --check server/onboarding-growth-hooks.mjs
+      - name: Build original product tour video (B02)
+        run: node scripts/generate-shopvax-tour.mjs
       - name: Build
         run: npm run build
       - name: Show production bundles

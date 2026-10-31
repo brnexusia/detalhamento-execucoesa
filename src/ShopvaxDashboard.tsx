@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { ArrowRight, Check, Clipboard, ExternalLink, Package, ReceiptText, Send, Users } from 'lucide-react'
 import type { AdminBootstrap } from './types'
 import { SVNumber, SVRibbon, SVStamp } from './ShopvaxDesignSystem'
@@ -17,7 +18,14 @@ const date = new Intl.DateTimeFormat('pt-BR', { day:'2-digit',month:'short',hour
 /** Dashboard (prancha 06) com métricas exclusivamente provenientes do backend. */
 export default function ShopvaxDashboard({ data, incomplete, storeUrl, onSection, onCopy }: Props) {
   const firstName = data.user.name.trim().split(/\s+/)[0] || 'lojista'
-  const hour = new Date().getHours() // Horário local do navegador do lojista; a loja ainda não informa fuso horário.
+  const [hour, setHour] = useState(() => new Date().getHours())
+  useEffect(() => {
+    const refresh = () => setHour(new Date().getHours())
+    const tick = window.setInterval(refresh, 60_000)
+    window.addEventListener('focus', refresh)
+    document.addEventListener('visibilitychange', refresh)
+    return () => { window.clearInterval(tick); window.removeEventListener('focus', refresh); document.removeEventListener('visibilitychange', refresh) }
+  }, []) // O cadastro ainda não possui fuso da loja; usar o horário do dispositivo, sem inventar localidade.
   const greeting = hour >= 5 && hour < 12 ? 'Bom dia' : hour < 18 && hour >= 12 ? 'Boa tarde' : 'Boa noite'
   const recent = [...data.orders].sort((a,b)=>Date.parse(b.created_at)-Date.parse(a.created_at)).slice(0,4)
   const activeSellers = data.sellers.filter(s=>s.is_active)
@@ -35,7 +43,7 @@ export default function ShopvaxDashboard({ data, incomplete, storeUrl, onSection
   const completed = required.filter(x=>x.ready).length
   return <div className="panel-page svx-dashboard">
     <SVRibbon className="svx-dashboard__ribbon"><span>SHOPVAX · PAINEL DE QUEM VENDE</span><span>SEUS PEDIDOS NUM SÓ LUGAR</span></SVRibbon>
-    <div className="svx-dashboard__welcome"><div><span className="svx-kicker">O BALCÃO ESTÁ ABERTO</span><h1>{greeting}, {firstName}.</h1><p>{data.store.name} · {data.store.is_active ? 'Loja publicada' : 'Loja pausada'}</p></div><div className="svx-dashboard__welcome-actions"><a href={storeUrl} target="_blank" rel="noreferrer"><ExternalLink size={15}/> Abrir loja</a><button onClick={() => onSection('produtos')}><Package size={15}/> Produtos <ArrowRight size={15}/></button></div></div>
+    <div className="svx-dashboard__welcome"><div><span className="svx-kicker">O BALCÃO ESTÁ ABERTO</span><h1>{greeting}, {firstName}.</h1><p>{data.store.name} · {data.store.is_active ? 'Loja publicada' : 'Loja pausada'}</p><small className="svx-dashboard__clock-source">Saudação no horário deste dispositivo</small></div><div className="svx-dashboard__welcome-actions"><a href={storeUrl} target="_blank" rel="noreferrer"><ExternalLink size={15}/> Abrir loja</a><button onClick={() => onSection('produtos')}><Package size={15}/> Produtos <ArrowRight size={15}/></button></div></div>
     <ShopvaxOnboardingGuide data={data} storeUrl={storeUrl} onSection={onSection} />
     <div className="svx-dashboard__metrics">
       <div className="svx-dashboard__primary-metric"><span className="svx-kicker">PEDIDOS REGISTRADOS</span><SVNumber value={data.stats.orders} label="no WhatsApp"/><SVStamp>EM MOVIMENTO</SVStamp></div>
