@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { ExternalLink, LogOut, Menu, Store as StoreIcon, X } from 'lucide-react'
 import { api } from './api'
 import AdminNavigation, { type PrimaryAdminSection } from './AdminNavigation'
+import ShopvaxPanelMark from './ShopvaxPanelMark'
 import { confirmNavigationIfDirty } from './unsaved-changes'
 import './admin-section-frame.css'
 
@@ -41,7 +42,7 @@ export default function AdminSectionFrame({ active, children }: { active: Active
 
   return <div className="panel-shell">
     <aside className={`panel-sidebar ${menuOpen ? 'is-open' : ''}`}>
-      <div className="panel-brand"><span className="brand__mark">SV</span><div><strong>Shopvax</strong><small>{data?.store.name || 'Painel'}</small></div><button className="panel-close-menu" onClick={closeMenu} aria-label="Fechar menu"><X size={18}/></button></div>
+      <div className="panel-brand"><ShopvaxPanelMark /><div><strong><img className="svx-brand-wordmark" src="/brand/shopvax-wordmark-light.svg" alt="Shopvax" /></strong><small>{data?.store.name || 'Painel'}</small></div><button className="panel-close-menu" onClick={closeMenu} aria-label="Fechar menu"><X size={18}/></button></div>
       <AdminNavigation
         active={primaryActive}
         planCode={data?.store.plan_tier}
