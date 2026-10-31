@@ -10,7 +10,8 @@
 
 /* Marcas são identidade visual, não objetos arrastáveis; links continuam clicáveis. */
 img.svx-brand-symbol, img.svx-brand-wordmark, img.brand__logo,
-img.store-intro__logo, .panel-brand img, .customer-store-head img {
+img.store-intro__logo, .panel-brand img, .customer-store-head img,
+.social-profile-avatar img, .social-profile__avatar img {
   -webkit-user-drag: none;
   user-select: none;
   -webkit-user-select: none;
