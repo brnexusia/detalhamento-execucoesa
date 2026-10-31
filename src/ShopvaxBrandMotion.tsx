@@ -8,7 +8,7 @@ export type BrandMotionVariant = 'assemble' | 'mirror' | 'water'
 export default function ShopvaxBrandMotion({
   active = false, variant = 'assemble', symbolSrc = '/brand/shopvax-symbol.svg',
 }: { active?: boolean; variant?: BrandMotionVariant; symbolSrc?: string }) {
-  const onDark = symbolSrc.includes('dark') || symbolSrc === '/brand/shopvax-symbol.svg'
+  const onDark = symbolSrc.includes('dark')
   return <span
     className={'svx-brand-motion' + (active ? ' is-animating' : '') + (onDark ? ' svx-brand-motion--dark' : '')}
     data-brand-motion={variant} aria-hidden="true">
