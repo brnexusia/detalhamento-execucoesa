@@ -36,3 +36,14 @@ jobs:
           path: shopvax-release-preflight.json
           if-no-files-found: ignore
           retention-days: 14
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Construir imagem do Dockerfile sem publicar nem executar migrações
+        run: docker build --progress=plain --tag shopvax-release-candidate:${{ github.sha }} .
+      - name: Conferir porta e Healthcheck da imagem gerada
+        run: |
+          docker image inspect shopvax-release-candidate:${{ github.sha }} \\
+            --format 'PORTS={{json .Config.ExposedPorts}} HEALTH={{json .Config.Healthcheck}}'
