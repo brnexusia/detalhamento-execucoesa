@@ -9,6 +9,7 @@ on:
       - 'src/shopvax-store-layout-fixes.css'
       - 'src/shopvax-social-feed-layout.css'
       - 'tests/shopvax-public-performance.e2e.mjs'
+      - 'tests/shopvax-feed-viewports.e2e.mjs'
       - '.github/workflows/public-performance-05.yml'
   workflow_dispatch:
 
@@ -66,6 +67,10 @@ jobs:
         if: matrix.version == 'candidate'
         working-directory: app
         run: node tests/shopvax-local-feed-window.e2e.mjs
+      - name: Feed snap, touch and six responsive viewport widths
+        if: matrix.version == 'candidate' && matrix.network == '4g'
+        working-directory: app
+        run: node tests/shopvax-feed-viewports.e2e.mjs
       - name: Upload machine-readable benchmark
         if: always()
         uses: actions/upload-artifact@v4
