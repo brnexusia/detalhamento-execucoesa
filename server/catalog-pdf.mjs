@@ -81,6 +81,9 @@ function drawFooter(doc, theme, pageNumber) {
   doc.text('CATÁLOGO · GRADE · TALÃO', 32, y + 8, { width: 240, lineBreak: false })
   doc.text(`SHOPVAX  /  ${String(pageNumber).padStart(2, '0')}`, doc.page.width - 150, y + 8,
     { width: 118, align: 'right', lineBreak: false })
+  doc.font('Helvetica').fontSize(5.5).fillColor(theme.id === 'padrao' ? theme.ink : '#FFFFFF')
+  doc.text('gerado via shopvax', doc.page.width / 2 - 55, y + 8,
+    { width: 110, align: 'center', lineBreak: false })
   doc.restore()
 }
 
