@@ -58,6 +58,40 @@ jobs:
         run: node server/phase2-final-mvp.integration.mjs
       - name: Frente 02 - isolamento comercial, compradores e estoque concorrente
         run: node server/commerce-security-front02.integration.mjs
+      - name: Start secure buyer auth service
+        env:
+          PORT: 3002
+          SHOPVAX_SECURITY_RATE_LIMIT_DISABLED: '0'
+        run: |
+          npm start > /tmp/shopvax-phase2-secure.log 2>&1 &
+          for i in {1..80}; do
+            if curl -fsS http://127.0.0.1:3002/health >/dev/null; then exit 0; fi
+            sleep .25
+          done
+          cat /tmp/shopvax-phase2-secure.log
+          exit 1
+      - name: Frente 02 - bloqueio de força bruta em contas de compradores
+        env:
+          BASE_URL: http://127.0.0.1:3002
+        run: node server/buyer-auth-rate-limit.integration.mjs
+      - name: Install browser for buyer session regression
+        run: |
+          npm install --no-save --no-audit --no-fund playwright@1.58.2
+          npx playwright install chromium
+      - name: Start Vite for buyer session regression
+        run: |
+          npm run dev -- --host 127.0.0.1 > /tmp/vite-phase2.log 2>&1 &
+          for i in {1..80}; do
+            if curl -fsS http://127.0.0.1:5173/ >/dev/null; then exit 0; fi
+            sleep .25
+          done
+          cat /tmp/vite-phase2.log
+          exit 1
+      - name: Frente 02 - comprador em duas abas, historico e falha de rede
+        run: node tests/shopvax-buyer-session-status.e2e.mjs
       - name: Print server log on failure
         if: failure()
-        run: cat /tmp/shopvax-phase2.log || true
+        run: |
+          cat /tmp/shopvax-phase2.log || true
+          cat /tmp/shopvax-phase2-secure.log || true
+          cat /tmp/vite-phase2.log || true
