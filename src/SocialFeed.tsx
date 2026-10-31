@@ -293,7 +293,7 @@ export default function SocialFeed() {
   const [activeCart, setActiveCart] = useState<SocialPost['store'] | null>(null)
   const [cartVersion, setCartVersion] = useState(0)
   const [activeIndex, setActiveIndex] = useState(() => restoredIndex.current)
-  const saveData = useMemo(() => { const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection; return Boolean(connection?.saveData || ['slow-2g', '2g'].includes(connection?.effectiveType || '')) }, [])
+  const saveData = useMemo(() => { const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection; return Boolean(connection?.saveData || ['slow-2g', '2g'].includes(connection?.effectiveType || '') || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) }, [])
 
   const persist = useCallback(() => {
     const list = listRef.current
