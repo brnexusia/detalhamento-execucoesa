@@ -164,6 +164,20 @@ try {
   assert.equal(await countOrders(rowB.id), 0)
   assert.equal((await call('/api/admin/features/orders/' + firstOrder + '/cancel', { method: 'POST', cookie: second.cookie, body: {} })).response.status, 404)
 
+  // Defensa em profundidade: nem mesmo FK inconsistente pode trazer nome/dados da loja A ao painel da B.
+  const productB = await product(second, 'tenant-b')
+  const createdB = await prepare(second, b1.cookie, productB)
+  assert.equal(createdB.response.status, 201)
+  const ownOrderB = createdB.payload.orderId
+  await pool.query('UPDATE orders SET customer_id=$1 WHERE id=$2', [a1.id, ownOrderB])
+  const panelB = await call('/api/admin/phase2', { cookie: second.cookie })
+  assert.equal(panelB.response.status, 200)
+  assert.equal(panelB.payload.orders.find(order => order.id === ownOrderB).customer_name, null, 'Join do painel deve exigir loja do comprador')
+  const panelA = await call('/api/admin/phase2', { cookie: first.cookie })
+  assert.equal(panelA.response.status, 200)
+  assert.equal(panelA.payload.customers.find(customer => customer.id === a1.id).orders_count, 1, 'Pedidos de outra loja não contam mesmo se customer_id estiver adulterado')
+  await pool.query('UPDATE orders SET customer_id=$1 WHERE id=$2', [b1.id, ownOrderB])
+
   await call('/api/admin/phase2/orders/' + firstOrder + '/status', {
     method: 'PATCH', cookie: first.cookie, body: { status: 'confirmado' },
   }).then(result => assert.equal(result.response.status, 200, JSON.stringify(result.payload)))
@@ -173,7 +187,8 @@ try {
   assert.equal(meA1.response.status, 200)
   assert.equal(meA2.response.status, 200)
   assert.equal(meB1.response.status, 200)
-  assert.equal(meB1.payload.orders.length, 0)
+  assert.equal(meB1.payload.orders.length, 1)
+  assert.equal(meB1.payload.orders[0].id, ownOrderB)
   assert.equal(meA1.payload.orders.find(order => order.id === firstOrder)?.status, 'confirmado')
   assert.equal(meA2.payload.orders.some(order => order.id === firstOrder), false)
   assert.equal(meA1.payload.orders.length + meA2.payload.orders.length, 2)
