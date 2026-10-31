@@ -60,6 +60,14 @@ export default function ShopvaxSupport() {
     {open && <section id="svx-support-panel" className="svx-support__panel" aria-label="Ajuda contextual Shopvax">
       <header><div><span className="svx-kicker">AJUDA · SHOPVAX</span><h2>{merchant ? 'Ajuda para lojistas' : 'Ajuda para compradores'}</h2></div><button type="button" onClick={() => setOpen(false)} aria-label="Fechar ajuda"><X size={19}/></button></header>
       <p>Escolha uma dúvida abaixo. A página não detecta capturas de tela automaticamente.</p>
+      <details className="svx-support__video">
+        <summary>Ver vídeo explicativo do Shopvax (12 segundos) <ArrowRight size={14}/></summary>
+        <video controls playsInline preload="none" width="640" height="360" aria-label="Tutorial Shopvax: catálogo, grade, talão e WhatsApp">
+          <source src="/help/shopvax-guide.mp4" type="video/mp4" />
+          Seu navegador não permite reproduzir este vídeo. Leia a transcrição abaixo.
+        </video>
+        <p><strong>Transcrição:</strong> 1. Explore o catálogo e confira os produtos, fotos e preços da loja. 2. Escolha variações e quantidades. 3. Revise o pedido mínimo e o total — talão preparado não é venda confirmada. 4. Abra o WhatsApp da vendedora; abrir a conversa não comprova envio nem pagamento.</p>
+      </details>
       <div className="svx-support__faqs">{faq.map(([question, answer]) => <details key={question}><summary>{question} <ArrowRight size={14}/></summary><p>{answer}</p></details>)}</div>
       <div className="svx-support__screenshot">
         <p><Camera size={16}/> Quer mostrar a tela? Escolha uma captura no seu dispositivo para compartilhar usando os recursos do navegador, quando disponíveis.</p>
