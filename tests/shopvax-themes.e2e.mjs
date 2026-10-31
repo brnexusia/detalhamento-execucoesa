@@ -11,7 +11,8 @@ try {
     onboarding_palette_selected:true, is_active:true,
   }
   const updates = []
-  await context.route('**/api/admin/bootstrap', async route => route.fulfill({
+  // The admin panel now fetches compact bootstrap; mock both compatible variants.
+  await context.route('**/api/admin/bootstrap**', async route => route.fulfill({
     status:200, contentType:'application/json', body:JSON.stringify({
       user:{ id:'u1',name:'Laura',email:'loja@example.test' },
       store:saved, products:[], sellers:[], orders:[],
