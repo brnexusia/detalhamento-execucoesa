@@ -57,6 +57,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const [plansLoading, setPlansLoading] = useState(mode === 'register')
   const [plansError, setPlansError] = useState('')
   const [googleBusy, setGoogleBusy] = useState(false)
+  const [showLoginMotion, setShowLoginMotion] = useState(false)
   const [googleSignup, setGoogleSignup] = useState<{ credential: string; name: string; email: string; picture?: string } | null>(null)
   const [form, setForm] = useState({
     name: '',
@@ -70,6 +71,15 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
 
   const update = (key: keyof typeof form, value: string) => setForm((current) => ({ ...current, [key]: value }))
   const registrationMode = mode === 'register' || Boolean(googleSignup)
+
+  const finishAuthenticatedEntry = async (destination: string) => {
+    // Vinheta apenas após sucesso, independentemente da latência da autenticação.
+    // Com preferência por movimento reduzido, a marca estática substitui o ciclo.
+    setShowLoginMotion(true)
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (!reduced) await new Promise<void>((resolve) => window.setTimeout(resolve, 1_450))
+    go(destination)
+  }
 
   useEffect(() => {
     if (!registrationMode || !SHOW_SIGNUP_PLANS) {
@@ -103,7 +113,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     try {
       const result = await api.googleAuth({ credential, intent: 'login' })
       if (result.ok) {
-        go(mode === 'login' ? requestedDestination() : '/painel')
+        await finishAuthenticatedEntry(mode === 'login' ? requestedDestination() : '/painel')
         return
       }
       if (result.needsSignup) {
@@ -133,13 +143,13 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
           referralCode: form.referralCode,
         })
         if (!result.ok) throw new Error('Não foi possível concluir o cadastro com Google.')
-        go('/painel')
+        await finishAuthenticatedEntry('/painel')
       } else if (mode === 'login') {
         await api.login({ email: form.email, password: form.password })
-        go(requestedDestination())
+        await finishAuthenticatedEntry(requestedDestination())
       } else {
         await api.register({ ...form, planCode: form.planCode || DEFAULT_SIGNUP_PLAN })
-        go('/painel')
+        await finishAuthenticatedEntry('/painel')
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível continuar.')
@@ -221,7 +231,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
           <p className="auth-switch">{registrationMode ? 'Já tem uma conta?' : 'Ainda não tem conta?'} <button type="button" onClick={() => { setGoogleSignup(null); go(registrationMode ? '/entrar' : '/criar-conta') }}>{registrationMode ? 'Entrar' : 'Criar conta'}</button></p>
         </form>
       </main>
-      {(busy || googleBusy) && <div className="svx-auth-loading-overlay"><ShopvaxLoading label="Validando seu acesso…" /></div>}
+      {showLoginMotion && <div className="svx-auth-loading-overlay"><ShopvaxLoading immediate exit repeat={false} label="Acesso confirmado. Abrindo sua loja…" /></div>}
     </div>
   )
 }
