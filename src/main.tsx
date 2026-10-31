@@ -18,6 +18,7 @@ import './shopvax-final-motion.css'
 import './shopvax-cross-surface.css'
 import './shopvax-brand-assets.css'
 import './shopvax-accessibility-polish.css'
+import './shopvax-visual-front-04.css'
 
 // Evita arrastar a marca como arquivo/objeto sem interferir no gesto de fotos de produtos.
 document.addEventListener('dragstart', (event) => {

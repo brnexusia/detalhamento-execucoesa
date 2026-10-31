@@ -1,9 +1,16 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { PassThrough } from 'node:stream'
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { resolveShopvaxTheme, seasonalThemeIds } from './shopvax-theme-presets.mjs'
 import { streamCatalogPdf } from './catalog-pdf.mjs'
+import sharp from 'sharp'
+
+// Mídia sintética exclusiva de regressão; produtos de produção continuam reais.
+const samplePhoto = await sharp({ create:{ width:220, height:260, channels:3, background:'#C87454' } })
+  .jpeg({ quality:78 }).toBuffer()
 
 async function render(store) {
   const output = new PassThrough()
@@ -18,9 +25,9 @@ async function render(store) {
     store: { id:'store-test', slug:'loja', name:'Loja Exemplo', logo_url:'', ...store },
     catalog: { name:'Catálogo Real', kind:'atacado', minimum_order:100 },
     products: [
-      { id:'1', sku:'REF-1', name:'Produto Verificado', price:29.9, public_price:29.9, category:'Moda', images:[], variations:[], media_type:'image', media_url:'' },
+      { id:'1', sku:'REF-1', name:'Produto Verificado', price:29.9, public_price:29.9, category:'Moda', images:[], variations:[], media_type:'image', media_url:'/media/fixture-image' },
     ],
-    imageLoader: async () => null,
+    imageLoader: async (url) => url === '/media/fixture-image' ? { data:samplePhoto, mimeType:'image/jpeg' } : null,
   })
   await ended
   return { bytes:Buffer.concat(chunks),headers:output.headers,status:output.statusCode }
@@ -68,4 +75,53 @@ test('botão gerar PDF renderiza o tema aplicado, não uma prévia qualquer', as
     assert.match(text, /29,90/, 'Tema não altera preços reais')
   }
   assert.notDeepEqual(themed.bytes,natal.bytes)
+})
+
+test('PDF de quatro estados salvos: padrão, paleta, sazonal e restaurado', async () => {
+  const baseStore = { id:'store-04', name:'Loja de Teste', logo_url:'', accent:'#F25C05', seasonal_theme:'padrao' }
+  const standard = await render(baseStore)
+  const palette = await render({ ...baseStore, accent:'#003366' })
+  const seasonal = await render({ ...baseStore, accent:'#003366', seasonal_theme:'black-friday' })
+  // Restaurar tema sazonal preserva a paleta personalizada efetivamente salva.
+  const restored = await render({ ...baseStore, accent:'#003366', seasonal_theme:'padrao' })
+  assert.equal(resolveShopvaxTheme({ ...baseStore, accent:'#003366', seasonal_theme:'padrao' }).accent, '#003366')
+  assert.equal(resolveShopvaxTheme({ ...baseStore, accent:'#003366', seasonal_theme:'black-friday' }).accent, '#F6C544')
+  assert.notDeepEqual(standard.bytes, palette.bytes, 'A paleta deve afetar o PDF')
+  assert.notDeepEqual(palette.bytes, seasonal.bytes, 'O tema sazonal deve mudar mais que a paleta')
+  assert.equal(resolveShopvaxTheme({ ...baseStore, accent:'#003366', seasonal_theme:'padrao' }).id, 'padrao')
+
+  mkdirSync('artifacts/shopvax-redesign', { recursive:true })
+  for (const [name, output, themeId] of [
+    ['padrao', standard, 'padrao'],
+    ['paleta-salva', palette, 'padrao'],
+    ['sazonal-salvo', seasonal, 'black-friday'],
+    ['tema-restaurado', restored, 'padrao'],
+  ]) {
+    assert.equal(output.status, 200)
+    assert.equal(output.headers['content-type'], 'application/pdf')
+    assert.equal(output.headers['x-shopvax-theme'], themeId)
+    assert.equal(output.bytes.subarray(0, 4).toString('ascii'), '%PDF')
+    assert(output.bytes.length > 1200)
+    const path = join('artifacts/shopvax-redesign', `catalogo-${name}.pdf`)
+    writeFileSync(path, output.bytes)
+    const images = spawnSync('pdfimages', ['-list', path], { encoding:'utf8' })
+    if (images.status === 0) assert.match(images.stdout, /image\s+\d+\s+\d+/i, 'PDF deve incorporar foto sem alterar dados')
+    const extracted = spawnSync('pdftotext', [path, '-'], { encoding:'utf8' })
+    if (extracted.status === 0) {
+      assert.match(extracted.stdout, /Loja de Teste/)
+      assert.match(extracted.stdout, /Produto Verificado/)
+      assert.match(extracted.stdout, /REF-1/)
+      assert.match(extracted.stdout, /29,90/, 'Tema/paleta não modifica o preço verdadeiro')
+      if (themeId === 'black-friday') assert.match(extracted.stdout, /BLACK FRIDAY/)
+    }
+    // Captura real do PDF impresso, quando o runner possui Poppler.
+    const image = spawnSync('pdftoppm', [
+      '-f','1','-l','1','-scale-to','1100','-png','-singlefile',
+      path, join('artifacts/shopvax-redesign', `catalogo-${name}`),
+    ])
+    if (image.error && image.error.code !== 'ENOENT') throw image.error
+    if (!image.error && image.status !== 0) {
+      throw new Error(`Falha ao renderizar PDF ${name}: ${image.stderr?.toString() || image.status}`)
+    }
+  }
 })
