@@ -59,7 +59,7 @@ export default function CustomerAccountRoute() {
     const version = ++accountVersion.current
     try {
       const result = await apiRequest<AccountPayload>(`/api/public/store/${encodeURIComponent(storeSlug)}/customers/me`)
-      if (version === accountVersion.current) setAccount(result)
+      if (version === accountVersion.current) { setAccount(result); setError('') }
       return true
     } catch (err) {
       const status = (err as Error & { status?: number }).status
@@ -87,7 +87,8 @@ export default function CustomerAccountRoute() {
     const unsubscribe = listenAuthChanges('customer', revalidate)
     const onFocus = () => { if (document.visibilityState === 'visible') revalidate() }
     window.addEventListener('focus', onFocus)
-    return () => { unsubscribe(); window.removeEventListener('focus', onFocus) }
+    document.addEventListener('visibilitychange', onFocus)
+    return () => { unsubscribe(); window.removeEventListener('focus', onFocus); document.removeEventListener('visibilitychange', onFocus) }
   }, [storeSlug])
 
   const submit = async () => {
