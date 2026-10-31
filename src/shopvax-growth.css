@@ -73,3 +73,8 @@
 .google-auth-button__status,.google-auth-button__error{display:block;font:600 12px/1.5 var(--svx-font-body,Archivo,sans-serif);padding:8px 0;color:#4a463c}.google-auth-button__error{color:#9e291e}
 
 .google-auth-button__mount{min-height:44px;max-width:100%;overflow:hidden}.google-auth-button__mount iframe{max-width:100%}
+
+/* Na loja pública, a ajuda não deve cobrir o botão de adicionar peça no canto direito. */
+.svx-support--store{left:10px;right:auto;bottom:76px}
+.svx-support--store .svx-support__panel{left:0;right:auto}
+@media(max-width:430px){.svx-support--store{left:8px;right:auto;bottom:82px}.svx-support--store .svx-support__trigger{padding:9px 10px;font-size:11px}}
