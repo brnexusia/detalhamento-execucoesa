@@ -55,7 +55,7 @@ export default function ShopvaxSupport() {
     } catch (err) { setFeedback(err instanceof Error ? err.message : 'Não foi possível registrar a solicitação.') }
     finally { setBusy(false) }
   }
-  return <div className="svx-support">
+  return <div className={`svx-support ${!merchant && !path.startsWith('/cliente') ? 'svx-support--store' : ''}`}>
     <button type="button" className="svx-support__trigger" onClick={() => setOpen(!open)} aria-expanded={open} aria-controls="svx-support-panel"><CircleHelp size={19}/> Precisa de ajuda?</button>
     {open && <section id="svx-support-panel" className="svx-support__panel" aria-label="Ajuda contextual Shopvax">
       <header><div><span className="svx-kicker">AJUDA · SHOPVAX</span><h2>{merchant ? 'Ajuda para lojistas' : 'Ajuda para compradores'}</h2></div><button type="button" onClick={() => setOpen(false)} aria-label="Fechar ajuda"><X size={19}/></button></header>
