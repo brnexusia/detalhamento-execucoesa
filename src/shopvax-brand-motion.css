@@ -13,15 +13,19 @@
 @media (prefers-reduced-motion:no-preference){
   /* O V sempre chega de CIMA; o A sempre chega de BAIXO.
      Durante a translação não se cruzam nem deformam. */
-  .svx-brand-motion.is-animating .svx-brand-motion__v{
+  .svx-brand-motion.is-animating:not(.svx-brand-motion--spin) .svx-brand-motion__v{
     animation:svx-mark-v-descend 520ms cubic-bezier(.24,.82,.23,1) both
   }
-  .svx-brand-motion.is-animating .svx-brand-motion__a{
+  .svx-brand-motion.is-animating:not(.svx-brand-motion--spin) .svx-brand-motion__a{
     animation:svx-mark-a-ascend 520ms cubic-bezier(.24,.82,.23,1) both
   }
   /* O X gira somente depois de ambas as peças chegarem: 520 + 630 = 1150ms. */
-  .svx-brand-motion.is-animating .svx-brand-motion__rotor{
+  .svx-brand-motion.is-animating:not(.svx-brand-motion--spin) .svx-brand-motion__rotor{
     animation:svx-mark-assembled-spin 630ms cubic-bezier(.52,.02,.32,1) 520ms both
+  }
+  /* No painel, o X JÁ montado apenas gira no próprio centro uma vez por minuto. */
+  .svx-brand-motion.is-animating.svx-brand-motion--spin .svx-brand-motion__rotor{
+    animation:svx-mark-assembled-spin 1200ms cubic-bezier(.52,.02,.32,1) both
   }
   /* Apenas no login confirmado: o X completo cresce e desaparece nos 300ms finais. */
   .svx-brand-motion.is-animating.svx-brand-motion--exit .svx-brand-motion__symbol{
