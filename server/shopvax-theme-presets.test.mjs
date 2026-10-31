@@ -6,6 +6,11 @@ import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { resolveShopvaxTheme, seasonalThemeIds } from './shopvax-theme-presets.mjs'
 import { streamCatalogPdf } from './catalog-pdf.mjs'
+import sharp from 'sharp'
+
+// Mídia sintética exclusiva de regressão; produtos de produção continuam reais.
+const samplePhoto = await sharp({ create:{ width:220, height:260, channels:3, background:'#C87454' } })
+  .jpeg({ quality:78 }).toBuffer()
 
 async function render(store) {
   const output = new PassThrough()
@@ -20,9 +25,9 @@ async function render(store) {
     store: { id:'store-test', slug:'loja', name:'Loja Exemplo', logo_url:'', ...store },
     catalog: { name:'Catálogo Real', kind:'atacado', minimum_order:100 },
     products: [
-      { id:'1', sku:'REF-1', name:'Produto Verificado', price:29.9, public_price:29.9, category:'Moda', images:[], variations:[], media_type:'image', media_url:'' },
+      { id:'1', sku:'REF-1', name:'Produto Verificado', price:29.9, public_price:29.9, category:'Moda', images:[], variations:[], media_type:'image', media_url:'/media/fixture-image' },
     ],
-    imageLoader: async () => null,
+    imageLoader: async (url) => url === '/media/fixture-image' ? { data:samplePhoto, mimeType:'image/jpeg' } : null,
   })
   await ended
   return { bytes:Buffer.concat(chunks),headers:output.headers,status:output.statusCode }
@@ -99,6 +104,8 @@ test('PDF de quatro estados salvos: padrão, paleta, sazonal e restaurado', asyn
     assert(output.bytes.length > 1200)
     const path = join('artifacts/shopvax-redesign', `catalogo-${name}.pdf`)
     writeFileSync(path, output.bytes)
+    const images = spawnSync('pdfimages', ['-list', path], { encoding:'utf8' })
+    if (images.status === 0) assert.match(images.stdout, /image\s+\d+\s+\d+/i, 'PDF deve incorporar foto sem alterar dados')
     const extracted = spawnSync('pdftotext', [path, '-'], { encoding:'utf8' })
     if (extracted.status === 0) {
       assert.match(extracted.stdout, /Loja de Teste/)
