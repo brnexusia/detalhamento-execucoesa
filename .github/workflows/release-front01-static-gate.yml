@@ -1,0 +1,38 @@
+name: release-front01-static-gate
+
+on:
+  pull_request:
+    paths:
+      - 'docs/SHOPVAX_FRENTE01_RELEASE_OPERATIONS.md'
+      - 'scripts/shopvax-release-readonly.sql'
+      - 'scripts/shopvax-release-preflight.mjs'
+      - 'tests/shopvax-release-preflight.test.mjs'
+      - 'server/system-plans.mjs'
+      - 'server/phase5-launch-hooks.mjs'
+      - 'Dockerfile'
+      - '.github/workflows/release-front01-static-gate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  static-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Testes de contrato e seguranca de gate (somente leitura)
+        run: node --test tests/shopvax-release-preflight.test.mjs
+      - name: Relatorio de pendencias sem acesso a segredos
+        run: node scripts/shopvax-release-preflight.mjs > shopvax-release-preflight.json
+      - name: Artefato de auditoria estatica
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shopvax-front01-static-audit
+          path: shopvax-release-preflight.json
+          if-no-files-found: ignore
+          retention-days: 14
