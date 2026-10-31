@@ -265,7 +265,9 @@ const SocialPostCard = memo(function SocialPostCard({ post, cartCount, active, s
 })
 
 export default function SocialFeed() {
-  const restored = useRef<FeedSession | null>(readFeedSession())
+  // Lazy initializer: parsing a 320-post session on every swipe is expensive.
+  const [initialSession] = useState(readFeedSession)
+  const restored = useRef<FeedSession | null>(initialSession)
   const restoredIndex = useRef((() => {
     const cached = restored.current
     if (!cached?.posts.length) return 0
