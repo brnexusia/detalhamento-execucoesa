@@ -19,6 +19,7 @@ on:
       - 'tests/shopvax-responsive-media.e2e.mjs'
       - 'src/api.ts'
       - 'tests/shopvax-network-recovery.e2e.mjs'
+      - 'tests/shopvax-product-question-seller.e2e.mjs'
       - 'src/product-picker-responsive.css'
       - 'src/shopvax-desktop-product-page.css'
       - 'src/shopvax-desktop-ticket-05.css'
@@ -155,6 +156,8 @@ jobs:
         run: node tests/shopvax-mobile-flow-03.e2e.mjs
       - name: Resiliência de rede - erro recuperável e busca sem respostas obsoletas
         run: node tests/shopvax-network-recovery.e2e.mjs
+      - name: WhatsApp da vendedora nas perguntas dos produtos
+        run: node tests/shopvax-product-question-seller.e2e.mjs
       - name: Plans layout and navigation regression
         run: node tests/shopvax-plans.e2e.mjs
       - name: Product list browser regression
