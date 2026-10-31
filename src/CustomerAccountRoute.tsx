@@ -27,10 +27,21 @@ function go(path: string) {
 }
 
 function statusLabel(value: string) {
+  if (value === 'whatsapp') return 'Pedido preparado'
   if (value === 'em_atendimento') return 'Em atendimento'
+  if (value === 'confirmado') return 'Confirmado pela loja'
   if (value === 'arquivado') return 'Arquivado'
   if (value === 'cancelled') return 'Cancelado'
-  return 'Enviado ao WhatsApp'
+  return 'Status em atualização'
+}
+
+function statusExplanation(value: string) {
+  if (value === 'whatsapp') return 'Talão registrado. Abrir o WhatsApp não confirma que a mensagem foi enviada.'
+  if (value === 'em_atendimento') return 'A loja marcou este pedido como em atendimento.'
+  if (value === 'confirmado') return 'Confirmação manual da loja; não significa pagamento recebido.'
+  if (value === 'arquivado') return 'Talão arquivado pela loja. Consulte a vendedora para detalhes.'
+  if (value === 'cancelled') return 'Pedido cancelado. Estoque devolvido quando aplicável.'
+  return 'Consulte a loja para verificar a situação deste talão.'
 }
 
 export default function CustomerAccountRoute() {
@@ -93,9 +104,18 @@ export default function CustomerAccountRoute() {
   }
 
   const logout = async () => {
-    await apiRequest('/api/public/customers/logout', { method: 'POST' }).catch(() => undefined)
-    setAccount(null)
-    setMode('login')
+    if (busy) return
+    setBusy(true); setError('')
+    try {
+      // Só descartar o estado depois de o servidor confirmar a revogação.
+      await apiRequest('/api/public/customers/logout', { method: 'POST' })
+      accountVersion.current += 1
+      setAccount(null)
+      setForm({ name: '', email: '', phone: '', password: '' })
+      setMode('login')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível sair. Verifique a conexão e tente novamente.')
+    } finally { setBusy(false) }
   }
 
   if (loading) return <div className="customer-page"><div className="customer-card customer-loading"><UserRound size={28}/><strong>Abrindo sua conta…</strong></div></div>
@@ -108,8 +128,8 @@ export default function CustomerAccountRoute() {
       <header className="customer-store-head">{config.store.logoUrl ? <img src={config.store.logoUrl} alt=""/> : <span>SV</span>}<div><small>Conta do cliente</small><strong>{config.store.name}</strong></div></header>
 
       {!config.customerLoginEnabled ? <section className="customer-card"><h1>Conta de cliente indisponível</h1><p>Esta loja desativou temporariamente o acesso por conta.</p></section> : account ? <>
-        <section className="customer-card customer-profile"><div><small>Olá,</small><h1>{account.customer.name}</h1><p>{account.customer.email}</p></div><button onClick={logout}><LogOut size={16}/> Sair</button></section>
-        <section className="customer-card"><div className="customer-section-head"><div><small>Histórico</small><h2>Seus pedidos</h2></div><strong>{account.orders.length}</strong></div><p className="customer-semantics">{account.semantics}</p><div className="customer-orders">{account.orders.map((order) => <article key={order.id}><div className="customer-order-top"><div><small>{date.format(new Date(order.created_at))}</small><strong>{order.code}</strong></div><span className={`customer-status status-${order.status}`}><CheckCircle2 size={14}/>{statusLabel(order.status)}</span></div><div className="customer-order-info"><span>{(() => { const total = order.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0); return `${total} ${total === 1 ? 'item' : 'itens'}` })()}</span><span>{order.seller_name ? `Atendimento: ${order.seller_name}` : 'Atendimento da loja'}</span><b>{money.format(order.total)}</b></div></article>)}{!account.orders.length && <div className="customer-empty"><PackageCheck size={30}/><strong>Nenhum pedido ainda.</strong><p>Quando você enviar um carrinho para o atendimento, ele aparecerá aqui.</p></div>}</div></section>
+        <section className="customer-card customer-profile"><div><small>Olá,</small><h1>{account.customer.name}</h1><p>{account.customer.email}</p></div><button disabled={busy} onClick={logout}><LogOut size={16}/> {busy ? 'Saindo…' : 'Sair'}</button></section>{error && <div className="customer-error" role="alert">{error}</div>}
+        <section className="customer-card"><div className="customer-section-head"><div><small>Histórico</small><h2>Seus pedidos</h2></div><strong>{account.orders.length}</strong></div><p className="customer-semantics">{account.semantics}</p><div className="customer-orders">{account.orders.map((order) => <article key={order.id}><div className="customer-order-top"><div><small>{date.format(new Date(order.created_at))}</small><strong>{order.code}</strong></div><span className={`customer-status status-${order.status}`}><CheckCircle2 size={14}/>{statusLabel(order.status)}</span></div><div className="customer-order-info"><span>{(() => { const total = order.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0); return `${total} ${total === 1 ? 'item' : 'itens'}` })()}</span><span>{order.seller_name ? `Atendimento: ${order.seller_name}` : 'Atendimento da loja'}</span><b>{money.format(order.total)}</b></div><p className="customer-order-explanation">{statusExplanation(order.status)}</p></article>)}{!account.orders.length && <div className="customer-empty"><PackageCheck size={30}/><strong>Nenhum pedido ainda.</strong><p>Quando você preparar um pedido nesta loja com sua conta, ele aparecerá aqui.</p></div>}</div></section>
       </> : <section className="customer-card customer-auth">
         <div className="customer-tabs"><button className={mode === 'login' ? 'is-active' : ''} onClick={() => setMode('login')}>Entrar</button><button className={mode === 'register' ? 'is-active' : ''} onClick={() => setMode('register')}>Criar conta</button></div>
         <div><small>Cliente {config.store.name}</small><h1>{mode === 'login' ? 'Acesse seus pedidos' : 'Crie sua conta'}</h1><p>Use sua conta para acompanhar os pedidos registrados nesta loja.</p></div>
