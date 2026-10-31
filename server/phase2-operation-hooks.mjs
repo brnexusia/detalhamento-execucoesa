@@ -366,11 +366,11 @@ async function phase2Context(req, res) {
     pool.query('SELECT id,slug,name,phone,active,created_at FROM franchisees WHERE store_id=$1 ORDER BY created_at ASC', [store.id]),
     pool.query(`SELECT c.id,c.name,c.email,c.phone,c.active,c.created_at,
       count(o.id)::int AS orders_count,COALESCE(sum(o.total),0)::numeric AS orders_value
-      FROM store_customers c LEFT JOIN orders o ON o.customer_id=c.id
+      FROM store_customers c LEFT JOIN orders o ON o.customer_id=c.id AND o.store_id=c.store_id
       WHERE c.store_id=$1 GROUP BY c.id ORDER BY c.created_at DESC LIMIT 500`, [store.id]),
     pool.query(`SELECT o.id,o.code,o.total,o.status,o.created_at,o.status_updated_at,o.customer_id,o.seller_id,o.items,
       c.name AS customer_name,c.email AS customer_email,s.name AS seller_name
-      FROM orders o LEFT JOIN store_customers c ON c.id=o.customer_id LEFT JOIN sellers s ON s.id=o.seller_id
+      FROM orders o LEFT JOIN store_customers c ON c.id=o.customer_id AND c.store_id=o.store_id LEFT JOIN sellers s ON s.id=o.seller_id AND s.store_id=o.store_id
       WHERE o.store_id=$1 ORDER BY o.created_at DESC LIMIT 200`, [store.id]),
   ])
   return res.json({
@@ -493,7 +493,7 @@ async function customerMe(req, res) {
   const customer = await currentCustomer(req, store.id)
   if (!customer) return res.status(401).json({ error: 'Entre para acessar sua conta.' })
   const orders = await pool.query(`SELECT o.id,o.code,o.total,o.items,o.status,o.created_at,o.status_updated_at,s.name AS seller_name
-    FROM orders o LEFT JOIN sellers s ON s.id=o.seller_id WHERE o.customer_id=$1 AND o.store_id=$2 ORDER BY o.created_at DESC LIMIT 100`, [customer.id, store.id])
+    FROM orders o LEFT JOIN sellers s ON s.id=o.seller_id AND s.store_id=o.store_id WHERE o.customer_id=$1 AND o.store_id=$2 ORDER BY o.created_at DESC LIMIT 100`, [customer.id, store.id])
   return res.json({
     customer,
     store: { slug: store.slug, name: store.name, logoUrl: store.logo_url, accent: store.accent },
