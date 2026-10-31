@@ -16,6 +16,8 @@ const date = new Intl.DateTimeFormat('pt-BR', { day:'2-digit',month:'short',hour
 /** Dashboard (prancha 06) com métricas exclusivamente provenientes do backend. */
 export default function ShopvaxDashboard({ data, incomplete, storeUrl, onSection, onCopy }: Props) {
   const firstName = data.user.name.trim().split(/\s+/)[0] || 'lojista'
+  const hour = new Date().getHours() // Horário local do navegador do lojista; a loja ainda não informa fuso horário.
+  const greeting = hour >= 5 && hour < 12 ? 'Bom dia' : hour < 18 && hour >= 12 ? 'Boa tarde' : 'Boa noite'
   const recent = [...data.orders].sort((a,b)=>Date.parse(b.created_at)-Date.parse(a.created_at)).slice(0,4)
   const activeSellers = data.sellers.filter(s=>s.is_active)
   const safeOrigin = new URL(storeUrl, window.location.href).origin
@@ -32,7 +34,7 @@ export default function ShopvaxDashboard({ data, incomplete, storeUrl, onSection
   const completed = required.filter(x=>x.ready).length
   return <div className="panel-page svx-dashboard">
     <SVRibbon className="svx-dashboard__ribbon"><span>SHOPVAX · PAINEL DE QUEM VENDE</span><span>SEUS PEDIDOS NUM SÓ LUGAR</span></SVRibbon>
-    <div className="svx-dashboard__welcome"><div><span className="svx-kicker">O BALCÃO ESTÁ ABERTO</span><h1>Boa tarde, {firstName}.</h1><p>{data.store.name} · {data.store.is_active ? 'Loja publicada' : 'Loja pausada'}</p></div><div className="svx-dashboard__welcome-actions"><a href={storeUrl} target="_blank" rel="noreferrer"><ExternalLink size={15}/> Abrir loja</a><button onClick={() => onSection('produtos')}><Package size={15}/> Produtos <ArrowRight size={15}/></button></div></div>
+    <div className="svx-dashboard__welcome"><div><span className="svx-kicker">O BALCÃO ESTÁ ABERTO</span><h1>{greeting}, {firstName}.</h1><p>{data.store.name} · {data.store.is_active ? 'Loja publicada' : 'Loja pausada'}</p></div><div className="svx-dashboard__welcome-actions"><a href={storeUrl} target="_blank" rel="noreferrer"><ExternalLink size={15}/> Abrir loja</a><button onClick={() => onSection('produtos')}><Package size={15}/> Produtos <ArrowRight size={15}/></button></div></div>
     <div className="svx-dashboard__metrics">
       <div className="svx-dashboard__primary-metric"><span className="svx-kicker">PEDIDOS REGISTRADOS</span><SVNumber value={data.stats.orders} label="no WhatsApp"/><SVStamp>EM MOVIMENTO</SVStamp></div>
       <div className="svx-dashboard__metric"><SVNumber value={data.stats.views} label="acessos à loja"/></div>
