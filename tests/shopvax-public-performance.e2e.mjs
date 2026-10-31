@@ -113,6 +113,18 @@ try {
   await page.screenshot({ path: `${outputDir}/${mode}-${network}-before-profile.png` })
   await page.locator('.social-feed-store').last().click()
   await page.waitForURL('**/perfil/loja-teste')
+  const profileSession = await page.evaluate(() => {
+    const cache = JSON.parse(sessionStorage.getItem('shopvax_social_feed_state_v3') || 'null')
+    return { scrollTop: cache?.scrollTop, activePostId: cache?.activePostId,
+      posts: cache?.posts?.length, savedAt: cache?.savedAt }
+  })
+  console.log('SHOPVAX_PROFILE_SESSION', JSON.stringify(profileSession))
+  if (mode === 'candidate') {
+    assert(profileSession.scrollTop / 844 >= 180,
+      `Ao abrir o perfil, sessão já perdeu a posição avançada: ${JSON.stringify(profileSession)}`)
+    assert(profileSession.activePostId?.startsWith('post-'),
+      'Sessão deve preservar identidade estável da publicação')
+  }
   await page.goBack({ waitUntil: 'domcontentloaded' })
   await page.locator('.social-feed-card').first().waitFor({ timeout: 20000 })
   if (mode === 'candidate') {
