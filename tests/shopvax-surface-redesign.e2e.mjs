@@ -99,6 +99,12 @@ try {
   assert.equal(await page.locator('.svx-onboarding__choices > button').count(),3)
   assert.doesNotMatch(await page.locator('.svx-onboarding').innerText(),/R\$ 284,50|PASSO 1 DE 2/)
   await page.screenshot({path:'artifacts/shopvax-redesign/onboarding-'+width+'.png',fullPage:true})
+
+  assert.match(await page.locator('.svx-onboarding__intro').innerText(),/Temas e paletas/)
+  await page.locator('.svx-onboarding__footer').getByRole('button',{name:'Temas e paletas'}).click()
+  await page.waitForURL('**/painel/temas')
+  await page.getByRole('heading',{name:'Temas e paletas'}).waitFor()
+
   console.log('SURFACE_REDESIGN_PASS',width,height)
   await context.close()
  }
