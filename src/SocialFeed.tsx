@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { showToast } from './ui-dialogs'
 import { ChevronRight, Eye, Heart, MessageCircleQuestion, Minus, Play, Plus, Share2, ShoppingBag, Store, Volume2, VolumeX, X } from 'lucide-react'
 import './social-feed.css'
@@ -30,7 +30,7 @@ type SocialPost = {
   interactions: { views: number; likes: number; shares: number; followers: number; liked: boolean; following: boolean }
 }
 type FeedPayload = { posts: SocialPost[]; page: { hasMore: boolean; nextCursor: string | null } }
-type FeedSession = { posts: SocialPost[]; cursor: string | null; hasMore: boolean; scrollTop: number; savedAt: number }
+type FeedSession = { posts: SocialPost[]; cursor: string | null; hasMore: boolean; scrollTop: number; savedAt: number; activePostId?: string }
 type FeedCartItem = { key: string; product: FeedProduct; quantity: number; selections: Record<string, string> }
 type PickerState = { post: SocialPost; selections: Record<string, string>; quantity: number }
 
@@ -60,7 +60,7 @@ function readFeedSession(): FeedSession | null {
     const raw = sessionStorage.getItem(feedSessionKey) || 'null'
     const parsed = JSON.parse(raw) as (FeedSession & { scrollY?: number }) | null
     if (!parsed || !Array.isArray(parsed.posts) || Date.now() - Number(parsed.savedAt || 0) > feedSessionTtl) return null
-    return { posts: parsed.posts, cursor: parsed.cursor || null, hasMore: parsed.hasMore !== false, scrollTop: Number(parsed.scrollTop ?? parsed.scrollY ?? 0), savedAt: Number(parsed.savedAt || Date.now()) }
+    return { posts: parsed.posts, cursor: parsed.cursor || null, hasMore: parsed.hasMore !== false, scrollTop: Number(parsed.scrollTop ?? parsed.scrollY ?? 0), activePostId: parsed.activePostId, savedAt: Number(parsed.savedAt || Date.now()) }
   } catch { return null }
 }
 
@@ -71,11 +71,11 @@ function saveFeedSession(posts: SocialPost[], cursor: string | null, hasMore: bo
   const cached = posts.slice(first, first + maxFeedSessionPosts)
   let relativeTop = Math.max(0, scrollTop - first * height)
   try {
-    let snapshot = JSON.stringify({ posts: cached, cursor, hasMore, scrollTop: relativeTop, savedAt: Date.now() } satisfies FeedSession)
+    let snapshot = JSON.stringify({ posts: cached, cursor, hasMore, scrollTop: relativeTop, activePostId: posts[index]?.id, savedAt: Date.now() } satisfies FeedSession)
     while (snapshot.length > maxFeedSessionBytes && cached.length > 3) {
       if (relativeTop >= height * 2) { cached.shift(); relativeTop = Math.max(0, relativeTop - height) }
       else cached.pop()
-      snapshot = JSON.stringify({ posts: cached, cursor, hasMore, scrollTop: relativeTop, savedAt: Date.now() } satisfies FeedSession)
+      snapshot = JSON.stringify({ posts: cached, cursor, hasMore, scrollTop: relativeTop, activePostId: posts[index]?.id, savedAt: Date.now() } satisfies FeedSession)
     }
     if (snapshot.length <= maxFeedSessionBytes) sessionStorage.setItem(feedSessionKey, snapshot)
   } catch { /* cache opcional indisponível; carrinho permanece independente */ }
@@ -266,6 +266,17 @@ const SocialPostCard = memo(function SocialPostCard({ post, cartCount, active, s
 
 export default function SocialFeed() {
   const restored = useRef<FeedSession | null>(readFeedSession())
+  const restoredIndex = useRef((() => {
+    const cached = restored.current
+    if (!cached?.posts.length) return 0
+    const previous = window.history.state?.shopvaxFeedPosition as { postId?: string; index?: number } | undefined
+    const anchor = previous?.postId || cached.activePostId
+    const matching = anchor ? cached.posts.findIndex((post) => post.id === anchor) : -1
+    if (matching >= 0) return matching
+    const estimated = previous?.index ?? Math.round(cached.scrollTop / Math.max(1, window.innerHeight))
+    return Math.max(0, Math.min(cached.posts.length - 1, estimated))
+  })())
+  const restorationPendingRef = useRef(Boolean(restored.current?.posts.length))
   const listRef = useRef<HTMLElement | null>(null)
   const scrollTopRef = useRef(restored.current?.scrollTop || 0)
   const loadingRef = useRef(false)
@@ -281,10 +292,20 @@ export default function SocialFeed() {
   const [pickerError, setPickerError] = useState('')
   const [activeCart, setActiveCart] = useState<SocialPost['store'] | null>(null)
   const [cartVersion, setCartVersion] = useState(0)
-  const [activeIndex, setActiveIndex] = useState(() => Math.max(0, Math.round((restored.current?.scrollTop || 0) / Math.max(1, window.innerHeight))))
+  const [activeIndex, setActiveIndex] = useState(() => restoredIndex.current)
   const saveData = useMemo(() => { const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection; return Boolean(connection?.saveData || ['slow-2g', '2g'].includes(connection?.effectiveType || '')) }, [])
 
-  const persist = useCallback(() => saveFeedSession(posts, cursor, hasMore, listRef.current?.scrollTop ?? scrollTopRef.current, listRef.current?.clientHeight || window.innerHeight), [posts, cursor, hasMore])
+  const persist = useCallback(() => {
+    const list = listRef.current
+    const height = list?.clientHeight || window.innerHeight
+    const scrollTop = restorationPendingRef.current ? restoredIndex.current * height : (list?.scrollTop ?? scrollTopRef.current)
+    const index = Math.max(0, Math.min(posts.length - 1, Math.round(scrollTop / Math.max(1, height))))
+    saveFeedSession(posts, cursor, hasMore, scrollTop, height)
+    // History entry belongs to the feed, not the profile opened by pushState.
+    // Keep an identity anchor so a viewport resize cannot turn item 200 into item 3.
+    const state = window.history.state && typeof window.history.state === 'object' ? window.history.state : {}
+    window.history.replaceState({ ...state, shopvaxFeedPosition: { postId: posts[index]?.id, index } }, '')
+  }, [posts, cursor, hasMore])
 
   const load = useCallback(async (nextCursor?: string | null) => {
     if (loadingRef.current || (!hasMore && nextCursor)) return
@@ -310,31 +331,51 @@ export default function SocialFeed() {
     finally { loadingRef.current = false; setLoading(false) }
   }, [hasMore])
 
+  // Restore *before paint* from the publication identity and the actual container height.
+  // React's scroll events during mount/virtualization must not overwrite the saved index.
+  useLayoutEffect(() => {
+    const list = listRef.current
+    if (!list || !restorationPendingRef.current) return
+    const previousSnap = list.style.scrollSnapType
+    const previousAnchor = list.style.overflowAnchor
+    list.style.scrollSnapType = 'none'
+    list.style.overflowAnchor = 'none'
+    let firstFrame = 0
+    let secondFrame = 0
+    const restore = () => {
+      const position = restoredIndex.current * Math.max(1, list.clientHeight)
+      list.scrollTop = position
+      scrollTopRef.current = position
+    }
+    restore()
+    firstFrame = window.requestAnimationFrame(() => {
+      restore()
+      secondFrame = window.requestAnimationFrame(() => {
+        restore()
+        restorationPendingRef.current = false
+        list.style.scrollSnapType = previousSnap
+        list.style.overflowAnchor = previousAnchor
+      })
+    })
+    return () => {
+      window.cancelAnimationFrame(firstFrame)
+      window.cancelAnimationFrame(secondFrame)
+      list.style.scrollSnapType = previousSnap
+      list.style.overflowAnchor = previousAnchor
+    }
+  }, [])
+
   useEffect(() => {
     if (initialLoadStarted.current) return
     initialLoadStarted.current = true
     const cached = restored.current
     restored.current = null
-    if (cached?.posts?.length) {
-      const y = Math.max(0, Number(cached.scrollTop || 0))
-      const list = listRef.current
-      if (list) {
-        // Mandatory scroll-snap can force the first mounted virtual card into view
-        // before the cached position is restored. Disable it only for restoration.
-        const oldSnap = list.style.scrollSnapType
-        list.style.scrollSnapType = 'none'
-        list.scrollTop = y
-        requestAnimationFrame(() => requestAnimationFrame(() => {
-          if (!list.isConnected) return
-          list.scrollTop = y
-          requestAnimationFrame(() => { if (list.isConnected) list.style.scrollSnapType = oldSnap })
-        }))
-      }
-    }
-    else void load(null)
+    if (!cached?.posts?.length) void load(null)
   }, [load])
 
-  useEffect(() => { saveFeedSession(posts, cursor, hasMore, scrollTopRef.current, listRef.current?.clientHeight || window.innerHeight) }, [posts, cursor, hasMore])
+  useEffect(() => {
+    if (!restorationPendingRef.current) saveFeedSession(posts, cursor, hasMore, scrollTopRef.current, listRef.current?.clientHeight || window.innerHeight)
+  }, [posts, cursor, hasMore])
   useEffect(() => {
     const save = () => persist()
     window.addEventListener('pagehide', save)
@@ -414,7 +455,7 @@ export default function SocialFeed() {
 
   return <div className="social-feed-page">
     <header className="social-feed-nav"><strong className="svx-social-brand"><img src="/brand/shopvax-symbol-dark.svg" className="svx-brand-symbol" alt="" aria-hidden="true" /><img src="/brand/shopvax-wordmark-light.svg" className="svx-brand-wordmark" alt="Shopvax" /></strong><span>PRODUTOS DAS LOJAS</span><div className="social-feed-nav__right"><a href="/para-lojas">Para lojas</a><a href="/entrar">Entrar</a></div></header>
-    <main className="social-feed-list" ref={listRef} onScroll={(event) => { scrollTopRef.current = event.currentTarget.scrollTop; const list = event.currentTarget; setActiveIndex((index) => { const next = Math.max(0, Math.min(posts.length - 1, Math.round(list.scrollTop / Math.max(1, list.clientHeight)))); return next === index ? index : next }) }}>
+    <main className="social-feed-list" ref={listRef} onScroll={(event) => { if (restorationPendingRef.current) return; scrollTopRef.current = event.currentTarget.scrollTop; const list = event.currentTarget; setActiveIndex((index) => { const next = Math.max(0, Math.min(posts.length - 1, Math.round(list.scrollTop / Math.max(1, list.clientHeight)))); return next === index ? index : next }) }}>
       {windowStart > 0 && <div className="social-feed-spacer" aria-hidden="true" style={{ height: `${windowStart * 100}dvh` }}/>}
       {visiblePosts.map((post, index) => <SocialPostCard post={post} key={post.id} active={windowStart + index === visibleIndex} saveData={saveData} cartCount={cartCount(post.store.slug)} onProfile={openProfile} onAdd={requestAdd} onCart={setActiveCart}/>)}
       {windowEnd < posts.length && <div className="social-feed-spacer" aria-hidden="true" style={{ height: `${(posts.length - windowEnd) * 100}dvh` }}/>}
