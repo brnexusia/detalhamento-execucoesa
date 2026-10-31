@@ -19,6 +19,7 @@ Preencher em registro PRIVADO e registrar em #75 somente identificadores públic
 - Confirmar `SHOPVAX_ASAAS_MOCK`, `SHOPVAX_PLAN_LIMITS_DISABLED`, `SHOPVAX_SECURITY_RATE_LIMIT_DISABLED` e `SHOPVAX_APPLY_APPROVED_PLAN_LIMITS` **não habilitados** no deploy regular.
 - Examinar volumes, bind mounts e objetos externos. No código atual `server/app.mjs` e `server/scanner-hooks.mjs` armazenam mídias em `media_assets.data bytea` e `media_variants.data bytea`, no PostgreSQL. Temporários da importação PDF usam `os.tmpdir()`. Se a instalação real tiver outros volumes persistentes, inventariá-los e incluí-los no backup; não assumir que somente o banco é usado em produção.
 - Registrar recursos reais: CPU, RAM, disco, limites de tamanho dos uploads, configurações de proxy e healthcheck.
+- **Correção de saúde (PR #120):** o Dockerfile passou a interpretar o JSON de `/health` e exigir explicitamente `ok=true` e `database=true`. O endpoint da aplicação pode devolver HTTP 200 com banco indisponível; checar só status HTTP gera falso positivo. O workflow e o verificador público continuam exigindo o campo `database`. Validar o comportamento em container real antes do GO.
 
 ## 3. Contrato e migração — apenas leitura antes do aceite
 Referências em `server/system-plans.mjs`, `server/platform-hooks.mjs`, `server/plan-limits-hooks.mjs`, README e histórico de aprovações:
