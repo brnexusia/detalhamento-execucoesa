@@ -26,7 +26,7 @@ try {
     await page.goto('http://127.0.0.1:5173/painel')
     const title = page.locator('.svx-dashboard__welcome h1')
     await title.waitFor()
-    assert.equal(await title.innerText(),expected)
+    assert.equal((await title.textContent())?.trim(),expected) // CSS mantém maiúsculas visuais da prancha oficial
     assert.match(await page.locator('.svx-dashboard__welcome').innerText(),/Loja Teste/)
     await context.close()
   }
