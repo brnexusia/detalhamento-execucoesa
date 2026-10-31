@@ -31,11 +31,35 @@ async function admin(path, cookie, options = {}) {
 try {
   await waitForServer()
   const account = await register()
+  // Nenhuma conta recém-criada pode exibir o número administrativo como vendedora.
+  let publicResponse = await fetch(`${base}/api/public/store/${account.storeSlug}`, {
+    headers: { 'User-Agent':'Mozilla/5.0 ShopvaxSellerNone', 'X-Forwarded-For':'203.0.113.212' },
+  })
+  assert.equal(publicResponse.status, 200)
+  const withoutSeller = await publicResponse.json()
+  assert.equal(withoutSeller.seller.phone, '', 'Sem vendedora o WhatsApp administrativo não é exibido')
+  assert.notEqual(withoutSeller.seller.phone, withoutSeller.store.whatsapp)
+
   const seller = await admin('/api/admin/sellers', account.cookie, {
     method: 'POST',
     body: JSON.stringify({ name: 'Vendedora Catálogo', phone: '5511987700456', isActive: true }),
   })
   assert.equal(seller.status, 201, 'Para criar pedido a loja deve ter vendedora ativa')
+  const sellerData = (await seller.json()).seller
+  publicResponse = await fetch(`${base}/api/public/store/${account.storeSlug}`, {
+    headers: { 'User-Agent':'Mozilla/5.0 ShopvaxSellerAssigned', 'X-Forwarded-For':'203.0.113.213' },
+  })
+  assert.equal(publicResponse.status,200)
+  const withSeller = await publicResponse.json()
+  assert.equal(withSeller.seller.phone,'5511987700456', 'URL geral atribui vendedora ativa')
+  assert.equal(withSeller.seller.id,sellerData.id)
+  assert.notEqual(withSeller.seller.phone,withSeller.store.whatsapp)
+
+  publicResponse = await fetch(`${base}/api/public/store/${account.storeSlug}/vendedora-inativa`, {
+    headers: { 'User-Agent':'Mozilla/5.0 ShopvaxSellerReassigned', 'X-Forwarded-For':'203.0.113.214' },
+  })
+  assert.equal(publicResponse.status,200)
+  assert.equal((await publicResponse.json()).seller.id,sellerData.id, 'Link inválido deve redistribuir para vendedora ativa')
   const sourceImage = await sharp({
     create: { width: 1200, height: 600, channels: 3, background: '#d8d1c4' },
   }).jpeg({ quality: 90 }).toBuffer()
