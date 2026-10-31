@@ -67,6 +67,8 @@ function cloneReviewData(data: ImportReviewData): ImportReviewData {
 
 export default function ScannerModule1() {
   const [slot, setSlot] = useState<HTMLElement | null>(null)
+  const [pollCount, setPollCount] = useState(0)
+  const [visible, setVisible] = useState(document.visibilityState === 'visible')
   const [open, setOpen] = useState(false)
   const [mode, setMode] = useState<'scan' | 'review'>('scan')
   const [url, setUrl] = useState('')
@@ -117,16 +119,24 @@ export default function ScannerModule1() {
       setSlot(host)
     }
     sync()
-    const observer = new MutationObserver(sync)
-    observer.observe(document.body, { childList: true, subtree: true })
-    return () => { observer.disconnect(); host?.remove() }
+    window.addEventListener('shopvax:products-ready', sync)
+    return () => { window.removeEventListener('shopvax:products-ready', sync); host?.remove() }
   }, [])
+  useEffect(() => {
+    const onVisibility = () => setVisible(document.visibilityState === 'visible')
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => document.removeEventListener('visibilitychange', onVisibility)
+  }, [])
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('shopvax:scanner-visibility', { detail: { open } }))
+  }, [open])
 
   const loadJobs = async (quiet = false) => {
     if (!quiet) setLoadingJobs(true)
     try {
       const result = await api.listImportJobs()
       setJobs(result.jobs)
+      window.dispatchEvent(new Event('shopvax:scanner-jobs-changed'))
     } catch (err) {
       if (!quiet) setError(err instanceof Error ? err.message : 'Não foi possível carregar as importações.')
     } finally {
@@ -159,12 +169,15 @@ export default function ScannerModule1() {
   }
 
   useEffect(() => {
-    if (!open || mode !== 'scan') return
-    const timer = window.setInterval(() => {
-      if (jobs.some((job) => ['queued', 'scanning', 'processing'].includes(job.status))) void loadJobs(true)
-    }, 2000)
-    return () => window.clearInterval(timer)
-  }, [open, mode, jobs])
+    if (!open || mode !== 'scan' || !visible || !jobs.some((job) => ['queued', 'scanning', 'processing'].includes(job.status))) return
+    // Busy jobs are checked promptly at first, then with bounded backoff; no idle polling.
+    const delay = Math.min(15_000, 2_000 * Math.pow(1.5, Math.min(pollCount, 6)))
+    const timer = window.setTimeout(() => {
+      void loadJobs(true)
+      setPollCount((current) => current + 1)
+    }, delay)
+    return () => window.clearTimeout(timer)
+  }, [open, mode, jobs, pollCount, visible])
 
   useEffect(() => {
     if (!open || mode !== 'review' || !reviewJob) return
@@ -176,6 +189,7 @@ export default function ScannerModule1() {
   }, [reviewFilter, reviewQuery])
 
   const show = () => {
+    setPollCount(0)
     setOpen(true)
     setMode('scan')
     setError('')
