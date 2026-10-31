@@ -15,6 +15,7 @@ on:
       - 'src/CustomerAccountLauncher.tsx'
       - 'src/api.ts'
       - 'tests/shopvax-auth-multitab.e2e.mjs'
+      - 'tests/shopvax-buyer-session-status.e2e.mjs'
       - 'src/responsive-media.ts'
       - 'tests/shopvax-responsive-media.e2e.mjs'
       - 'src/api.ts'
@@ -152,6 +153,8 @@ jobs:
         run: node tests/shopvax-checkout-review.e2e.mjs
       - name: Auth entre abas - outra empresa nao permanece visivel
         run: node tests/shopvax-auth-multitab.e2e.mjs
+      - name: Comprador - duas abas, status do pedido e recuperacao de rede
+        run: node tests/shopvax-buyer-session-status.e2e.mjs
       - name: Temas e paletas - preview, aplicar e restaurar
         run: node tests/shopvax-themes.e2e.mjs
       - name: Layer 03 - mobile catalogue, minimum, review and WhatsApp handoff
