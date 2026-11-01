@@ -39,6 +39,11 @@ jobs:
           node-version: 22
       - name: Install
         run: npm install
+      - name: Critical pre-launch unit tests (media, Stripe, buyer login)
+        run: |
+          node --test server/media-upload-queue.test.mjs
+          npm run test:billing
+          npm run test:buyer-whatsapp
       - name: Build
         run: npm run build
       - name: Start Shopvax

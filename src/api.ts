@@ -73,11 +73,20 @@ export type AdminCatalog = Catalog & {
 }
 
 export async function apiRequest<T>(url: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(url, {
-    credentials: 'include',
-    ...options,
-    headers: options.body instanceof FormData ? options.headers : { 'Content-Type': 'application/json', ...(options.headers || {}) },
-  })
+  let response: Response
+  try {
+    response = await fetch(url, {
+      credentials: 'include',
+      ...options,
+      headers: options.body instanceof FormData ? options.headers : { 'Content-Type': 'application/json', ...(options.headers || {}) },
+    })
+  } catch (error) {
+    // Falhas de proxy/rede em uploads precisam ser acionáveis, não "Failed to fetch".
+    if (options.body instanceof FormData && error instanceof TypeError) {
+      throw new Error('A conexão foi interrompida durante o envio. Confira sua internet e tente novamente. Se persistir, informe o suporte.')
+    }
+    throw error
+  }
   const payload = response.status === 204 ? null : await response.json().catch(() => null)
   if (!response.ok) {
     const error = new Error(payload?.error || 'Não foi possível concluir a operação.') as Error & { status?: number; code?: string }
@@ -223,6 +232,10 @@ export const api = {
   updateImportReviewProduct: (jobId: string, productId: string, body: { data?: Partial<ImportReviewData>; selected?: boolean }) => request<{ product: ImportReviewProduct; summary: ImportReviewSummary; job: ImportJob }>(`/api/admin/imports/${encodeURIComponent(jobId)}/review/${encodeURIComponent(productId)}`, { method: 'PATCH', body: JSON.stringify(body) }),
   updateImportReviewSelection: (jobId: string, action: 'ready' | 'none') => request<{ summary: ImportReviewSummary; job: ImportJob }>(`/api/admin/imports/${encodeURIComponent(jobId)}/review-selection`, { method: 'PATCH', body: JSON.stringify({ action }) }),
   upload: async (file: File) => {
+    if (file.size > 30 * 1024 * 1024) throw new Error('O limite é de 30 MB por arquivo. Reduza o arquivo e tente novamente.')
+    if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
+      throw new Error('Escolha uma imagem ou vídeo válido.')
+    }
     const form = new FormData()
     form.append('file', file)
     return request<{ url: string; type: 'image' | 'video' }>('/api/admin/upload', { method: 'POST', body: form })
