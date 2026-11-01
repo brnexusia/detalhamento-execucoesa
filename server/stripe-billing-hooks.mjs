@@ -266,15 +266,18 @@ async function change(req, res) {
   if (sub.customer !== account.customer_id || !sub.items?.data?.[0]?.id || sub.status !== 'active') {
     return apiError(res, 409, 'A assinatura está em processamento. Atualize o status.', 'SUBSCRIPTION_UNAVAILABLE')
   }
+  if (sub.pending_update) return apiError(res, 409, 'Há uma mudança de plano pendente de pagamento. Conclua-a antes de fazer outra.', 'PLAN_CHANGE_PENDING')
   const priceId = await ensureStripePrice(plan)
   const currentStripePrice = typeof sub.items.data[0].price === 'string' ? sub.items.data[0].price : sub.items.data[0].price?.id
   if (currentStripePrice === priceId) return res.json({ ok: true, pending: true, message: 'Esta mudança já está em processamento na Stripe.' })
+  const requestId = typeof req.body?.requestId === 'string' && /^[a-zA-Z0-9-]{1,64}$/.test(req.body.requestId)
+    ? req.body.requestId : crypto.randomUUID()
   const updated = await stripe('POST', 'subscriptions/' + encodeURIComponent(sub.id), {
     'items[0][id]': sub.items.data[0].id,
     'items[0][price]': priceId,
     proration_behavior: 'always_invoice',
     payment_behavior: 'pending_if_incomplete',
-  }, 'shopvax-change-' + sub.id + '-' + priceId + '-' + (req.body?.requestId || 'change'))
+  }, 'shopvax-change-' + sub.id + '-' + priceId + '-' + requestId)
   res.json({ ok: true, status: updated.status, pending: Boolean(updated.pending_update), message: 'A alteração só será liberada após a confirmação da cobrança, quando necessária.' })
 }
 
