@@ -5,9 +5,11 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/shopvax-safari-mobile.yml'
+      - 'scripts/build-ui-version.mjs'
       - 'tests/shopvax-safari-mobile-live.mjs'
       - 'tests/shopvax-feedback-ui.e2e.mjs'
-      - 'src/social-account-choice.css'
+      - 'src/**/*.css'
+      - 'src/**/*.tsx'
   workflow_dispatch:
 
 permissions:
@@ -16,7 +18,7 @@ permissions:
 jobs:
   safari:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 22
     steps:
       - uses: actions/checkout@v4
       - name: Node 22
@@ -42,8 +44,27 @@ jobs:
         env:
           SHOPVAX_TEST_BROWSER: webkit
         run: node tests/shopvax-feedback-ui.e2e.mjs
-      - name: Diagnosticar produção mobile Safari (pode estar em deploy anterior)
-        continue-on-error: true
+
+      - name: Aguardar a mesma revisão da main em produção
+        shell: bash
+        run: |
+          expected_revision="$(node -p "JSON.parse(require('node:fs').readFileSync('public/shopvax-ui-version.json','utf8')).revision")"
+          expected_fingerprint="$(node -p "JSON.parse(require('node:fs').readFileSync('public/shopvax-ui-version.json','utf8')).sourceFingerprint")"
+          for attempt in $(seq 1 30); do
+            payload="$(curl -fsS --max-time 12 https://shopvax.com.br/shopvax-ui-version.json || true)"
+            actual_revision="$(PAYLOAD="$payload" node -e "try{process.stdout.write(JSON.parse(process.env.PAYLOAD).revision||'')}catch{}")"
+            actual_fingerprint="$(PAYLOAD="$payload" node -e "try{process.stdout.write(JSON.parse(process.env.PAYLOAD).sourceFingerprint||'')}catch{}")"
+            if [[ "$actual_revision" == "$expected_revision" && "$actual_fingerprint" == "$expected_fingerprint" ]]; then
+              echo "Produção está na revisão esperada: $actual_revision / $actual_fingerprint"
+              exit 0
+            fi
+            echo "Tentativa $attempt/30: produção ainda está em ${actual_revision:-indisponível} / ${actual_fingerprint:-indisponível}; esperado $expected_revision / $expected_fingerprint"
+            sleep 20
+          done
+          echo "A produção não publicou a revisão da main dentro de 10 minutos."
+          exit 1
+
+      - name: Homologar produção mobile no Safari/WebKit
         run: node tests/shopvax-safari-mobile-live.mjs
       - name: Evidências WebKit na main
         if: always()

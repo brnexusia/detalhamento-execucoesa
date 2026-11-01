@@ -112,3 +112,16 @@ test('comprador recebe formulario WhatsApp e perguntas comerciais, sem senha na 
   assert.match(buyer, /marketingConsent/)
   assert.match(server, /const purposes = new Set\(\['revenda', 'negocio'/)
 })
+
+test('Safari mobile só aprova quando a mesma revisão da main está publicada', () => {
+  const workflow = read('.github/workflows/shopvax-safari-mobile.yml')
+  assert.match(workflow, /Aguardar a mesma revisão da main em produção/)
+  assert.match(workflow, /shopvax-ui-version\.json/)
+  assert.match(workflow, /expected_revision/)
+  assert.match(workflow, /expected_fingerprint/)
+  assert.match(workflow, /Homologar produção mobile no Safari\/WebKit/)
+  assert.match(workflow, /run: node tests\/shopvax-safari-mobile-live\.mjs/)
+  assert.doesNotMatch(workflow, /continue-on-error:\s*true/)
+  assert.match(workflow, /src\/\*\*\/\*\.css/)
+  assert.match(workflow, /src\/\*\*\/\*\.tsx/)
+})
