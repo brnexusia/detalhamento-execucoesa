@@ -41,7 +41,8 @@ async function ensureSchema() {
       "stripe_mode text NOT NULL, plan_code text NOT NULL, cycle text NOT NULL, amount_cents integer NOT NULL,",
       "product_id text NOT NULL, price_id text NOT NULL UNIQUE,",
       "PRIMARY KEY(stripe_mode,plan_code,cycle,amount_cents));",
-      "CREATE OR REPLACE FUNCTION shopvax_stripe_insert_store() RETURNS trigger LANGUAGE plpgsql AS $$",
+      "CREATE TABLE IF NOT EXISTS shopvax_stripe_settings (stripe_mode text PRIMARY KEY, portal_config_id text);",
+      "CREATE OR REPLACE FUNCTION shopvax_stripe_insert_store() RETURNS trigger LANGUAGE plpgsql AS $",
       "BEGIN IF NEW.billing_required THEN NEW.plan_tier := 'bronze'; END IF; RETURN NEW; END $$;",
       "DROP TRIGGER IF EXISTS trg_shopvax_stripe_new_store ON stores;",
       "CREATE TRIGGER trg_shopvax_stripe_new_store BEFORE INSERT ON stores",
@@ -238,16 +239,22 @@ async function portal(req, res) {
   const account = await requireOwner(req, res)
   if (!account) return
   if (!account.customer_id || !ready || account.stripe_mode !== stripeMode) return apiError(res, 409, 'Nenhuma assinatura Stripe válida neste ambiente.', 'NO_BILLING_CUSTOMER')
-  const config = await stripe('POST', 'billing_portal/configurations', {
+  const cached = await pool.query('SELECT portal_config_id FROM shopvax_stripe_settings WHERE stripe_mode=$1', [stripeMode])
+  let configId = cached.rows[0]?.portal_config_id || null
+  if (!configId) {
+    const config = await stripe('POST', 'billing_portal/configurations', {
     'features[invoice_history][enabled]': 'true',
     'features[payment_method_update][enabled]': 'true',
     'features[subscription_cancel][enabled]': 'true',
     'features[subscription_cancel][mode]': 'at_period_end',
     'features[subscription_update][enabled]': 'false',
-  }, 'shopvax-portal-config-v1')
+    }, 'shopvax-portal-config-v1')
+    await pool.query('INSERT INTO shopvax_stripe_settings (stripe_mode,portal_config_id) VALUES ($1,$2) ON CONFLICT (stripe_mode) DO NOTHING', [stripeMode, config.id])
+    configId = (await pool.query('SELECT portal_config_id FROM shopvax_stripe_settings WHERE stripe_mode=$1', [stripeMode])).rows[0].portal_config_id
+  }
   const session = await stripe('POST', 'billing_portal/sessions', {
     customer: account.customer_id,
-    configuration: config.id,
+    configuration: configId,
     return_url: publicOrigin + '/painel/assinatura',
   })
   res.json({ url: session.url })
