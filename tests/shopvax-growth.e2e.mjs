@@ -33,6 +33,43 @@ try {
     assert.equal(outside,false,'Sem overflow horizontal no painel')
     await page.close()
 
+    // A mesma ajuda é oferecida durante a configuração inicial,
+    // mas não pode tapar o cartão Grafite nem qualquer botão da prancha 06.
+    const onboardingPage = await context.newPage()
+    await onboardingPage.route('**/api/public/support/config', route => route.fulfill({
+      status:200,contentType:'application/json',
+      body:JSON.stringify({ticketsEnabled:false,aiEnabled:false}),
+    }))
+    await onboardingPage.route('**/api/admin/bootstrap**', route => route.fulfill({
+      status:200,contentType:'application/json',body:JSON.stringify({
+        user:{id:'owner1',email:'owner@example.test',name:'Laura'},
+        store:{id:'store1',slug:'loja-teste',name:'Loja Teste',whatsapp:'5511999999999',
+          onboarding_palette_selected:false,minimum_order:100,accent:'#F25C05',is_active:true,plan_tier:'bronze'},
+        products:[],productCount:0,productCategories:[],sellers:[],orders:[],
+        stats:{views:0,carts:0,orders:0,value:0},
+      }),
+    }))
+    await onboardingPage.goto(base + '/painel')
+    await onboardingPage.locator('.svx-onboarding__choices').waitFor()
+    const helpPosition=await onboardingPage.evaluate(()=>{
+      const cards=[...document.querySelectorAll('.svx-onboarding__card')]
+      const trigger=document.querySelector('.svx-support__trigger')
+      const footer=document.querySelector('.svx-onboarding__footer')
+      return {cards:cards.length,
+        lastCardBottom:cards.at(-1).getBoundingClientRect().bottom,
+        footerBottom:footer.getBoundingClientRect().bottom,
+        triggerTop:trigger.getBoundingClientRect().top,
+        horizontalOverflow:document.documentElement.scrollWidth-innerWidth}
+    })
+    assert.equal(helpPosition.cards,3,'Onboarding has exactly three palettes')
+    assert(helpPosition.triggerTop>=helpPosition.footerBottom-2,
+      'Floating help obscures palette/CTA: '+JSON.stringify({width,helpPosition}))
+    assert(helpPosition.horizontalOverflow<=2,'Onboarding creates horizontal overflow: '+JSON.stringify({width,helpPosition}))
+    await onboardingPage.getByRole('button',{name:'Precisa de ajuda?'}).click()
+    await onboardingPage.getByRole('heading',{name:'Ajuda para lojistas'}).waitFor()
+    await onboardingPage.screenshot({path:'artifacts/shopvax-growth/onboarding-'+width+'.png',fullPage:true})
+    await onboardingPage.close()
+
     const buyerPage = await context.newPage()
     await buyerPage.route('**/api/public/store/loja-teste/phase2-config', route => route.fulfill({
       status:200, contentType:'application/json', body:JSON.stringify({store:{slug:'loja-teste',name:'Loja Teste',accent:'#F25C05'},customerLoginEnabled:true}),
