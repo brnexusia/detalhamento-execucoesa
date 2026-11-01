@@ -40,7 +40,14 @@ try {
       const avatar=rect('.social-feed-actions .social-feed-store')
       const like=rect('.social-feed-actions button[aria-label="Curtir produto"]')
       const image=document.querySelector('.social-feed-media img')
+      const debug=(sel)=>{
+        const e=document.querySelector(sel);const s=getComputedStyle(e);const r=e.getBoundingClientRect();
+        return {x:r.x,width:r.width,clientWidth:e.clientWidth,offsetWidth:e.offsetWidth,
+          paddingLeft:s.paddingLeft,paddingRight:s.paddingRight,maxWidth:s.maxWidth,
+          widthCss:s.width,boxSizing:s.boxSizing,transform:s.transform};
+      };
       return {
+        debug:{page:debug('.social-feed-page'),list:debug('main.social-feed-list'),card:debug('.social-feed-card'),body:debug('body')},
         card:rect('.social-feed-card'),
         media:rect('.social-feed-media'),
         image:rect('.social-feed-media img'),
