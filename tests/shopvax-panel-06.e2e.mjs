@@ -40,7 +40,7 @@ try{
     }
   })
   assert.equal(tape.animation,'shopvax-login-black-friday-tape')
-  assert.equal(tape.duration,'24s')
+  assert.equal(tape.duration,'30s')
   assert.equal(tape.overflow,'hidden')
   assert(tape.first>0 && tape.first===tape.second,'Faixa duplicada precisa ter larguras iguais')
   assert.equal(await page.locator('.auth-divider').isVisible(),false,'No isolated OU separator without Google login')
