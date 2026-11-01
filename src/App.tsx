@@ -36,7 +36,7 @@ function RouteFallback() {
 export default function App() {
   const [pathname, setPathname] = useState(() => window.location.pathname)
   const page = pageFor(pathname)
-  const helpAllowed = page === 'register' || page === 'customer' ||
+  const helpAllowed = page === 'login' || page === 'register' || page === 'customer' ||
     (page === 'admin' && ['/painel','/painel/loja','/painel/temas','/painel/assinatura','/painel/integracoes','/painel/recursos','/painel/crescimento'].includes(pathname))
 
   useEffect(() => {
