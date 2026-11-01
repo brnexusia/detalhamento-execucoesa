@@ -54,8 +54,8 @@ export default function CustomerAccountRoute() {
   const [storeSlug, setStoreSlug] = useState(customerStoreSlug)
   const [config, setConfig] = useState<StoreConfig | null>(null)
   const [account, setAccount] = useState<AccountPayload | null>(null)
-  const [mode, setMode] = useState<'login' | 'register'>('login')
-  const [form, setForm] = useState({ name: '', email: '', phone: '', password: '' })
+  const [legacyOpen, setLegacyOpen] = useState(false)
+  const [form, setForm] = useState({ email: '', password: '' })
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -91,7 +91,7 @@ export default function CustomerAccountRoute() {
     setAccount(null)
     setError('')
     setLoading(true)
-    setForm({ name: '', email: '', phone: '', password: '' })
+    setForm({ email: '', password: '' })
     Promise.all([
       apiRequest<StoreConfig>(`/api/public/store/${encodeURIComponent(storeSlug)}/phase2-config`),
       loadAccount(),
@@ -113,11 +113,10 @@ export default function CustomerAccountRoute() {
   const submit = async () => {
     setBusy(true); setError('')
     try {
-      const endpoint = mode === 'login' ? 'login' : 'register'
-      const body = mode === 'login'
-        ? { email: form.email, password: form.password }
-        : { name: form.name, email: form.email, phone: form.phone, password: form.password }
-      await apiRequest(`/api/public/store/${encodeURIComponent(storeSlug)}/customers/${endpoint}`, { method: 'POST', body: JSON.stringify(body) })
+      // Somente contas antigas usam a compatibilidade e-mail/senha.
+      await apiRequest(`/api/public/store/${encodeURIComponent(storeSlug)}/customers/login`, {
+        method: 'POST', body: JSON.stringify({ email: form.email, password: form.password }),
+      })
       await loadAccount()
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível entrar.') }
     finally { setBusy(false) }
@@ -131,8 +130,8 @@ export default function CustomerAccountRoute() {
       await apiRequest('/api/public/customers/logout', { method: 'POST' })
       accountVersion.current += 1
       setAccount(null)
-      setForm({ name: '', email: '', phone: '', password: '' })
-      setMode('login')
+      setForm({ email: '', password: '' })
+      setLegacyOpen(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível sair. Verifique a conexão e tente novamente.')
     } finally { setBusy(false) }
@@ -151,16 +150,27 @@ export default function CustomerAccountRoute() {
         <section className="customer-card customer-profile"><div><small>Olá,</small><h1>{account.customer.name}</h1><p>{account.customer.email}</p></div><button disabled={busy} onClick={logout}><LogOut size={16}/> {busy ? 'Saindo…' : 'Sair'}</button></section>{error && <div className="customer-error" role="alert">{error}</div>}
         {config.buyerWhatsAppLoginEnabled && <BuyerWhatsappLogin key={storeSlug + "-profile"} storeSlug={storeSlug} editOnly onVerified={loadAccount}/>}
         <section className="customer-card"><div className="customer-section-head"><div><small>Histórico</small><h2>Seus pedidos</h2></div><strong>{account.orders.length}</strong></div><p className="customer-semantics">{account.semantics}</p><div className="customer-orders">{account.orders.map((order) => <article key={order.id}><div className="customer-order-top"><div><small>{date.format(new Date(order.created_at))}</small><strong>{order.code}</strong></div><span className={`customer-status status-${order.status}`}><CheckCircle2 size={14}/>{statusLabel(order.status)}</span></div><div className="customer-order-info"><span>{(() => { const total = order.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0); return `${total} ${total === 1 ? 'item' : 'itens'}` })()}</span><span>{order.seller_name ? `Atendimento: ${order.seller_name}` : 'Atendimento da loja'}</span><b>{money.format(order.total)}</b></div><p className="customer-order-explanation">{statusExplanation(order.status)}</p></article>)}{!account.orders.length && <div className="customer-empty"><PackageCheck size={30}/><strong>Nenhum pedido ainda.</strong><p>Quando você preparar um pedido nesta loja com sua conta, ele aparecerá aqui.</p></div>}</div></section>
-      </> : config.buyerWhatsAppLoginEnabled ? <BuyerWhatsappLogin key={storeSlug} storeSlug={storeSlug} onVerified={loadAccount}/> : <section className="customer-card customer-auth">
-        <div className="customer-tabs"><button className={mode === 'login' ? 'is-active' : ''} onClick={() => setMode('login')}>Entrar</button><button className={mode === 'register' ? 'is-active' : ''} onClick={() => setMode('register')}>Criar conta</button></div>
-        <div><small>Cliente {config.store.name}</small><h1>{mode === 'login' ? 'Acesse seus pedidos' : 'Crie sua conta'}</h1><p>Use sua conta para acompanhar os pedidos registrados nesta loja.</p></div>
-        {mode === 'register' && <label><span>Nome</span><input value={form.name} onChange={(e) => setForm((value) => ({ ...value, name: e.target.value }))} autoComplete="name"/></label>}
-        <label><span>E-mail</span><input type="email" value={form.email} onChange={(e) => setForm((value) => ({ ...value, email: e.target.value }))} autoComplete="email"/></label>
-        {mode === 'register' && <label><span>WhatsApp</span><input value={form.phone} onChange={(e) => setForm((value) => ({ ...value, phone: e.target.value }))} autoComplete="tel"/></label>}
-        <label><span>Senha</span><input type="password" value={form.password} onChange={(e) => setForm((value) => ({ ...value, password: e.target.value }))} autoComplete={mode === 'login' ? 'current-password' : 'new-password'}/></label>
-        {error && <div className="customer-error">{error}</div>}
-        <button className="customer-submit" disabled={busy} onClick={submit}>{busy ? 'Aguarde…' : mode === 'login' ? 'Entrar na conta' : 'Criar minha conta'}</button>
-      </section>}
+      </> : <div className="buyer-auth-entry">
+        <BuyerWhatsappLogin key={storeSlug} storeSlug={storeSlug} enabled={config.buyerWhatsAppLoginEnabled === true} onVerified={loadAccount}/>
+        {!config.buyerWhatsAppLoginEnabled && <div className="customer-legacy-access">
+          <button type="button" className="customer-legacy-toggle" aria-expanded={legacyOpen}
+            onClick={() => setLegacyOpen((value) => !value)}>
+            {legacyOpen ? 'Fechar acesso à conta antiga' : 'Já tinha conta com e-mail?'}
+          </button>
+          {legacyOpen && <section className="customer-card customer-auth">
+            <div><small>Acesso antigo</small><h2>Entrar na conta existente</h2>
+              <p>Somente para clientes que já usavam e-mail e senha. O novo cadastro de comprador é feito por WhatsApp.</p></div>
+            <form onSubmit={(event) => { event.preventDefault(); void submit() }}>
+              <label><span>E-mail</span><input type="email" required value={form.email}
+                onChange={(e) => setForm((value) => ({ ...value, email: e.target.value }))} autoComplete="email"/></label>
+              <label><span>Senha antiga</span><input type="password" required value={form.password}
+                onChange={(e) => setForm((value) => ({ ...value, password: e.target.value }))} autoComplete="current-password"/></label>
+              {error && <div className="customer-error" role="alert">{error}</div>}
+              <button type="submit" className="customer-submit" disabled={busy}>{busy ? 'Aguarde…' : 'Entrar na conta antiga'}</button>
+            </form>
+          </section>}
+        </div>}
+      </div>}
     </div>
   </div>
 }
