@@ -156,23 +156,25 @@
 .auth-shell .auth-form > .google-auth-button + .auth-divider { display:flex; }
 
 
-/* Black Friday on the LOGIN screen only. Two identical groups keep the tape
-   continuous without claiming discounts or changing checkout prices. */
+/* Faixa Black Friday exclusiva do login. Nenhuma oferta ou desconto inventado. */
 .auth-shell.auth-shell--login .auth-poster__ribbon.auth-poster__ribbon--black-friday {
   display:block;
   overflow:hidden;
   flex-wrap:nowrap;
+  box-sizing:border-box;
   width:100%;
+  min-height:52px;
   padding:0;
   background:#161514;
-  border-top:2px solid #F25C05;
-  border-bottom:2px solid #F25C05;
+  border-top:3px solid #F25C05;
+  border-bottom:3px solid #F25C05;
   color:#F3F0E8;
+  box-shadow:0 5px 16px rgba(0,0,0,.27);
 }
 .auth-shell--login .auth-poster__ribbon-track {
   display:flex;
   width:max-content;
-  animation:shopvax-login-black-friday-tape 24s linear infinite;
+  animation:shopvax-login-black-friday-tape 30s linear infinite;
   will-change:transform;
 }
 .auth-shell--login .auth-poster__ribbon-group {
@@ -182,18 +184,35 @@
   box-sizing:border-box;
   min-width:100vw;
   flex:0 0 auto;
-  gap:clamp(20px,5vw,72px);
-  padding:8px clamp(18px,3vw,48px);
+  gap:clamp(24px,4vw,60px);
+  padding:10px clamp(20px,3vw,48px);
   white-space:nowrap;
 }
 .auth-shell--login .auth-poster__ribbon-group span {
   display:inline-block;
   flex:0 0 auto;
-  font:700 clamp(9px,1vw,12px)/1.4 var(--svx-font-mono,'Fragment Mono',monospace);
-  letter-spacing:.04em;
+  font:800 clamp(10px,1.07vw,13px)/1.45 var(--svx-font-mono,'Fragment Mono',monospace);
+  letter-spacing:.045em;
 }
-.auth-shell--login .auth-poster__ribbon-group span:first-child {
-  color:#F25C05;
+.auth-shell--login .auth-poster__ribbon-group .auth-poster__ribbon-highlight {
+  padding:6px 11px;
+  background:#F25C05;
+  color:#161514;
+  font-weight:900;
+  letter-spacing:.06em;
+}
+.auth-shell--login .auth-poster__ribbon-group span:nth-child(2) {
+  color:#fff;
+  font-weight:900;
+}
+.auth-shell--login .auth-poster__ribbon-group span:nth-child(3) {
+  color:#FF8A47;
+}
+@media(max-width:700px) {
+  .auth-shell.auth-shell--login .auth-poster__ribbon.auth-poster__ribbon--black-friday {min-height:48px;}
+  .auth-shell--login .auth-poster__ribbon-group {gap:24px;padding:9px 18px;}
+  .auth-shell--login .auth-poster__ribbon-group span {font-size:10px;}
+  .auth-shell--login .auth-poster__ribbon-group .auth-poster__ribbon-highlight {padding:5px 8px;}
 }
 @keyframes shopvax-login-black-friday-tape {
   to { transform:translate3d(-50%,0,0); }
