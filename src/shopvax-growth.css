@@ -100,13 +100,20 @@
 body:has(.svx-onboarding) .svx-support {
   position: relative;
   inset: auto;
-  width: max-content;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  width: min(410px, calc(100vw - 32px));
   max-width: calc(100vw - 32px);
   margin: 8px clamp(16px, 4vw, 42px) 28px auto;
 }
 body:has(.svx-onboarding) .svx-support__panel {
-  right: 0;
-  bottom: calc(100% + 12px);
+  position: static;
+  right: auto;
+  bottom: auto;
+  width: 100%;
+  max-height: none;
+  margin-top: 12px;
 }
 @media (max-width: 430px) {
   body:has(.svx-onboarding) .svx-support {
