@@ -65,9 +65,22 @@ try {
     assert(helpPosition.triggerTop>=helpPosition.footerBottom-2,
       'Floating help obscures palette/CTA: '+JSON.stringify({width,helpPosition}))
     assert(helpPosition.horizontalOverflow<=2,'Onboarding creates horizontal overflow: '+JSON.stringify({width,helpPosition}))
+    await onboardingPage.screenshot({path:'artifacts/shopvax-growth/onboarding-'+width+'.png',fullPage:true})
     await onboardingPage.getByRole('button',{name:'Precisa de ajuda?'}).click()
     await onboardingPage.getByRole('heading',{name:'Ajuda para lojistas'}).waitFor()
-    await onboardingPage.screenshot({path:'artifacts/shopvax-growth/onboarding-'+width+'.png',fullPage:true})
+    const openHelp=await onboardingPage.evaluate(()=>{
+      const footer=document.querySelector('.svx-onboarding__footer').getBoundingClientRect()
+      const trigger=document.querySelector('.svx-support__trigger').getBoundingClientRect()
+      const panel=document.querySelector('.svx-support__panel').getBoundingClientRect()
+      return {footerBottom:footer.bottom,triggerTop:trigger.top,triggerBottom:trigger.bottom,
+        panelTop:panel.top,panelLeft:panel.left,panelRight:panel.right,overflow:document.documentElement.scrollWidth-innerWidth}
+    })
+    assert(openHelp.panelTop>=openHelp.triggerBottom-2 && openHelp.triggerTop>=openHelp.footerBottom-2,
+      'Opened help obscures palette or trigger: '+JSON.stringify({width,openHelp}))
+    assert(openHelp.panelLeft>=-1 && openHelp.panelRight<=width+2 && openHelp.overflow<=2,
+      'Opened help overflows viewport: '+JSON.stringify({width,openHelp}))
+    await onboardingPage.evaluate(()=>window.scrollTo(0,0))
+    await onboardingPage.screenshot({path:'artifacts/shopvax-growth/onboarding-help-open-'+width+'.png',fullPage:true})
     await onboardingPage.close()
 
     const buyerPage = await context.newPage()
