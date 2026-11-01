@@ -60,6 +60,8 @@ export default function CustomerAccountRoute() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const accountVersion = useRef(0)
+  const next = new URLSearchParams(window.location.search).get('next') || ''
+  const safeProfileNext = next === `/perfil/${encodeURIComponent(storeSlug)}` ? next : ''
 
   // A rota de conta permanece montada quando o SPA muda entre /cliente/loja-a e /cliente/loja-b.
   useEffect(() => {
@@ -117,9 +119,15 @@ export default function CustomerAccountRoute() {
       await apiRequest(`/api/public/store/${encodeURIComponent(storeSlug)}/customers/login`, {
         method: 'POST', body: JSON.stringify({ email: form.email, password: form.password }),
       })
-      await loadAccount()
+      await completeBuyerEntry()
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível entrar.') }
     finally { setBusy(false) }
+  }
+
+  const completeBuyerEntry = async () => {
+    const ok = await loadAccount()
+    if (ok && safeProfileNext) go(safeProfileNext)
+    return ok
   }
 
   const logout = async () => {
@@ -143,7 +151,7 @@ export default function CustomerAccountRoute() {
   const accent = config.store.accent || '#F25C05'
   return <div className="customer-page" style={{ '--customer-accent': accent } as React.CSSProperties}>
     <div className="customer-wrap">
-      <button className="customer-back" onClick={() => go(`/${storeSlug}`)}><ArrowLeft size={17}/> Voltar para a loja</button>
+      <button className="customer-back" onClick={() => go(safeProfileNext || `/${storeSlug}`)}><ArrowLeft size={17}/> {safeProfileNext ? 'Voltar ao perfil da loja' : 'Voltar para a loja'}</button>
       <header className="customer-store-head">{config.store.logoUrl ? <img src={config.store.logoUrl} alt=""/> : <span>SV</span>}<div><small>Conta do cliente</small><strong>{config.store.name}</strong></div></header>
 
       {!config.customerLoginEnabled ? <section className="customer-card"><h1>Conta de cliente indisponível</h1><p>Esta loja desativou temporariamente o acesso por conta.</p></section> : account ? <>
@@ -151,7 +159,7 @@ export default function CustomerAccountRoute() {
         {config.buyerWhatsAppLoginEnabled && <BuyerWhatsappLogin key={storeSlug + "-profile"} storeSlug={storeSlug} editOnly onVerified={loadAccount}/>}
         <section className="customer-card"><div className="customer-section-head"><div><small>Histórico</small><h2>Seus pedidos</h2></div><strong>{account.orders.length}</strong></div><p className="customer-semantics">{account.semantics}</p><div className="customer-orders">{account.orders.map((order) => <article key={order.id}><div className="customer-order-top"><div><small>{date.format(new Date(order.created_at))}</small><strong>{order.code}</strong></div><span className={`customer-status status-${order.status}`}><CheckCircle2 size={14}/>{statusLabel(order.status)}</span></div><div className="customer-order-info"><span>{(() => { const total = order.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0); return `${total} ${total === 1 ? 'item' : 'itens'}` })()}</span><span>{order.seller_name ? `Atendimento: ${order.seller_name}` : 'Atendimento da loja'}</span><b>{money.format(order.total)}</b></div><p className="customer-order-explanation">{statusExplanation(order.status)}</p></article>)}{!account.orders.length && <div className="customer-empty"><PackageCheck size={30}/><strong>Nenhum pedido ainda.</strong><p>Quando você preparar um pedido nesta loja com sua conta, ele aparecerá aqui.</p></div>}</div></section>
       </> : <div className="buyer-auth-entry">
-        <BuyerWhatsappLogin key={storeSlug} storeSlug={storeSlug} enabled={config.buyerWhatsAppLoginEnabled === true} onVerified={loadAccount}/>
+        <BuyerWhatsappLogin key={storeSlug} storeSlug={storeSlug} enabled={config.buyerWhatsAppLoginEnabled === true} onVerified={completeBuyerEntry}/>
         {!config.buyerWhatsAppLoginEnabled && <div className="customer-legacy-access">
           <button type="button" className="customer-legacy-toggle" aria-expanded={legacyOpen}
             onClick={() => setLegacyOpen((value) => !value)}>
