@@ -1,0 +1,60 @@
+name: Diagnóstico do deploy público ShopVax
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/shopvax-live-deploy-diagnostic.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verificar HTML, versão e assets públicos
+        shell: bash
+        env:
+          SHOPVAX_ORIGIN: https://shopvax.com.br
+        run: |
+          set +e
+          echo "=== PROVENIÊNCIA ==="
+          echo "GITHUB_SHA=$GITHUB_SHA"
+          echo "UTC=$(date -u +%FT%TZ)"
+          echo "=== DOMÍNIO ==="
+          getent ahostsv4 shopvax.com.br | head -5 || true
+          for resource in / /shopvax-ui-version.json /health /perfil/sw-moda-feminina; do
+            echo "=== HTTP $resource ==="
+            tmp="$(mktemp)"
+            curl -L -sS --max-time 20 --connect-timeout 7 -D - -o "$tmp" \
+              -w 'HTTP_FINAL=%{http_code} FINAL_URL=%{url_effective} IP=%{remote_ip} SIZE=%{size_download}\n' \
+              "$SHOPVAX_ORIGIN$resource" | head -45
+            if [[ "$resource" == "/shopvax-ui-version.json" || "$resource" == "/health" ]]; then
+              head -c 1500 "$tmp"; echo
+            else
+              grep -Eo '<script[^>]*src="[^"]+|<link[^>]*href="[^"]+' "$tmp" | head -10 || true
+              echo "HTML_SHA256=$(sha256sum "$tmp" | cut -d ' ' -f1)"
+            fi
+            rm -f "$tmp"
+          done
+          echo "=== CSS/JS REFERENCIADO PELO HTML PÚBLICO ==="
+          html="$(mktemp)"
+          curl -L -sS --max-time 20 "$SHOPVAX_ORIGIN/" -o "$html"
+          asset="$(grep -Eo 'src="/assets/[^"]+\.js"' "$html" | head -1 | cut -d '"' -f2)"
+          if [[ -n "$asset" ]]; then
+            echo "APP_ASSET=$asset"
+            curl -L -sS --max-time 20 -o /tmp/shopvax-public-js -w 'ASSET_STATUS=%{http_code} SIZE=%{size_download}\n' "$SHOPVAX_ORIGIN$asset"
+            if [[ -s /tmp/shopvax-public-js ]]; then
+              for term in 'Comprador ou vendedor?' 'social-account-choice' 'shopvax-feedback-mobile-20261101-v2'; do
+                if grep -Fq "$term" /tmp/shopvax-public-js; then echo "FOUND_IN_MAIN_BUNDLE=$term"; else echo "NOT_IN_MAIN_BUNDLE=$term"; fi
+              done
+              echo "ASSET_SHA256=$(sha256sum /tmp/shopvax-public-js | cut -d ' ' -f1)"
+            fi
+          else
+            echo 'APP_ASSET_NOT_FOUND'
+          fi
+          rm -f "$html"
