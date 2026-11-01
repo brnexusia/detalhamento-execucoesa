@@ -302,7 +302,7 @@ export async function collectPdfCatalog(buffer, options = {}) {
               // index to local filenames, losing almost every product image.
               const localIndex = photo.index - (pageImages[0]?.index ?? 0)
               const photoFile = files.find((file) =>
-                Number(/-(\\d+)\\.(?:jpg|jpeg|png)$/i.exec(file)?.[1]) === localIndex)
+                Number(/-([0-9]+)[.](?:jpg|jpeg|png)$/i.exec(file)?.[1]) === localIndex)
               if (!photoFile) continue
               const buffer = await readFile(path.join(dir, photoFile))
               if (buffer.length > MAX_GENERATED_FILE_BYTES) throw new PdfSafetyError(UNSAFE_PDF_MESSAGE)
