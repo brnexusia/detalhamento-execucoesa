@@ -20,10 +20,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: npm
       - name: Instalar dependências e navegador
         run: |
-          npm ci
+          npm install --no-audit --no-fund
           npm install --no-save --no-audit --no-fund playwright@1.58.2
           npx playwright install --with-deps chromium
       - name: Validar regressões estáticas do feedback
