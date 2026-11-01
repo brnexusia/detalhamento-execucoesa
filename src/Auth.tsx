@@ -161,10 +161,12 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
       <aside className="auth-poster">
         <button className="wordmark" onClick={() => go('/')} aria-label="Shopvax, início"><img className="svx-brand-symbol" src="/brand/shopvax-symbol-dark.svg" alt="" aria-hidden="true" draggable={false} /><img className="svx-brand-wordmark" src="/brand/shopvax-wordmark-light.svg" alt="" aria-hidden="true" /></button>
         {mode === 'login' && !googleSignup ? (
-          <div className="auth-poster__ribbon auth-poster__ribbon--black-friday" role="note" aria-label="Black Friday: prepare sua vitrine, seu catálogo e o atendimento no WhatsApp.">
+          <div className="auth-poster__ribbon auth-poster__ribbon--black-friday" role="note" aria-label="Black Friday Shopvax: prepare sua vitrine, monte seu catálogo, organize a grade e o talão e receba pedidos no WhatsApp da vendedora.">
             <div className="auth-poster__ribbon-track" aria-hidden="true">
               {[0, 1].map((copy) => <div className="auth-poster__ribbon-group" key={copy}>
-                <span>BLACK FRIDAY · PREPARE SUA VITRINE</span>
+                <span className="auth-poster__ribbon-highlight">BLACK FRIDAY SHOPVAX</span>
+                <span>O ATACADO NÃO PARA</span>
+                <span>PREPARE SUA VITRINE PARA VENDER</span>
                 <span>CATÁLOGO · GRADE · TALÃO</span>
                 <span>PEDIDOS NO WHATSAPP DA VENDEDORA</span>
               </div>)}
