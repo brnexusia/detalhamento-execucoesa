@@ -347,6 +347,7 @@ app.get(
       'SELECT mime_type,byte_size,data FROM media_variants WHERE asset_id=$1 AND width=$2 LIMIT 1',
       [req.params.assetId, width],
     )
+    const optimizedVariant = Boolean(result?.rowCount)
     if (!result?.rowCount) result = await pool.query(
       'SELECT mime_type,byte_size,data FROM media_assets WHERE id=$1 LIMIT 1',
       [req.params.assetId],
@@ -358,7 +359,11 @@ app.get(
     const total = data.length
     res.setHeader('Content-Type', asset.mime_type)
     res.setHeader('Accept-Ranges', 'bytes')
-    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+    // Uma variante solicitada pode ainda estar na fila. Não cachear o
+    // fallback original por um ano, senão o navegador nunca verá a otimização.
+    res.setHeader('Cache-Control', width != null && !optimizedVariant
+      ? 'public, max-age=60'
+      : 'public, max-age=31536000, immutable')
 
     const range = req.headers.range
     if (!range) {
