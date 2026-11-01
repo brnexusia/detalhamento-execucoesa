@@ -79,6 +79,16 @@ try {
     await page.getByRole('button', { name: 'Importar catálogo' }).waitFor()
     assert.equal(await page.locator('.svx-products__top-actions .scanner-entry-button').count(), 1)
     assert.equal(await page.locator('.svx-products__featured').count(), 1)
+    const measured = await page.evaluate(() => {
+      const first = document.querySelector('.svx-products .product-admin-card')
+      const second = first?.nextElementSibling
+      const height = first?.getBoundingClientRect().height || 0
+      return { height, gap: second ? second.getBoundingClientRect().top - first.getBoundingClientRect().bottom : 0,
+        overflow: document.documentElement.scrollWidth - innerWidth }
+    })
+    assert(measured.height < (width >= 1000 ? 100 : 240), 'Rows must remain compact: ' + JSON.stringify(measured))
+    assert(measured.gap < 4, 'Product rows must not leave giant gaps: ' + JSON.stringify(measured))
+    assert(measured.overflow <= 2, 'Product page must not overflow horizontally: ' + JSON.stringify(measured))
     await mkdir('artifacts/shopvax-redesign', { recursive: true })
     await page.screenshot({ path: 'artifacts/shopvax-redesign/products-06-' + width + '.png', fullPage: true })
 
