@@ -112,13 +112,14 @@ export default function ScannerModule1() {
         setSlot(null)
         return
       }
-      if (host?.isConnected && host.parentElement === title) return
+      const actions = title.querySelector<HTMLElement>('.page-title-actions') || title
+      if (host?.isConnected && host.parentElement === actions) return
       host?.remove()
       host = document.createElement('span')
       host.className = 'scanner-entry-slot'
-      const primaryAction = Array.from(title.children).find((child) => child.classList.contains('primary-action'))
-      if (primaryAction) title.insertBefore(host, primaryAction)
-      else title.appendChild(host)
+      const primaryAction = actions.querySelector(':scope > .primary-action')
+      if (primaryAction) actions.insertBefore(host, primaryAction)
+      else actions.appendChild(host)
       setSlot(host)
     }
     sync()
@@ -355,7 +356,7 @@ export default function ScannerModule1() {
 
   return <>
     {slot && createPortal(
-      <button type="button" className="scanner-entry-button" onClick={show}><FileText size={17} /> Importar catálogo</button>,
+      <button type="button" className="scanner-entry-button" aria-label="Importar catálogo" title="Importar de outra loja, PDF ou fotos" onClick={show}><FileText size={17} /> Importar de outra loja</button>,
       slot,
     )}
 
