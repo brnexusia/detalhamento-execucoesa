@@ -176,7 +176,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
           <div className="auth-poster__ribbon"><span>CATÁLOGO · GRADE · TALÃO</span><span>ATENDIMENTO PELO WHATSAPP</span></div>
         )}
         <div className="auth-poster__copy">
-          <p>Shopvax · o jeito do atacado vender</p>
+          <p>Shopvax · o melhor jeito para vender</p>
           <h1>{registrationMode ? <>Sua loja na frente. <em>Seu talão no celular.</em></> : <>Volta para o <em>balcão.</em></>}</h1>
           <div className="poster-note">Os pedidos de hoje já estão te esperando.</div>
         </div>
@@ -190,7 +190,12 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
         <button className="auth-close" onClick={() => go('/')} aria-label="Fechar"><X size={20} /></button>
         <form className="auth-form" onSubmit={submit}>
           <div className="auth-form__head">
-            <span className="brand__mark"><img className="svx-brand-symbol" src="/brand/shopvax-symbol.svg" alt="" aria-hidden="true" draggable={false} /></span>
+            {registrationMode ? (
+              <div className="auth-register-brand" aria-label="Shopvax">
+                <img className="svx-brand-symbol" src="/brand/shopvax-symbol.svg" alt="" aria-hidden="true" draggable={false} />
+                <img className="svx-brand-wordmark" src="/brand/shopvax-wordmark.svg" alt="Shopvax" draggable={false} />
+              </div>
+            ) : <span className="brand__mark"><img className="svx-brand-symbol" src="/brand/shopvax-symbol.svg" alt="" aria-hidden="true" draggable={false} /></span>}
             <p>{registrationMode ? 'Criar conta' : 'Entrar'}</p>
             <h2>{googleSignup ? 'Complete os dados da sua loja.' : registrationMode ? 'Comece com a sua loja.' : 'Acesse seu painel.'}</h2>
           </div>
@@ -205,8 +210,8 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
           </div>}
           {registrationMode && (
             <>
-              {!googleSignup && <label><span>Seu nome</span><input autoComplete="name" value={form.name} onChange={(e) => update('name', e.target.value)} placeholder="Felipe" required /></label>}
-              <label><span>Nome da loja</span><div className="input-icon"><Store size={17} /><input value={form.storeName} onChange={(e) => update('storeName', e.target.value)} placeholder="Suprema Line" required /></div></label>
+              {!googleSignup && <label><span>Seu nome</span><input autoComplete="name" value={form.name} onChange={(e) => update('name', e.target.value)} placeholder="Loja" required /></label>}
+              <label><span>Nome da loja</span><div className="input-icon"><Store size={17} /><input value={form.storeName} onChange={(e) => update('storeName', e.target.value)} placeholder="Ex.: Atacado Aurora" required /></div></label>
               <label><span>WhatsApp principal</span><input inputMode="tel" value={form.whatsapp} onChange={(e) => update('whatsapp', e.target.value)} placeholder="55 11 99999-9999" /></label>
               {SHOW_SIGNUP_PLANS && <fieldset className="signup-plans">
                 <legend>Escolha seu plano</legend>
