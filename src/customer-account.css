@@ -21,3 +21,41 @@
 .buyer-profile-open{width:max-content;max-width:100%;justify-self:start;text-align:left}
 .buyer-code-explanation{font-size:.92rem}
 @media(max-width:480px){.buyer-two-columns{grid-template-columns:2fr 1fr}.buyer-whatsapp-title{gap:9px}.buyer-whatsapp-auth{padding:16px}}
+
+
+/* Entrada do comprador pelo WhatsApp: formulário principal sem senha.
+   Login antigo fica recolhido como compatibilidade e não cria novas contas. */
+.customer-page .buyer-auth-entry{display:grid;gap:12px;min-width:0;}
+.customer-page .buyer-auth-entry .buyer-whatsapp-auth{width:100%;max-width:680px;box-sizing:border-box;}
+.customer-page .buyer-auth-pending{
+  margin:0;
+  padding:12px 14px;
+  border:1px solid #d9d3c6;
+  border-radius:10px;
+  background:#f5f0e6;
+  color:#4d4943;
+  font-size:13px;
+  line-height:1.5;
+}
+.customer-page .customer-legacy-access{display:grid;gap:10px;justify-items:start;}
+.customer-page .customer-legacy-toggle{
+  border:0;border-bottom:1px solid currentColor;
+  padding:7px 0;background:transparent;color:#625d55;
+  cursor:pointer;font:700 12px var(--svx-font-body,'Archivo',sans-serif);
+}
+.customer-page .customer-legacy-access .customer-auth{
+  width:100%;max-width:680px;box-sizing:border-box;
+}
+.customer-page .customer-legacy-access .customer-auth form{
+  display:grid;gap:14px;
+}
+.customer-page .customer-legacy-access .customer-auth h2{font-size:clamp(22px,5vw,30px);}
+.customer-page .buyer-whatsapp-auth form label>span{font-weight:700;font-size:13px;color:#252c26;}
+.customer-page .buyer-whatsapp-auth .customer-submit{min-height:48px;}
+.customer-page .buyer-whatsapp-auth select{max-width:100%;}
+@media(max-width:700px){
+  .customer-page .buyer-auth-entry{gap:10px;}
+  .customer-page .buyer-whatsapp-auth{padding:clamp(14px,4vw,20px);}
+  .customer-page .buyer-whatsapp-title h1{font-size:clamp(25px,7vw,36px);line-height:1.1;}
+  .customer-page .buyer-whatsapp-auth .buyer-two-columns{grid-template-columns:minmax(0,2fr) minmax(72px,1fr);}
+}
