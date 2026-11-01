@@ -1,5 +1,6 @@
 import { chromium } from 'playwright'
 import assert from 'node:assert/strict'
+import { mkdir } from 'node:fs/promises'
 
 const product = (id, name, category, price, active = true) => ({
   id, sku: 'REF-' + id, name, description: 'Peça cadastrada', category, price,
@@ -78,6 +79,8 @@ try {
     await page.getByRole('button', { name: 'Importar catálogo' }).waitFor()
     assert.equal(await page.locator('.svx-products__top-actions .scanner-entry-button').count(), 1)
     assert.equal(await page.locator('.svx-products__featured').count(), 1)
+    await mkdir('artifacts/shopvax-redesign', { recursive: true })
+    await page.screenshot({ path: 'artifacts/shopvax-redesign/products-06-' + width + '.png', fullPage: true })
 
     // Load more accumulates pages instead of replacing the first page.
     await page.getByRole('button', { name: 'Ver mais produtos' }).click()
