@@ -150,6 +150,7 @@ export type AdminBootstrap = {
   store: AdminStore
   products: AdminProduct[]
   productCount?: number
+  activeProductCount?: number
   productCategories?: Array<{ category: string; count: number }>
   sellers: AdminSeller[]
   orders: AdminOrder[]
