@@ -24,7 +24,7 @@ const post = {id:'post1',store,product,interactions:{
 }}
 
 try {
-  for (const width of [390, 430, 1440]) {
+  for (const width of [375, 390, 430, 1440]) {
     const page = await browser.newPage({ viewport:{width,height:844}, deviceScaleFactor:1 })
     await page.route('**/shopvax-test-product.svg', route => route.fulfill({status:200,contentType:'image/svg+xml',body:photo}))
     await page.route('**/api/social/feed?**', route => route.fulfill({
@@ -78,7 +78,7 @@ try {
     await page.close()
   }
 
-  for(const width of [390,430]) {
+  for(const width of [375,390,430]) {
     const page = await browser.newPage({ viewport:{width,height:844},deviceScaleFactor:1 })
     await page.route('**/shopvax-test-product.svg', route => route.fulfill({status:200,contentType:'image/svg+xml',body:photo}))
     await page.route('**/api/public/store/loja-teste*',route => route.fulfill({
