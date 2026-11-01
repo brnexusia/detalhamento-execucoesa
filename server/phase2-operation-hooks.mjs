@@ -204,7 +204,7 @@ async function currentCustomer(req, storeId = null) {
   await ensureSchema()
   if (storeId) {
     const linked = await currentBuyerCustomer(req, storeId)
-    if (linked) return linked
+    if (linked || buyerWhatsappReady()) return linked
   }
   const token = parseCookies(req)[customerCookie]
   if (!token) return null
