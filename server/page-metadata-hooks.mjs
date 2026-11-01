@@ -127,6 +127,11 @@ express.response.sendFile = function metadataSendFile(filePath, options, callbac
   }
 
   const res = this
+  // HTML precisa ser revalidado após cada deploy, inclusive no Safari iOS.
+  // Assets com hash podem continuar com cache longo e imutável.
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+  res.setHeader('Pragma', 'no-cache')
+  res.setHeader('Expires', '0')
   Promise.all([
     htmlCache.has(absolutePath)
       ? Promise.resolve(htmlCache.get(absolutePath))
