@@ -27,6 +27,15 @@ Na aba **Produtos → Importar catálogo → Arquivo PDF**, o lojista pode envia
 
 A imagem dos produtos é guardada na loja como mídia local. Não confundir essa operação com o botão **Gerar PDF**, que exporta os produtos já cadastrados. O container de produção instala `poppler-utils`, `tesseract-ocr` (idiomas `por` e `eng`) e `util-linux` (`prlimit`). Isso reduz o risco de arquivos maliciosos; o servidor ainda deve ter limites próprios de RAM/CPU/disco e as ferramentas devem receber atualizações de segurança.
 
+## Importação de álbuns e links de fotos
+
+Na aba **Produtos → Importar catálogo → Álbum de fotos**, o lojista pode colar o link de um **álbum público compartilhado do Google Fotos** (incluindo links curtos `photos.app.goo.gl`) ou um **link público direto para imagem** (`.jpg`, `.png`, `.webp` etc.). O scanner copia as fotos acessíveis para a mídia da própria loja e cria rascunhos com identificação temporária.
+
+- **Revisão obrigatória:** fotos não fornecem nome, SKU, categoria ou preço confiável. Cada foto é apresentada como produto em revisão, com **preço vazio e publicação desabilitada até correção manual**; jamais inventar preços ou publicar automaticamente.
+- **Compartilhamento:** o link precisa ser público. Álbuns privados, páginas restritas por login ou páginas que carregam fotos apenas via scripts não têm importação garantida; a interface informa quando não encontra fotos legíveis.
+- **Limites e segurança:** até 120 fotos por importação; leitura de imagem limitada a 8 MB, validação de dimensões e conversão local para WebP. Todos os downloads passam pela proteção contra SSRF do scanner; a gravação de mídia é por loja. Uma importação com erro elimina as mídias provisórias associadas a ela.
+- **Outros provedores:** arquivos de foto disponibilizados por URL pública direta são aceitos; links de **pastas/álbuns de outros serviços** não são prometidos, pois podem exigir autorização ou APIs próprias.
+
 ## Painel do lojista
 
 - produtos, múltiplas fotos/vídeos e variações;
