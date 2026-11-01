@@ -339,7 +339,7 @@ async function webhook(req, res) {
         'WHERE store_id=$1 AND customer_id=$2 AND checkout_session_id=$4 AND (subscription_id IS NULL OR subscription_id=$3)',
       ].join(' '), [storeId, obj.customer, obj.subscription, obj.id])
       // Nunca liberar acesso somente porque o usuário retornou do Checkout.
-    } else if (event.type === 'invoice.paid' && obj.status === 'paid') {
+    } else if (event.type === 'invoice.paid' && obj.status === 'paid' && obj.paid_out_of_band !== true) {
       const sub = typeof obj.subscription === 'string' ? obj.subscription : obj.parent?.subscription_details?.subscription
       if (typeof sub === 'string') await syncSubscription(client, sub, event.type, obj.id)
     } else if (['invoice.payment_failed', 'customer.subscription.created', 'customer.subscription.updated', 'customer.subscription.deleted'].includes(event.type)) {
