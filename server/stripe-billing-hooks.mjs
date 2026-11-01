@@ -223,6 +223,7 @@ async function checkout(req, res) {
       'INSERT INTO shopvax_stripe_billing (store_id,customer_id,checkout_session_id,checkout_plan,checkout_cycle)',
       'VALUES ($1,$2,$3,$4,$5) ON CONFLICT (store_id) DO UPDATE SET',
       'customer_id=EXCLUDED.customer_id,checkout_session_id=EXCLUDED.checkout_session_id,',
+      "subscription_id=NULL,subscription_status='none',active_plan_code=NULL,cycle=NULL,paid_until=NULL,",
       'checkout_plan=EXCLUDED.checkout_plan,checkout_cycle=EXCLUDED.checkout_cycle,updated_at=now()',
     ].join(' '), [account.id, customer, session.id, plan.code, plan.cycle])
     await client.query('COMMIT')
@@ -266,6 +267,8 @@ async function change(req, res) {
     return apiError(res, 409, 'A assinatura está em processamento. Atualize o status.', 'SUBSCRIPTION_UNAVAILABLE')
   }
   const priceId = await ensureStripePrice(plan)
+  const currentStripePrice = typeof sub.items.data[0].price === 'string' ? sub.items.data[0].price : sub.items.data[0].price?.id
+  if (currentStripePrice === priceId) return res.json({ ok: true, pending: true, message: 'Esta mudança já está em processamento na Stripe.' })
   const updated = await stripe('POST', 'subscriptions/' + encodeURIComponent(sub.id), {
     'items[0][id]': sub.items.data[0].id,
     'items[0][price]': priceId,
@@ -280,9 +283,11 @@ async function syncSubscription(client, id, eventType, paidInvoiceId = null) {
   const storeId = String(subscription?.metadata?.shopvax_store_id || '')
   if (!storeId || !subscription.customer) return
   const row = (await client.query('SELECT * FROM shopvax_stripe_billing WHERE store_id=$1 FOR UPDATE', [storeId])).rows[0]
-  if (!row || row.stripe_mode !== stripeMode || row.customer_id !== subscription.customer || (row.subscription_id && row.subscription_id !== subscription.id)) {
+  if (!row || row.stripe_mode !== stripeMode || row.customer_id !== subscription.customer) {
     throw new Error('Assinatura Stripe não corresponde à loja vinculada.')
   }
+  // Eventos atrasados de uma assinatura já substituída não podem afetar a nova.
+  if (row.subscription_id && row.subscription_id !== subscription.id) return
   const line = subscription.items?.data?.[0]
   const priceId = typeof line?.price === 'string' ? line.price : line?.price?.id
   const mapped = priceId ? (await client.query('SELECT plan_code,cycle FROM shopvax_stripe_prices WHERE price_id=$1 AND stripe_mode=$2', [priceId, stripeMode])).rows[0] : null
