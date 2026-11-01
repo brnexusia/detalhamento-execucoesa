@@ -169,6 +169,54 @@ try {
   await page.locator('.auth-register-brand .svx-brand-wordmark').waitFor()
   await page.screenshot({path:`${out}/lojista-cadastro.png`,fullPage:true})
   await page.close()
+  // Perfil: tocar em Entrar deve diferenciar comprador e vendedor.
+  // Seguir não pode mudar de estado anonimamente, e precisa exibir a mesma escolha.
+  {
+    const page = await browser.newPage({viewport:{width:390,height:844}})
+    await page.route('**/api/social/stores/loja-teste/publications', r => r.fulfill({
+      status:200,contentType:'application/json',body:JSON.stringify({publications:[product]}),
+    }))
+    await page.route('**/api/social/stores/loja-teste', r => r.fulfill({
+      status:200,contentType:'application/json',body:JSON.stringify({
+        store:{...store,productCount:1},stats:{followers:0,views:13,following:false},
+      }),
+    }))
+    let followAuthenticated = false
+    await page.route('**/api/social/stores/s1/follow', r => r.fulfill({
+      status:followAuthenticated?200:401,contentType:'application/json',
+      body:JSON.stringify(followAuthenticated
+        ? {following:true,followers:1}
+        : {code:'AUTH_REQUIRED',error:'Entre como comprador ou vendedor para seguir lojas.'}),
+    }))
+    await page.goto('http://127.0.0.1:5173/perfil/loja-teste')
+    await page.getByRole('heading',{name:'Loja Teste'}).waitFor()
+    await page.getByRole('button',{name:'Entrar',exact:true}).click()
+    let dialog=page.getByRole('dialog',{name:'Comprador ou vendedor?'})
+    await dialog.waitFor()
+    assert.equal(await dialog.getByRole('button',{name:/Comprador/}).count(),1)
+    assert.equal(await dialog.getByRole('button',{name:/Vendedor/}).count(),1)
+    await page.screenshot({path:`${out}/perfil-escolha-conta.png`})
+    await dialog.getByRole('button',{name:'Fechar'}).click()
+    await page.getByRole('button',{name:'Seguir',exact:true}).click()
+    dialog=page.getByRole('dialog',{name:'Comprador ou vendedor?'})
+    await dialog.waitFor()
+    assert.match(await dialog.innerText(),/Para seguir esta loja/)
+    await dialog.getByRole('button',{name:/Comprador/}).click()
+    await page.waitForURL('**/cliente/loja-teste?next=*')
+    assert.equal(new URL(page.url()).searchParams.get('next'),'/perfil/loja-teste')
+    await page.goto('http://127.0.0.1:5173/perfil/loja-teste')
+    await page.getByRole('button',{name:'Entrar',exact:true}).click()
+    await page.getByRole('dialog',{name:'Comprador ou vendedor?'}).getByRole('button',{name:/Vendedor/}).click()
+    await page.waitForURL('**/entrar?next=*')
+    assert.equal(new URL(page.url()).searchParams.get('next'),'/perfil/loja-teste')
+    followAuthenticated=true
+    await page.goto('http://127.0.0.1:5173/perfil/loja-teste')
+    await page.getByRole('button',{name:'Seguir',exact:true}).click()
+    await page.getByRole('button',{name:'Seguindo',exact:true}).waitFor()
+    assert.equal(await page.getByRole('dialog').count(),0,'Conta autenticada não precisa escolher novamente')
+    await page.close()
+  }
+
   console.log('SHOPVAX_FEEDBACK_UI_E2E_PASS: feed, margens, loja, menu, pagamentos, cadastro')
 } finally {
   await browser.close()
