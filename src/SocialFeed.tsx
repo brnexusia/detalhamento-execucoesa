@@ -243,9 +243,6 @@ const SocialPostCard = memo(function SocialPostCard({ post, cartCount, active, s
     </aside>
 
     <div className="social-feed-copy">
-      <button type="button" className="social-feed-store-name" onClick={() => onProfile(post.store.slug)}>
-        <strong>{post.store.name}</strong><span>@{post.store.slug}</span>
-      </button>
       <span>{post.product.category}</span>
       <h2>{post.product.name}</h2>
       {post.product.description && <div className={`social-feed-description ${descriptionExpanded ? 'is-expanded' : ''}`}>
