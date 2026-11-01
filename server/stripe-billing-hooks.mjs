@@ -42,7 +42,7 @@ async function ensureSchema() {
       "product_id text NOT NULL, price_id text NOT NULL UNIQUE,",
       "PRIMARY KEY(stripe_mode,plan_code,cycle,amount_cents));",
       "CREATE TABLE IF NOT EXISTS shopvax_stripe_settings (stripe_mode text PRIMARY KEY, portal_config_id text);",
-      "CREATE OR REPLACE FUNCTION shopvax_stripe_insert_store() RETURNS trigger LANGUAGE plpgsql AS $",
+      "CREATE OR REPLACE FUNCTION shopvax_stripe_insert_store() RETURNS trigger LANGUAGE plpgsql AS $$",
       "BEGIN IF NEW.billing_required THEN NEW.plan_tier := 'bronze'; END IF; RETURN NEW; END $$;",
       "DROP TRIGGER IF EXISTS trg_shopvax_stripe_new_store ON stores;",
       "CREATE TRIGGER trg_shopvax_stripe_new_store BEFORE INSERT ON stores",
