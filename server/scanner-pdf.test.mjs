@@ -116,6 +116,59 @@ test('extracts an embedded product photo only for unambiguous single-product pag
   assert.equal(images.length, 1)
 })
 
+test('matches global PDF image IDs to page-local extraction filenames and keeps additional photo pages', async () => {
+  const colorImage = async (rgb) => sharp({
+    create: { width: 550, height: 750, channels: 3, background: rgb },
+  }).jpeg().toBuffer()
+  const cover = await colorImage({ r: 55, g: 55, b: 55 })
+  const main = await colorImage({ r: 205, g: 55, b: 75 })
+  const additional = await colorImage({ r: 60, g: 95, b: 205 })
+  const second = await colorImage({ r: 60, g: 180, b: 90 })
+  const pdf = await new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ autoFirstPage: false })
+    const chunks = []
+    doc.on('data', (chunk) => chunks.push(chunk))
+    doc.on('error', reject)
+    doc.on('end', () => resolve(Buffer.concat(chunks)))
+    // Non-product cover guarantees global image indices are nonzero by the
+    // time the first priced product appears.
+    doc.addPage()
+    doc.image(cover, 30, 80, { width: 300 })
+    doc.text('COLECAO VERAO', 30, 450)
+    doc.addPage()
+    doc.image(main, 30, 50, { width: 300 })
+    doc.text('Blusa Dominique', 30, 470)
+    doc.text('Valor: R$ 50,00', 30, 495)
+    // As with Look Premium, this picture-only page belongs to the prior
+    // product. It must not become a new product nor lose its photo.
+    doc.addPage()
+    doc.image(additional, 30, 70, { width: 300 })
+    doc.addPage()
+    doc.image(second, 30, 50, { width: 300 })
+    doc.text('Calca Olivia', 30, 470)
+    doc.text('Valor: R$ 60,00', 30, 495)
+    doc.end()
+  })
+  const uploaded = []
+  const result = await collectPdfCatalog(pdf, {
+    onImage: async (bytes, mime, filename) => {
+      assert.ok(bytes.length > 0)
+      assert.equal(mime, 'image/webp')
+      uploaded.push(filename)
+      return '/media/' + String(uploaded.length).padStart(30, 'a')
+    },
+  })
+  assert.equal(result.candidates.length, 2)
+  assert.equal(result.candidates[0].title, 'Blusa Dominique')
+  assert.equal(result.candidates[0].pdf_page, 2)
+  assert.equal(result.candidates[0].price, 50)
+  assert.equal(result.candidates[0].images.length, 2, 'priced page and continuation photo are both attached')
+  assert.equal(result.candidates[1].title, 'Calca Olivia')
+  assert.equal(result.candidates[1].price, 60)
+  assert.equal(result.candidates[1].images.length, 1, 'next product cannot inherit the previous product photos')
+  assert.deepEqual(uploaded, ['catalogo-p2.webp', 'catalogo-p3.webp', 'catalogo-p4.webp'])
+})
+
 test('rejects non-PDF binary before launching converters', async () => {
   await assert.rejects(collectPdfCatalog(Buffer.from('NOT A PDF')), /PDF válido/)
 })
@@ -171,12 +224,12 @@ test('a PDF beyond page limit reports its real page count', async () => {
   await assert.rejects(collectPdfCatalog(pdf), /201 páginas; o limite é 200/)
 })
 
-test('image indices are per page, not global across the PDF', () => {
+test('global listing image indices are not the extracted page-local indexes', () => {
   const entries = assertPdfImageBudget(
     'page num type width height color comp bpc enc interp object ID x-ppi y-ppi size ratio\n' +
-    '   2   0 image 500 500 rgb 3 8 jpeg no 1 0 72 72 2K 2%\n' +
-    '   3   0 image 550 550 rgb 3 8 jpeg no 2 0 72 72 2K 2%'
+    '   2  17 image 500 500 rgb 3 8 jpeg no 1 0 72 72 2K 2%\n' +
+    '   3  26 image 550 550 rgb 3 8 jpeg no 2 0 72 72 2K 2%'
   )
   assert.equal(entries.length, 2)
-  assert.deepEqual(entries.map((entry) => entry.index), [0, 0])
+  assert.deepEqual(entries.map((entry) => entry.index), [17, 26])
 })
