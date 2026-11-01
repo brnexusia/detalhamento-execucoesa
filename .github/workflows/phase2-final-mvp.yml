@@ -56,6 +56,8 @@ jobs:
           exit 1
       - name: Final MVP Phase 2 integration
         run: node server/phase2-final-mvp.integration.mjs
+      - name: Seguimento social exige comprador ou vendedor autenticado
+        run: node server/social-follow-auth.integration.mjs
       - name: Frente 02 - isolamento comercial, compradores e estoque concorrente
         run: node server/commerce-security-front02.integration.mjs
       - name: Start secure buyer auth service
