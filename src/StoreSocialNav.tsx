@@ -1,4 +1,4 @@
-import { ArrowLeft, UserRound } from 'lucide-react'
+import { UserRound } from 'lucide-react'
 import './store-social-nav.css'
 
 function storeSlug() {
@@ -15,7 +15,6 @@ export default function StoreSocialNav() {
   const slug = storeSlug()
   if (!slug) return null
   return <nav className="store-social-nav" aria-label="Navegação Shopvax">
-    <button type="button" onClick={() => go('/')}><ArrowLeft size={16}/> Feed</button>
     <button type="button" onClick={() => go(`/perfil/${encodeURIComponent(slug)}`)}><UserRound size={16}/> Perfil</button>
   </nav>
 }
