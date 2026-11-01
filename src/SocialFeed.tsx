@@ -1,4 +1,5 @@
 import ShopvaxLoading from './ShopvaxLoading'
+import SocialAccountChoice from './SocialAccountChoice'
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { showToast } from './ui-dialogs'
 import { ChevronRight, Eye, Heart, MessageCircleQuestion, Minus, Play, Plus, Share2, ShoppingBag, Store, Volume2, VolumeX, X } from 'lucide-react'
@@ -291,6 +292,7 @@ export default function SocialFeed() {
   const [hasMore, setHasMore] = useState(() => restored.current?.hasMore ?? true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [accountChoiceOpen, setAccountChoiceOpen] = useState(false)
   const [picker, setPicker] = useState<PickerState | null>(null)
   const [pickerError, setPickerError] = useState('')
   const [activeCart, setActiveCart] = useState<SocialPost['store'] | null>(null)
@@ -517,7 +519,7 @@ export default function SocialFeed() {
   }
 
   return <div className="social-feed-page">
-    <header className="social-feed-nav"><strong className="svx-social-brand"><img src="/brand/shopvax-symbol-dark.svg" className="svx-brand-symbol" alt="" aria-hidden="true" /><img src="/brand/shopvax-wordmark-light.svg" className="svx-brand-wordmark" alt="Shopvax" /></strong><span>PRODUTOS DAS LOJAS</span><div className="social-feed-nav__right"><a href="/para-lojas">Para lojas</a><a href="/entrar">Entrar</a></div></header>
+    <header className="social-feed-nav"><strong className="svx-social-brand"><img src="/brand/shopvax-symbol-dark.svg" className="svx-brand-symbol" alt="" aria-hidden="true" /><img src="/brand/shopvax-wordmark-light.svg" className="svx-brand-wordmark" alt="Shopvax" /></strong><span>PRODUTOS DAS LOJAS</span><div className="social-feed-nav__right"><a href="/para-lojas">Para lojas</a><button type="button" onClick={() => setAccountChoiceOpen(true)}>Entrar</button></div></header>
     <main className="social-feed-list" ref={listRef}
       data-feed-initial-posts={initialSession?.posts.length || 0}
       data-feed-restored-index={restoredIndex.current}
@@ -547,6 +549,7 @@ export default function SocialFeed() {
       <div ref={sentinel} className="social-feed-sentinel" />
     </main>
 
+    {accountChoiceOpen && <SocialAccountChoice storeSlug={posts[activeIndex]?.store.slug || posts[0]?.store.slug} onClose={() => setAccountChoiceOpen(false)}/>}
     {picker && <div className="feed-sheet-layer">
       <button className="feed-sheet-backdrop" onClick={() => setPicker(null)} aria-label="Fechar seleção"/>
       <section className="feed-sheet feed-picker-sheet">
