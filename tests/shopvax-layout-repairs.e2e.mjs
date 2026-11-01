@@ -75,9 +75,13 @@ try {
    return {card:{left:card.left,right:card.right,width:card.width},media:{left:media.left,right:media.right,width:media.width},copy:{left:copy.left,right:copy.right,width:copy.width},overflow:document.documentElement.scrollWidth-innerWidth}
   })
   if(width===1440){
-   assert(layout.card.width>=1000,JSON.stringify(layout))
-   assert(layout.media.right<=layout.copy.left+2 && layout.copy.left>=layout.card.left+500,JSON.stringify(layout))
-  } else assert(layout.card.width<=width+2)
+   assert(layout.card.width>=430 && layout.card.width<=930, 'A publicação deve ser vertical, não um painel horizontal: '+JSON.stringify(layout))
+   assert(layout.media.width>=layout.card.width-92,'Mídia deve ocupar quase todo o cartão: '+JSON.stringify(layout))
+   assert(layout.copy.left>=layout.media.left && layout.copy.right<=layout.media.right+2,'Legenda sobreposta à mídia: '+JSON.stringify(layout))
+  } else {
+   assert(Math.abs(layout.card.width-width)<=2,'Feed mobile deve ocupar a largura do viewport: '+JSON.stringify(layout))
+   assert(Math.abs(layout.media.width-width)<=2,'Mídia mobile sem margens laterais: '+JSON.stringify(layout))
+  }
   assert(layout.overflow<=2,JSON.stringify(layout))
   await page.screenshot({path:'artifacts/shopvax-redesign/social-feed-width-'+width+'.png'})
   await page.close()
