@@ -71,6 +71,8 @@ try {
   await page.locator('.panel-brand .svx-panel-mark').waitFor()
   assert.equal(await page.getByRole('button',{name:'Precisa de ajuda?'}).count(),1)
   await page.goto('http://127.0.0.1:5173/painel/produtos')
+  await page.locator('.panel-shell').waitFor()
+  if (width <= 760) await page.locator('.panel-menu').click()
   await page.locator('.panel-brand .svx-panel-mark').waitFor()
   assert.equal(await page.getByRole('button',{name:'Precisa de ajuda?'}).count(),0,'Ajuda não deve cobrir produtos')
   assert((await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth))<=2)
