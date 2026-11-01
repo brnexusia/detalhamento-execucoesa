@@ -119,6 +119,50 @@ function visitorKey(req, res) {
   return crypto.createHash('sha256').update(token).digest('hex').slice(0, 40)
 }
 
+// Um follow é associado a uma conta verificada, nunca ao cookie de visitante.
+// Identidades de compradores legados só valem na própria loja.
+const sessionHash = (token) => crypto.createHash('sha256').update(token).digest('hex')
+async function authenticatedFollower(req) {
+  if (!pool) return null
+  const cookies = parseCookies(req)
+  const ownerToken = cookies.atacado_session
+  if (ownerToken) {
+    const found = await pool.query(
+      'SELECT s.user_id FROM sessions s WHERE s.token_hash=$1 AND s.expires_at>now() LIMIT 1',
+      [sessionHash(ownerToken)],
+    )
+    if (found.rowCount) return { key: 'owner:' + found.rows[0].user_id, storeId: null, role: 'vendedor' }
+  }
+  const buyerToken = cookies.shopvax_buyer_session
+  if (buyerToken) {
+    // Banco anterior à ativação de WhatsApp pode ainda não ter buyer_sessions.
+    try {
+      const found = await pool.query(
+        'SELECT s.buyer_id FROM buyer_sessions s WHERE s.token_hash=$1 AND s.expires_at>now() LIMIT 1',
+        [sessionHash(buyerToken)],
+      )
+      if (found.rowCount) return { key: 'buyer:' + found.rows[0].buyer_id, storeId: null, role: 'comprador' }
+    } catch (error) {
+      if (error?.code !== '42P01') throw error
+    }
+  }
+  const legacyToken = cookies.shopvax_customer_session
+  if (legacyToken) {
+    try {
+      const found = await pool.query(
+        `SELECT c.id,c.store_id FROM store_customer_sessions s
+         JOIN store_customers c ON c.id=s.customer_id
+         WHERE s.token_hash=$1 AND s.expires_at>now() AND c.active=true LIMIT 1`,
+        [sessionHash(legacyToken)],
+      )
+      if (found.rowCount) return { key: 'customer:' + found.rows[0].id, storeId: found.rows[0].store_id, role: 'comprador' }
+    } catch (error) {
+      if (error?.code !== '42P01') throw error
+    }
+  }
+  return null
+}
+
 function planTier(value) {
   return ['ouro', 'prata'].includes(value) ? value : 'bronze'
 }
@@ -154,20 +198,20 @@ function decodeFeedCursor(value) {
   } catch { throw new Error('CURSOR_INVALID') }
 }
 
-async function publicStoreProfile(slug, viewerKey) {
+async function publicStoreProfile(slug, followerKey, followerStoreId) {
   await schemaReady()
   const result = await pool.query(`
     SELECT s.id,s.slug,s.name,s.tagline,s.eyebrow,s.logo_url,s.accent,s.plan_tier,
       COUNT(p.id) FILTER (WHERE p.active=true AND p.social_published=true)::int AS product_count,
       (SELECT COUNT(*)::int FROM social_store_follows f WHERE f.store_id=s.id) AS follower_count,
       (SELECT COUNT(*)::int FROM social_post_views v WHERE v.store_id=s.id) AS view_count,
-      EXISTS(SELECT 1 FROM social_store_follows f WHERE f.store_id=s.id AND f.visitor_key=$2) AS following
+      EXISTS(SELECT 1 FROM social_store_follows f WHERE f.store_id=s.id AND f.visitor_key=$2 AND ($3::text IS NULL OR f.store_id=$3)) AS following
     FROM stores s
     LEFT JOIN products p ON p.store_id=s.id
     WHERE s.slug=$1 AND s.is_active=true AND s.social_enabled=true
     GROUP BY s.id
     LIMIT 1
-  `, [slug, viewerKey])
+  `, [slug, followerKey, followerStoreId || null])
   if (!result.rowCount) return null
   const row = result.rows[0]
   return {
@@ -200,7 +244,7 @@ async function publicStorePublications(slug) {
   return products.rows.map(publicationShape)
 }
 
-async function publicFeed(cursorValue, requestedLimit, viewerKey) {
+async function publicFeed(cursorValue, requestedLimit, viewerKey, followerKey, followerStoreId) {
   await schemaReady()
   const cursor = decodeFeedCursor(cursorValue)
   const limit = Math.max(1, Math.min(30, Math.floor(Number(requestedLimit) || 12)))
@@ -212,14 +256,14 @@ async function publicFeed(cursorValue, requestedLimit, viewerKey) {
       (SELECT COUNT(*)::int FROM social_actions a WHERE a.product_id=p.id AND a.kind='share') AS social_shares,
       (SELECT COUNT(*)::int FROM social_store_follows f WHERE f.store_id=s.id) AS social_followers,
       EXISTS(SELECT 1 FROM social_post_likes l WHERE l.product_id=p.id AND l.visitor_key=$4) AS social_liked,
-      EXISTS(SELECT 1 FROM social_store_follows f WHERE f.store_id=s.id AND f.visitor_key=$4) AS social_following
+      EXISTS(SELECT 1 FROM social_store_follows f WHERE f.store_id=s.id AND f.visitor_key=$5 AND ($6::text IS NULL OR f.store_id=$6)) AS social_following
     FROM products p
     JOIN stores s ON s.id=p.store_id
     WHERE p.active=true AND p.social_published=true AND s.is_active=true AND s.social_enabled=true
       AND ($1::timestamptz IS NULL OR p.social_published_at < $1::timestamptz OR (p.social_published_at = $1::timestamptz AND p.id < $2))
     ORDER BY p.social_published_at DESC,p.id DESC
     LIMIT $3
-  `, [cursor?.at || null, cursor?.id || '', limit + 1, viewerKey])
+  `, [cursor?.at || null, cursor?.id || '', limit + 1, viewerKey, followerKey, followerStoreId || null])
   const hasMore = result.rows.length > limit
   const rows = result.rows.slice(0, limit)
   return {
@@ -316,7 +360,9 @@ function install(app) {
 
   app.get('/api/social/feed', async (req, res, next) => {
     try {
-      return res.json(await publicFeed(req.query.cursor, req.query.limit, visitorKey(req, res)))
+      const follower = await authenticatedFollower(req)
+      return res.json(await publicFeed(req.query.cursor, req.query.limit, visitorKey(req, res),
+        follower?.key || '__guest__', follower?.storeId || null))
     } catch (error) {
       if (error?.message === 'CURSOR_INVALID') return res.status(400).json({ error: 'Cursor inválido.' })
       next(error)
@@ -325,7 +371,9 @@ function install(app) {
 
   app.get('/api/social/stores/:slug', async (req, res, next) => {
     try {
-      const profile = await publicStoreProfile(String(req.params.slug || '').trim().slice(0, 80), visitorKey(req, res))
+      const follower = await authenticatedFollower(req)
+      const profile = await publicStoreProfile(String(req.params.slug || '').trim().slice(0, 80),
+        follower?.key || '__guest__', follower?.storeId || null)
       if (!profile) return res.status(404).json({ error: 'Loja não encontrada.' })
       return res.json(profile)
     } catch (error) { next(error) }
@@ -365,7 +413,12 @@ function install(app) {
 
   app.post('/api/social/stores/:storeId/follow', async (req, res, next) => {
     try {
-      const result = await toggleFollow(String(req.params.storeId || ''), visitorKey(req, res))
+      const follower = await authenticatedFollower(req)
+      if (!follower) return res.status(401).json({ error: 'Entre como comprador ou vendedor para seguir lojas.', code: 'AUTH_REQUIRED' })
+      if (follower.storeId && follower.storeId !== String(req.params.storeId || '')) {
+        return res.status(403).json({ error: 'Sua conta de comprador pertence a outra loja.', code: 'STORE_SCOPE' })
+      }
+      const result = await toggleFollow(String(req.params.storeId || ''), follower.key)
       if (!result) return res.status(404).json({ error: 'Loja não encontrada.' })
       return res.json(result)
     } catch (error) { next(error) }
