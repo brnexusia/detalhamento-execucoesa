@@ -5,6 +5,7 @@ import multer from 'multer'
 import pg from 'pg'
 import { collectPdfCatalog, MAX_PDF_BYTES } from './scanner-pdf.mjs'
 import { collectCatalog } from './scanner-collector.mjs'
+import { sharedPhotoSourceKind } from './scanner-photo-albums.mjs'
 import { normalizeCandidates } from './scanner-normalizer.mjs'
 import { prepareReview } from './scanner-review.mjs'
 
@@ -72,7 +73,9 @@ export function normalizeImportUrl(input) {
   if (isBlockedHostname(url.hostname)) throw new Error('Essa URL não pode ser usada para importação.')
 
   url.hash = ''
-  url.search = ''
+  // Public photo links may need their signed query string to download media.
+  // Regular store URLs keep their canonical no-query form for deduplication.
+  if (!sharedPhotoSourceKind(url.toString())) url.search = ''
   url.hostname = url.hostname.toLowerCase()
   if (url.pathname === '') url.pathname = '/'
   return { url: url.toString(), host: url.hostname.toLowerCase() }
