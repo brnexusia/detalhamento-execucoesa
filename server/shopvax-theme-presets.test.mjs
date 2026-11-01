@@ -4,7 +4,7 @@ import { PassThrough } from 'node:stream'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
-import { resolveShopvaxTheme, seasonalThemeIds } from './shopvax-theme-presets.mjs'
+import { isShopvaxSeasonOpen, resolveShopvaxTheme, seasonalThemeIds } from './shopvax-theme-presets.mjs'
 import { streamCatalogPdf } from './catalog-pdf.mjs'
 import sharp from 'sharp'
 
@@ -12,7 +12,11 @@ import sharp from 'sharp'
 const samplePhoto = await sharp({ create:{ width:220, height:260, channels:3, background:'#C87454' } })
   .jpeg({ quality:78 }).toBuffer()
 
-async function render(store) {
+const november = new Date('2026-11-20T15:00:00Z')
+const december = new Date('2026-12-18T15:00:00Z')
+const january = new Date('2027-01-10T15:00:00Z')
+
+async function render(store, themeNow = november) {
   const output = new PassThrough()
   output.headers = {}
   output.status = function status(code) { this.statusCode = code; return this }
@@ -21,7 +25,7 @@ async function render(store) {
   output.on('data', chunk => chunks.push(chunk))
   const ended = new Promise((resolve, reject) => { output.once('end', resolve); output.once('error', reject) })
   await streamCatalogPdf({
-    res: output,
+    res: output, themeNow,
     store: { id:'store-test', slug:'loja', name:'Loja Exemplo', logo_url:'', ...store },
     catalog: { name:'Catálogo Real', kind:'atacado', minimum_order:100 },
     products: [
@@ -34,28 +38,29 @@ async function render(store) {
 }
 
 test('paletas e temas completos possuem textos, fundos e dica sem desconto inventado', () => {
-  assert.deepEqual(seasonalThemeIds, ['padrao','black-friday','natal','sao-joao'])
+  assert.deepEqual(seasonalThemeIds, ['padrao','black-friday','natal'])
   const defaultTheme = resolveShopvaxTheme({ accent:'#003366', seasonal_theme:'padrao' })
   assert.equal(defaultTheme.accent, '#003366', 'PDF deve usar a paleta da loja no tema padrão')
-  const black = resolveShopvaxTheme({ accent:'#003366', seasonal_theme:'black-friday' })
+  const black = resolveShopvaxTheme({ accent:'#003366', seasonal_theme:'black-friday' }, november)
   assert.equal(black.label, 'BLACK FRIDAY')
   assert.notEqual(black.background, defaultTheme.background)
   assert.notEqual(black.accent, defaultTheme.accent)
-  assert.match(black.tip, /preços/i)
+  assert.match(black.tip, /preços|preço/i)
   for (const id of seasonalThemeIds) {
-    const theme = resolveShopvaxTheme({ seasonal_theme:id })
+    const theme = resolveShopvaxTheme({ seasonal_theme:id }, id === 'natal' ? december : november)
     for (const field of ['name','label','message','tip','background','surface','ink','accent','soft','line']) {
       assert(theme[field], `Tema ${id}: falta ${field}`)
     }
     assert.doesNotMatch(theme.message, /\d+%|frete grátis|somente hoje/i, 'Não anunciar ofertas inexistentes')
   }
   assert.equal(resolveShopvaxTheme({ seasonal_theme:'desconhecido' }).id, 'padrao')
+  assert.equal(resolveShopvaxTheme({ seasonal_theme:'sao-joao' }, november).id, 'padrao')
 })
 
 test('botão gerar PDF renderiza o tema aplicado, não uma prévia qualquer', async () => {
   const neutral = await render({ accent:'#003366', seasonal_theme:'padrao' })
   const themed = await render({ accent:'#003366', seasonal_theme:'black-friday' })
-  const natal = await render({ accent:'#003366', seasonal_theme:'natal' })
+  const natal = await render({ accent:'#003366', seasonal_theme:'natal' }, december)
   for (const x of [neutral,themed,natal]) {
     assert.equal(x.status, 200)
     assert.equal(x.headers['content-type'], 'application/pdf')
@@ -85,7 +90,7 @@ test('PDF de quatro estados salvos: padrão, paleta, sazonal e restaurado', asyn
   // Restaurar tema sazonal preserva a paleta personalizada efetivamente salva.
   const restored = await render({ ...baseStore, accent:'#003366', seasonal_theme:'padrao' })
   assert.equal(resolveShopvaxTheme({ ...baseStore, accent:'#003366', seasonal_theme:'padrao' }).accent, '#003366')
-  assert.equal(resolveShopvaxTheme({ ...baseStore, accent:'#003366', seasonal_theme:'black-friday' }).accent, '#F6C544')
+  assert.equal(resolveShopvaxTheme({ ...baseStore, accent:'#003366', seasonal_theme:'black-friday' }, november).accent, '#FF6225')
   assert.notDeepEqual(standard.bytes, palette.bytes, 'A paleta deve afetar o PDF')
   assert.notDeepEqual(palette.bytes, seasonal.bytes, 'O tema sazonal deve mudar mais que a paleta')
   assert.equal(resolveShopvaxTheme({ ...baseStore, accent:'#003366', seasonal_theme:'padrao' }).id, 'padrao')
@@ -124,4 +129,31 @@ test('PDF de quatro estados salvos: padrão, paleta, sazonal e restaurado', asyn
       throw new Error(`Falha ao renderizar PDF ${name}: ${image.stderr?.toString() || image.status}`)
     }
   }
+})
+
+test('somente Black Friday em novembro e Natal em dezembro, no horário do Brasil', () => {
+  const lateOctober = new Date('2026-11-01T02:59:00Z')
+  const novemberStart = new Date('2026-11-01T03:00:00Z')
+  const decemberStart = new Date('2026-12-01T03:00:00Z')
+  assert.equal(isShopvaxSeasonOpen('black-friday', lateOctober), false)
+  assert.equal(isShopvaxSeasonOpen('black-friday', novemberStart), true)
+  assert.equal(isShopvaxSeasonOpen('black-friday', decemberStart), false)
+  assert.equal(isShopvaxSeasonOpen('natal', decemberStart), true)
+  assert.equal(isShopvaxSeasonOpen('natal', january), false)
+  assert.equal(isShopvaxSeasonOpen('sao-joao', november), false)
+  assert.equal(resolveShopvaxTheme({seasonal_theme:'black-friday',accent:'#008080'}, january).id, 'padrao')
+  assert.equal(resolveShopvaxTheme({seasonal_theme:'black-friday',accent:'#008080'}, january).accent, '#008080')
+  assert.equal(resolveShopvaxTheme({seasonal_theme:'natal'}, november).id, 'padrao')
+  assert.equal(resolveShopvaxTheme({seasonal_theme:'natal'}, december).id, 'natal')
+})
+
+test('PDF volta ao padrão automaticamente quando a campanha expira', async () => {
+  const expiredBlack = await render({ seasonal_theme:'black-friday', accent:'#007799' }, january)
+  const expiredChristmas = await render({ seasonal_theme:'natal', accent:'#007799' }, january)
+  assert.equal(expiredBlack.headers['x-shopvax-theme'], 'padrao')
+  assert.equal(expiredChristmas.headers['x-shopvax-theme'], 'padrao')
+  const novemberBlack = await render({ seasonal_theme:'black-friday' }, november)
+  assert.equal(novemberBlack.headers['x-shopvax-theme'], 'black-friday')
+  assert.equal(expiredBlack.headers['content-type'], 'application/pdf')
+  assert.equal(expiredBlack.bytes.subarray(0,4).toString('ascii'), '%PDF')
 })
