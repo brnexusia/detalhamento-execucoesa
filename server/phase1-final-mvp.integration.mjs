@@ -44,6 +44,36 @@ async function register() {
 try {
   await waitForServer()
   const account = await register()
+  // Regressão real do editor: multipart autenticado -> PostgreSQL -> mídia pública.
+  // A otimização pode estar na fila; o original deve estar disponível imediatamente.
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y1lI7sAAAAASUVORK5CYII=',
+    'base64',
+  )
+  const form = new FormData()
+  form.append('file', new Blob([png], { type: 'image/png' }), 'teste-upload.png')
+  const uploaded = await fetch(`${base}/api/admin/upload`, {
+    method: 'POST',
+    headers: { cookie: account.cookie },
+    body: form,
+  })
+  assert.equal(uploaded.status, 201, `upload falhou: ${await uploaded.text().catch(() => '')}`)
+  const media = await uploaded.json()
+  assert.match(media.url, /^\\/media\\/[a-f0-9-]+$/)
+  assert.equal(media.type, 'image')
+  const original = await fetch(`${base}${media.url}`)
+  assert.equal(original.status, 200)
+  assert.match(original.headers.get('content-type') || '', /^image\\//)
+  assert.deepEqual(Buffer.from(await original.arrayBuffer()), png)
+  const mobile = await fetch(`${base}${media.url}?w=320`)
+  assert.equal(mobile.status, 200)
+  assert.match(mobile.headers.get('content-type') || '', /^image\\//)
+
+  const unauthForm = new FormData()
+  unauthForm.append('file', new Blob([png], { type: 'image/png' }), 'sem-login.png')
+  const unauthorizedUpload = await fetch(`${base}/api/admin/upload`, { method: 'POST', body: unauthForm })
+  assert.equal(unauthorizedUpload.status, 401)
+
   let onboarding = await request('/api/admin/bootstrap', { cookie: account.cookie })
   assert.equal(onboarding.response.status, 200)
   assert.equal(onboarding.payload.store.onboarding_palette_selected, false, 'loja nova deve poder escolher a paleta')
