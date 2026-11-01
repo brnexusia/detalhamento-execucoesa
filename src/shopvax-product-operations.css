@@ -147,6 +147,7 @@
 .panel-shell .svx-products .product-admin-card {
   min-width: 0;
   min-height: 76px;
+  grid-template-rows: auto; /* Override legacy product-card grid rows (190px 1fr auto). */
   margin: 0;
   padding: 10px 0;
   border: 0;
