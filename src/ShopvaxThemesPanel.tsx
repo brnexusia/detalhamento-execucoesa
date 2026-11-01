@@ -3,7 +3,7 @@ import { Check, CalendarDays, Clock3, Lightbulb, RotateCcw, Save, Sparkles } fro
 import { api } from './api'
 import { SHOPVAX_PALETTES } from './ShopvaxDesignSystem'
 import {
-  SHOPVAX_DEFAULT_THEME, availableSeasonalThemes, seasonalThemeById, shopvaxMonthInBrazil,
+  availableSeasonalThemes, seasonalThemeById, shopvaxMonthInBrazil,
   type ShopvaxSeasonalThemeId,
 } from './shopvax-seasonal-themes'
 import type { AdminBootstrap } from './types'
