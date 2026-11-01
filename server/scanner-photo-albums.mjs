@@ -5,9 +5,13 @@ import sharp from 'sharp'
 const GOOGLE_PHOTOS_HOSTS = new Set(['photos.google.com', 'photos.app.goo.gl'])
 const GOOGLE_IMAGE_HOST = /^(?:lh[3-6]\.googleusercontent\.com|photos\.googleusercontent\.com)$/
 const IMAGE_EXTENSION = /\.(?:jpe?g|png|webp|avif|gif)$/i
-const MAX_ALBUM_PHOTOS = 120
+// A photo-album import may stage up to 10,000 review items; plan limits still
+// apply when products are published. Keep per-image limits to bound RAM usage.
+export const MAX_ALBUM_ITEMS = 10_000
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024
-const MAX_TOTAL_STORED_BYTES = 150 * 1024 * 1024
+const MAX_ALBUM_HTML_BYTES = 24 * 1024 * 1024
+const PHOTO_STAGE_BATCH_SIZE = 100
+const PHOTO_PROGRESS_INTERVAL = 50
 
 function parsedUrl(value) {
   try {
@@ -46,7 +50,7 @@ function preferredPixels(url) {
   return dimensions.length ? Math.max(...dimensions) : 0
 }
 
-export function googlePhotosImageUrls(html, limit = MAX_ALBUM_PHOTOS) {
+export function googlePhotosImageUrls(html, limit = MAX_ALBUM_ITEMS) {
   const raw = decodeAlbumHtml(html)
   const pattern = /https?:\/\/(?:lh[3-6]\.googleusercontent\.com|photos\.googleusercontent\.com)\/[^\s"'<>\\]+/gi
   const images = new Map()
@@ -60,9 +64,9 @@ export function googlePhotosImageUrls(html, limit = MAX_ALBUM_PHOTOS) {
     const key = imageKey(url)
     const existing = images.get(key)
     if (!existing || preferredPixels(url) > preferredPixels(new URL(existing))) images.set(key, url.toString())
-    if (images.size >= MAX_ALBUM_PHOTOS * 3) break
+    if (images.size >= MAX_ALBUM_ITEMS * 3) break
   }
-  return [...images.values()].slice(0, Math.max(1, Math.min(MAX_ALBUM_PHOTOS, Number(limit) || MAX_ALBUM_PHOTOS)))
+  return [...images.values()].slice(0, Math.max(1, Math.min(MAX_ALBUM_ITEMS, Number(limit) || MAX_ALBUM_ITEMS)))
 }
 
 async function savePhoto(url, request, onImage, filename) {
@@ -88,16 +92,17 @@ async function savePhoto(url, request, onImage, filename) {
   return { url: stored, bytes: optimized.length }
 }
 
-export async function collectSharedPhotos(sourceUrl, { request, onImage, onBatch, onProgress, maxProducts = MAX_ALBUM_PHOTOS, collectInMemory = true } = {}) {
+export async function collectSharedPhotos(sourceUrl, { request, onImage, onBatch, onProgress, maxProducts = MAX_ALBUM_ITEMS, collectInMemory = true, photoSaver = savePhoto } = {}) {
   if (typeof request !== 'function' || typeof onImage !== 'function') throw new Error('Importação de fotos não configurada no servidor.')
   const kind = sharedPhotoSourceKind(sourceUrl)
   if (!kind) throw new Error('Informe um álbum público do Google Fotos ou um link direto de imagem.')
-  const safeMax = Math.max(1, Math.min(MAX_ALBUM_PHOTOS, Number(maxProducts) || MAX_ALBUM_PHOTOS))
+  const requestedLimit = Number(maxProducts)
+  const safeMax = Math.max(1, Math.min(MAX_ALBUM_ITEMS, Number.isFinite(requestedLimit) ? Math.floor(requestedLimit) : MAX_ALBUM_ITEMS))
   let imageUrls = []
   let albumUrl = sourceUrl
 
   if (kind === 'google-photos') {
-    const response = await request(sourceUrl, { accept: 'text/html,application/xhtml+xml', maxBytes: 8 * 1024 * 1024 })
+    const response = await request(sourceUrl, { accept: 'text/html,application/xhtml+xml', maxBytes: MAX_ALBUM_HTML_BYTES })
     if (!response?.ok) throw new Error('Álbum inacessível. Ative o compartilhamento por link e tente novamente.')
     const finalUrl = parsedUrl(response.url || sourceUrl)
     if (!finalUrl || finalUrl.hostname.toLowerCase() !== 'photos.google.com') {
@@ -112,14 +117,15 @@ export async function collectSharedPhotos(sourceUrl, { request, onImage, onBatch
   }
 
   const candidates = []
+  const stagedBatch = []
   let storedBytes = 0
   let accepted = 0
   let skipped = 0
   for (let i = 0; i < imageUrls.length; i += 1) {
-    if (accepted >= safeMax || storedBytes >= MAX_TOTAL_STORED_BYTES) break
+    if (accepted >= safeMax) break
     let saved
     try {
-      saved = await savePhoto(imageUrls[i], request, onImage, `foto-album-${String(i + 1).padStart(3, '0')}.webp`)
+      saved = await photoSaver(imageUrls[i], request, onImage, `foto-album-${String(i + 1).padStart(3, '0')}.webp`)
     } catch {
       skipped += 1
     }
@@ -138,13 +144,22 @@ export async function collectSharedPhotos(sourceUrl, { request, onImage, onBatch
         source: kind === 'google-photos' ? 'google-photos-shared' : 'public-image-url',
       }
       if (collectInMemory) candidates.push(candidate)
-      // Database failures must abort the job so provisional media is cleaned up.
-      if (typeof onBatch === 'function') await onBatch([candidate], { candidateCount: accepted })
+      // Stage in bounded batches: a 10k-photo import must not execute 10k
+      // candidate INSERT statements or keep all candidates in memory.
+      if (typeof onBatch === 'function') {
+        stagedBatch.push(candidate)
+        if (stagedBatch.length >= PHOTO_STAGE_BATCH_SIZE) {
+          await onBatch(stagedBatch.splice(0), { candidateCount: accepted })
+        }
+      }
     }
-    if ((i + 1) % 10 === 0 || i + 1 === imageUrls.length) {
+    if ((i + 1) % PHOTO_PROGRESS_INTERVAL === 0 || i + 1 === imageUrls.length) {
       await onProgress?.({ progress: Math.min(90, 10 + Math.round(80 * (i + 1) / imageUrls.length)), pagesScanned: 1, candidates: accepted, platform: kind })
     }
   }
+  // Flush the final partial batch before the job transitions to review.
+  // Database staging failures propagate to the worker for cleanup.
+  if (stagedBatch.length && typeof onBatch === 'function') await onBatch(stagedBatch, { candidateCount: accepted })
   if (!accepted) throw new Error('Nenhuma foto pôde ser baixada. O link deve ser público e as imagens precisam estar acessíveis.')
   await onProgress?.({ progress: 95, pagesScanned: 1, candidates: accepted, platform: kind })
   return { platform: kind, pagesScanned: 1, candidateCount: accepted, skipped, candidates }

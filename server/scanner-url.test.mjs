@@ -13,6 +13,10 @@ assert.deepEqual(normalizeImportUrl('http://example.com'), {
   url: 'http://example.com/',
   host: 'example.com',
 })
+assert.deepEqual(normalizeImportUrl('https://cdn.example.com/item.jpg?token=xyz#photo'), {
+  url: 'https://cdn.example.com/item.jpg?token=xyz',
+  host: 'cdn.example.com',
+})
 
 for (const value of [
   '',
