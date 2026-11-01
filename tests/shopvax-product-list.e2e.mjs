@@ -74,7 +74,7 @@ try {
     assert.equal(await page.locator('.svx-products .product-admin-card').count(), 18)
 
     // Real columns, visible-product count and importer portal in the correct header.
-    assert.equal(await page.getByRole('columnheader').count(), 6)
+    assert.equal(await page.locator('.svx-products__headings [role="columnheader"]').count(), 6)
     assert.match(await page.locator('.svx-products__eyebrow').innerText(), /21 APARECEM NA LOJA/)
     await page.getByRole('button', { name: 'Importar catálogo' }).waitFor()
     assert.equal(await page.locator('.svx-products__top-actions .scanner-entry-button').count(), 1)
