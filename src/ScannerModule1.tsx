@@ -379,7 +379,7 @@ export default function ScannerModule1() {
               <p className="scanner-help">Cole o endereço público da loja que pertence à sua empresa. O sistema identificará os produtos disponíveis.</p>
             </> : sourceMode === 'album' ? <>
               <label><span>Link público do álbum ou da foto</span><input value={url} onChange={(event) => setUrl(event.target.value)} inputMode="url" autoComplete="url" placeholder="https://photos.app.goo.gl/..." required autoFocus /></label>
-              <p className="scanner-help">Aceita álbuns compartilhados do Google Fotos e links públicos diretos para imagens. As fotos são copiadas para a sua loja e aparecem como rascunhos para revisão. Adicione nome e preço de cada produto antes de publicar. Álbuns privados não podem ser acessados por link.</p>
+              <p className="scanner-help">Aceita até 10.000 fotos por importação de álbuns públicos do Google Fotos, conforme as imagens disponibilizadas pelo link, e links públicos diretos para imagens. As fotos ficam em revisão: informe nome e preço antes de publicar. Álbuns privados ou que exijam login não são acessíveis.</p>
             </> : <>
               <label><span>Seu catálogo em PDF</span><input key={uploadVersion} type="file" accept=".pdf,application/pdf" required onChange={(event) => setPdfFile(event.target.files?.[0] || null)} /></label>
               <p className="scanner-help">PDF de até 50 MB e 200 páginas. O Shopvax lê nomes, referências, preços e fotos quando possível. Catálogos digitalizados podem usar OCR. Confira cada produto antes de publicar: PDFs com várias peças por página podem precisar de ajustes manuais de imagem.</p>
