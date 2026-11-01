@@ -294,7 +294,6 @@ export default function SocialFeed() {
   const [hasMore, setHasMore] = useState(() => restored.current?.hasMore ?? true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [restoredNotice] = useState(() => Boolean(restored.current?.posts?.length))
   const [picker, setPicker] = useState<PickerState | null>(null)
   const [pickerError, setPickerError] = useState('')
   const [activeCart, setActiveCart] = useState<SocialPost['store'] | null>(null)
@@ -545,7 +544,6 @@ export default function SocialFeed() {
       {windowStart > 0 && <div className="social-feed-spacer" aria-hidden="true" style={{ height: `${windowStart * 100}dvh` }}/>}
       {visiblePosts.map((post, index) => <SocialPostCard post={post} key={post.id} active={windowStart + index === visibleIndex} saveData={saveData} cartCount={cartCount(post.store.slug)} onProfile={openProfile} onAdd={requestAdd} onCart={setActiveCart}/>)}
       {windowEnd < posts.length && <div className="social-feed-spacer" aria-hidden="true" style={{ height: `${(posts.length - windowEnd) * 100}dvh` }}/>}
-      {restoredNotice && <div className="social-feed-cache-note" role="status">Feed recuperado da sessão. Confirme preço e disponibilidade ao preparar o pedido.</div>}
       {!posts.length && !loading && !error && <div className="social-feed-state"><h1>O feed está começando.</h1><p>As publicações das lojas aparecerão aqui.</p></div>}
       {error && <div className="social-feed-state"><p>{error}</p><button onClick={() => void load(cursor)}>Tentar novamente</button></div>}
       {loading && (!posts.length ? <ShopvaxLoading compact label="Carregando produtos…" /> : <div className="social-feed-loading">Carregando mais produtos…</div>)}
