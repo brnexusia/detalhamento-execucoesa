@@ -35,8 +35,8 @@ const visitorCookie = profileResponse.headers.get('set-cookie')?.split(';')[0] |
 if (!profileResponse.ok || !visitorCookie || !profile.store?.id) throw new Error('Visitante social não foi criado para o teste de métricas.')
 const storeId = profile.store.id
 
-async function action(path) {
-  const response = await fetch(`${base}${path}`, { method: 'POST', headers: { cookie: visitorCookie } })
+async function action(path, cookie = visitorCookie) {
+  const response = await fetch(`${base}${path}`, { method: 'POST', headers: { cookie } })
   const body = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(`${path}: ${response.status} ${JSON.stringify(body)}`)
   return body
@@ -47,7 +47,7 @@ await action(`/api/social/posts/${product.id}/view`)
 await action(`/api/social/posts/${product.id}/like`)
 await action(`/api/social/posts/${product.id}/share`)
 const ask = await action(`/api/social/posts/${product.id}/ask`)
-await action(`/api/social/stores/${storeId}/follow`)
+await action(`/api/social/stores/${storeId}/follow`, ownerCookie)
 if (ask.seller?.id !== sellerBody.seller.id) throw new Error('Pergunta social não foi atribuída à vendedora esperada.')
 
 const reportResponse = await fetch(`${base}/api/admin/social-metrics?days=30`, { headers: { cookie: ownerCookie } })
