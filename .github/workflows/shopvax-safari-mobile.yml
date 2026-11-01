@@ -25,8 +25,31 @@ jobs:
         run: |
           npm install --no-save --no-audit --no-fund playwright@1.58.2
           npx playwright install --with-deps webkit
-      - name: Testar mobile Safari no site público
+      - name: Compilar interface mobile
+        run: npm run build
+      - name: Iniciar frontend da versão main
+        run: |
+          npm run dev -- --host 127.0.0.1 > /tmp/shopvax-safari-vite.log 2>&1 &
+          for i in $(seq 1 80); do
+            if curl -fsS http://127.0.0.1:5173/ >/dev/null; then exit 0; fi
+            sleep .25
+          done
+          cat /tmp/shopvax-safari-vite.log
+          exit 1
+      - name: Validar a main renderizada no WebKit
+        env:
+          SHOPVAX_TEST_BROWSER: webkit
+        run: node tests/shopvax-feedback-ui.e2e.mjs
+      - name: Diagnosticar produção mobile Safari (pode estar em deploy anterior)
+        continue-on-error: true
         run: node tests/shopvax-safari-mobile-live.mjs
+      - name: Evidências WebKit na main
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shopvax-main-webkit-screenshots
+          path: artifacts/shopvax-feedback/
+
       - name: Evidências Safari Mobile
         if: always()
         uses: actions/upload-artifact@v4
