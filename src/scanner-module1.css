@@ -462,10 +462,10 @@
 .scanner-discard:disabled { cursor: wait; opacity: .45; }
 
 
-/* PDF/URL import choices use the same review workflow. */
+/* All import sources share the same mandatory review workflow. */
 .scanner-source-tabs {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
 .scanner-source-tabs button {
@@ -494,6 +494,8 @@
   max-width: 100%;
   cursor: pointer;
 }
-@media (max-width: 420px) {
-  .scanner-source-tabs button { font-size: 11px; }
+@media (max-width: 520px) {
+  .scanner-source-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .scanner-source-tabs button:last-child { grid-column: 1 / -1; }
+  .scanner-source-tabs button { font-size: 12px; }
 }
