@@ -152,6 +152,8 @@ jobs:
         run: node tests/product-picker-responsive.e2e.mjs
       - name: Product list browser regression
         run: node tests/shopvax-product-list.e2e.mjs
+      - name: Branded loading, official login mark, panel 3-minute motion and contextual help
+        run: node tests/shopvax-brand-loading-context.e2e.mjs
       - name: Growth onboarding, buyer preferences and support
         run: node tests/shopvax-growth.e2e.mjs
       - name: Short original Shopvax tour - responsive video and transcript
@@ -232,8 +234,6 @@ jobs:
           retention-days: 14
       - name: Issue 109 visual details - plans, loading mark and reduced motion
         run: node tests/shopvax-issue109-visual-details.e2e.mjs
-      - name: Branded loading, official login mark, panel 3-minute motion and contextual help
-        run: node tests/shopvax-brand-loading-context.e2e.mjs
       - name: Central Shopvax support - opt-in assistant and WhatsApp link
         run: node tests/shopvax-support-ai.e2e.mjs
       - name: Debug log
