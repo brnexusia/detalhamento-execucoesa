@@ -5,6 +5,7 @@ import express from 'express'
 import multer from 'multer'
 import pg from 'pg'
 import { generateMediaVariants, requestedMediaWidth } from './media-variants.mjs'
+import { createMediaVariantQueue } from './media-upload-queue.mjs'
 import { isShopvaxSeasonOpen, resolveShopvaxTheme } from './shopvax-theme-presets.mjs'
 
 const { Pool } = pg
@@ -621,6 +622,24 @@ const upload = multer({
     cb(null, /^image\//.test(file.mimetype) || /^video\//.test(file.mimetype)),
 })
 
+// A resposta do upload depende apenas da gravação do original; a otimização é
+// opcional e executada em uma fila pequena, fora do caminho crítico HTTP.
+const mediaVariantQueue = createMediaVariantQueue({
+  generate: generateMediaVariants,
+  persist: async (assetId, variant) => {
+    await pool.query(
+      `INSERT INTO media_variants (asset_id,width,mime_type,byte_size,data)
+       VALUES ($1,$2,$3,$4,$5)
+       ON CONFLICT (asset_id,width) DO NOTHING`,
+      [assetId, variant.width, variant.mimeType, variant.bytes.length, variant.bytes],
+    )
+  },
+  onError: (error) => console.warn(
+    '[shopvax-media] variante opcional indisponível:',
+    error instanceof Error ? error.message : 'erro',
+  ),
+})
+
 app.post(
   '/api/admin/upload',
   auth,
@@ -643,26 +662,17 @@ app.post(
         req.file.buffer,
       ],
     )
-    // Foto original mantida intacta. Falha na otimização não impede o upload.
-    if (req.file.mimetype.startsWith('image/')) {
-      try {
-        const variants = await generateMediaVariants(req.file.buffer, req.file.mimetype)
-        for (const variant of variants) {
-          await pool.query(
-            `INSERT INTO media_variants (asset_id,width,mime_type,byte_size,data)
-             VALUES ($1,$2,$3,$4,$5)
-             ON CONFLICT (asset_id,width) DO NOTHING`,
-            [assetId, variant.width, variant.mimeType, variant.bytes.length, variant.bytes],
-          )
-        }
-      } catch (error) {
-        console.warn('[shopvax-media] variante opcional indisponível:', error instanceof Error ? error.message : 'erro')
-      }
-    }
+    // Retorna assim que o original está persistido; o proxy não espera o Sharp.
     res.status(201).json({
       url: `/media/${assetId}`,
       type: req.file.mimetype.startsWith('video/') ? 'video' : 'image',
     })
+    if (req.file.mimetype.startsWith('image/')) {
+      const job = mediaVariantQueue.enqueue(assetId, req.file.buffer, req.file.mimetype)
+      if (!job.accepted) {
+        console.warn('[shopvax-media] fila de variantes cheia; original preservado:', assetId)
+      }
+    }
   }),
 )
 
