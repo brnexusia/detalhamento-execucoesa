@@ -1,5 +1,6 @@
 import express from 'express'
 import pg from 'pg'
+import { buyerWhatsappReady } from './buyer-whatsapp-auth-hooks.mjs'
 
 const { Pool } = pg
 const databaseUrl = process.env.DATABASE_URL?.trim() || ''
@@ -38,6 +39,7 @@ async function config(req, res) {
   return res.json({
     store: { slug: row.slug, name: row.name, logoUrl: row.logo_url, accent: row.accent },
     customerLoginEnabled: row.customer_login_enabled !== false,
+    buyerWhatsAppLoginEnabled: buyerWhatsappReady(),
     customDomain: row.custom_domain_status === 'verified' ? row.custom_domain : '',
     theme: {
       background: row.theme_background || '#ffffff',

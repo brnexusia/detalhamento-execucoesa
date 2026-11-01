@@ -21,6 +21,7 @@
     "test:scanner:module6": "node server/scanner-module6.integration.mjs",
     "test:polish": "node server/product-polish.integration.mjs",
     "test:google-auth": "node server/google-auth.integration.mjs",
+    "test:buyer-whatsapp": "node --test server/buyer-whatsapp-auth.test.mjs",
     "test:billing": "node --test server/stripe-billing-policy.test.mjs"
   },
   "dependencies": {

@@ -8,7 +8,7 @@ import './phase2-panel.css'
 
 type Seller = { id: string; slug: string; name: string; phone: string; is_active: boolean }
 type Franchisee = { id: string; slug: string; name: string; phone: string; active: boolean }
-type Customer = { id: string; name: string; email: string; phone: string; active: boolean; orders_count: number; orders_value: number }
+type Customer = { id: string; name: string; email: string; phone: string; active: boolean; orders_count: number; orders_value: number; buyer_profile?: { purpose: string; business_status: string; business_name: string; cnpj_status: string; segment: string; channels: string[] } | null }
 type Order = { id: string; code: string; total: number; status: string; created_at: string; customer_name?: string | null; customer_email?: string | null; seller_name?: string | null; items: Array<{ quantity?: number }> }
 type Phase2Data = {
   plan: { code: string; name: string; limits: { sellers: number | null; franchisees: number | null }; features: Record<string, boolean> }
@@ -55,6 +55,7 @@ export default function Phase2Panel() {
   const [textColor, setTextColor] = useState('#17211b')
   const [font, setFont] = useState('system')
   const [customerLogin, setCustomerLogin] = useState(true)
+  const [buyerFilter, setBuyerFilter] = useState('all')
   const [franchisee, setFranchisee] = useState({ name: '', phone: '' })
   const dirty = Boolean(data) && (
     domain !== (data?.store.customDomain || '') ||
@@ -89,6 +90,12 @@ export default function Phase2Panel() {
   const stockEnabled = data?.plan.features.stock === true
   const franchiseesEnabled = data?.plan.features.franchisees === true
   const activeSellers = useMemo(() => data?.sellers.filter((seller) => seller.is_active) || [], [data])
+  const filteredBuyers = useMemo(() => (data?.customers || []).filter((c) => {
+    if (buyerFilter === 'all') return true
+    if (buyerFilter === 'pessoal') return c.buyer_profile?.purpose === 'pessoal'
+    if (buyerFilter === 'revenda') return ['revenda', 'ambos', 'futuro'].includes(c.buyer_profile?.purpose || '')
+    return c.buyer_profile?.business_status === 'sim'
+  }), [data, buyerFilter])
 
   const saveStore = async () => {
     if (!data) return
@@ -158,8 +165,27 @@ export default function Phase2Panel() {
       <article className="phase2-card">
         <div className="phase2-card__head"><div><span>Cliente identificado</span><h2>Login e histórico</h2></div><strong>{data.customers.length}</strong></div>
         <label className="phase2-toggle"><input type="checkbox" checked={customerLogin} onChange={(event) => setCustomerLogin(event.target.checked)}/><span/> Permitir conta de cliente nesta loja</label>
-        <p className="phase2-muted">Clientes autenticados passam a ter os próprios pedidos vinculados ao histórico da conta.</p>
-        <div className="phase2-customer-list">{data.customers.slice(0, 12).map((customer) => <div key={customer.id}><div><strong>{customer.name}</strong><span>{customer.email}</span></div><b>{customer.orders_count} {customer.orders_count === 1 ? 'pedido' : 'pedidos'}</b></div>)}{!data.customers.length && <p>Nenhum cliente criou conta ainda.</p>}</div>
+        <p className="phase2-muted">Dados comerciais disponíveis apenas de compradores vinculados a esta loja. Pedidos preparados não são vendas confirmadas.</p>
+        <label className="phase2-muted">Filtrar compradores
+          <select value={buyerFilter} onChange={(event) => setBuyerFilter(event.target.value)}>
+            <option value="all">Todos ({data.customers.length})</option>
+            <option value="revenda">Revendedores</option>
+            <option value="pessoal">Consumo próprio</option>
+            <option value="empresa">Possui negócio</option>
+          </select>
+        </label>
+        <div className="phase2-customer-list">{filteredBuyers.slice(0, 30).map((customer) =>
+          <div key={customer.id}>
+            <div><strong>{customer.name}</strong><span>{customer.email}</span>
+              {customer.buyer_profile && <span>{customer.buyer_profile.purpose === 'pessoal' ? 'Consumo próprio' : 'Revenda / negócio'}
+                {customer.buyer_profile.business_name ? ' · ' + customer.buyer_profile.business_name : ''}
+                {customer.buyer_profile.segment ? ' · ' + customer.buyer_profile.segment : ''}
+                {customer.buyer_profile.channels?.length ? ' · ' + customer.buyer_profile.channels.join(', ') : ''}
+              </span>}
+            </div><b>{customer.orders_count} {customer.orders_count === 1 ? 'pedido' : 'pedidos'}</b>
+          </div>)}
+          {!filteredBuyers.length && <p>Nenhum comprador encontrado neste filtro.</p>}
+        </div>
       </article>
 
       <article className={`phase2-card ${!stockEnabled ? 'is-locked' : ''}`}>
