@@ -14,6 +14,7 @@ const sha = (value) => crypto.createHash('sha256').update(value).digest('hex')
 const uuid = () => crypto.randomUUID()
 const digits = (v) => String(v ?? '').replace(/\D/g, '')
 export function normalizeBuyerPhone(value) {
+  if (String(value ?? '').trim().startsWith('+') && !String(value).trim().startsWith('+55')) return null
   const raw = digits(value)
   const phone = raw.startsWith('55') && raw.length >= 12 ? raw : '55' + raw
   return /^55\d{10,11}$/.test(phone) ? phone : null
@@ -102,6 +103,7 @@ async function requestCode(req, res) {
   try {
     await client.query('BEGIN')
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [phoneMac])
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['ip:' + ipMac])
     const count = await client.query("SELECT (SELECT count(*)::int FROM buyer_otp_requests WHERE phone_mac=$1 AND created_at>now()-interval '15 minutes') AS phone_count, (SELECT count(*)::int FROM buyer_otp_requests WHERE ip_mac=$2 AND created_at>now()-interval '1 hour') AS ip_count", [phoneMac, ipMac])
     if (count.rows[0].phone_count >= 3 || count.rows[0].ip_count >= 20) {
       await client.query('ROLLBACK')
@@ -207,7 +209,7 @@ export async function currentBuyerCustomer(req,storeId) {
     let result = await client.query('SELECT id FROM store_customers WHERE store_id=$1 AND buyer_account_id=$2 LIMIT 1', [storeId,account.id])
     if (!result.rowCount) {
       // Associar legado somente pelo telefone previamente verificado.
-      const legacy = await client.query("SELECT id FROM store_customers WHERE store_id=$1 AND regexp_replace(phone,'[^0-9]','','g')=$2 AND buyer_account_id IS NULL ORDER BY created_at ASC LIMIT 1 FOR UPDATE", [storeId,account.phone])
+      const legacy = await client.query("SELECT id FROM store_customers WHERE store_id=$1 AND CASE WHEN length(regexp_replace(phone,'[^0-9]','','g')) IN (10,11) THEN '55'||regexp_replace(phone,'[^0-9]','','g') ELSE regexp_replace(phone,'[^0-9]','','g') END=$2 AND buyer_account_id IS NULL ORDER BY created_at ASC LIMIT 1 FOR UPDATE", [storeId,account.phone])
       if (legacy.rowCount) {
         result = await client.query('UPDATE store_customers SET buyer_account_id=$1,name=$2,updated_at=now() WHERE id=$3 RETURNING id', [account.id,account.name,legacy.rows[0].id])
       } else {
