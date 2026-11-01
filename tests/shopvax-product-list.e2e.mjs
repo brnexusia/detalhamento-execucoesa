@@ -78,6 +78,7 @@ try {
     assert.match(await page.locator('.svx-products__eyebrow').innerText(), /21 APARECEM NA LOJA/)
     await page.getByRole('button', { name: 'Importar catálogo' }).waitFor()
     assert.equal(await page.locator('.svx-products__top-actions .scanner-entry-button').count(), 1)
+    assert.equal(await page.getByRole('button', { name: 'Precisa de ajuda?' }).count(), 0, 'Ajuda contextual não deve cobrir produtos')
     assert.equal(await page.locator('.svx-products__featured').count(), 1)
     const measured = await page.evaluate(() => {
       const first = document.querySelector('.svx-products .product-admin-card')
