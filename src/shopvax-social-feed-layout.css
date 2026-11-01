@@ -312,3 +312,22 @@
     );
   }
 }
+
+
+/* Ajuste de margens sinalizadas: publicação sem moldura preta no celular. */
+@media(max-width:799px){
+  .social-feed-page .social-feed-list .social-feed-card{
+    width:100% !important;
+    max-width:100% !important;
+    margin-inline:0 !important;
+    border-inline:0 !important;
+  }
+  .social-feed-page .social-feed-list .social-feed-card .social-feed-media{
+    inset:0;width:100%;height:100%;
+  }
+  .social-feed-page .social-feed-list .social-feed-card .social-feed-media img,
+  .social-feed-page .social-feed-list .social-feed-card .social-feed-media video{
+    width:100%;height:100%;object-fit:cover !important;
+    object-position:center;
+  }
+}
