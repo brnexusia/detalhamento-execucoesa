@@ -144,10 +144,6 @@ export default function BuyerWhatsappLogin({ storeSlug, onVerified, editOnly = f
     {stage === 'profile' && <form onSubmit={(event) => { event.preventDefault(); void save() }}>
       <label><span>Nome completo *</span><input autoComplete="name" maxLength={120} required value={form.name} onChange={(e) => change('name', e.target.value)}/></label>
       <label><span>E-mail *</span><input type="email" autoComplete="email" maxLength={240} required value={form.email} onChange={(e) => change('email', e.target.value)}/></label>
-      <div className="buyer-two-columns">
-        <label><span>Cidade</span><input autoComplete="address-level2" value={form.city} onChange={(e) => change('city',e.target.value)}/></label>
-        <label><span>UF</span><input maxLength={2} autoComplete="address-level1" placeholder="BA" value={form.state} onChange={(e) => change('state',e.target.value.toUpperCase())}/></label>
-      </div>
       <label><span>Qual é a finalidade das suas compras? *</span>
         <select value={form.purpose} required onChange={(e) => change('purpose',e.target.value)}>
           <option value="" disabled>Selecione uma opção</option>
@@ -158,7 +154,7 @@ export default function BuyerWhatsappLogin({ storeSlug, onVerified, editOnly = f
           <option value="futuro">Estou começando a vender</option>
         </select>
       </label>
-      {form.purpose !== 'pessoal' && <>
+      {Boolean(form.purpose) && form.purpose !== 'pessoal' && <>
         <label><span>Você possui um negócio?</span>
           <select value={form.businessStatus} required onChange={(e) => change('businessStatus',e.target.value)}>
             <option value="" disabled>Selecione uma opção</option>
@@ -189,6 +185,10 @@ export default function BuyerWhatsappLogin({ storeSlug, onVerified, editOnly = f
         </select></label>
         <label><span>Instagram comercial (opcional)</span><input maxLength={100} value={form.instagram} onChange={(e) => change('instagram',e.target.value)}/></label>
       </>}
+      <div className="buyer-two-columns">
+        <label><span>Cidade (opcional)</span><input autoComplete="address-level2" value={form.city} onChange={(e) => change('city',e.target.value)}/></label>
+        <label><span>UF (opcional)</span><input maxLength={2} autoComplete="address-level1" placeholder="BA" value={form.state} onChange={(e) => change('state',e.target.value.toUpperCase())}/></label>
+      </div>
       <label className="buyer-consent"><input type="checkbox" checked={privacy} onChange={(e) => setPrivacy(e.target.checked)} required/>
         Li e aceito a política de privacidade e o compartilhamento dos dados comerciais com lojas com as quais eu interagir.</label>
       <label className="buyer-consent"><input type="checkbox" checked={form.marketingConsent} onChange={(e) => change('marketingConsent',e.target.checked)}/>
