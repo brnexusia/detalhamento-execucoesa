@@ -19,7 +19,7 @@ export function normalizeBuyerPhone(value) {
   const phone = raw.startsWith('55') && raw.length >= 12 ? raw : '55' + raw
   return /^55\d{10,11}$/.test(phone) ? phone : null
 }
-const purposes = new Set(['revenda', 'pessoal', 'ambos', 'futuro'])
+const purposes = new Set(['revenda', 'negocio', 'pessoal', 'ambos', 'futuro'])
 const channelsAllowed = new Set(['loja', 'virtual', 'social', 'whatsapp', 'market', 'autonomo', 'outros'])
 const businesses = new Set(['sim', 'nao', 'abrindo'])
 const cnpjStatuses = new Set(['sim', 'nao', 'processo'])
