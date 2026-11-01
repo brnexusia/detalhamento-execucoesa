@@ -6,6 +6,8 @@ on:
     paths:
       - '.github/workflows/shopvax-safari-mobile.yml'
       - 'tests/shopvax-safari-mobile-live.mjs'
+      - 'tests/shopvax-feedback-ui.e2e.mjs'
+      - 'src/social-account-choice.css'
   workflow_dispatch:
 
 permissions:
