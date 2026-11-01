@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import express from 'express'
 import pg from 'pg'
+import { buyerWhatsappReady, currentBuyerCustomer, buyerProfilesForStore } from './buyer-whatsapp-auth-hooks.mjs'
 
 const { Pool } = pg
 const databaseUrl = process.env.DATABASE_URL?.trim() || ''
@@ -201,6 +202,10 @@ function featureDenied(res, label) {
 
 async function currentCustomer(req, storeId = null) {
   await ensureSchema()
+  if (storeId) {
+    const linked = await currentBuyerCustomer(req, storeId)
+    if (linked) return linked
+  }
   const token = parseCookies(req)[customerCookie]
   if (!token) return null
   const params = [hashToken(token)]
@@ -373,6 +378,7 @@ async function phase2Context(req, res) {
       FROM orders o LEFT JOIN store_customers c ON c.id=o.customer_id AND c.store_id=o.store_id LEFT JOIN sellers s ON s.id=o.seller_id AND s.store_id=o.store_id
       WHERE o.store_id=$1 ORDER BY o.created_at DESC LIMIT 200`, [store.id]),
   ])
+  const buyerProfiles = new Map((await buyerProfilesForStore(store.id)).map(row => [row.customer_id, row]))
   return res.json({
     plan: {
       code: store.plan_code || store.plan_tier || 'bronze',
@@ -392,7 +398,7 @@ async function phase2Context(req, res) {
     },
     sellers: sellers.rows,
     franchisees: franchisees.rows,
-    customers: customers.rows.map((row) => ({ ...row, orders_value: Number(row.orders_value || 0) })),
+    customers: customers.rows.map((row) => ({ ...row, buyer_profile: buyerProfiles.get(row.id) || null, orders_value: Number(row.orders_value || 0) })),
     orders: orders.rows.map((row) => ({ ...row, total: Number(row.total || 0) })),
     semantics: 'Pedidos enviados ao WhatsApp representam intenção/pedido registrado no Shopvax. Os valores não significam faturamento confirmado.',
   })
@@ -446,6 +452,7 @@ async function updateOrderStatus(req, res) {
 }
 
 async function registerCustomer(req, res) {
+  if (buyerWhatsappReady()) return res.status(410).json({ error: 'O cadastro agora é realizado pelo WhatsApp.' })
   res.set('Cache-Control', 'no-store, private')
   await ensureSchema()
   const store = await storeBySlug(req.params.storeSlug)
@@ -469,6 +476,7 @@ async function registerCustomer(req, res) {
 }
 
 async function loginCustomer(req, res) {
+  if (buyerWhatsappReady()) return res.status(410).json({ error: 'Entre usando seu WhatsApp.' })
   res.set('Cache-Control', 'no-store, private')
   await ensureSchema()
   const store = await storeBySlug(req.params.storeSlug)
