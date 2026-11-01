@@ -108,6 +108,7 @@ async function selectInitialPlan(req, res) {
        SET plan_tier=$1,signup_plan_selected_at=now(),updated_at=now()
        WHERE owner_id=$2
          AND signup_plan_selected_at IS NULL
+         AND COALESCE(billing_required,false)=false
          AND created_at > now() - interval '15 minutes'
        RETURNING id,slug,plan_tier`,
       [planCode, session.rows[0].user_id],

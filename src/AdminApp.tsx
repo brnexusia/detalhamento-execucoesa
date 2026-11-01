@@ -91,7 +91,8 @@ export default function AdminApp() {
       if (version !== loadVersion.current) return
       const message = err instanceof Error ? err.message : 'Não foi possível carregar o painel.'
       setData(null)
-      if ((err as Error & { status?: number }).status === 401 || /sessão/i.test(message)) go('/entrar')
+      if ((err as Error & { status?: number }).status === 402) go('/painel/assinatura')
+      else if ((err as Error & { status?: number }).status === 401 || /sessão/i.test(message)) go('/entrar')
       else setError(message)
     } finally {
       if (version === loadVersion.current && !silent) setLoading(false)

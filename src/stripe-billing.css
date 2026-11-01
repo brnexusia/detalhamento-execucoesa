@@ -1,0 +1,32 @@
+.svx-billing { color:#161514; max-width:1180px; margin:auto; padding:24px 20px 72px; font-family:Archivo,system-ui,sans-serif; }
+.svx-billing__eyebrow,.svx-billing__summary span,.svx-billing__plans article>span { color:#9c4c21; font:600 11px/1.4 'Fragment Mono',monospace; letter-spacing:.12em; }
+.svx-billing__header { border-bottom:1px solid #d9d3c6; padding:18px 0 28px; }
+.svx-billing h1,.svx-billing h2 { font-family:'Archivo Narrow',sans-serif; }
+.svx-billing__header h1 { font-size:clamp(32px,5vw,50px); line-height:1.05; margin:10px 0; }
+.svx-billing__header p { color:#565149; max-width:600px; }
+.svx-billing__summary { display:grid; grid-template-columns:1fr 1fr auto; gap:18px; padding:25px 0; border-bottom:1px solid #d9d3c6; }
+.svx-billing__summary>div { display:flex; flex-direction:column; gap:6px; }
+.svx-billing__summary strong { font-size:20px; }
+.svx-billing__summary small { color:#625d55; max-width:290px; }
+.svx-billing__actions { align-items:flex-start; }
+.svx-billing button { display:inline-flex; align-items:center; justify-content:center; gap:8px; border:1px solid #161514; cursor:pointer; padding:11px 13px; background:transparent; color:#161514; font-weight:600; border-radius:2px; }
+.svx-billing button:focus-visible { outline:3px solid #f25c05; outline-offset:3px; }
+.svx-billing button:disabled { opacity:.55; cursor:not-allowed; }
+.svx-billing__term { display:flex; gap:8px; flex-wrap:wrap; padding:26px 0 20px; }
+.svx-billing__term button { display:flex; flex-direction:column; align-items:flex-start; min-width:128px; gap:2px; border-color:#d9d3c6; }
+.svx-billing__term button.is-selected { color:#f25c05; border-color:#f25c05; }
+.svx-billing__term small { font-size:11px; opacity:.72; }
+.svx-billing__plans { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.svx-billing__plans article { display:flex; flex-direction:column; gap:10px; min-height:245px; padding:22px; background:#f3f0e8; border:1px solid #d9d3c6; }
+.svx-billing__plans article.is-featured { border-color:#f25c05; }
+.svx-billing__plans h2 { font-size:26px; margin:0; }
+.svx-billing__plans article>strong { font-size:27px; }
+.svx-billing__plans p { color:#60594e; font-size:13px; flex:1; }
+.svx-billing__plans button { background:#161514; color:#fff; width:100%; }
+.svx-billing__plans .is-featured button { background:#f25c05; border-color:#f25c05; }
+.svx-billing__fineprint { font-size:12px; color:#645e54; margin:20px 0; line-height:1.7; }
+.svx-billing__notice,.svx-billing__error { display:flex; align-items:flex-start; gap:8px; padding:12px 0; }
+.svx-billing__error { color:#a02b1c; }
+.svx-billing__notice { color:#266447; }
+@media(max-width:800px) { .svx-billing__summary { grid-template-columns:1fr 1fr; } .svx-billing__actions { grid-column:1/-1; flex-direction:row !important; flex-wrap:wrap; } .svx-billing__plans { grid-template-columns:1fr; } .svx-billing__plans article { min-height:200px; } }
+@media(max-width:480px) { .svx-billing { padding:14px 12px 48px; } .svx-billing__summary { grid-template-columns:1fr; } .svx-billing__term { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); } .svx-billing__term button { min-width:0; width:100%; padding:9px 7px; } .svx-billing__summary strong { font-size:18px; } }

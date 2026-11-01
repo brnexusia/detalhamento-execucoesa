@@ -50,6 +50,7 @@ jobs:
         run: |
           grep -Fq '"./server/brand-compat-hooks.mjs"' Dockerfile
           grep -Fq '"./server/security-hooks.mjs"' Dockerfile
+          grep -Fq '"./server/stripe-billing-hooks.mjs"' Dockerfile
           grep -Fq '"./server/performance-hooks.mjs"' Dockerfile
           grep -Fq '"./server/api-json-hooks.mjs"' Dockerfile
           grep -Fq '"./server/phase5-launch-hooks.mjs"' Dockerfile
@@ -86,6 +87,10 @@ jobs:
         run: node --test tests/verify-production.test.mjs
       - name: Aprovacao dos planos comerciais e migracao segura
         run: node --test server/system-plans.test.mjs
+      - name: Stripe billing policy and webhook verification
+        run: |
+          node --check server/stripe-billing-hooks.mjs
+          npm run test:billing
       - name: Responsive media variants preserve originals
         run: node --test server/media-variants.test.mjs
       - name: Revisão de ergonomia - fontes, cursor e copy
@@ -147,6 +152,8 @@ jobs:
           const body = await response.json()
           if (body.enabled !== false || body.clientId !== null) throw new Error('Google auth should be disabled when GOOGLE_CLIENT_ID is absent')
           NODE
+      - name: Stripe billing schema and fail-closed smoke test
+        run: node server/stripe-billing.integration.mjs
       - name: Growth endpoints with real PostgreSQL (disabled external services)
         run: node server/onboarding-growth.integration.mjs
       - name: Admin compact/paged catalog multi-tenant integration
