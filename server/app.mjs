@@ -1,5 +1,6 @@
 import crypto from 'node:crypto'
 import path from 'node:path'
+import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import express from 'express'
 import multer from 'multer'
@@ -11,6 +12,13 @@ const { Pool } = pg
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const rootDir = path.resolve(__dirname, '..')
 const distDir = path.join(rootDir, 'dist')
+let packagedUiVersion = null
+try {
+  const value = JSON.parse(readFileSync(path.join(distDir, 'shopvax-ui-version.json'), 'utf8'))
+  if (typeof value?.revision === 'string' && typeof value?.sourceFingerprint === 'string') packagedUiVersion = value
+} catch {
+  // Desenvolvimento pode iniciar sem dist; produção precisa fornecer o build.
+}
 const port = Number(process.env.PORT || 80)
 const sessionCookie = 'atacado_session'
 const sessionDays = 30
@@ -326,6 +334,14 @@ function publicStoreShape(store, seller, products) {
   }
 }
 
+// A revisão identifica o bundle efetivo, não a branch/commit esperado no deploy.
+// Never cached: a resposta muda com o conteúdo compilado a cada publicação.
+app.get('/shopvax-ui-version.json', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate')
+  if (!packagedUiVersion) return res.status(503).json({ error: 'Bundle sem identificador de revisão.' })
+  return res.json(packagedUiVersion)
+})
+
 app.get('/health', (_req, res) =>
   res.json({
     ok: true,
@@ -333,6 +349,8 @@ app.get('/health', (_req, res) =>
     databaseError: dbReady ? null : dbError,
     storage: dbReady ? 'postgres' : 'unavailable',
     releaseSha: process.env.SHOPVAX_RELEASE_SHA?.trim() || null,
+    uiRevision: packagedUiVersion?.revision || null,
+    uiFingerprint: packagedUiVersion?.sourceFingerprint || null,
   }),
 )
 
