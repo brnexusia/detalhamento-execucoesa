@@ -232,13 +232,10 @@ const SocialPostCard = memo(function SocialPostCard({ post, cartCount, active, s
        {post.product.mediaType === 'video' && <button className="social-feed-sound" onClick={() => setMuted((value) => !value)} aria-label={muted ? 'Ativar som' : 'Silenciar vídeo'}>{muted ? <VolumeX size={18}/> : <Volume2 size={18}/>}</button>}
     </div>
 
-    <button className="social-feed-store" onClick={() => onProfile(post.store.slug)}>
-      <span className="social-feed-store__avatar">{post.store.logoUrl ? <img src={post.store.logoUrl} alt=""/> : <Store size={19}/>}</span>
-      <span><strong>{post.store.name}</strong><small>@{post.store.slug}</small></span>
-      <ChevronRight size={17}/>
-    </button>
-
     <aside className="social-feed-actions" aria-label="Interações">
+      <button type="button" className="social-feed-store" aria-label={`Ver perfil da loja ${post.store.name}`} title={`Ver perfil de ${post.store.name}`} onClick={() => onProfile(post.store.slug)}>
+        <span className="social-feed-store__avatar">{post.store.logoUrl ? <img src={post.store.logoUrl} alt=""/> : <Store size={19}/>}</span>
+      </button>
       <button aria-label={interactions.liked ? 'Descurtir produto' : 'Curtir produto'} className={interactions.liked ? 'is-active' : ''} onClick={like}><Heart size={25} fill={interactions.liked ? 'currentColor' : 'none'}/><span>{compact(interactions.likes)}</span></button>
       <div className="social-feed-actions__metric" aria-label={`${compact(interactions.views)} visualizações`}><Eye size={24}/><span>{compact(interactions.views)}</span></div>
       <button aria-label="Compartilhar produto" onClick={share}><Share2 size={24}/><span>{compact(interactions.shares)}</span></button>
@@ -246,6 +243,9 @@ const SocialPostCard = memo(function SocialPostCard({ post, cartCount, active, s
     </aside>
 
     <div className="social-feed-copy">
+      <button type="button" className="social-feed-store-name" onClick={() => onProfile(post.store.slug)}>
+        <strong>{post.store.name}</strong><span>@{post.store.slug}</span>
+      </button>
       <span>{post.product.category}</span>
       <h2>{post.product.name}</h2>
       {post.product.description && <div className={`social-feed-description ${descriptionExpanded ? 'is-expanded' : ''}`}>
