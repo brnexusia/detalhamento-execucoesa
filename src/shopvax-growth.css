@@ -92,3 +92,24 @@
 .svx-support__video summary{cursor:pointer;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:space-between;gap:8px}
 .svx-support__video video{display:block;margin-top:12px;width:100%;height:auto;max-width:640px;aspect-ratio:16/9;background:#161514}
 .svx-support__video p{font-size:12px;line-height:1.6;color:#555049}
+
+/* Prancha 06: na escolha inicial de cor, o atalho de ajuda permanece acessível
+   depois dos cartões e do CTA, nunca sobre a terceira paleta no mobile.
+   O componente de suporte é irmão da tela no #root, portanto pode ocupar
+   espaço no fluxo sem deslocar ou interceptar os botões de configuração. */
+body:has(.svx-onboarding) .svx-support {
+  position: relative;
+  inset: auto;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  margin: 8px clamp(16px, 4vw, 42px) 28px auto;
+}
+body:has(.svx-onboarding) .svx-support__panel {
+  right: 0;
+  bottom: calc(100% + 12px);
+}
+@media (max-width: 430px) {
+  body:has(.svx-onboarding) .svx-support {
+    margin-right: 16px;
+  }
+}
