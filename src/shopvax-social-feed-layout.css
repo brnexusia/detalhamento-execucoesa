@@ -1,6 +1,23 @@
 /* ShopVax · feed imersivo. Fonte única de regras de posição para mobile/desktop.
  * Um post por viewport; mídia cobre o cartão, sem colunas opacas ou molduras.
  * Não altera o carrossel de produtos nem o tema/acento de cada loja. */
+
+/* main.social-feed-list era capturado por main:not(.feed-shell) no CSS
+   global, que aplicava padding horizontal e 100px no rodapé. */
+.social-feed-page main.social-feed-list{
+  box-sizing:border-box;
+  display:block;
+  width:100%;
+  max-width:none;
+  height:100dvh;
+  min-height:0;
+  margin:0;
+  padding:0;
+  border:0;
+  overflow-x:hidden;
+  overflow-y:auto;
+}
+
 .social-feed-page .social-feed-card{
   position:relative;
   box-sizing:border-box;
