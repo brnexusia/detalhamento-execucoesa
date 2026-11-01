@@ -20,7 +20,7 @@
 .platform-brand .platform-mark .svx-brand-symbol { height:31px; max-width:100%; }
 .panel-brand .svx-brand-wordmark, .platform-brand .svx-brand-wordmark {height:19px; max-width:150px;}
 .panel-brand strong, .platform-brand strong { display:flex;align-items:center;min-width:0; }
-/* O primeiro e o último caractere do nome alinham com S e X do wordmark. */
+/* O nome começa sob o S do wordmark com espaçamento natural entre letras. */
 .panel-brand {
   display:grid;
   grid-template-columns:35px minmax(0,1fr) auto;
@@ -60,18 +60,12 @@
   min-width:0;
   align-self:stretch;
   width:100%;
+  text-align:left;
+  letter-spacing:normal;
+  font-kerning:normal;
   overflow:hidden;
+  text-overflow:ellipsis;
   white-space:nowrap;
-}
-.panel-brand__username-letters {
-  display:flex;
-  width:100%;
-  justify-content:space-between;
-  align-items:baseline;
-  white-space:nowrap;
-}
-.panel-brand__username-letters > span {
-  flex:0 0 auto;
 }
 .panel-brand > .panel-close-menu {
   grid-column:3;
