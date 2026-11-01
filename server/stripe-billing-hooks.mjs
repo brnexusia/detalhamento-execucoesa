@@ -33,7 +33,7 @@ async function ensureSchema() {
       "stripe_mode text,"
       "customer_id text UNIQUE, subscription_id text UNIQUE, subscription_status text NOT NULL DEFAULT 'none',",
       "active_plan_code text, cycle text, paid_until timestamptz, last_invoice_id text,",
-      "checkout_session_id text, checkout_plan text, checkout_cycle text,",
+      "checkout_session_id text, checkout_plan text, checkout_cycle text, checkout_started_at timestamptz,",
       "cancel_at_period_end boolean NOT NULL DEFAULT false, updated_at timestamptz NOT NULL DEFAULT now());",
       "CREATE TABLE IF NOT EXISTS shopvax_stripe_events (",
       "event_id text PRIMARY KEY, event_type text NOT NULL, processed_at timestamptz NOT NULL DEFAULT now());",
@@ -71,7 +71,7 @@ async function owner(req) {
   const result = await pool.query([
     'SELECT s.id,s.name,s.slug,s.billing_required,u.email,',
     'b.customer_id,b.stripe_mode,b.subscription_id,b.subscription_status,b.active_plan_code,',
-    'b.cycle,b.paid_until,b.cancel_at_period_end,b.checkout_session_id,b.checkout_plan,b.checkout_cycle',
+    'b.cycle,b.paid_until,b.cancel_at_period_end,b.checkout_session_id,b.checkout_plan,b.checkout_cycle,b.checkout_started_at',
     'FROM sessions se JOIN users u ON se.user_id=u.id JOIN stores s ON s.owner_id=u.id',
     'LEFT JOIN shopvax_stripe_billing b ON b.store_id=s.id',
     'WHERE se.token_hash=$1 AND se.expires_at>now() LIMIT 1',
@@ -220,12 +220,12 @@ async function checkout(req, res) {
       'subscription_data[metadata][shopvax_store_id]': account.id,
     })
     await client.query([
-      'INSERT INTO shopvax_stripe_billing (store_id,customer_id,checkout_session_id,checkout_plan,checkout_cycle)',
-      'VALUES ($1,$2,$3,$4,$5) ON CONFLICT (store_id) DO UPDATE SET',
-      'customer_id=EXCLUDED.customer_id,checkout_session_id=EXCLUDED.checkout_session_id,',
+      'INSERT INTO shopvax_stripe_billing (store_id,customer_id,stripe_mode,checkout_session_id,checkout_plan,checkout_cycle,checkout_started_at)',
+      'VALUES ($1,$2,$3,$4,$5,$6,now()) ON CONFLICT (store_id) DO UPDATE SET',
+      'customer_id=EXCLUDED.customer_id,stripe_mode=EXCLUDED.stripe_mode,checkout_session_id=EXCLUDED.checkout_session_id,checkout_started_at=EXCLUDED.checkout_started_at,'
       "subscription_id=NULL,subscription_status='none',active_plan_code=NULL,cycle=NULL,paid_until=NULL,",
       'checkout_plan=EXCLUDED.checkout_plan,checkout_cycle=EXCLUDED.checkout_cycle,updated_at=now()',
-    ].join(' '), [account.id, customer, session.id, plan.code, plan.cycle])
+    ].join(' '), [account.id, customer, stripeMode, session.id, plan.code, plan.cycle])
     await client.query('COMMIT')
     res.json({ url: session.url })
   } catch (error) {
@@ -288,6 +288,7 @@ async function syncSubscription(client, id, eventType, paidInvoiceId = null) {
   }
   // Eventos atrasados de uma assinatura já substituída não podem afetar a nova.
   if (row.subscription_id && row.subscription_id !== subscription.id) return
+  if (!row.subscription_id && row.checkout_started_at && Number(subscription.created) * 1000 < new Date(row.checkout_started_at).getTime() - 30_000) return
   const line = subscription.items?.data?.[0]
   const priceId = typeof line?.price === 'string' ? line.price : line?.price?.id
   const mapped = priceId ? (await client.query('SELECT plan_code,cycle FROM shopvax_stripe_prices WHERE price_id=$1 AND stripe_mode=$2', [priceId, stripeMode])).rows[0] : null
@@ -325,8 +326,8 @@ async function webhook(req, res) {
       const storeId = String(obj.client_reference_id || '')
       await client.query([
         'UPDATE shopvax_stripe_billing SET subscription_id=COALESCE(subscription_id,$3),updated_at=now()',
-        'WHERE store_id=$1 AND customer_id=$2 AND (subscription_id IS NULL OR subscription_id=$3)',
-      ].join(' '), [storeId, obj.customer, obj.subscription])
+        'WHERE store_id=$1 AND customer_id=$2 AND checkout_session_id=$4 AND (subscription_id IS NULL OR subscription_id=$3)',
+      ].join(' '), [storeId, obj.customer, obj.subscription, obj.id])
       // Nunca liberar acesso somente porque o usuário retornou do Checkout.
     } else if (event.type === 'invoice.paid' && obj.status === 'paid') {
       const sub = typeof obj.subscription === 'string' ? obj.subscription : obj.parent?.subscription_details?.subscription
