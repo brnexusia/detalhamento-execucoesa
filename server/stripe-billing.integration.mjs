@@ -33,6 +33,24 @@ try {
   assert.equal(legacy.rowCount, 1)
   assert.match(legacy.rows[0].column_default, /false/, 'Sem Stripe configurada, cadastros continuam isentos')
 
+  // Provar que um plano escolhido no cadastro não é uma concessão gratuita.
+  const seed = 'stripe-test-' + Math.random().toString(36).slice(2)
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    await client.query('INSERT INTO users (id,email,name,password_hash) VALUES ($1,$2,$3,$4)', [seed, seed + '@example.invalid', 'Loja Teste', null])
+    const protectedStore = await client.query([
+      'INSERT INTO stores (id,owner_id,slug,name,plan_tier,billing_required)',
+      'VALUES ($1,$2,$3,$4,$5,true) RETURNING plan_tier,billing_required',
+    ].join(' '), [seed, seed, seed, 'Teste Stripe', 'ouro'])
+    assert.equal(protectedStore.rows[0].plan_tier, 'bronze', 'Plano Ouro não pode ser ativado só por seleção do cadastro')
+    assert.equal(protectedStore.rows[0].billing_required, true)
+    await client.query('ROLLBACK')
+  } catch (error) {
+    await client.query('ROLLBACK')
+    throw error
+  } finally { client.release() }
+
   const anonymous = await fetch(base + '/api/billing/status')
   assert.equal(anonymous.status, 401, 'Dados da cobrança exigem sessão do lojista')
 
