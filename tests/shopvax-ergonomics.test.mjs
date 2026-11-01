@@ -77,7 +77,8 @@ test('loja mobile usa navegacao sem links duplicados e vitrine de ponta a ponta'
   assert.doesNotMatch(nav, /<ArrowLeft|> Feed<\/button>/)
   assert.match(nav, /> Perfil<\/button>/)
   assert.match(css, /\.store-header-navigation\.is-open\s*\{[\s\S]*?display:grid !important;/)
-  assert.match(css, /width:calc\(100% \+ 28px\);/)
+  assert.match(css, /width:100vw;/)
+  assert.match(css, /margin-inline:calc\(50% - 50vw\);/)
   assert.match(css, /grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/)
 })
 
