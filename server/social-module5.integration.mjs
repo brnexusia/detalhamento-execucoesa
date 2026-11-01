@@ -23,8 +23,8 @@ const visitorCookie = profileResponse.headers.get('set-cookie')?.split(';')[0] |
 if (!profileResponse.ok || !visitorCookie || !profile.store?.id) throw new Error('Perfil não criou sessão anônima social.')
 const storeId = profile.store.id
 
-async function action(path) {
-  const response = await fetch(`${base}${path}`, { method: 'POST', headers: { cookie: visitorCookie } })
+async function action(path, cookie = visitorCookie) {
+  const response = await fetch(`${base}${path}`, { method: 'POST', headers: { cookie } })
   const body = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(`${path}: ${response.status} ${JSON.stringify(body)}`)
   return body
@@ -38,9 +38,16 @@ const likeOn = await action(`/api/social/posts/${productId}/like`)
 const likeOff = await action(`/api/social/posts/${productId}/like`)
 if (likeOn.liked !== true || likeOn.likes !== 1 || likeOff.liked !== false || likeOff.likes !== 0) throw new Error('Toggle de curtida inválido.')
 
-const followOn = await action(`/api/social/stores/${storeId}/follow`)
-const followOff = await action(`/api/social/stores/${storeId}/follow`)
-if (followOn.following !== true || followOn.followers !== 1 || followOff.following !== false || followOff.followers !== 0) throw new Error('Toggle de seguir inválido.')
+// Curtidas e views continuam públicas; seguir exige uma conta autenticada.
+const anonymousFollow = await fetch(`${base}/api/social/stores/${storeId}/follow`, {
+  method:'POST',headers:{cookie:visitorCookie},
+})
+const denied = await anonymousFollow.json().catch(() => ({}))
+if (anonymousFollow.status !== 401 || denied.code !== 'AUTH_REQUIRED') throw new Error('Visitante anônimo não pode seguir loja.')
+
+const followOn = await action(`/api/social/stores/${storeId}/follow`, ownerCookie)
+const followOff = await action(`/api/social/stores/${storeId}/follow`, ownerCookie)
+if (followOn.following !== true || followOn.followers !== 1 || followOff.following !== false || followOff.followers !== 0) throw new Error('Toggle de seguir para vendedor inválido.')
 
 const share1 = await action(`/api/social/posts/${productId}/share`)
 const share2 = await action(`/api/social/posts/${productId}/share`)
