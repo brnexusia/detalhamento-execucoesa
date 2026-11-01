@@ -20,9 +20,45 @@
 .platform-brand .platform-mark .svx-brand-symbol { height:31px; max-width:100%; }
 .panel-brand .svx-brand-wordmark, .platform-brand .svx-brand-wordmark {height:19px; max-width:150px;}
 .panel-brand strong, .platform-brand strong { display:flex;align-items:center;min-width:0; }
-/* Nome da loja termina no mesmo alinhamento direito do X do wordmark oficial. */
-.panel-brand > div:has(> strong > .svx-brand-wordmark){display:flex;flex-direction:column;align-items:flex-end;min-width:0;}
-.panel-brand > div:has(> strong > .svx-brand-wordmark) > small{align-self:stretch;text-align:right;overflow-wrap:anywhere;}
+/* O usuário fica abaixo do símbolo, alinhado à perna esquerda do A,
+   enquanto a marca oficial permanece na primeira linha. */
+.panel-brand {
+  display:grid;
+  grid-template-columns:35px minmax(0,1fr) auto;
+  grid-template-rows:auto auto;
+  align-content:center;
+  column-gap:10px;
+  row-gap:2px;
+}
+.panel-brand > .brand__mark {
+  grid-column:1;
+  grid-row:1;
+  align-self:center;
+}
+.panel-brand > .panel-brand__wordmark {
+  grid-column:2;
+  grid-row:1;
+  align-self:center;
+  justify-self:start;
+}
+.panel-brand > .panel-brand__username {
+  grid-column:1 / 3;
+  grid-row:2;
+  justify-self:start;
+  align-self:start;
+  max-width:100%;
+  min-width:0;
+  padding-left:2px;
+  text-align:left;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.panel-brand > .panel-close-menu {
+  grid-column:3;
+  grid-row:1 / 3;
+  justify-self:end;
+}
 .panel-loading .brand__mark .svx-brand-symbol, .platform-loading .platform-mark .svx-brand-symbol,
 .store-loading .brand__mark .svx-brand-symbol {height:29px;}
 .platform-loading .platform-mark {display:grid;place-items:center;background:#161514;}
@@ -56,10 +92,24 @@
  .social-feed-page .svx-social-brand .svx-brand-symbol {height:23px;}
 }
 
-/* Ação prioritária do cabeçalho: 'Abrir loja' na cor oficial, sem mudar o layout. */
-.panel-shell .panel-topbar .panel-store-link{
-  background:#F25C05;color:#161514;border-color:#F25C05;
+/* Abrir loja é um link de texto e ícones laranja, nunca um botão preenchido. */
+.panel-shell .panel-topbar .panel-store-link {
+  background:transparent;
+  border:0;
+  box-shadow:none;
+  color:#F25C05;
+  text-decoration:none;
 }
-.panel-shell .panel-topbar .panel-store-link:hover{
-  background:#E45400;border-color:#E45400;color:#161514;
+.panel-shell .panel-topbar .panel-store-link svg {
+  color:inherit;
+  stroke:currentColor;
+}
+.panel-shell .panel-topbar .panel-store-link:hover {
+  background:transparent;
+  border:0;
+  color:#E45400;
+}
+.panel-shell .panel-topbar .panel-store-link:focus-visible {
+  outline:2px solid currentColor;
+  outline-offset:4px;
 }
