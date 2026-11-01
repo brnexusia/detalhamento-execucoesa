@@ -371,6 +371,8 @@ function install(app) {
 
   app.get('/api/social/stores/:slug', async (req, res, next) => {
     try {
+      // Visitante mantém identidade anônima para views/likes, não para seguir.
+      visitorKey(req, res)
       const follower = await authenticatedFollower(req)
       const profile = await publicStoreProfile(String(req.params.slug || '').trim().slice(0, 80),
         follower?.key || '__guest__', follower?.storeId || null)
