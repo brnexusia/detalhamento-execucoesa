@@ -61,13 +61,7 @@ function drawSeasonalPrintMotif(doc, theme) {
       doc.circle(cx, 22, 3).fill(theme.accent)
       doc.circle(cx, 52, 3).fill(theme.accent)
     }
-  } else if (theme.id === 'sao-joao') {
-    doc.lineWidth(1).strokeColor(theme.surface).moveTo(right - 98, 20).lineTo(right, 20).stroke()
-    for (let i = 0; i < 6; i += 1) {
-      const x = right - 98 + i * 16
-      doc.moveTo(x, 21).lineTo(x + 7, 40).lineTo(x + 14, 21).closePath()
-        .fill(i % 2 ? theme.surface : theme.accent)
-    }
+  }
   }
   doc.restore()
 }
@@ -169,13 +163,13 @@ async function drawProductCard(doc, product, x, y, w, h, imageLoader, theme) {
   doc.restore()
 }
 
-export async function streamCatalogPdf({ res, store, catalog, products, imageLoader }) {
+export async function streamCatalogPdf({ res, store, catalog, products, imageLoader, themeNow = new Date() }) {
   const safeName = cleanText(catalog.name || 'catalogo', 80).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'catalogo'
   res.status(200)
   res.setHeader('Content-Type', 'application/pdf')
   res.setHeader('Content-Disposition', `attachment; filename="${safeName}-shopvax.pdf"`)
   res.setHeader('Cache-Control', 'private, no-store')
-  const theme = resolveShopvaxTheme(store)
+  const theme = resolveShopvaxTheme(store, themeNow)
   res.setHeader('X-Shopvax-Theme', theme.id)
 
   const doc = new PDFDocument({ size: 'A4', margin: 0, autoFirstPage: true, info: { Title: `${catalog.name} - ${store.name}`, Author: 'Shopvax' } })
