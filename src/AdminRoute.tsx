@@ -7,7 +7,7 @@ import AnalyticsPanel from './AnalyticsPanel'
 import Phase2Panel from './Phase2Panel'
 import Phase3Panel from './Phase3Panel'
 import Phase4Panel from './Phase4Panel'
-import Phase5Panel from './Phase5Panel'
+import ShopvaxStripeBilling from './ShopvaxStripeBilling'
 import AdminSectionFrame from './AdminSectionFrame'
 import './ux-polish.css'
 import './yellow-ux-fixes.css'
@@ -48,7 +48,7 @@ export default function AdminRoute() {
   if (integrations) return <AdminSectionFrame active="integracoes"><Phase4Panel/></AdminSectionFrame>
 
   const subscription = path === '/painel/assinatura' || path.startsWith('/painel/assinatura/')
-  if (subscription) return <AdminSectionFrame active="assinatura"><Phase5Panel/></AdminSectionFrame>
+  if (subscription) return <AdminSectionFrame active="assinatura"><ShopvaxStripeBilling/></AdminSectionFrame>
 
   const hiddenTeam = path === '/painel/equipe' || path.startsWith('/painel/equipe/')
   if (hiddenTeam) return <RedirectTo path="/painel"/>
