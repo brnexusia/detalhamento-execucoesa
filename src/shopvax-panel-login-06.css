@@ -22,7 +22,7 @@
     background:
       linear-gradient(90deg,rgba(22,21,20,.86) 0%,rgba(22,21,20,.55) 48%,rgba(22,21,20,.43) 100%),
       linear-gradient(0deg,rgba(22,21,20,.72),transparent 70%),
-      url('/redesign/shopvax-panel-mosaic.webp') center/cover no-repeat;
+      url('/redesign/shopvax-panel-mosaic-joias.svg') center/cover no-repeat;
     border:0;
     background-color:#161514;
     color:#F3F0E8;
@@ -137,15 +137,13 @@
   .auth-shell--login .auth-panel {padding:12px 20px;max-height:calc(100dvh - 18px);}
   .auth-shell--login .auth-form__head h2 {font-size:clamp(30px,5.6dvh,42px);}
 }
-/* Uma única faixa do mosaico apresenta joias, sem substituir as outras vitrines. */
-.auth-shell--login .auth-poster::after{content:'';position:absolute;left:0;top:clamp(126px,22dvh,240px);width:min(66%,920px);height:clamp(74px,13dvh,118px);z-index:0;pointer-events:none;background:url('/redesign/shopvax-login-jewelry.webp') center/cover no-repeat;mask-image:linear-gradient(90deg,rgba(0,0,0,.85),#000 18%,#000 78%,transparent 100%);opacity:.92;}
-@media(max-width:999px){.auth-shell--login .auth-poster{position:relative;isolation:isolate}.auth-shell--login .auth-poster::after{top:24%;width:min(74%,650px);height:72px;opacity:.76;}}
+/* Acessórios integrados à própria imagem do mosaico, sem ::after sobreposto. */
 /* Tablets e celulares mantêm painel no fluxo: nunca cobrir campos com foto. */
 @media(max-width:999px) {
   .auth-shell .auth-poster {
     background:
       linear-gradient(90deg,rgba(22,21,20,.94),rgba(22,21,20,.75)),
-      url('/redesign/shopvax-panel-mosaic.webp') center/cover no-repeat;
+      url('/redesign/shopvax-panel-mosaic-joias.svg') center/cover no-repeat;
     background-color:#161514;
   }
 }
