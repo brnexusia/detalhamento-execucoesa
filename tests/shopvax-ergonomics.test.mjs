@@ -67,3 +67,45 @@ test('feed restaurado não mostra aviso e mídia mobile preenche a tela sem tarj
   assert.match(feed, /readFeedSession\(\)/, 'A recuperação de posição permanece ativa')
   assert.match(feed, /saveFeedSession\(/, 'O cache do feed permanece ativo')
 })
+
+test('loja mobile usa navegacao sem links duplicados e vitrine de ponta a ponta', () => {
+  const store = read('src/PublicStoreV2.tsx')
+  const nav = read('src/StoreSocialNav.tsx')
+  const css = read('src/shopvax-store-layout-fixes.css')
+  assert.match(store, /<nav className="view-switch">/)
+  assert.doesNotMatch(nav, /<ArrowLeft|> Feed<\/button>/)
+  assert.match(nav, /> Perfil<\/button>/)
+  assert.match(css, /\.store-header-navigation\.is-open\s*\{[\s\S]*?display:grid !important;/)
+  assert.match(css, /width:calc\(100% \+ 28px\);/)
+  assert.match(css, /grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/)
+})
+
+test('pagamento e entrega e um detalhe inline, nao um elemento flutuante', () => {
+  const store = read('src/PublicStoreV2.tsx')
+  const info = read('src/StoreCommercialInfo.tsx')
+  const css = read('src/store-commercial-info.css')
+  const app = read('src/App.tsx')
+  assert.match(store, /<StoreCommercialInfo storeSlug=\{route\.storeSlug\}/)
+  assert.match(info, /<details className="svx-commercial-info">/)
+  assert.doesNotMatch(info, /dangerouslySetInnerHTML|position:fixed/)
+  assert.doesNotMatch(css, /position:fixed/)
+  assert.doesNotMatch(app, /import '\.\/public-commercial-info'/)
+})
+
+test('comprador recebe formulario WhatsApp e perguntas comerciais, sem senha na abertura', () => {
+  const route = read('src/CustomerAccountRoute.tsx')
+  const buyer = read('src/BuyerWhatsappLogin.tsx')
+  const server = read('server/buyer-whatsapp-auth-hooks.mjs')
+  assert.match(route, /<BuyerWhatsappLogin key=\{storeSlug\} storeSlug=\{storeSlug\} enabled=/)
+  assert.doesNotMatch(route, /customers\/register|customer-tabs|Criar minha conta/)
+  assert.match(route, /Já tinha conta com e-mail\?/)
+  assert.match(buyer, /Receber código no WhatsApp/)
+  for (const option of ['Comprar para revender','Comprar para minha empresa ou negócio','Comprar para uso pessoal','Revenda e uso pessoal','Estou começando a vender']) {
+    assert(buyer.includes(option), 'Finalidade ausente: '+option)
+  }
+  assert.match(buyer, /Você possui um negócio\?/)
+  assert.match(buyer, /Onde vende ou pretende vender\?/)
+  assert.match(buyer, /Possui CNPJ\?/)
+  assert.match(buyer, /marketingConsent/)
+  assert.match(server, /const purposes = new Set\(\['revenda', 'negocio'/)
+})
