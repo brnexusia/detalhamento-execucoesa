@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict'
 import { mkdirSync } from 'node:fs'
-import { chromium } from 'playwright'
+import { chromium, webkit } from 'playwright'
 
 // Testa o DOM e os estilos COMPUTADOS; não apenas a presença de CSS no repositório.
-const browser = await chromium.launch({ headless: true })
+const browserType = process.env.SHOPVAX_TEST_BROWSER === 'webkit' ? webkit : chromium
+const browser = await browserType.launch({ headless: true })
 const out = 'artifacts/shopvax-feedback'
 mkdirSync(out, { recursive: true })
 
@@ -193,6 +194,12 @@ try {
     await page.getByRole('button',{name:'Entrar',exact:true}).click()
     let dialog=page.getByRole('dialog',{name:'Comprador ou vendedor?'})
     await dialog.waitFor()
+    const mobileSheet=await dialog.boundingBox()
+    assert(mobileSheet && mobileSheet.x>=-2 && mobileSheet.x+mobileSheet.width<=392,'Modal de conta não pode ultrapassar tela mobile')
+    if(process.env.SHOPVAX_TEST_BROWSER === 'webkit') {
+      assert(Math.abs(mobileSheet.x)<=2 && mobileSheet.width>=388,'WebKit iOS requer seleção de conta em largura completa')
+      assert(Math.abs(mobileSheet.y+mobileSheet.height-844)<=3,'WebKit iOS requer painel alinhado ao rodapé')
+    }
     assert.equal(await dialog.getByRole('button',{name:/Comprador/}).count(),1)
     assert.equal(await dialog.getByRole('button',{name:/Vendedor/}).count(),1)
     await page.screenshot({path:`${out}/perfil-escolha-conta.png`})
