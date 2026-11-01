@@ -117,8 +117,13 @@ export async function collectSharedPhotos(sourceUrl, { request, onImage, onBatch
   let skipped = 0
   for (let i = 0; i < imageUrls.length; i += 1) {
     if (accepted >= safeMax || storedBytes >= MAX_TOTAL_STORED_BYTES) break
+    let saved
     try {
-      const saved = await savePhoto(imageUrls[i], request, onImage, `foto-album-${String(i + 1).padStart(3, '0')}.webp`)
+      saved = await savePhoto(imageUrls[i], request, onImage, `foto-album-${String(i + 1).padStart(3, '0')}.webp`)
+    } catch {
+      skipped += 1
+    }
+    if (saved) {
       storedBytes += saved.bytes
       accepted += 1
       const candidate = {
@@ -133,9 +138,8 @@ export async function collectSharedPhotos(sourceUrl, { request, onImage, onBatch
         source: kind === 'google-photos' ? 'google-photos-shared' : 'public-image-url',
       }
       if (collectInMemory) candidates.push(candidate)
+      // Database failures must abort the job so provisional media is cleaned up.
       if (typeof onBatch === 'function') await onBatch([candidate], { candidateCount: accepted })
-    } catch {
-      skipped += 1
     }
     if ((i + 1) % 10 === 0 || i + 1 === imageUrls.length) {
       await onProgress?.({ progress: Math.min(90, 10 + Math.round(80 * (i + 1) / imageUrls.length)), pagesScanned: 1, candidates: accepted, platform: kind })
