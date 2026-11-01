@@ -152,6 +152,8 @@ jobs:
           const body = await response.json()
           if (body.enabled !== false || body.clientId !== null) throw new Error('Google auth should be disabled when GOOGLE_CLIENT_ID is absent')
           NODE
+      - name: Stripe billing schema and fail-closed smoke test
+        run: node server/stripe-billing.integration.mjs
       - name: Growth endpoints with real PostgreSQL (disabled external services)
         run: node server/onboarding-growth.integration.mjs
       - name: Admin compact/paged catalog multi-tenant integration
