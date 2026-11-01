@@ -62,7 +62,6 @@ function drawSeasonalPrintMotif(doc, theme) {
       doc.circle(cx, 52, 3).fill(theme.accent)
     }
   }
-  }
   doc.restore()
 }
 
