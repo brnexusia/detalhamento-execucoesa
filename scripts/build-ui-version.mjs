@@ -4,7 +4,7 @@ import { dirname } from 'node:path'
 
 /* Impressão digital do conteúdo realmente empacotado.
    Não depende de .git, variáveis do EasyPanel nem SHA informado manualmente. */
-export const uiRevision = 'shopvax-feedback-mobile-20261101-v2'
+export const uiRevision = 'shopvax-mobile-safari-20261101-v3'
 export const sourceFiles = [
   'src/SocialFeed.tsx',
   'src/shopvax-social-feed-layout.css',
@@ -16,6 +16,13 @@ export const sourceFiles = [
   'src/CustomerAccountRoute.tsx',
   'src/BuyerWhatsappLogin.tsx',
   'src/customer-account.css',
+  'src/SocialStoreProfile.tsx',
+  'src/SocialProfileHeader.tsx',
+  'src/SocialAccountChoice.tsx',
+  'src/social-account-choice.css',
+  'src/social-profile.css',
+  'src/shopvax-social-official.css',
+  'src/StoreSocialNav.tsx',
 ]
 const hash = createHash('sha256')
 for (const file of sourceFiles) {
