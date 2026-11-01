@@ -5,6 +5,7 @@ import express from 'express'
 import multer from 'multer'
 import pg from 'pg'
 import { generateMediaVariants, requestedMediaWidth } from './media-variants.mjs'
+import { isShopvaxSeasonOpen, resolveShopvaxTheme } from './shopvax-theme-presets.mjs'
 
 const { Pool } = pg
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -589,11 +590,15 @@ app.put(
     const accent = /^#[0-9a-fA-F]{6}$/.test(req.body?.accent || '') ? req.body.accent : store.accent
     const paletteSelected = store.onboarding_palette_selected === true || req.body?.completePaletteSetup === true
     const requestedSeason = req.body?.seasonalTheme
-    const allowedSeasons = new Set(['padrao', 'black-friday', 'natal', 'sao-joao'])
+    const allowedSeasons = new Set(['padrao', 'black-friday', 'natal'])
     if (requestedSeason != null && !allowedSeasons.has(requestedSeason)) {
       return res.status(400).json({ error: 'Tema sazonal inválido.' })
     }
-    const seasonalTheme = requestedSeason ?? store.seasonal_theme ?? 'padrao'
+    if (requestedSeason != null && !isShopvaxSeasonOpen(requestedSeason)) {
+      return res.status(400).json({ error: 'Este tema só pode ser ativado durante o período da campanha.' })
+    }
+    // Em atualizações comuns, limpa seleções antigas ou campanhas já encerradas.
+    const seasonalTheme = resolveShopvaxTheme({ seasonal_theme: requestedSeason ?? store.seasonal_theme ?? 'padrao' }).id
 
     const updated = await pool.query(
       `UPDATE stores
