@@ -46,4 +46,44 @@
 }
 .social-account-choice-options small{display:block;margin-top:4px;font-size:11px;line-height:1.35;color:#6B665C;}
 .social-account-choice-dialog .social-account-choice-hint{margin:12px 0 0;font-size:11px;}
-@media(max-width:420px){.social-account-choice-dialog{padding:24px 17px 18px;}}
+/* Mobile (incluindo WebKit/iOS): sheet na parte inferior, não modal de desktop.
+ * Espaço da barra home do iPhone preservado via safe-area. */
+@media (max-width:700px) {
+  .social-account-choice-layer {
+    display:flex;
+    align-items:flex-end;
+    justify-content:center;
+    padding:0;
+    padding-bottom:0;
+    min-height:100dvh;
+  }
+  .social-account-choice-backdrop{
+    position:fixed;
+    inset:0;
+    touch-action:manipulation;
+  }
+  .social-account-choice-dialog {
+    width:100vw;
+    max-width:none;
+    max-height:min(86dvh,680px);
+    margin:0;
+    padding:22px 19px max(24px,env(safe-area-inset-bottom,24px));
+    border:0;
+    border-top:1px solid #D9D3C6;
+    border-radius:20px 20px 0 0;
+    box-shadow:0 -12px 55px rgba(0,0,0,.28);
+    overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch;
+  }
+  .social-account-choice-dialog>h2{font-size:clamp(29px,8vw,38px);}
+  .social-account-choice-options>button{
+    min-height:70px;
+    touch-action:manipulation;
+  }
+  .social-account-choice-close{width:42px;height:42px;right:14px;top:12px;}
+}
+@media (max-width:360px) {
+  .social-account-choice-dialog{padding-inline:14px;}
+  .social-account-choice-dialog>h2{font-size:28px;}
+}
+
