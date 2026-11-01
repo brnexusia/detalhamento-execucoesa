@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { CheckCircle2, MessageCircle, ShieldCheck } from 'lucide-react'
 import { apiRequest } from './api'
 import { notifyAuthChange } from './auth-session-sync'
-import './buyer-whatsapp-login.css'
 
 type Buyer = {
   phone: string; name: string; email: string; purpose: string; city: string; state: string;
