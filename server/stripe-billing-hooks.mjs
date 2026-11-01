@@ -6,6 +6,7 @@ import { cycles, planPrice, subscriptionAccess, verifyStripeSignature } from './
 const { Pool } = pg
 const key = String(process.env.SHOPVAX_STRIPE_SECRET_KEY || '').trim()
 const webhookSecret = String(process.env.SHOPVAX_STRIPE_WEBHOOK_SECRET || '').trim()
+const stripeMode = key.startsWith('sk_live_') ? 'live' : 'test'
 const originValue = String(process.env.SHOPVAX_PUBLIC_URL || '').trim()
 let publicOrigin = ''
 try {
@@ -29,6 +30,7 @@ async function ensureSchema() {
       "ALTER TABLE stores ADD COLUMN IF NOT EXISTS billing_required boolean NOT NULL DEFAULT false;",
       "CREATE TABLE IF NOT EXISTS shopvax_stripe_billing (",
       "store_id text PRIMARY KEY REFERENCES stores(id) ON DELETE CASCADE,",
+      "stripe_mode text,"
       "customer_id text UNIQUE, subscription_id text UNIQUE, subscription_status text NOT NULL DEFAULT 'none',",
       "active_plan_code text, cycle text, paid_until timestamptz, last_invoice_id text,",
       "checkout_session_id text, checkout_plan text, checkout_cycle text,",
@@ -36,9 +38,9 @@ async function ensureSchema() {
       "CREATE TABLE IF NOT EXISTS shopvax_stripe_events (",
       "event_id text PRIMARY KEY, event_type text NOT NULL, processed_at timestamptz NOT NULL DEFAULT now());",
       "CREATE TABLE IF NOT EXISTS shopvax_stripe_prices (",
-      "plan_code text NOT NULL, cycle text NOT NULL, amount_cents integer NOT NULL,",
+      "stripe_mode text NOT NULL, plan_code text NOT NULL, cycle text NOT NULL, amount_cents integer NOT NULL,",
       "product_id text NOT NULL, price_id text NOT NULL UNIQUE,",
-      "PRIMARY KEY(plan_code,cycle,amount_cents));",
+      "PRIMARY KEY(stripe_mode,plan_code,cycle,amount_cents));",
       "CREATE OR REPLACE FUNCTION shopvax_stripe_insert_store() RETURNS trigger LANGUAGE plpgsql AS $$",
       "BEGIN IF NEW.billing_required THEN NEW.plan_tier := 'bronze'; END IF; RETURN NEW; END $$;",
       "DROP TRIGGER IF EXISTS trg_shopvax_stripe_new_store ON stores;",
@@ -68,7 +70,7 @@ async function owner(req) {
   if (!token) return null
   const result = await pool.query([
     'SELECT s.id,s.name,s.slug,s.billing_required,u.email,',
-    'b.customer_id,b.subscription_id,b.subscription_status,b.active_plan_code,',
+    'b.customer_id,b.stripe_mode,b.subscription_id,b.subscription_status,b.active_plan_code,',
     'b.cycle,b.paid_until,b.cancel_at_period_end,b.checkout_session_id,b.checkout_plan,b.checkout_cycle',
     'FROM sessions se JOIN users u ON se.user_id=u.id JOIN stores s ON s.owner_id=u.id',
     'LEFT JOIN shopvax_stripe_billing b ON b.store_id=s.id',
@@ -108,7 +110,7 @@ function amountOptions() {
 }
 
 async function ensureStripePrice(plan) {
-  const existing = await pool.query('SELECT price_id FROM shopvax_stripe_prices WHERE plan_code=$1 AND cycle=$2 AND amount_cents=$3', [plan.code, plan.cycle, plan.amountCents])
+  const existing = await pool.query('SELECT price_id FROM shopvax_stripe_prices WHERE stripe_mode=$1 AND plan_code=$2 AND cycle=$3 AND amount_cents=$4', [stripeMode, plan.code, plan.cycle, plan.amountCents])
   if (existing.rowCount) return existing.rows[0].price_id
   const product = await stripe('POST', 'products', {
     name: 'Shopvax ' + plan.name,
@@ -126,7 +128,7 @@ async function ensureStripePrice(plan) {
     'metadata[plan_code]': plan.code,
     'metadata[cycle]': plan.cycle,
   }, 'shopvax-price-' + plan.code + '-' + plan.cycle + '-' + plan.amountCents + '-v1')
-  await pool.query('INSERT INTO shopvax_stripe_prices (plan_code,cycle,amount_cents,product_id,price_id) VALUES ($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING', [plan.code, plan.cycle, plan.amountCents, product.id, price.id])
+  await pool.query('INSERT INTO shopvax_stripe_prices (stripe_mode,plan_code,cycle,amount_cents,product_id,price_id) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING', [stripeMode, plan.code, plan.cycle, plan.amountCents, product.id, price.id])
   return price.id
 }
 
@@ -157,6 +159,7 @@ async function status(req, res) {
 }
 
 async function customerFor(account, client) {
+  if (account.customer_id && account.stripe_mode !== stripeMode) throw Object.assign(new Error('A conta Stripe teste/produção foi trocada. Utilize um banco separado ou uma migração validada.'), { status: 409 })
   if (account.customer_id) return account.customer_id
   const customer = await stripe('POST', 'customers', {
     email: account.email,
@@ -164,10 +167,10 @@ async function customerFor(account, client) {
     'metadata[shopvax_store_id]': account.id,
   }, 'shopvax-customer-' + account.id)
   await client.query([
-    'INSERT INTO shopvax_stripe_billing (store_id,customer_id) VALUES ($1,$2)',
+    'INSERT INTO shopvax_stripe_billing (store_id,customer_id,stripe_mode) VALUES ($1,$2,$3)',
     'ON CONFLICT (store_id) DO UPDATE SET customer_id=EXCLUDED.customer_id',
     'WHERE shopvax_stripe_billing.customer_id IS NULL',
-  ].join(' '), [account.id, customer.id])
+  ].join(' '), [account.id, customer.id, stripeMode])
   return customer.id
 }
 
@@ -182,6 +185,10 @@ async function checkout(req, res) {
     await client.query('BEGIN')
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['shopvax-billing:' + account.id])
     const current = (await client.query('SELECT * FROM shopvax_stripe_billing WHERE store_id=$1 FOR UPDATE', [account.id])).rows[0]
+    if (current?.customer_id && current.stripe_mode !== stripeMode) {
+      await client.query('ROLLBACK')
+      return apiError(res, 409, 'Ambiente Stripe diferente do utilizado nesta loja. Separe dados de teste e produção.', 'STRIPE_MODE_MISMATCH')
+    }
     if (current?.subscription_id && !['canceled', 'incomplete_expired', 'unpaid', 'none'].includes(current.subscription_status)) {
       await client.query('ROLLBACK')
       return apiError(res, 409, 'Existe uma assinatura. Use a opção de alterar plano ou gerenciar cobrança.', 'SUBSCRIPTION_EXISTS')
@@ -198,7 +205,7 @@ async function checkout(req, res) {
         return apiError(res, 409, 'O pagamento anterior está em processamento. Atualize o status.', 'CHECKOUT_PROCESSING')
       }
     }
-    const customer = await customerFor({ ...account, customer_id: current?.customer_id || account.customer_id }, client)
+    const customer = await customerFor({ ...account, customer_id: current?.customer_id || account.customer_id, stripe_mode: current?.stripe_mode || account.stripe_mode }, client)
     const priceId = await ensureStripePrice(plan)
     const session = await stripe('POST', 'checkout/sessions', {
       mode: 'subscription',
@@ -229,7 +236,7 @@ async function checkout(req, res) {
 async function portal(req, res) {
   const account = await requireOwner(req, res)
   if (!account) return
-  if (!account.customer_id || !ready) return apiError(res, 409, 'Nenhuma assinatura Stripe encontrada.', 'NO_BILLING_CUSTOMER')
+  if (!account.customer_id || !ready || account.stripe_mode !== stripeMode) return apiError(res, 409, 'Nenhuma assinatura Stripe válida neste ambiente.', 'NO_BILLING_CUSTOMER')
   const config = await stripe('POST', 'billing_portal/configurations', {
     'features[invoice_history][enabled]': 'true',
     'features[payment_method_update][enabled]': 'true',
@@ -248,7 +255,7 @@ async function portal(req, res) {
 async function change(req, res) {
   const account = await requireOwner(req, res)
   if (!account) return
-  if (!ready || !account.subscription_id || !subscriptionAccess(account)) {
+  if (!ready || !account.subscription_id || account.stripe_mode !== stripeMode || !subscriptionAccess(account)) {
     return apiError(res, 409, 'É necessária uma assinatura ativa para alterar seu plano.', 'SUBSCRIPTION_NOT_ACTIVE')
   }
   const plan = planPrice(String(req.body?.planCode || '').toLowerCase(), String(req.body?.cycle || 'monthly'))
@@ -273,12 +280,12 @@ async function syncSubscription(client, id, eventType, paidInvoiceId = null) {
   const storeId = String(subscription?.metadata?.shopvax_store_id || '')
   if (!storeId || !subscription.customer) return
   const row = (await client.query('SELECT * FROM shopvax_stripe_billing WHERE store_id=$1 FOR UPDATE', [storeId])).rows[0]
-  if (!row || row.customer_id !== subscription.customer || (row.subscription_id && row.subscription_id !== subscription.id)) {
+  if (!row || row.stripe_mode !== stripeMode || row.customer_id !== subscription.customer || (row.subscription_id && row.subscription_id !== subscription.id)) {
     throw new Error('Assinatura Stripe não corresponde à loja vinculada.')
   }
   const line = subscription.items?.data?.[0]
   const priceId = typeof line?.price === 'string' ? line.price : line?.price?.id
-  const mapped = priceId ? (await client.query('SELECT plan_code,cycle FROM shopvax_stripe_prices WHERE price_id=$1', [priceId])).rows[0] : null
+  const mapped = priceId ? (await client.query('SELECT plan_code,cycle FROM shopvax_stripe_prices WHERE price_id=$1 AND stripe_mode=$2', [priceId, stripeMode])).rows[0] : null
   const paid = eventType === 'invoice.paid' && Boolean(paidInvoiceId) && mapped && subscription.status === 'active'
   const periodEnd = Number(line?.current_period_end || subscription.current_period_end || 0)
   const until = paid && periodEnd > 0 ? new Date(periodEnd * 1000) : null
