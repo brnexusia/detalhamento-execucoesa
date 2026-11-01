@@ -278,7 +278,7 @@ export async function processImportJob(jobId, collector = collectCatalog) {
   if (!claimed.rowCount) return null
   const job = claimed.rows[0]
   let persistedBatches = 0
-  const storedPdfAssetIds = []
+  const storedImportAssetIds = []
 
   const persistBatch = async (rawBatch) => {
     const candidates = (Array.isArray(rawBatch) ? rawBatch : [])
@@ -320,23 +320,21 @@ export async function processImportJob(jobId, collector = collectCatalog) {
           [Math.max(1, Math.min(95, Number(progress || 1))), Number(pagesScanned || 0), Number(candidates || 0), String(platform || ''), job.id],
         )
       },
+      onImage: async (image, mime, filename) => {
+        const assetId = id()
+        await pool.query(
+          'INSERT INTO media_assets (id,store_id,mime_type,original_name,byte_size,data) VALUES ($1,$2,$3,$4,$5,$6)',
+          [assetId, job.store_id, mime, filename, image.length, image],
+        )
+        storedImportAssetIds.push(assetId)
+        return '/media/' + assetId
+      },
     }
     let result
     if (job.platform === 'pdf') {
       const upload = await pool.query('SELECT data FROM import_pdf_uploads WHERE job_id=$1 LIMIT 1', [job.id])
       if (!upload.rowCount) throw new Error('Arquivo PDF temporário não encontrado. Descarte e envie o catálogo novamente.')
-      result = await collectPdfCatalog(upload.rows[0].data, {
-        ...collectorOptions,
-        onImage: async (image, mime, filename) => {
-          const assetId = id()
-          await pool.query(
-            'INSERT INTO media_assets (id,store_id,mime_type,original_name,byte_size,data) VALUES ($1,$2,$3,$4,$5,$6)',
-            [assetId, job.store_id, mime, filename, image.length, image],
-          )
-          storedPdfAssetIds.push(assetId)
-          return '/media/' + assetId
-        },
-      })
+      result = await collectPdfCatalog(upload.rows[0].data, collectorOptions)
     } else {
       result = await collector(job.source_url, collectorOptions)
     }
@@ -354,9 +352,9 @@ export async function processImportJob(jobId, collector = collectCatalog) {
     )
     return publicJob(updated.rows[0])
   } catch (error) {
-    if (storedPdfAssetIds.length) {
-      await pool.query('DELETE FROM media_assets WHERE store_id=$1 AND id=ANY($2::text[])', [job.store_id, storedPdfAssetIds]).catch((cleanupError) =>
-        console.warn('[scanner] PDF media cleanup:', cleanupError.message))
+    if (storedImportAssetIds.length) {
+      await pool.query('DELETE FROM media_assets WHERE store_id=$1 AND id=ANY($2::text[])', [job.store_id, storedImportAssetIds]).catch((cleanupError) =>
+        console.warn('[scanner] imported media cleanup:', cleanupError.message))
     }
     try {
       await pool.query('DELETE FROM import_normalized_products WHERE job_id=$1', [job.id])
