@@ -273,3 +273,21 @@
   .social-profile-page * {animation:none!important;transition:none!important;scroll-behavior:auto!important;}
   .social-feed-page .social-feed-list {scroll-snap-type:none;}
 }
+
+/* Escolha de conta no topo do feed, mantendo a ação laranja oficial. */
+.social-feed-page .social-feed-nav__right button{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:34px;
+  padding:7px 11px;
+  border:1px solid var(--svx-orange,#F25C05);
+  background:var(--svx-orange,#F25C05);
+  color:var(--svx-social-ink,#161514);
+  border-radius:0;
+  font:800 11px/1.3 var(--svx-font-body,'Archivo',sans-serif);
+  cursor:pointer;
+}
+@media(max-width:760px){
+  .social-feed-page .social-feed-nav__right button{min-height:30px;padding:6px;font-size:10px;}
+}
