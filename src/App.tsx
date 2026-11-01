@@ -7,7 +7,6 @@ import PublicRoute from './PublicRoute'
 import Phase3PublicRuntime from './Phase3PublicRuntime'
 import Phase4PublicRuntime from './Phase4PublicRuntime'
 import './intent-tracker'
-import './public-commercial-info'
 
 const HomeRoute = lazy(() => import('./HomeRoute'))
 const AuthRoute = lazy(() => import('./AuthRoute'))
