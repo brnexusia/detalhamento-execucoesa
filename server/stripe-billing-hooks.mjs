@@ -156,14 +156,14 @@ async function status(req, res) {
   res.json(billingShape(account))
 }
 
-async function customerFor(account) {
+async function customerFor(account, client) {
   if (account.customer_id) return account.customer_id
   const customer = await stripe('POST', 'customers', {
     email: account.email,
     name: account.name,
     'metadata[shopvax_store_id]': account.id,
   }, 'shopvax-customer-' + account.id)
-  await pool.query([
+  await client.query([
     'INSERT INTO shopvax_stripe_billing (store_id,customer_id) VALUES ($1,$2)',
     'ON CONFLICT (store_id) DO UPDATE SET customer_id=EXCLUDED.customer_id',
     'WHERE shopvax_stripe_billing.customer_id IS NULL',
@@ -183,6 +183,7 @@ async function checkout(req, res) {
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['shopvax-billing:' + account.id])
     const current = (await client.query('SELECT * FROM shopvax_stripe_billing WHERE store_id=$1 FOR UPDATE', [account.id])).rows[0]
     if (current?.subscription_id && !['canceled', 'incomplete_expired', 'unpaid', 'none'].includes(current.subscription_status)) {
+      await client.query('ROLLBACK')
       return apiError(res, 409, 'Existe uma assinatura. Use a opção de alterar plano ou gerenciar cobrança.', 'SUBSCRIPTION_EXISTS')
     }
     if (current?.checkout_session_id) {
@@ -193,10 +194,11 @@ async function checkout(req, res) {
       }
       if (old.status === 'open') await stripe('POST', 'checkout/sessions/' + encodeURIComponent(old.id) + '/expire', {})
       if (old.status === 'complete' && old.subscription) {
+        await client.query('ROLLBACK')
         return apiError(res, 409, 'O pagamento anterior está em processamento. Atualize o status.', 'CHECKOUT_PROCESSING')
       }
     }
-    const customer = await customerFor(account)
+    const customer = await customerFor({ ...account, customer_id: current?.customer_id || account.customer_id }, client)
     const priceId = await ensureStripePrice(plan)
     const session = await stripe('POST', 'checkout/sessions', {
       mode: 'subscription',
