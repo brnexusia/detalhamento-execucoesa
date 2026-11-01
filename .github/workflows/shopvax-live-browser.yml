@@ -1,0 +1,35 @@
+name: ShopVax - navegador contra produção
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/shopvax-live-browser.yml'
+      - 'tests/shopvax-live-browser.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configurar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Preparar navegador
+        run: |
+          npm install --no-save --no-audit --no-fund playwright@1.58.2
+          npx playwright install --with-deps chromium
+      - name: Testar site de produção
+        run: node tests/shopvax-live-browser.mjs
+      - name: Evidências do navegador
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shopvax-live-browser-diagnostics
+          path: artifacts/shopvax-live-check/
