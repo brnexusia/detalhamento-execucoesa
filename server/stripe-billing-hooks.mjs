@@ -30,7 +30,7 @@ async function ensureSchema() {
       "ALTER TABLE stores ADD COLUMN IF NOT EXISTS billing_required boolean NOT NULL DEFAULT false;",
       "CREATE TABLE IF NOT EXISTS shopvax_stripe_billing (",
       "store_id text PRIMARY KEY REFERENCES stores(id) ON DELETE CASCADE,",
-      "stripe_mode text,"
+      "stripe_mode text,",
       "customer_id text UNIQUE, subscription_id text UNIQUE, subscription_status text NOT NULL DEFAULT 'none',",
       "active_plan_code text, cycle text, paid_until timestamptz, last_invoice_id text,",
       "checkout_session_id text, checkout_plan text, checkout_cycle text, checkout_started_at timestamptz,",
