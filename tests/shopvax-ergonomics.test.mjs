@@ -54,3 +54,16 @@ test('login e criar conta usam copy, exemplos e logo oficial do Shopvax', () => 
   assert.match(auth, /src="\/brand\/shopvax-wordmark\.svg"/)
   assert.match(css, /\.auth-shell--register \.auth-register-brand/)
 })
+
+test('feed restaurado não mostra aviso e mídia mobile preenche a tela sem tarja preta', () => {
+  const feed = read('src/SocialFeed.tsx')
+  const css = read('src/shopvax-social-feed-layout.css')
+  assert.doesNotMatch(feed, /Feed recuperado da sessão|restoredNotice|social-feed-cache-note/)
+  assert.doesNotMatch(css, /\.social-feed-cache-note/)
+  assert.match(css, /@media \(max-width:799px\)\s*\{\s*\.social-feed-page \.social-feed-media > img,/)
+  assert.match(css, /\.social-feed-page \.social-feed-media > video\s*\{\s*object-fit:cover;/)
+  assert.match(css, /object-position:center center/)
+  assert.match(css, /rgba\(0,0,0,\.68\) 100%/)
+  assert.match(feed, /readFeedSession\(\)/, 'A recuperação de posição permanece ativa')
+  assert.match(feed, /saveFeedSession\(/, 'O cache do feed permanece ativo')
+})
