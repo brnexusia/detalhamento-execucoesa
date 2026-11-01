@@ -57,7 +57,7 @@ try {
     headers: { cookie: account.cookie },
     body: form,
   })
-  assert.equal(uploaded.status, 201, `upload falhou: ${await uploaded.text().catch(() => '')}`)
+  if (uploaded.status !== 201) throw new Error(`upload falhou (${uploaded.status}): ${await uploaded.text()}`)
   const media = await uploaded.json()
   assert.match(media.url, /^\\/media\\/[a-f0-9-]+$/)
   assert.equal(media.type, 'image')
