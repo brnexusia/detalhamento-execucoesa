@@ -114,7 +114,7 @@ img { display: block; max-width: 100%; }
   font-size: 11px;
 }
 
-main:not(.feed-shell) { max-width: 1460px; margin: 0 auto; padding: 0 28px 80px; }
+main:not(.feed-shell):not(.social-feed-list) { max-width: 1460px; margin: 0 auto; padding: 0 28px 80px; }
 
 .store-intro {
   display: grid;
@@ -287,7 +287,7 @@ main:not(.feed-shell) { max-width: 1460px; margin: 0 auto; padding: 0 28px 80px;
   .brand__mark { width: 31px; height: 31px; }
   .view-switch { position: fixed; z-index: 50; left: 50%; bottom: max(12px, env(safe-area-inset-bottom)); transform: translateX(-50%); box-shadow: 0 6px 24px rgba(0,0,0,.14); }
   .cart-trigger span { display: none; }
-  main:not(.feed-shell) { padding: 0 14px 100px; }
+  main:not(.feed-shell):not(.social-feed-list) { padding: 0 14px 100px; }
   .store-intro { padding: 44px 0 34px; }
   .store-intro h1 { font-size: clamp(50px, 16vw, 78px); }
   .catalog-toolbar { grid-template-columns: 1fr; gap: 14px; }
