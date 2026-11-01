@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Grid2X2, Store } from 'lucide-react'
+import SocialAccountChoice from './SocialAccountChoice'
 
 type ProfilePayload = {
   store: { id: string; slug: string; name: string; tagline: string; eyebrow: string; logoUrl: string; accent: string; planTier: 'bronze' | 'prata' | 'ouro'; productCount: number }
@@ -10,6 +11,8 @@ function storeSlug() { return window.location.pathname.split('/').filter(Boolean
 
 export default function SocialProfileHeader() {
   const [profile, setProfile] = useState<ProfilePayload | null>(null)
+  const [showAccountChoice, setShowAccountChoice] = useState(false)
+  const [followError, setFollowError] = useState('')
 
   const load = () => {
     const slug = storeSlug()
@@ -25,16 +28,21 @@ export default function SocialProfileHeader() {
   if (!profile) return null
   const { store, stats } = profile
   const follow = async () => {
-    const response = await fetch(`/api/social/stores/${store.id}/follow`, { method: 'POST' })
-    const body = await response.json().catch(() => null)
-    if (response.ok && body) setProfile((current) => current ? { ...current, stats: { ...current.stats, following: body.following, followers: body.followers } } : current)
+    setFollowError('')
+    try {
+      const response = await fetch(`/api/social/stores/${encodeURIComponent(store.id)}/follow`, { method: 'POST', credentials:'include' })
+      const body = await response.json().catch(() => null)
+      if (response.status === 401) { setShowAccountChoice(true); return }
+      if (!response.ok) { setFollowError(body?.error || 'Não foi possível seguir esta loja.'); return }
+      if (body) setProfile((current) => current ? { ...current, stats: { ...current.stats, following: body.following, followers: body.followers } } : current)
+    } catch { setFollowError('Verifique sua conexão e tente novamente.') }
   }
 
   return <section className="social-profile" style={{ '--profile-accent': store.accent || '#111318' } as React.CSSProperties}>
     <div className="social-profile__brand"><span>SHOPVAX</span><small>Perfil da loja</small></div>
     <div className="social-profile__main">
       <div className="social-profile__avatar">{store.logoUrl ? <img src={store.logoUrl} alt="" draggable={false} /> : <Store size={30} />}</div>
-      <div className="social-profile__identity"><h1>{store.name}</h1><p>{store.tagline}</p><span>@{store.slug}</span><button className={stats.following ? 'is-following' : ''} onClick={follow}>{stats.following ? 'Seguindo' : 'Seguir'}</button></div>
+      <div className="social-profile__identity"><h1>{store.name}</h1><p>{store.tagline}</p><span>@{store.slug}</span><button className={stats.following ? 'is-following' : ''} onClick={() => void follow()}>{stats.following ? 'Seguindo' : 'Seguir'}</button>{followError && <p role="alert">{followError}</p>}</div>
       <div className="social-profile__stats">
         <div><strong>{store.productCount}</strong><span>produtos</span></div>
         <div><strong>{stats.followers}</strong><span>seguidores</span></div>
@@ -42,5 +50,6 @@ export default function SocialProfileHeader() {
       </div>
     </div>
     <div className="social-profile__tabs"><span className="is-active"><Grid2X2 size={16}/> Publicações</span></div>
+    {showAccountChoice && <SocialAccountChoice storeSlug={store.slug} reason="follow" onClose={() => setShowAccountChoice(false)}/>}
   </section>
 }
