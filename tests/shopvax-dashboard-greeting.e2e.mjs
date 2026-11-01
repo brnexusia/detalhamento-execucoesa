@@ -40,12 +40,14 @@ try {
       const open=document.querySelector('.panel-topbar .panel-store-link')
       return {border:getComputedStyle(mark).borderTopWidth,bg:getComputedStyle(mark).backgroundColor,
         endOffset:Math.abs(store.getBoundingClientRect().right-wordmark.getBoundingClientRect().right),
-        linkBg:getComputedStyle(open).backgroundColor}
+        linkBg:getComputedStyle(open).backgroundColor,
+        linkColor:getComputedStyle(open).color}
     })
     assert.equal(panelStyle.border,'0px','Logo do painel sem contorno/caixa')
     assert.equal(panelStyle.bg,'rgba(0, 0, 0, 0)','Logo do painel sem fundo em caixa')
     assert(panelStyle.endOffset<3,'Nome alinhado ao X da marca: '+JSON.stringify(panelStyle))
-    assert.equal(panelStyle.linkBg,'rgb(242, 92, 5)','Abrir loja deve ser laranja')
+    assert.equal(panelStyle.linkBg,'rgba(0, 0, 0, 0)','Abrir loja não deve ter um quadrado laranja')
+    assert.equal(panelStyle.linkColor,'rgb(242, 92, 5)','Somente texto e ícones de Abrir loja devem ser laranja')
     await context.close()
   }
 
