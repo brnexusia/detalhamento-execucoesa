@@ -96,6 +96,8 @@ jobs:
         run: npm run test:scanner:pdf
       - name: Scanner URL tests
         run: npm run test:scanner
+      - name: Google Photos and public image import tests
+        run: npm run test:scanner:albums
       - name: Scanner collector tests
         run: npm run test:scanner:collector
       - name: Scanner normalizer tests

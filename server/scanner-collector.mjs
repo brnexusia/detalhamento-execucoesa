@@ -6,6 +6,7 @@ import { gunzipSync } from 'node:zlib'
 import { load } from 'cheerio'
 import { detectStorefrontPlatform, extractFacilZapRuntime, facilZapProducts, parseVestiContext, vestiProducts, isZapFacilCatalogPage } from './scanner-platforms.mjs'
 import { collectDirectedSitemap, collectTrayPublic, parseVestiCompanyId, enrichVestiCandidate } from './scanner-platform-collectors.mjs'
+import { collectSharedPhotos, sharedPhotoSourceKind } from './scanner-photo-albums.mjs'
 
 // Produção não possui teto artificial de produtos/páginas. Limites só são usados quando
 // explicitamente informados (testes, diagnóstico ou operação controlada).
@@ -1132,6 +1133,16 @@ export async function collectCatalog(sourceUrl, options = {}) {
   const sink = createCandidateSink(options, maxProducts)
 
   await onProgress({ progress: 5, pagesScanned: 0, candidates: 0 })
+  if (sharedPhotoSourceKind(sourceUrl)) {
+    return collectSharedPhotos(sourceUrl, {
+      request,
+      onImage: options.onImage,
+      onBatch: options.onBatch,
+      collectInMemory: options.collectInMemory !== false,
+      maxProducts,
+      onProgress,
+    })
+  }
   let rootResponse = await request(sourceUrl)
   if (!rootResponse.ok) throw new Error(`A loja respondeu HTTP ${rootResponse.status}.`)
   if (!rootResponse.contentType.includes('html')) throw new Error('A URL informada não parece ser uma página de loja.')

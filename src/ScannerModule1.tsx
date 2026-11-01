@@ -10,6 +10,7 @@ import {
   ChevronRight,
   Edit3,
   FileText,
+  Images,
   Search,
   Trash2,
   X,
@@ -36,6 +37,8 @@ function platformLabel(value: string) {
   if (value === 'lojaintegrada') return 'Loja Integrada'
   if (value === 'tray') return 'Tray'
   if (value === 'pdf') return 'Catálogo PDF'
+  if (value === 'google-photos') return 'Google Fotos'
+  if (value === 'image-link') return 'Link de imagem'
   return value
 }
 
@@ -72,7 +75,7 @@ export default function ScannerModule1() {
   const [open, setOpen] = useState(false)
   const [mode, setMode] = useState<'scan' | 'review'>('scan')
   const [url, setUrl] = useState('')
-  const [sourceMode, setSourceMode] = useState<'site' | 'pdf'>('site')
+  const [sourceMode, setSourceMode] = useState<'site' | 'pdf' | 'album'>('site')
   const [pdfFile, setPdfFile] = useState<File | null>(null)
   const [uploadVersion, setUploadVersion] = useState(0)
   const [jobs, setJobs] = useState<ImportJob[]>([])
@@ -215,7 +218,9 @@ export default function ScannerModule1() {
         ? 'Essa loja já está sendo processada.'
         : sourceMode === 'pdf'
           ? 'PDF recebido. Vamos identificar os produtos para sua revisão.'
-          : 'Scanner iniciado. Você pode acompanhar o progresso abaixo.')
+          : sourceMode === 'album'
+            ? 'Fotos importadas para revisão. Preencha nome e preço antes de publicar.'
+            : 'Scanner iniciado. Você pode acompanhar o progresso abaixo.')
       setUrl('')
       setPdfFile(null)
       setUploadVersion((value) => value + 1)
@@ -367,10 +372,14 @@ export default function ScannerModule1() {
             <div className="scanner-source-tabs" role="group" aria-label="Origem do catálogo">
               <button type="button" aria-pressed={sourceMode === 'site'} className={sourceMode === 'site' ? 'is-active' : ''} onClick={() => setSourceMode('site')}><Search size={16}/> Link de loja</button>
               <button type="button" aria-pressed={sourceMode === 'pdf'} className={sourceMode === 'pdf' ? 'is-active' : ''} onClick={() => setSourceMode('pdf')}><FileText size={16}/> Arquivo PDF</button>
+              <button type="button" aria-pressed={sourceMode === 'album'} className={sourceMode === 'album' ? 'is-active' : ''} onClick={() => setSourceMode('album')}><Images size={16}/> Álbum de fotos</button>
             </div>
             {sourceMode === 'site' ? <>
               <label><span>URL da sua loja atual</span><input value={url} onChange={(event) => setUrl(event.target.value)} inputMode="url" autoComplete="url" placeholder="https://minhaloja.com.br" required autoFocus /></label>
               <p className="scanner-help">Cole o endereço público da loja que pertence à sua empresa. O sistema identificará os produtos disponíveis.</p>
+            </> : sourceMode === 'album' ? <>
+              <label><span>Link público do álbum ou da foto</span><input value={url} onChange={(event) => setUrl(event.target.value)} inputMode="url" autoComplete="url" placeholder="https://photos.app.goo.gl/..." required autoFocus /></label>
+              <p className="scanner-help">Aceita álbuns compartilhados do Google Fotos e links públicos diretos para imagens. As fotos são copiadas para a sua loja e aparecem como rascunhos para revisão. Adicione nome e preço de cada produto antes de publicar. Álbuns privados não podem ser acessados por link.</p>
             </> : <>
               <label><span>Seu catálogo em PDF</span><input key={uploadVersion} type="file" accept=".pdf,application/pdf" required onChange={(event) => setPdfFile(event.target.files?.[0] || null)} /></label>
               <p className="scanner-help">PDF de até 50 MB e 200 páginas. O Shopvax lê nomes, referências, preços e fotos quando possível. Catálogos digitalizados podem usar OCR. Confira cada produto antes de publicar: PDFs com várias peças por página podem precisar de ajustes manuais de imagem.</p>
@@ -378,7 +387,7 @@ export default function ScannerModule1() {
             <p className="scanner-help">Produtos extraídos permanecem em revisão e só entram na loja após sua confirmação.</p>
             {error && <p className="scanner-message scanner-message--error">{error}</p>}
             {success && <p className="scanner-message scanner-message--success"><Check size={16} /> {success}</p>}
-            <button className="primary-action scanner-submit" disabled={busy}>{busy ? 'Processando…' : sourceMode === 'pdf' ? 'Importar PDF para revisão' : 'Escanear loja'}<ArrowRight size={17} /></button>
+            <button className="primary-action scanner-submit" disabled={busy}>{busy ? 'Processando…' : sourceMode === 'pdf' ? 'Importar PDF para revisão' : sourceMode === 'album' ? 'Importar fotos para revisão' : 'Escanear loja'}<ArrowRight size={17} /></button>
           </form>
           <div className="scanner-jobs">
             <div><strong>Importações recentes</strong><small>{loadingJobs ? 'Atualizando…' : jobs.length ? `${jobs.length} registro(s)` : 'Nenhuma ainda'}</small></div>
