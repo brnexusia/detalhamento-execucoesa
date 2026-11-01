@@ -197,7 +197,13 @@
 
 /* Ajuste mobile 01/11: navegação sem Feed duplicado e vitrine sem bordas laterais. */
 @media (max-width:700px) {
+  /* O menu aberto não pode interceptar o próprio botão de fechar. */
+  .app .topbar .store-nav-toggle{
+    position:relative;
+    z-index:45;
+  }
   .app .topbar .store-header-navigation.is-open {
+    top:calc(100% + 4px) !important;
     display:grid !important;
     grid-template-columns:repeat(2,minmax(0,1fr));
     align-items:stretch;
