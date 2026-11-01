@@ -17,6 +17,17 @@ try {
   await page.route('**/api/public/events',r=>r.fulfill({status:204,body:''}))
   await page.goto('http://127.0.0.1:5173/look-premium')
   await page.locator('.product-grid .product-card').first().waitFor()
+  // A imagem deve preencher o cartão, mesmo quando o produto não tem foto.
+  // Antes, o elemento button ficava com largura intrínseca de ~110 px.
+  const mediaWidths=await page.locator('.product-card').evaluateAll(cards=>cards.map(card=>{
+    const media=card.querySelector('.product-card__media')
+    const box=card.getBoundingClientRect()
+    const photo=media.getBoundingClientRect()
+    return {cardWidth:box.width,photoWidth:photo.width,photoHeight:photo.height}
+  }))
+  assert(mediaWidths.length>=2,'Fixture requires two catalog cards')
+  assert(mediaWidths.every(({cardWidth,photoWidth,photoHeight})=>Math.abs(photoWidth-cardWidth)<=3 && photoHeight>100),
+    'Layer 05 media must fill each card: '+JSON.stringify({width,mediaWidths}))
   const ticket=page.locator('.svx-desktop-ticket')
   if(width>=1100) {
    await ticket.waitFor({state:'visible'})
