@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "test:scanner": "node server/scanner-url.test.mjs",
     "test:scanner:pdf": "node --test server/scanner-pdf.test.mjs",
+    "test:scanner:albums": "node server/scanner-photo-albums.test.mjs",
     "test:scanner:collector": "node server/scanner-collector.test.mjs",
     "test:scanner:normalizer": "node server/scanner-normalizer.test.mjs",
     "test:scanner:review": "node server/scanner-review.test.mjs",
