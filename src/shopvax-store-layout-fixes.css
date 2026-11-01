@@ -193,3 +193,86 @@
 
 /* Public feed uses virtual slots measured against the scroll viewport. */
 .feed-list > .feed-spacer { width:100%; pointer-events:none; scroll-snap-align:none; overflow:hidden; }
+
+
+/* Ajuste mobile 01/11: navegação sem Feed duplicado e vitrine sem bordas laterais. */
+@media (max-width:700px) {
+  .app .topbar .store-header-navigation.is-open {
+    display:grid !important;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    align-items:stretch;
+    gap:9px;
+    width:min(310px,calc(100vw - 24px));
+    padding:12px;
+    box-sizing:border-box;
+  }
+  .app .topbar .store-header-navigation .view-switch {
+    grid-column:1/-1;
+    display:flex !important;
+    width:100%;
+    min-width:0;
+    margin:0;
+  }
+  .app .topbar .store-header-navigation .view-switch button {
+    flex:1 1 50%;
+    min-width:0;
+    min-height:44px;
+    padding:8px;
+  }
+  .app .topbar .store-header-navigation .store-social-nav {
+    grid-column:1;
+    width:100%;
+    min-width:0;
+    margin:0;
+  }
+  .app .topbar .store-header-navigation .store-social-nav button,
+  .app .topbar .store-header-navigation .shopvax-customer-launcher {
+    width:100%;
+    min-width:0;
+    min-height:44px;
+    margin:0;
+    justify-content:center;
+    box-sizing:border-box;
+    font-size:12px;
+    white-space:nowrap;
+  }
+  .app .topbar .store-header-navigation .shopvax-customer-launcher {grid-column:2;}
+  /* Só a capa fotográfica vai de borda a borda; o catálogo mantém respiro. */
+  .app:not(.app--feed) > main > .store-intro.svx-vitrine {
+    box-sizing:border-box;
+    width:calc(100% + 28px);
+    max-width:none;
+    margin-left:-14px;
+    margin-right:-14px;
+    padding-inline:clamp(17px,4.5vw,26px);
+  }
+  .app .store-intro.svx-vitrine .seller-note {
+    box-sizing:border-box;
+    min-width:0;
+    max-width:100%;
+    width:100%;
+  }
+  .app .store-intro.svx-vitrine .svx-vitrine__actions {
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:10px;
+    width:100%;
+    max-width:100%;
+  }
+  .app .store-intro.svx-vitrine .svx-vitrine__actions>button {
+    min-width:0;
+    min-height:48px;
+    padding:10px;
+    font-size:clamp(11px,2.7vw,13px);
+    line-height:1.2;
+    text-align:left;
+  }
+  .app .store-intro.svx-vitrine .svx-vitrine__actions>button svg {
+    flex:0 0 auto;
+  }
+}
+@media(max-width:360px) {
+  .app .store-intro.svx-vitrine .svx-vitrine__actions {
+    grid-template-columns:minmax(0,1fr);
+  }
+}
