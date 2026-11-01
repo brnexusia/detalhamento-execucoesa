@@ -10,7 +10,14 @@ async function call(path,{method='GET',body,cookie}={}) {
     body:body?JSON.stringify(body):undefined,
   })
   const json = await response.json().catch(()=>({}))
-  return {status:response.status,json,cookie:response.headers.get('set-cookie')?.split(';')[0]||''}
+  const cookieHeaders = response.headers.getSetCookie?.() || []
+  const cookieNamed = (name) => {
+    const direct = cookieHeaders.find((value) => value.startsWith(name + '='))
+    if (direct) return direct.split(';')[0]
+    return (response.headers.get('set-cookie') || '').match(new RegExp(name + '=[^;,]+'))?.[0] || ''
+  }
+  return {status:response.status,json,ownerCookie:cookieNamed('atacado_session'),
+    customerCookie:cookieNamed('shopvax_customer_session')}
 }
 async function createOwner(label) {
   const result=await call('/api/auth/register',{method:'POST',body:{
@@ -19,11 +26,11 @@ async function createOwner(label) {
     whatsapp:'5571999999999',planCode:'bronze',
   }})
   assert.equal(result.status,201,'Cadastro proprietário: '+JSON.stringify(result))
-  assert(result.cookie.startsWith('atacado_session='),'Cookie de lojista ausente')
+  assert(result.ownerCookie.startsWith('atacado_session='),'Cookie de lojista ausente')
   const slug=result.json.storeSlug
   const profile=await call('/api/social/stores/'+encodeURIComponent(slug))
   assert.equal(profile.status,200,'Perfil social indisponível '+JSON.stringify(profile))
-  return {id:profile.json.store.id,slug,cookie:result.cookie}
+  return {id:profile.json.store.id,slug,cookie:result.ownerCookie}
 }
 
 const a=await createOwner('a')
@@ -49,12 +56,12 @@ const customer=await call('/api/public/store/'+a.slug+'/customers/register',{met
   phone:'5571999999999',password:'senha-buyer-123',
 }})
 assert.equal(customer.status,201,'Cadastro de comprador legado: '+JSON.stringify(customer))
-assert(customer.cookie.startsWith('shopvax_customer_session='),'Cookie de comprador ausente')
-const buyerFollow=await call(endpoint,{method:'POST',cookie:customer.cookie})
+assert(customer.customerCookie.startsWith('shopvax_customer_session='),'Cookie de comprador ausente')
+const buyerFollow=await call(endpoint,{method:'POST',cookie:customer.customerCookie})
 assert.equal(buyerFollow.status,200,'Comprador autenticado não conseguiu seguir')
 assert.equal(buyerFollow.json.following,true)
-assert.equal((await call('/api/social/stores/'+a.slug,{cookie:customer.cookie})).json.stats.following,true)
-const wrongStore=await call('/api/social/stores/'+b.id+'/follow',{method:'POST',cookie:customer.cookie})
+assert.equal((await call('/api/social/stores/'+a.slug,{cookie:customer.customerCookie})).json.stats.following,true)
+const wrongStore=await call('/api/social/stores/'+b.id+'/follow',{method:'POST',cookie:customer.customerCookie})
 assert.equal(wrongStore.status,403,'Comprador legado não deve atuar em outra loja')
 const stolenOrExpired=await call(endpoint,{method:'POST',cookie:'atacado_session=token-invalido'})
 assert.equal(stolenOrExpired.status,401,'Sessão inexistente não deve seguir')
