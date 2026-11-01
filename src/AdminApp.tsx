@@ -181,7 +181,7 @@ export default function AdminApp() {
   return (
     <div className="panel-shell">
       <aside className={`panel-sidebar ${menuOpen ? 'is-open' : ''}`}>
-        <div className="panel-brand"><ShopvaxPanelMark /><strong className="panel-brand__wordmark"><img className="svx-brand-wordmark" src="/brand/shopvax-wordmark-light.svg" alt="Shopvax" /></strong><small className="panel-brand__username" title={data.user.name}>{data.user.name}</small><button className="panel-close-menu" onClick={() => setMenuOpen(false)}><X size={18} /></button></div>
+        <div className="panel-brand"><ShopvaxPanelMark /><div className="panel-brand__identity"><strong className="panel-brand__wordmark"><img className="svx-brand-wordmark" src="/brand/shopvax-wordmark-light.svg" alt="Shopvax" /></strong><small className="panel-brand__username" title={data.user.name}>{data.user.name}</small></div><button className="panel-close-menu" onClick={() => setMenuOpen(false)}><X size={18} /></button></div>
         <AdminNavigation
           active={section}
           counts={{ products: totalProducts, orders: data.orders.length, sellers: data.sellers.length }}
