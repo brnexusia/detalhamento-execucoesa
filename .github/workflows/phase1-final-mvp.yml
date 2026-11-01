@@ -39,6 +39,8 @@ jobs:
           node-version: 22
       - name: Install
         run: npm install
+      - name: Upload resilience unit tests
+        run: node --test server/media-upload-queue.test.mjs
       - name: Build
         run: npm run build
       - name: Start Shopvax
