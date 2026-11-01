@@ -1,0 +1,35 @@
+name: ShopVax - Safari mobile produção
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/shopvax-safari-mobile.yml'
+      - 'tests/shopvax-safari-mobile-live.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  safari:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Instalar WebKit Safari
+        run: |
+          npm install --no-save --no-audit --no-fund playwright@1.58.2
+          npx playwright install --with-deps webkit
+      - name: Testar mobile Safari no site público
+        run: node tests/shopvax-safari-mobile-live.mjs
+      - name: Evidências Safari Mobile
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shopvax-safari-mobile-screenshots
+          path: artifacts/shopvax-safari-mobile/
