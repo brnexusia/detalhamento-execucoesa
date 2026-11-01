@@ -358,9 +358,12 @@ async function gate(req, res, next) {
   if (!ready) return next()
   const protectedAdmin = req.path.startsWith('/api/admin/') && req.path !== '/api/admin/plan-context'
   const buyerOrder = req.method === 'POST' && req.path === '/api/business/orders'
-  if (!protectedAdmin && !buyerOrder) return next()
+  const register = req.method === 'POST' && ['/api/auth/register','/api/auth/google'].includes(req.path)
+  if (!protectedAdmin && !buyerOrder && !register) return next()
   try {
     await ensureSchema()
+    // A configuração de cobrança precisa estar aplicada ANTES da criação da loja.
+    if (register) return next()
     let row
     if (protectedAdmin) {
       row = await owner(req)
