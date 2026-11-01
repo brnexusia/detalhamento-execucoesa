@@ -240,10 +240,10 @@
   /* Só a capa fotográfica vai de borda a borda; o catálogo mantém respiro. */
   .app:not(.app--feed) > main > .store-intro.svx-vitrine {
     box-sizing:border-box;
-    width:calc(100% + 28px);
+    /* Alinha à janela, não ao padding variável do main ou tema da loja. */
+    width:100vw;
     max-width:none;
-    margin-left:-14px;
-    margin-right:-14px;
+    margin-inline:calc(50% - 50vw);
     padding-inline:clamp(17px,4.5vw,26px);
   }
   .app .store-intro.svx-vitrine .seller-note {
