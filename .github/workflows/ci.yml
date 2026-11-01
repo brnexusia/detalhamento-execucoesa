@@ -50,6 +50,7 @@ jobs:
         run: |
           grep -Fq '"./server/brand-compat-hooks.mjs"' Dockerfile
           grep -Fq '"./server/security-hooks.mjs"' Dockerfile
+          grep -Fq '"./server/stripe-billing-hooks.mjs"' Dockerfile
           grep -Fq '"./server/performance-hooks.mjs"' Dockerfile
           grep -Fq '"./server/api-json-hooks.mjs"' Dockerfile
           grep -Fq '"./server/phase5-launch-hooks.mjs"' Dockerfile
@@ -86,6 +87,10 @@ jobs:
         run: node --test tests/verify-production.test.mjs
       - name: Aprovacao dos planos comerciais e migracao segura
         run: node --test server/system-plans.test.mjs
+      - name: Stripe billing policy and webhook verification
+        run: |
+          node --check server/stripe-billing-hooks.mjs
+          npm run test:billing
       - name: Responsive media variants preserve originals
         run: node --test server/media-variants.test.mjs
       - name: Revisão de ergonomia - fontes, cursor e copy
