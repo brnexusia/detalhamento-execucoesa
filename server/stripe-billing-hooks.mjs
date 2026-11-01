@@ -222,7 +222,7 @@ async function checkout(req, res) {
     await client.query([
       'INSERT INTO shopvax_stripe_billing (store_id,customer_id,stripe_mode,checkout_session_id,checkout_plan,checkout_cycle,checkout_started_at)',
       'VALUES ($1,$2,$3,$4,$5,$6,now()) ON CONFLICT (store_id) DO UPDATE SET',
-      'customer_id=EXCLUDED.customer_id,stripe_mode=EXCLUDED.stripe_mode,checkout_session_id=EXCLUDED.checkout_session_id,checkout_started_at=EXCLUDED.checkout_started_at,'
+      'customer_id=EXCLUDED.customer_id,stripe_mode=EXCLUDED.stripe_mode,checkout_session_id=EXCLUDED.checkout_session_id,checkout_started_at=EXCLUDED.checkout_started_at,',
       "subscription_id=NULL,subscription_status='none',active_plan_code=NULL,cycle=NULL,paid_until=NULL,",
       'checkout_plan=EXCLUDED.checkout_plan,checkout_cycle=EXCLUDED.checkout_cycle,updated_at=now()',
     ].join(' '), [account.id, customer, stripeMode, session.id, plan.code, plan.cycle])
