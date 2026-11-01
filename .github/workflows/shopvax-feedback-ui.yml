@@ -1,0 +1,53 @@
+name: shopvax-feedback-ui
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser-mobile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Instalar dependências e navegador
+        run: |
+          npm ci
+          npm install --no-save --no-audit --no-fund playwright@1.58.2
+          npx playwright install --with-deps chromium
+      - name: Validar regressões estáticas do feedback
+        run: node --test tests/shopvax-ergonomics.test.mjs
+      - name: Build com identificação da versão
+        run: npm run build
+      - name: Iniciar front-end de teste
+        run: |
+          npm run dev -- --host 127.0.0.1 > /tmp/shopvax-feedback-vite.log 2>&1 &
+          for i in $(seq 1 80); do
+            if curl -fsS http://127.0.0.1:5173/ >/dev/null; then exit 0; fi
+            sleep .25
+          done
+          cat /tmp/shopvax-feedback-vite.log
+          exit 1
+      - name: Validar layout real e capturar telas
+        run: node tests/shopvax-feedback-ui.e2e.mjs
+      - name: Fotografias de evidência
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shopvax-feedback-screenshots
+          path: artifacts/shopvax-feedback/
+          if-no-files-found: ignore
+      - name: Logs em falha
+        if: failure()
+        run: cat /tmp/shopvax-feedback-vite.log || true
