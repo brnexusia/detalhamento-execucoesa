@@ -9,6 +9,7 @@ import { SHOPVAX_DEFAULT_ACCENT, shopvaxAccentTextColor, SVBrandSignature, SVRib
 import { demoPayload } from './data'
 import StoreSocialNav from './StoreSocialNav'
 import CustomerAccountLauncher from './CustomerAccountLauncher'
+import StoreCommercialInfo from './StoreCommercialInfo'
 import './shopvax-store-layout-fixes.css'
 import './shopvax-desktop-product-page.css'
 import './shopvax-desktop-ticket-05.css'
@@ -408,6 +409,7 @@ export default function PublicStoreV2() {
           <div className="svx-vitrine__actions"><button onClick={() => document.getElementById('colecao-atual')?.scrollIntoView({ behavior: 'smooth' })}>Ver catálogo <ArrowRight size={16}/></button><button onClick={() => setView('feed')}>Passar uma por uma <ArrowRight size={16}/></button></div>
         </div><div className="seller-note"><span>Seu atendimento</span><strong>{seller?.name || 'Atendimento'}</strong><small>Monte o pedido e converse direto com sua vendedora.</small></div>
       </section>
+      <StoreCommercialInfo storeSlug={route.storeSlug} />
       <section className="svx-discovery" aria-label="Peças em destaque da coleção">
         <div className="svx-discovery__heading"><div><span className="svx-kicker">SUA VITRINE, SEM COMPLICAÇÃO</span><h2>Acabou de chegar na seleção</h2></div><button onClick={() => document.getElementById('colecao-atual')?.scrollIntoView({ behavior:'smooth' })}>Ver coleção <ArrowRight size={16}/></button></div>
         <div className="svx-discovery__rail">{visibleProducts.slice(0,6).map((product) => <button type="button" key={product.id} onClick={() => openPicker(product)}><span className="svx-discovery__image"><ProductMedia product={product}/></span><small>{product.sku || product.category}</small><strong>{product.name}</strong><b>{money.format(product.price)}</b></button>)}</div>
