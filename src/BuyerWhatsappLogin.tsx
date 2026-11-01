@@ -16,16 +16,16 @@ type Form = {
   channels: string[]; segment: string; instagram: string; marketingConsent: boolean;
 }
 const empty: Form = {
-  name: '', email: '', purpose: 'revenda', city: '', state: '',
-  businessStatus: 'sim', businessName: '', cnpjStatus: 'nao',
+  name: '', email: '', purpose: '', city: '', state: '',
+  businessStatus: '', businessName: '', cnpjStatus: '',
   cnpj: '', channels: [], segment: '', instagram: '', marketingConsent: false,
 }
 const channels = [
   ['loja', 'Loja física'], ['virtual', 'Loja virtual'], ['social', 'Instagram e redes sociais'],
   ['whatsapp', 'WhatsApp'], ['market', 'Marketplaces'], ['autonomo', 'Revenda autônoma'], ['outros', 'Outros'],
 ]
-export default function BuyerWhatsappLogin({ storeSlug, onVerified, editOnly = false }: {
-  storeSlug: string; onVerified: () => Promise<boolean>; editOnly?: boolean;
+export default function BuyerWhatsappLogin({ storeSlug, onVerified, editOnly = false, enabled = true }: {
+  storeSlug: string; onVerified: () => Promise<boolean>; editOnly?: boolean; enabled?: boolean;
 }) {
   const [open, setOpen] = useState(!editOnly)
   const [stage, setStage] = useState<Stage>('phone')
@@ -45,9 +45,9 @@ export default function BuyerWhatsappLogin({ storeSlug, onVerified, editOnly = f
         if (!active) return
         setPhone(buyer.phone)
         setForm({
-          name: buyer.name || '', email: buyer.email || '', purpose: buyer.purpose || 'revenda',
-          city: buyer.city || '', state: buyer.state || '', businessStatus: buyer.businessStatus || 'sim',
-          businessName: buyer.businessName || '', cnpjStatus: buyer.cnpjStatus || 'nao', cnpj: buyer.cnpj || '',
+          name: buyer.name || '', email: buyer.email || '', purpose: buyer.purpose || '',
+          city: buyer.city || '', state: buyer.state || '', businessStatus: buyer.businessStatus || '',
+          businessName: buyer.businessName || '', cnpjStatus: buyer.cnpjStatus || '', cnpj: buyer.cnpj || '',
           channels: buyer.channels || [], segment: buyer.segment || '', instagram: buyer.instagram || '',
           marketingConsent: buyer.marketingConsent === true,
         })
@@ -76,6 +76,7 @@ export default function BuyerWhatsappLogin({ storeSlug, onVerified, editOnly = f
     finally { setBusy(false) }
   }
   const send = () => act(async () => {
+    if (!enabled) throw new Error('Verificação por WhatsApp ainda não está habilitada neste ambiente.')
     await apiRequest('/api/public/buyer-auth/request-code', {
       method: 'POST', body: JSON.stringify({ phone, storeSlug }),
     })
@@ -113,12 +114,13 @@ export default function BuyerWhatsappLogin({ storeSlug, onVerified, editOnly = f
           stage === 'code' ? 'Digite o código enviado pela central ShopVax.' : 'Conte um pouco sobre você e como compra.'}</p>
       </div>
     </div>
+    {!enabled && !editOnly && <p className="buyer-auth-pending" role="status">O acesso por código está preparado, mas o envio de WhatsApp ainda precisa ser habilitado pela plataforma. Não é necessário criar senha.</p>}
     {stage === 'phone' && <form onSubmit={(event) => { event.preventDefault(); void send() }}>
       <label><span>Número com DDD</span>
         <input type="tel" inputMode="tel" autoComplete="tel" placeholder="(71) 99999-9999"
           value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={20} required/>
       </label>
-      <button className="customer-submit" type="submit" disabled={busy || phone.replace(/\D/g, '').length < 10}>
+      <button className="customer-submit" type="submit" disabled={!enabled || busy || phone.replace(/\D/g, '').length < 10}>
         <MessageCircle size={17}/> {busy ? 'Enviando…' : 'Receber código no WhatsApp'}
       </button>
     </form>}
@@ -146,18 +148,21 @@ export default function BuyerWhatsappLogin({ storeSlug, onVerified, editOnly = f
         <label><span>Cidade</span><input autoComplete="address-level2" value={form.city} onChange={(e) => change('city',e.target.value)}/></label>
         <label><span>UF</span><input maxLength={2} autoComplete="address-level1" placeholder="BA" value={form.state} onChange={(e) => change('state',e.target.value.toUpperCase())}/></label>
       </div>
-      <label><span>Como você pretende comprar? *</span>
-        <select value={form.purpose} onChange={(e) => change('purpose',e.target.value)}>
-          <option value="revenda">Para revender</option>
-          <option value="ambos">Para revender e uso pessoal</option>
-          <option value="pessoal">Somente consumo próprio</option>
-          <option value="futuro">Quero começar a revender</option>
+      <label><span>Qual é a finalidade das suas compras? *</span>
+        <select value={form.purpose} required onChange={(e) => change('purpose',e.target.value)}>
+          <option value="" disabled>Selecione uma opção</option>
+          <option value="revenda">Comprar para revender</option>
+          <option value="negocio">Comprar para minha empresa ou negócio</option>
+          <option value="pessoal">Comprar para uso pessoal</option>
+          <option value="ambos">Revenda e uso pessoal</option>
+          <option value="futuro">Estou começando a vender</option>
         </select>
       </label>
       {form.purpose !== 'pessoal' && <>
         <label><span>Você possui um negócio?</span>
-          <select value={form.businessStatus} onChange={(e) => change('businessStatus',e.target.value)}>
-            <option value="sim">Sim</option><option value="nao">Revendo informalmente</option><option value="abrindo">Estou começando</option>
+          <select value={form.businessStatus} required onChange={(e) => change('businessStatus',e.target.value)}>
+            <option value="" disabled>Selecione uma opção</option>
+            <option value="sim">Sim, já tenho negócio</option><option value="nao">Sou revendedor(a) autônomo(a)</option><option value="abrindo">Estou começando</option>
           </select>
         </label>
         <fieldset className="buyer-channels">
@@ -169,7 +174,8 @@ export default function BuyerWhatsappLogin({ storeSlug, onVerified, editOnly = f
         </fieldset>
         <label><span>Nome da loja ou empresa (opcional)</span><input maxLength={160} value={form.businessName} onChange={(e) => change('businessName',e.target.value)}/></label>
         <label><span>Possui CNPJ?</span>
-          <select value={form.cnpjStatus} onChange={(e) => change('cnpjStatus',e.target.value)}>
+          <select value={form.cnpjStatus} required onChange={(e) => change('cnpjStatus',e.target.value)}>
+            <option value="" disabled>Selecione uma opção</option>
             <option value="nao">Não</option><option value="sim">Sim</option><option value="processo">Em processo de abertura</option>
           </select>
         </label>
