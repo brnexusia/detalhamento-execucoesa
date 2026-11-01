@@ -50,8 +50,7 @@
 }
 @keyframes svx-mark-exit{
   0%{opacity:1;transform:scale(1)}
-  62%{opacity:1;transform:scale(1.82)}
-  100%{opacity:0;transform:scale(2.28)}
+  100%{opacity:0;transform:scale(1.42)}
 }
 
 /* Carregamentos normais: a paleta oficial permanece clara, sem transição para preto. */
