@@ -508,7 +508,7 @@ app.get(
         [store.id],
       ),
       compact ? pool.query(
-        'SELECT category, count(*)::int AS count FROM products WHERE store_id=$1 GROUP BY category ORDER BY category ASC',
+        'SELECT category, count(*)::int AS count, count(*) FILTER (WHERE active=true)::int AS active_count FROM products WHERE store_id=$1 GROUP BY category ORDER BY category ASC',
         [store.id],
       ) : Promise.resolve({ rows: [] }),
     ])
@@ -519,6 +519,7 @@ app.get(
       products: products.rows.map((item) => ({ ...item, price: Number(item.price) })),
       ...(compact ? {
         productCount: categoryCounts.rows.reduce((sum, row) => sum + Number(row.count), 0),
+        activeProductCount: categoryCounts.rows.reduce((sum, row) => sum + Number(row.active_count), 0),
         productCategories: categoryCounts.rows.map((row) => ({
           category: row.category || 'Geral', count: Number(row.count),
         })),
