@@ -1,4 +1,5 @@
 import { systemPlans } from './system-plans.mjs'
+import { registerPlatformBuyerDirectory } from './platform-buyer-directory.mjs'
 import crypto from 'node:crypto'
 import express from 'express'
 import pg from 'pg'
@@ -616,6 +617,7 @@ function installPlatformRoutes(app) {
   }))
 
   registerPlatformInsights(router, requirePlatformAdmin, asyncRoute, pool)
+  registerPlatformBuyerDirectory(router, requirePlatformAdmin, asyncRoute, pool)
 
   router.get('/health', requirePlatformAdmin, asyncRoute(async (_req, res) => {
     const db = await pool.query('SELECT now() AS now')

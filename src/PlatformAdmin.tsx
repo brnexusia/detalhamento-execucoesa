@@ -1,4 +1,5 @@
 import ShopvaxLoading from './ShopvaxLoading'
+import PlatformBuyerDirectory from './PlatformBuyerDirectory'
 import { useEffect, useState } from 'react'
 import { apiRequest } from './api'
 import {
@@ -53,7 +54,7 @@ type Insights = {
   days: number; rows: InsightRow[]
   coverage: { events: boolean; buyerOrigins: boolean; consents: boolean; billing: boolean }
 }
-type Section = 'visao' | 'contas' | 'informacoes' | 'planos' | 'admins' | 'auditoria'
+type Section = 'visao' | 'contas' | 'compradores' | 'informacoes' | 'planos' | 'admins' | 'auditoria'
 
 type DangerTarget =
   | { kind: 'account'; id: string; name: string }
@@ -196,7 +197,7 @@ export default function PlatformAdmin() {
     </div>
   }
 
-  const sectionTitle: Record<Section, string> = { visao: 'Visão geral', contas: 'Contas', informacoes: 'Informações', planos: 'Planos', admins: 'Administradores', auditoria: 'Auditoria' }
+  const sectionTitle: Record<Section, string> = { visao: 'Visão geral', contas: 'Contas', compradores: 'Compradores', informacoes: 'Informações', planos: 'Planos', admins: 'Administradores', auditoria: 'Auditoria' }
 
   return <div className="platform-shell">
     <aside className="platform-sidebar">
@@ -204,6 +205,7 @@ export default function PlatformAdmin() {
       <nav>
         <NavButton active={section === 'visao'} onClick={() => setSection('visao')} icon={<Activity size={18}/>} label="Visão geral" />
         <NavButton active={section === 'contas'} onClick={() => setSection('contas')} icon={<Users size={18}/>} label="Contas" count={data.stats.stores} />
+        <NavButton active={section === 'compradores'} onClick={() => setSection('compradores')} icon={<Users size={18}/>} label="Compradores" />
         <NavButton active={section === 'informacoes'} onClick={() => setSection('informacoes')} icon={<BarChart3 size={18}/>} label="Informações" />
         <NavButton active={section === 'planos'} onClick={() => setSection('planos')} icon={<CreditCard size={18}/>} label="Planos" count={data.plans.length} />
         <NavButton active={section === 'admins'} onClick={() => setSection('admins')} icon={<ShieldCheck size={18}/>} label="Administradores" count={data.admins.length} />
@@ -261,6 +263,8 @@ export default function PlatformAdmin() {
         {accountsHasMore && <button className="platform-secondary platform-load-more" disabled={accountsLoading} onClick={() => void loadAccounts(accounts.length)}>{accountsLoading ? 'Carregando…' : 'Carregar mais contas'}</button>}
         {!accountsLoading && accounts.length === 0 && <p>Nenhuma conta encontrada.</p>}
       </div>}
+
+      {section === 'compradores' && <PlatformBuyerDirectory />}
 
       {section === 'informacoes' && <div className="platform-page">
         <Title kicker="Inteligência comercial" title="Informações" copy="Acessos, intenção de compra, cadastros e consentimentos por conta. Pedidos não representam vendas ou faturamento confirmado." />

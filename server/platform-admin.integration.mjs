@@ -93,6 +93,30 @@ try {
   })
   if (evil.response.status !== 403) throw new Error('Proteção de origem não bloqueou mutação cross-site.')
 
+  // Directory: only admins see personal data and orders linked by explicit customer ID.
+  const anonBuyers = await api('/api/platform/buyers')
+  if (anonBuyers.response.status !== 403) throw new Error('Diretório de compradores está público.')
+  const buyerId = 'test-buyer-' + unique
+  const buyerEmail = 'buyer-' + unique + '@example.test'
+  await pool.query(
+    'INSERT INTO store_customers(id,store_id,name,email,phone,password_hash) VALUES ($1,$2,$3,$4,$5,$6)',
+    [buyerId, store.id, 'Comprador Teste', buyerEmail, '5511999000001', 'legacy-disabled'],
+  )
+  await pool.query(
+    'INSERT INTO orders(id,code,store_id,total,items,customer_id) VALUES ($1,$2,$3,$4,$5,$6)',
+    ['order-' + buyerId, 'AS-BUYER-' + unique, store.id, 123.45, JSON.stringify([]), buyerId],
+  )
+  const directory = await api('/api/platform/buyers?q=' + encodeURIComponent(buyerEmail), { cookie: admin.cookie })
+  if (!directory.response.ok || directory.payload?.total !== 1 ||
+      directory.payload?.buyers?.[0]?.id !== buyerId ||
+      directory.payload?.buyers?.[0]?.ordersCount !== 1) throw new Error('Diretório não identificou comprador e pedido com vínculo.')
+  const buyerProfile = await api('/api/platform/buyers/legacy/' + encodeURIComponent(buyerId), { cookie: admin.cookie })
+  if (!buyerProfile.response.ok || buyerProfile.payload?.summary?.ordersValue !== 123.45 ||
+      buyerProfile.payload?.summary?.validOrders !== 1 || buyerProfile.payload?.stores?.length !== 1 ||
+      buyerProfile.payload?.orders?.length !== 1) throw new Error('Perfil do comprador perdeu valores ou vínculo com a conta.')
+  const deniedProfile = await api('/api/platform/buyers/legacy/' + encodeURIComponent(buyerId))
+  if (deniedProfile.response.status !== 403) throw new Error('Detalhes pessoais acessíveis sem autorização.')
+
   const target = await register('Conta removível', `remove-${unique}@example.com`)
   const targetId = (await pool.query('SELECT id FROM users WHERE email=$1 LIMIT 1', [target.email])).rows[0].id
   const wrongDelete = await api(`/api/platform/accounts/${targetId}`, { method: 'DELETE', cookie: admin.cookie, body: { password: 'errada-errada-errada' } })

@@ -127,6 +127,8 @@ jobs:
         run: node server/platform-google-reauth.test.mjs
       - name: Unified admin insights regression checks
         run: node --test server/platform-insights-contract.test.mjs
+      - name: Buyer directory admin privacy and schema contracts
+        run: node --test server/platform-buyer-directory.contract.test.mjs
       - name: Growth policy and consent privacy tests
         run: node --test server/onboarding-growth-policy.test.mjs
       - name: Growth hook JavaScript syntax
