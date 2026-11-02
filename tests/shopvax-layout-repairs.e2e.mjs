@@ -46,14 +46,6 @@ try {
     await page.screenshot({path:'artifacts/shopvax-redesign/store-navigation-'+width+'.png'})
   }
   assert(rects.scrollWidth<=rects.viewport+2,'Horizontal overflow: '+JSON.stringify(rects))
-  const overlay = await page.evaluate(() => {
-    const rect = selector => { const el=document.querySelector(selector); if (!el) return null; const r=el.getBoundingClientRect(); return { x:r.x,y:r.y,width:r.width,height:r.height,zIndex:getComputedStyle(el).zIndex,position:getComputedStyle(el).position } }
-    const feed=document.querySelector('.view-switch button:nth-child(2)')
-    const r=feed?.getBoundingClientRect()
-    const center=r?document.elementFromPoint(r.left+r.width/2,r.top+r.height/2):null
-    return {header:rect('.topbar'),menu:rect('.store-header-navigation'),toggle:rect('.store-nav-toggle'),feed:rect('.view-switch button:nth-child(2)'),interceptor:center?.outerHTML.slice(0,250),scrollY,viewport:innerWidth}
-  })
-  console.log('LAYOUT_MENU_DIAGNOSTIC',width,JSON.stringify(overlay))
   await page.locator('.view-switch').getByRole('button',{name:'Feed',exact:true}).click()
   await page.locator('.feed-card').first().waitFor()
   const feed=await page.evaluate(()=>{
