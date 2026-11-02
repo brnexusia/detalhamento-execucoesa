@@ -106,15 +106,11 @@ export default function CustomerAccountRoute() {
   useEffect(() => {
     const revalidate = () => { setAccount(null); void loadAccount() }
     const unsubscribe = listenAuthChanges('customer', revalidate)
-    let lastFocusRefresh = Date.now()
-    const onFocus = () => {
-      if (document.visibilityState !== 'visible' || Date.now() - lastFocusRefresh < 15_000) return
-      lastFocusRefresh = Date.now()
-      revalidate()
-    }
+    // Revalidar imediatamente ao voltar para contas (inclusive após perder rede).
+    // Não escutar também visibilitychange: um único foco gerava duas consultas.
+    const onFocus = () => { if (document.visibilityState === 'visible') revalidate() }
     window.addEventListener('focus', onFocus)
-    document.addEventListener('visibilitychange', onFocus)
-    return () => { unsubscribe(); window.removeEventListener('focus', onFocus); document.removeEventListener('visibilitychange', onFocus) }
+    return () => { unsubscribe(); window.removeEventListener('focus', onFocus) }
   }, [storeSlug])
 
   const submit = async () => {
