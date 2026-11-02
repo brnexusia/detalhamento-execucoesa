@@ -42,7 +42,7 @@ try {
 
   const feedResponse = await fetch(`${baseUrl}/`)
   const feedHtml = await feedResponse.text()
-  if (!feedHtml.includes('<title>Shopvax</title>')) throw new Error('Metadata padrão do feed foi alterada indevidamente.')
+  if (!feedHtml.includes('<title>Shopvax | Catálogos, lojas e compras pelo WhatsApp</title>')) throw new Error('Metadata padrão do feed foi alterada indevidamente.')
 
   console.log('social module 17 ok')
 } finally {

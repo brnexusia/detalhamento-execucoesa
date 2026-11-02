@@ -82,9 +82,18 @@ function installSeo(app) {
     const row = result.rows[0]
     const sCount = Math.ceil(Number(row.store_urls) / PAGE_SIZE)
     const pCount = Math.ceil(Number(row.product_urls) / PAGE_SIZE)
+    const socialResult = await pool.query([
+      'SELECT count(*)::int AS total FROM products p',
+      'JOIN stores s ON s.id=p.store_id AND s.is_active=true AND s.social_enabled=true',
+      'WHERE p.active=true AND p.social_published=true AND NOT EXISTS (',
+      'SELECT 1 FROM catalogs c LEFT JOIN catalog_products cp ON cp.catalog_id=c.id AND cp.product_id=p.id',
+      'WHERE c.store_id=s.id AND c.is_default=true AND c.active=true AND COALESCE(cp.visible,true)=true)',
+    ].join(' '))
+    const socialCount = Math.ceil(Number(socialResult.rows[0].total) / PAGE_SIZE)
     const urls = [SITE + '/sitemap-pages.xml']
     for (let i = 1; i <= sCount; i++) urls.push(SITE + '/sitemap-stores-' + i + '.xml')
     for (let i = 1; i <= pCount; i++) urls.push(SITE + '/sitemap-products-' + i + '.xml')
+    for (let i = 1; i <= socialCount; i++) urls.push(SITE + '/sitemap-social-products-' + i + '.xml')
     return xml(res, sitemapIndex(urls))
   }))
 
@@ -130,6 +139,26 @@ function installSeo(app) {
       modified: row.updated_at,
     }))))
   }))
+  // Social publications without a publicly visible default catalog get a profile deep link.
+  app.get('/sitemap-social-products-:page.xml', protect(async (req, res) => {
+    if (!pool) return res.status(503).end()
+    if (!isPositivePage(req.params.page)) return res.status(404).end()
+    const offset = (Number(req.params.page) - 1) * PAGE_SIZE
+    const found = await pool.query([
+      'SELECT s.slug,p.id,p.updated_at FROM products p',
+      'JOIN stores s ON s.id=p.store_id AND s.is_active=true AND s.social_enabled=true',
+      'WHERE p.active=true AND p.social_published=true AND NOT EXISTS (',
+      'SELECT 1 FROM catalogs c LEFT JOIN catalog_products cp ON cp.catalog_id=c.id AND cp.product_id=p.id',
+      'WHERE c.store_id=s.id AND c.is_default=true AND c.active=true AND COALESCE(cp.visible,true)=true)',
+      'ORDER BY s.slug,p.id LIMIT $1 OFFSET $2',
+    ].join(' '), [PAGE_SIZE, offset])
+    if (!found.rowCount) return res.status(404).end()
+    return xml(res, urlset(found.rows.map((row) => ({
+      url: SITE + '/perfil/' + encodeURIComponent(row.slug) + '?produto=' + encodeURIComponent(row.id),
+      modified: row.updated_at,
+    }))))
+  }))
+
 }
 const originalInit = express.application.init
 express.application.init = function shopvaxSeoInit(...args) {

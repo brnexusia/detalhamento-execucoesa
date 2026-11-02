@@ -47,8 +47,10 @@ const documentUrl = (path, query = '') => SITE + path + query
 const publicImage = (value) => {
   try {
     const u = new URL(String(value || ''), SITE)
-    return u.protocol === 'https:' && (u.hostname === 'shopvax.com.br' || u.hostname.endsWith('.shopvax.com.br'))
-      ? u.href : ''
+    return u.protocol === 'https:' &&
+      !/^(?:localhost|127\.|10\.|192\.168\.|169\.254\.|0\.0\.0\.0$)/i.test(u.hostname) &&
+      !/^172\.(?:1[6-9]|2\d|3[01])\./.test(u.hostname) &&
+      !u.username && !u.password ? u.href : ''
   } catch { return '' }
 }
 const base = (status = 200) => ({
@@ -95,7 +97,7 @@ async function metadataFor(req) {
     const store = stores.rows[0]
     const canonicalPath = (profile ? '/perfil/' : '/') + encodeURIComponent(store.slug)
     meta.url = documentUrl(canonicalPath)
-    meta.title = plain(store.name) + (profile ? ' — Perfil | Shopvax' : ' — Catálogo | Shopvax')
+    meta.title = plain(store.name) + (profile ? ' | Shopvax' : ' — Catálogo | Shopvax')
     meta.description = plain(store.tagline, 'Explore o catálogo de ' + store.name + ' no Shopvax.')
     meta.image = publicImage(store.logo_url)
     meta.headline = plain(store.name)
@@ -108,24 +110,37 @@ async function metadataFor(req) {
     }
     if (productId) {
       if (!cleanQuery || parts.length !== (profile ? 2 : 1)) return { ...meta, index: false }
-      const found = await pool.query([
-        'SELECT p.id,p.name,p.description,p.media_type,p.media_url',
-        'FROM products p',
-        'JOIN catalogs c ON c.store_id=p.store_id AND c.is_default=true AND c.active=true',
-        'LEFT JOIN catalog_products cp ON cp.catalog_id=c.id AND cp.product_id=p.id',
-        'WHERE p.id=$1 AND p.store_id=$2 AND p.active=true AND COALESCE(cp.visible,true)=true',
-        'LIMIT 1',
-      ].join(' '), [productId, store.id])
+      const storefrontVisibility = [
+        'SELECT 1 FROM catalogs c LEFT JOIN catalog_products cp',
+        'ON cp.catalog_id=c.id AND cp.product_id=$1',
+        'WHERE c.store_id=$2 AND c.is_default=true AND c.active=true',
+        'AND COALESCE(cp.visible,true)=true LIMIT 1',
+      ].join(' ')
+      const found = await pool.query(profile
+        ? 'SELECT p.id,p.name,p.description,p.media_type,p.media_url FROM products p WHERE p.id=$1 AND p.store_id=$2 AND p.active=true AND p.social_published=true LIMIT 1'
+        : [
+          'SELECT p.id,p.name,p.description,p.media_type,p.media_url FROM products p',
+          'WHERE p.id=$1 AND p.store_id=$2 AND p.active=true AND EXISTS (' +
+          storefrontVisibility + ') LIMIT 1',
+        ].join(' '), [productId, store.id])
       if (!found.rowCount) return { ...meta, status: 404, index: false, schema: null }
       const product = found.rows[0]
-      const canonicalProduct = documentUrl('/' + encodeURIComponent(store.slug), '?produto=' + encodeURIComponent(product.id))
+      let storefrontVisible = !profile
+      if (profile) {
+        const available = await pool.query(storefrontVisibility, [product.id, store.id])
+        storefrontVisible = available.rowCount > 0
+      }
+      const canonicalProduct = documentUrl(
+        (storefrontVisible ? '/' : '/perfil/') + encodeURIComponent(store.slug),
+        '?produto=' + encodeURIComponent(product.id),
+      )
       meta.url = canonicalProduct
-      meta.title = plain(product.name) + ' | ' + plain(store.name) + ' · Shopvax'
+      meta.title = plain(product.name) + ' · ' + plain(store.name) + ' | Shopvax'
       meta.description = plain(product.description, 'Conheça ' + product.name + ' no catálogo da loja ' + store.name + '.')
       meta.image = product.media_type === 'image' ? (publicImage(product.media_url) || meta.image) : meta.image
       meta.headline = plain(product.name)
       meta.excerpt = meta.description
-      meta.index = !profile && cleanQuery
+      meta.index = cleanQuery && (!profile || !storefrontVisible)
       meta.schema = {
         '@context': 'https://schema.org', '@type': 'Product',
         name: plain(product.name), description: meta.description, url: canonicalProduct,
