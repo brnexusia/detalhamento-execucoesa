@@ -27,8 +27,13 @@ export function useBuyerSession(): BuyerSessionStatus {
       })
     }
     refresh()
+    let lastFocusCheck = Date.now()
     const unsubscribe = listenAuthChanges('customer', refresh)
-    const onFocus = () => { if (document.visibilityState === 'visible') refresh() }
+    const onFocus = () => {
+      if (document.visibilityState !== 'visible' || Date.now() - lastFocusCheck < 15_000) return
+      lastFocusCheck = Date.now()
+      refresh()
+    }
     window.addEventListener('focus', onFocus)
     return () => {
       mounted = false
