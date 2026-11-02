@@ -31,7 +31,7 @@ try {
     "WHERE table_schema='public' AND table_name='stores' AND column_name='billing_required'",
   ].join(' '))
   assert.equal(legacy.rowCount, 1)
-  assert.match(legacy.rows[0].column_default, /false/, 'Sem Stripe configurada, cadastros continuam isentos')
+  assert.match(legacy.rows[0].column_default, /true/, 'Cadastros novos precisam exigir pagamento mesmo se a Stripe estiver indisponível')
 
   // Provar que um plano escolhido no cadastro não é uma concessão gratuita.
   const seed = 'stripe-test-' + Math.random().toString(36).slice(2)

@@ -41,7 +41,7 @@ async function ownerDestination(fallback: string) {
   try {
     const billing = await apiRequest<{enabled:boolean; required:boolean; accessGranted:boolean}>('/api/billing/status')
     if (billing.required && !billing.accessGranted) return '/painel/assinatura'
-  } catch { /* Sessão ou billing indisponível: painel preserva tratamento de erro. */ }
+  } catch { return '/painel/assinatura' }
   return fallback
 }
 

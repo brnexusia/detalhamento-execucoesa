@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { AlertCircle, ArrowUpRight, CreditCard, RefreshCw, ShieldCheck } from 'lucide-react'
 import { apiRequest } from './api'
-import Phase5Panel from './Phase5Panel'
+// Sem fallback para módulos do painel em caso de falha Stripe.
 import { trustedStripeCheckoutUrl } from './stripe-checkout-client'
 import './stripe-billing.css'
 
@@ -95,7 +95,7 @@ export default function ShopvaxStripeBilling() {
   }
 
   if (loading) return <div className="svx-billing"><p>Carregando cobrança segura…</p></div>
-  if (!state?.enabled) return <div className="svx-billing"><p role="alert" className="svx-billing__error">Pagamento Stripe indisponível nesta instância. Sua conta está registrada, mas a assinatura não pode ser iniciada até que a conexão seja restabelecida.</p><Phase5Panel /></div>
+  if (!state?.enabled) return <div className="svx-billing"><p role="alert" className="svx-billing__error">Pagamento Stripe indisponível nesta instância. Sua conta está registrada, mas a assinatura não pode ser iniciada até que a conexão seja restabelecida.</p></div>
 
   const activeSubscription = state.status === 'active' && state.accessGranted
   const hasSubscription = state.status !== 'none' && state.status !== 'canceled' && state.status !== 'incomplete_expired'

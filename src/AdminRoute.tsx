@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { apiRequest } from './api'
 import AdminApp from './AdminApp'
 import ScannerModule1 from './ScannerModule1'
 import ScannerPublishModule from './ScannerPublishModule'
@@ -11,6 +12,7 @@ import ShopvaxStripeBilling from './ShopvaxStripeBilling'
 import AdminSectionFrame from './AdminSectionFrame'
 import './ux-polish.css'
 import './yellow-ux-fixes.css'
+import './stripe-billing.css'
 
 function RedirectTo({ path }: { path: string }) {
   useEffect(() => {
@@ -20,14 +22,38 @@ function RedirectTo({ path }: { path: string }) {
   return null
 }
 
+type BillingGate = 'checking' | 'paid' | 'payment' | 'anonymous' | 'unavailable'
+
 export default function AdminRoute() {
   const [path, setPath] = useState(() => window.location.pathname)
+  const [billingGate, setBillingGate] = useState<BillingGate>('checking')
+  const [revision, setRevision] = useState(0)
 
   useEffect(() => {
-    const onPop = () => setPath(window.location.pathname)
+    let live = true
+    setBillingGate('checking')
+    apiRequest<{ required: boolean; accessGranted: boolean }>('/api/billing/status')
+      .then((result) => { if (live) setBillingGate(!result.required || result.accessGranted ? 'paid' : 'payment') })
+      .catch((error: Error & { status?: number }) => {
+        if (live) setBillingGate(error.status === 401 ? 'anonymous' : 'unavailable')
+      })
+    return () => { live = false }
+  }, [revision])
+
+  useEffect(() => {
+    const onPop = () => { setPath(window.location.pathname); setRevision(current => current + 1) }
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
   }, [])
+
+  const subscription = path === '/painel/assinatura' || path.startsWith('/painel/assinatura/')
+  // Não renderizar nem montar módulos do painel antes da confirmação no servidor.
+  // A tela de pagamento fica acessível mesmo sem assinatura ativa.
+  if (billingGate === 'checking') return <div className="svx-billing" role="status"><p>Verificando o pagamento da assinatura…</p></div>
+  if (billingGate === 'anonymous') return <RedirectTo path="/entrar" />
+  if (billingGate === 'unavailable') return <section className="svx-billing" role="alert"><h1>Não foi possível confirmar a assinatura.</h1><p>Por segurança, o painel permanece bloqueado até que a verificação funcione.</p><button type="button" onClick={() => setRevision(x => x + 1)}>Verificar novamente</button></section>
+  if (billingGate === 'payment' && !subscription) return <RedirectTo path="/painel/assinatura" />
+  if (billingGate === 'payment') return <ShopvaxStripeBilling />
 
   const analytics = path === '/painel/relatorios' || path.startsWith('/painel/relatorios/')
   if (analytics) return <AdminSectionFrame active="relatorios"><AnalyticsPanel/></AdminSectionFrame>
@@ -47,7 +73,6 @@ export default function AdminRoute() {
   const integrations = path === '/painel/integracoes' || path.startsWith('/painel/integracoes/')
   if (integrations) return <AdminSectionFrame active="integracoes"><Phase4Panel/></AdminSectionFrame>
 
-  const subscription = path === '/painel/assinatura' || path.startsWith('/painel/assinatura/')
   if (subscription) return <AdminSectionFrame active="assinatura"><ShopvaxStripeBilling/></AdminSectionFrame>
 
   const hiddenTeam = path === '/painel/equipe' || path.startsWith('/painel/equipe/')
