@@ -24,6 +24,10 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
+      # Suíte de regressão com cadastros fictícios. O teste stripe-payment-gate
+      # usa NODE_ENV=production sem este bypass e prova o bloqueio financeiro.
+      NODE_ENV: test
+      SHOPVAX_TEST_BILLING_BYPASS: '1'
       DATABASE_URL: postgresql://atacado:atacado@127.0.0.1:5432/atacado_test
       PORT: 3000
       BASE_URL: http://127.0.0.1:3000
