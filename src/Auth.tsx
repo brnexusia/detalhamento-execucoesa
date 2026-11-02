@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ArrowRight, Eye, EyeOff, Gift, Store, X } from 'lucide-react'
-import { api } from './api'
+import { api, apiRequest } from './api'
+import { trustedStripeCheckoutUrl } from './stripe-checkout-client'
 import { useOwnerSession } from './owner-session'
 import ShopvaxLoading from './ShopvaxLoading'
 import GoogleSignInButton from './GoogleSignInButton'
@@ -16,12 +17,13 @@ type SignupPlan = {
   catalogLimit: number | null
   photoLimit: number | null
   franchiseeLimit: number | null
+  cycles: Array<{code: string; amountCents: number}>
 }
 
 const planName = (code: string, fallback = '') => ({ bronze: 'Bronze', prata: 'Prata', ouro: 'Ouro' } as Record<string, string>)[code] || fallback
 
 const planMoney = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
-const SHOW_SIGNUP_PLANS = false
+const SHOW_SIGNUP_PLANS = true
 const DEFAULT_SIGNUP_PLAN = 'bronze'
 
 function go(path: string) {
@@ -61,6 +63,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const [plansLoading, setPlansLoading] = useState(mode === 'register')
   const [plansError, setPlansError] = useState('')
   const [googleBusy, setGoogleBusy] = useState(false)
+  const [cycle, setCycle] = useState<'monthly'|'semiannual'|'annual'>('monthly')
   const [googleSignup, setGoogleSignup] = useState<{ credential: string; name: string; email: string; picture?: string } | null>(null)
   const [form, setForm] = useState({
     name: '',
@@ -112,7 +115,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
 
     setPlansLoading(true)
     setPlansError('')
-    fetch('/api/public/plans', { signal: controller.signal })
+    fetch('/api/billing/public-plans', { signal: controller.signal })
       .then(async (response) => response.ok ? response.json() : null)
       .then((payload) => {
         if (!Array.isArray(payload?.plans) || payload.plans.length === 0) throw new Error('Planos indisponíveis.')
@@ -127,6 +130,24 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   }, [registrationMode])
 
   const selectedPlan = plans.find((plan) => plan.code === form.planCode)
+  const selectedCyclePrice = selectedPlan?.cycles.find((option) => option.code === cycle)?.amountCents
+
+  // O cadastro já foi salvo no servidor: se Stripe falhar, continuar na cobrança,
+  // nunca solicitar um segundo cadastro nem liberar acesso sem webhook pago.
+  const beginSignupPayment = async () => {
+    const planCode = form.planCode || DEFAULT_SIGNUP_PLAN
+    try {
+      const result = await apiRequest<{url: string}>('/api/billing/checkout', {
+        method: 'POST',
+        body: JSON.stringify({ planCode, cycle, referralCode: form.referralCode.trim() }),
+      })
+      if (!trustedStripeCheckoutUrl(result.url)) throw new Error('Link de checkout Stripe inválido.')
+      window.location.assign(result.url)
+    } catch {
+      const params = new URLSearchParams({checkout:'error',plan:planCode,cycle})
+      go('/painel/assinatura?' + params.toString())
+    }
+  }
 
   const googleCredential = async (credential: string) => {
     setGoogleBusy(true)
@@ -164,13 +185,13 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
           referralCode: form.referralCode,
         })
         if (!result.ok) throw new Error('Não foi possível concluir o cadastro com Google.')
-        await finishAuthenticatedEntry('/painel')
+        await beginSignupPayment()
       } else if (mode === 'login') {
         await api.login({ email: form.email, password: form.password })
         await finishAuthenticatedEntry(requestedDestination())
       } else {
         await api.register({ ...form, planCode: form.planCode || DEFAULT_SIGNUP_PLAN })
-        await finishAuthenticatedEntry('/painel')
+        await beginSignupPayment()
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível continuar.')
@@ -252,7 +273,12 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
                   </button>)}
                 </div>}
                 <input className="signup-plan-required" tabIndex={-1} aria-hidden="true" value={form.planCode} onChange={() => undefined} required />
-                {selectedPlan && <small className="signup-plan-choice">Selecionado: {selectedPlan.name}</small>}
+                <div className="signup-plan-grid signup-plan-cycle" role="group" aria-label="Ciclo da assinatura">
+                  {([{code:'monthly',label:'Mensal'},{code:'semiannual',label:'Semestral'},{code:'annual',label:'Anual'}] as const).map(option =>
+                    <button type="button" key={option.code} className={cycle===option.code?'signup-plan is-selected':'signup-plan'} aria-pressed={cycle===option.code} onClick={()=>setCycle(option.code)}>{option.label}</button>
+                  )}
+                </div>
+                {selectedPlan && <small className="signup-plan-choice">Selecionado: {selectedPlan.name} · {cycle==='monthly'?'Mensal':cycle==='semiannual'?'Semestral':'Anual'} · {selectedCyclePrice==null?'Valor indisponível':planMoney.format(selectedCyclePrice/100)} por período. Após criar a conta, você será encaminhado automaticamente à Stripe.</small>}
               </fieldset>}
             </>
           )}
