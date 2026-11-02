@@ -99,6 +99,8 @@ export async function apiRequest<T>(url: string, options: RequestInit = {}): Pro
   }
   if (options.method?.toUpperCase() === 'POST') {
     if (/^\/api\/auth\/(logout|logout-all)$/.test(url) || url === '/api/public/customers/logout') {
+      // A successful HTTP code alone is not proof: reverse proxies can serve HTML.
+      if (payload?.ok !== true) throw new Error('O servidor não confirmou o encerramento da sessão.')
       // Revogação confirmada no banco: atualizar ambos os papéis em todas as abas.
       notifyAuthChange('owner', 'logout')
       notifyAuthChange('customer', 'logout')
