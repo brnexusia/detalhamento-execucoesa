@@ -37,7 +37,7 @@ function requestedDestination() {
 }
 
 async function ownerDestination(fallback: string) {
-  if (fallback !== '/painel') return fallback
+  if (!fallback.startsWith('/painel') || fallback.startsWith('/painel/assinatura')) return fallback
   try {
     const billing = await apiRequest<{enabled:boolean; required:boolean; accessGranted:boolean}>('/api/billing/status')
     if (billing.required && !billing.accessGranted) return '/painel/assinatura'
@@ -164,6 +164,18 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     try {
       const result = await api.googleAuth({ credential, intent: 'login' })
       if (result.ok) {
+        // Conta Google existente sem loja ainda precisa concluir a criação
+        // da loja, escolher assinatura e passar pela Stripe.
+        if (!result.storeSlug) {
+          setGoogleSignup({ credential, ...result.profile })
+          setForm((current) => ({
+            ...current,
+            name: result.profile.name || current.name,
+            email: result.profile.email || current.email,
+            planCode: current.planCode || DEFAULT_SIGNUP_PLAN,
+          }))
+          return
+        }
         await finishAuthenticatedEntry(await ownerDestination(mode === 'login' ? requestedDestination() : '/painel'))
         return
       }
