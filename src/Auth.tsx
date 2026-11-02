@@ -76,6 +76,17 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const registrationMode = mode === 'register' || Boolean(googleSignup)
 
   useEffect(() => {
+    if (mode !== 'register') return
+    const initialCode = requestedReferral()
+    if (!initialCode) return
+    const controller = new AbortController()
+    fetch('/api/public/referrals/resolve?code=' + encodeURIComponent(initialCode), {
+      signal: controller.signal, credentials: 'same-origin',
+    }).catch(() => undefined)
+    return () => controller.abort()
+  }, [mode])
+
+  useEffect(() => {
     // Não exibir credenciais de login para quem já tem um cookie válido no backend.
     if (mode === 'login' && !switchingAccount && !busy && !googleBusy && ownerSession === 'authenticated') {
       go(requestedDestination())
