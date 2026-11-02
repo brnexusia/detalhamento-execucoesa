@@ -9,6 +9,7 @@ import { generateMediaVariants, requestedMediaWidth } from './media-variants.mjs
 import { createMediaVariantQueue } from './media-upload-queue.mjs'
 import { createRedisMediaVariantQueue } from './redis-media-jobs.mjs'
 import { redisReady } from './redis-runtime.mjs'
+import { revokeAllBrowserSessions, clearAllBrowserSessionCookies, browserSessionCookies } from './global-logout.mjs'
 import { isShopvaxSeasonOpen, resolveShopvaxTheme } from './shopvax-theme-presets.mjs'
 
 const { Pool } = pg
@@ -490,17 +491,22 @@ app.post(
   }),
 )
 
-app.post(
-  '/api/auth/logout',
-  asyncRoute(async (req, res) => {
-    const token = parseCookies(req)[sessionCookie]
-    if (token && pool && dbReady) {
-      await pool.query('DELETE FROM sessions WHERE token_hash=$1', [hashToken(token)])
-    }
-    clearSessionCookie(req, res)
-    res.json({ ok: true })
-  }),
-)
+// One logout applies to *all* roles and tabs sharing this browser's cookies.
+// Never claim success when PostgreSQL could not revoke an existing session.
+const globalLogout = asyncRoute(async (req, res) => {
+  const cookies = parseCookies(req)
+  if (browserSessionCookies.some((name) => Boolean(cookies[name]))) {
+    if (!dbReady) await initDb()
+    if (!dbReady || !pool) return res.status(503).json({ error: 'Não foi possível encerrar as sessões. Tente novamente.' })
+    await revokeAllBrowserSessions(pool, cookies)
+  }
+  clearAllBrowserSessionCookies(req, res)
+  res.set('Cache-Control', 'no-store, private')
+  res.json({ ok: true })
+})
+app.post('/api/auth/logout-all', globalLogout)
+// Preserve older clients, but never allow a partial owner-only logout.
+app.post('/api/auth/logout', globalLogout)
 
 app.get(
   '/api/auth/me',

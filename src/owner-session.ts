@@ -31,8 +31,13 @@ export function useOwnerSession(): OwnerSessionStatus {
       })
     }
     refresh()
+    let lastFocusCheck = Date.now()
     const unsubscribe = listenAuthChanges('owner', refresh)
-    const onFocus = () => { if (document.visibilityState === 'visible') refresh() }
+    const onFocus = () => {
+      if (document.visibilityState !== 'visible' || Date.now() - lastFocusCheck < 15_000) return
+      lastFocusCheck = Date.now()
+      refresh()
+    }
     window.addEventListener('focus', onFocus)
     return () => {
       mounted = false

@@ -82,8 +82,10 @@ export function normalizeImportUrl(input) {
 }
 
 let schemaPromise = null
+let schemaInitialized = false
 export async function ensureScannerSchema() {
   if (!pool) throw new Error('DATABASE_URL não configurada.')
+  if (schemaInitialized) return
   if (schemaPromise) return schemaPromise
   schemaPromise = (async () => {
     await pool.query(`
@@ -166,8 +168,8 @@ export async function ensureScannerSchema() {
       ) x
       WHERE j.id=x.job_id;
     `)
-  })()
-  try { await schemaPromise } finally { schemaPromise = null }
+  })().then(() => { schemaInitialized = true }).finally(() => { schemaPromise = null })
+  return schemaPromise
 }
 
 async function currentStore(req) {

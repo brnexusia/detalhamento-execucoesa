@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import express from 'express'
 import pg from 'pg'
+import { revokeAllBrowserSessions, clearAllBrowserSessionCookies, browserSessionCookies } from './global-logout.mjs'
 import { buyerWhatsappDeliveryConfigured, deliverBuyerVerificationCode } from './buyer-whatsapp-delivery.mjs'
 
 // Serviço independente: jamais modifica o webhook da central, o Chatwoot ou o n8n.
@@ -48,8 +49,10 @@ const fail = (res, status, error) => res.status(status).json({ error })
 const noCache = (_req, res, next) => { res.set('Cache-Control', 'no-store, private'); next() }
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next)
 let schemaPromise
+let schemaInitialized = false
 async function schema() {
   if (!pool) throw new Error('DATABASE_URL indisponível')
+  if (schemaInitialized) return
   if (!schemaPromise) schemaPromise = (async () => {
     for (let i = 0; i < 100; i++) {
       const r = await pool.query("SELECT to_regclass('public.store_customers') AS customers, to_regclass('public.stores') AS stores")
@@ -71,7 +74,7 @@ async function schema() {
       'CREATE TABLE IF NOT EXISTS buyer_account_origins (buyer_id text PRIMARY KEY REFERENCES buyer_accounts(id) ON DELETE CASCADE, store_id text NOT NULL REFERENCES stores(id) ON DELETE CASCADE, created_at timestamptz NOT NULL DEFAULT now())',
       'CREATE INDEX IF NOT EXISTS idx_buyer_account_origins_store_created ON buyer_account_origins(store_id,created_at DESC)',
     ].join(';') + ';')
-  })().finally(() => { schemaPromise = null })
+  })().then(() => { schemaInitialized = true }).finally(() => { schemaPromise = null })
   return schemaPromise
 }
 const publicBuyer = (b) => b ? ({
@@ -266,14 +269,12 @@ async function me(req,res) {
   return res.json({ buyer: publicBuyer(account) })
 }
 async function logout(req,res,next) {
-  if (!cookies(req)[COOKIE]) return next()
+  const current = cookies(req)
+  if (!browserSessionCookies.some((name) => Boolean(current[name]))) return next()
   if (!pool) return fail(res,503,'Sessão indisponível.')
-  await schema()
-  const old = cookies(req)[LEGACY_COOKIE]
-  if (old) await pool.query('DELETE FROM store_customer_sessions WHERE token_hash=$1',[sha(old)])
-  await pool.query('DELETE FROM buyer_sessions WHERE token_hash=$1',[sha(cookies(req)[COOKIE])])
-  res.clearCookie(COOKIE,opts(req))
-  res.clearCookie(LEGACY_COOKIE,opts(req))
+  await revokeAllBrowserSessions(pool, current)
+  clearAllBrowserSessionCookies(req, res)
+  res.set('Cache-Control', 'no-store, private')
   return res.json({ok:true})
 }
 function install(app) {

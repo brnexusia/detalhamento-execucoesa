@@ -106,10 +106,11 @@ export default function CustomerAccountRoute() {
   useEffect(() => {
     const revalidate = () => { setAccount(null); void loadAccount() }
     const unsubscribe = listenAuthChanges('customer', revalidate)
+    // Revalidar imediatamente ao voltar para contas (inclusive após perder rede).
+    // Não escutar também visibilitychange: um único foco gerava duas consultas.
     const onFocus = () => { if (document.visibilityState === 'visible') revalidate() }
     window.addEventListener('focus', onFocus)
-    document.addEventListener('visibilitychange', onFocus)
-    return () => { unsubscribe(); window.removeEventListener('focus', onFocus); document.removeEventListener('visibilitychange', onFocus) }
+    return () => { unsubscribe(); window.removeEventListener('focus', onFocus) }
   }, [storeSlug])
 
   const submit = async () => {
@@ -135,7 +136,7 @@ export default function CustomerAccountRoute() {
     setBusy(true); setError('')
     try {
       // Só descartar o estado depois de o servidor confirmar a revogação.
-      await apiRequest('/api/public/customers/logout', { method: 'POST' })
+      await apiRequest('/api/auth/logout-all', { method: 'POST' })
       accountVersion.current += 1
       setAccount(null)
       setForm({ email: '', password: '' })
@@ -159,6 +160,7 @@ export default function CustomerAccountRoute() {
         {config.buyerWhatsAppLoginEnabled && <BuyerWhatsappLogin key={storeSlug + "-profile"} storeSlug={storeSlug} editOnly onVerified={loadAccount}/>}
         <section className="customer-card"><div className="customer-section-head"><div><small>Histórico</small><h2>Seus pedidos</h2></div><strong>{account.orders.length}</strong></div><p className="customer-semantics">{account.semantics}</p><div className="customer-orders">{account.orders.map((order) => <article key={order.id}><div className="customer-order-top"><div><small>{date.format(new Date(order.created_at))}</small><strong>{order.code}</strong></div><span className={`customer-status status-${order.status}`}><CheckCircle2 size={14}/>{statusLabel(order.status)}</span></div><div className="customer-order-info"><span>{(() => { const total = order.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0); return `${total} ${total === 1 ? 'item' : 'itens'}` })()}</span><span>{order.seller_name ? `Atendimento: ${order.seller_name}` : 'Atendimento da loja'}</span><b>{money.format(order.total)}</b></div><p className="customer-order-explanation">{statusExplanation(order.status)}</p></article>)}{!account.orders.length && <div className="customer-empty"><PackageCheck size={30}/><strong>Nenhum pedido ainda.</strong><p>Quando você preparar um pedido nesta loja com sua conta, ele aparecerá aqui.</p></div>}</div></section>
       </> : <div className="buyer-auth-entry">
+        {error && <div className="customer-error" role="alert">{error}</div>}
         <BuyerWhatsappLogin key={storeSlug} storeSlug={storeSlug} onVerified={completeBuyerEntry}/>
         {!config.buyerWhatsAppLoginEnabled && <div className="customer-legacy-access">
           <button type="button" className="customer-legacy-toggle" aria-expanded={legacyOpen}

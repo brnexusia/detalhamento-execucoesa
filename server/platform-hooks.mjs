@@ -97,8 +97,10 @@ function planShape(row) {
 }
 
 let schemaPromise = null
+let schemaInitialized = false
 async function ensurePlatformSchema() {
   if (!pool) throw new Error('DATABASE_URL não configurada.')
+  if (schemaInitialized) return
   if (schemaPromise) return schemaPromise
   schemaPromise = (async () => {
     await pool.query(`
@@ -187,8 +189,8 @@ async function ensurePlatformSchema() {
        SET photo_limit=NULL,updated_at=now()
        WHERE code='ouro' AND is_system=true AND photo_limit IS NOT NULL`,
     )
-  })()
-  try { await schemaPromise } finally { schemaPromise = null }
+  })().then(() => { schemaInitialized = true }).finally(() => { schemaPromise = null })
+  return schemaPromise
 }
 
 async function currentSessionUser(req) {

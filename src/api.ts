@@ -98,14 +98,20 @@ export async function apiRequest<T>(url: string, options: RequestInit = {}): Pro
     throw error
   }
   if (options.method?.toUpperCase() === 'POST') {
-    const scope = /^\/api\/auth\/(login|register|google|logout)$/.test(url)
-      ? 'owner'
-      : /^\/api\/public\/(customers\/logout|store\/[^/]+\/customers\/(login|register))$/.test(url)
-        ? 'customer' : null
-    if (scope && (url !== '/api/auth/google' || payload?.ok === true)) notifyAuthChange(scope)
-    // O comprador tem uma sessão global; a verificação WhatsApp também precisa
-    // atualizar Feed, perfis e outras abas sem armazenar credenciais no navegador.
-    if (url === '/api/public/buyer-auth/verify-code') notifyAuthChange('customer')
+    if (/^\/api\/auth\/(logout|logout-all)$/.test(url) || url === '/api/public/customers/logout') {
+      // A successful HTTP code alone is not proof: reverse proxies can serve HTML.
+      if (payload?.ok !== true) throw new Error('O servidor não confirmou o encerramento da sessão.')
+      // Revogação confirmada no banco: atualizar ambos os papéis em todas as abas.
+      notifyAuthChange('owner', 'logout')
+      notifyAuthChange('customer', 'logout')
+    } else {
+      const scope = /^\/api\/auth\/(login|register|google)$/.test(url)
+        ? 'owner'
+        : /^\/api\/public\/store\/[^/]+\/customers\/(login|register)$/.test(url)
+          ? 'customer' : null
+      if (scope && (url !== '/api/auth/google' || payload?.ok === true)) notifyAuthChange(scope)
+      if (url === '/api/public/buyer-auth/verify-code') notifyAuthChange('customer')
+    }
   }
   if (options.method?.toUpperCase() === 'PUT' && url === '/api/public/buyer-auth/profile') {
     notifyAuthChange('customer')
@@ -190,7 +196,7 @@ export const api = {
   googleConfig: () => request<{ enabled: boolean; clientId: string | null }>('/api/public/auth/google-config'),
   googleAuth: (body: GoogleAuthBody) => googleAuthRequest(body),
   register: (body: { name: string; email: string; password: string; storeName: string; whatsapp: string; planCode: string; referralCode?: string }) => request<{ ok: true; storeSlug: string; planCode: string }>('/api/auth/register', { method: 'POST', body: JSON.stringify(body) }),
-  logout: () => request<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
+  logout: () => request<{ ok: true }>('/api/auth/logout-all', { method: 'POST' }),
   me: () => request<{ user: { id: string; name: string; email: string }; store: { id: string; slug: string; name: string; plan_tier?: string } }>('/api/auth/me'),
   bootstrap: () => request<AdminBootstrap>('/api/admin/bootstrap'),
   bootstrapCompact: () => request<AdminBootstrap>('/api/admin/bootstrap?compact=1'),

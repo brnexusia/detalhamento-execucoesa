@@ -16,6 +16,7 @@ function go(path: string) {
 export default function AdminSectionFrame({ active, children }: { active: ActiveSection; children: ReactNode }) {
   const [data, setData] = useState<{ user: { id: string; name: string; email: string }; store: { slug: string; name: string; plan_tier?: string } } | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [logoutError, setLogoutError] = useState('')
 
   useEffect(() => {
     let mounted = true
@@ -26,8 +27,14 @@ export default function AdminSectionFrame({ active, children }: { active: Active
   const closeMenu = () => setMenuOpen(false)
   const storeUrl = data ? `${window.location.origin}/${data.store.slug}` : ''
   const logout = async () => {
-    await api.logout().catch(() => undefined)
-    go('/entrar')
+    try {
+      setLogoutError('')
+      await api.logout()
+      setData(null)
+      go('/entrar')
+    } catch (err) {
+      setLogoutError(err instanceof Error ? err.message : 'Não foi possível encerrar sua sessão.')
+    }
   }
   const title = active === 'relatorios' ? 'Inteligência comercial'
     : active === 'midias' ? 'Fotos dos produtos'
@@ -53,6 +60,7 @@ export default function AdminSectionFrame({ active, children }: { active: Active
     </aside>
     <main className="panel-main">
       <header className="panel-topbar"><button className="panel-menu" onClick={() => setMenuOpen(true)}><Menu size={20}/></button><div><span>Painel</span><strong>{title}</strong></div>{storeUrl && <a className="panel-store-link" href={storeUrl} target="_blank" rel="noreferrer"><StoreIcon size={17}/> Abrir loja <ExternalLink size={14}/></a>}</header>
+      {logoutError && <div className="panel-error" role="alert">{logoutError}</div>}
       <div className="embedded-admin-section">{children}</div>
     </main>
   </div>

@@ -1,14 +1,15 @@
-import ShopvaxSupport from './ShopvaxSupport'
 import ShopvaxLoading from './ShopvaxLoading'
 import ShopvaxLoginTransition from './ShopvaxLoginTransition'
-import ShopvaxBuyerPreferences from './ShopvaxBuyerPreferences'
 import { Fragment, lazy, Suspense, useEffect, useState } from 'react'
-import PublicRoute from './PublicRoute'
-import Phase3PublicRuntime from './Phase3PublicRuntime'
-import Phase4PublicRuntime from './Phase4PublicRuntime'
 import './intent-tracker'
+import { listenAuthChanges } from './auth-session-sync'
 
 const HomeRoute = lazy(() => import('./HomeRoute'))
+const PublicRoute = lazy(() => import('./PublicRoute'))
+const Phase3PublicRuntime = lazy(() => import('./Phase3PublicRuntime'))
+const Phase4PublicRuntime = lazy(() => import('./Phase4PublicRuntime'))
+const ShopvaxBuyerPreferences = lazy(() => import('./ShopvaxBuyerPreferences'))
+const ShopvaxSupport = lazy(() => import('./ShopvaxSupport'))
 const AuthRoute = lazy(() => import('./AuthRoute'))
 const PlatformRoute = lazy(() => import('./PlatformRoute'))
 const AdminRoute = lazy(() => import('./AdminRoute'))
@@ -36,14 +37,39 @@ function RouteFallback() {
 
 export default function App() {
   const [pathname, setPathname] = useState(() => window.location.pathname)
+  const [authRevision, setAuthRevision] = useState(0)
   const page = pageFor(pathname)
-  const helpAllowed = page === 'register' || page === 'customer' || page === 'buyer' ||
+  const helpAllowed = page === 'login' || page === 'register' || page === 'customer' || page === 'buyer' ||
     (page === 'admin' && ['/painel','/painel/loja','/painel/temas','/painel/assinatura','/painel/integracoes','/painel/recursos','/painel/crescimento'].includes(pathname))
 
   useEffect(() => {
     const onPop = () => setPathname(window.location.pathname)
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
+  }, [])
+
+  useEffect(() => {
+    const onSessionChange = (signal: { scope: string; action?: string }) => {
+      const path = window.location.pathname
+      if (signal.action === 'logout') {
+        // Every protected surface is removed immediately, including a tab that
+        // had a different panel section open when another tab signed out.
+        if (/^\/(?:painel|admin)(?:\/|$)/.test(path)) {
+          window.history.replaceState({}, '', '/entrar')
+          setPathname('/entrar')
+        }
+        setAuthRevision((value) => value + 1)
+      } else if (
+        (signal.scope === 'owner' && /^\/(?:painel|admin)(?:\/|$)/.test(path)) ||
+        (signal.scope === 'customer' && path === '/comprador')
+      ) {
+        // Account swaps also discard cached components from a previous identity.
+        setAuthRevision((value) => value + 1)
+      }
+    }
+    const stopOwner = listenAuthChanges('owner', onSessionChange)
+    const stopCustomer = listenAuthChanges('customer', onSessionChange)
+    return () => { stopOwner(); stopCustomer() }
   }, [])
 
   useEffect(() => {
@@ -76,5 +102,5 @@ export default function App() {
   else if (page === 'platform') content = <PlatformRoute />
   else content = <AdminRoute />
 
-  return <><Suspense fallback={<RouteFallback />}>{content}</Suspense>{helpAllowed && <ShopvaxSupport />}<ShopvaxLoginTransition /></>
+  return <><Suspense fallback={<RouteFallback />}><Fragment key={authRevision}>{content}</Fragment></Suspense><Suspense fallback={null}>{helpAllowed && <ShopvaxSupport />}</Suspense><ShopvaxLoginTransition /></>
 }

@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import express from 'express'
 import pg from 'pg'
+import { revokeAllBrowserSessions, clearAllBrowserSessionCookies, browserSessionCookies } from './global-logout.mjs'
 import { buyerWhatsappReady, currentBuyerCustomer, buyerProfilesForStore } from './buyer-whatsapp-auth-hooks.mjs'
 
 const { Pool } = pg
@@ -97,8 +98,10 @@ async function waitForBaseSchema() {
 }
 
 let schemaPromise = null
+let schemaInitialized = false
 async function ensureSchema() {
   if (!pool) throw new Error('DATABASE_URL não configurada.')
+  if (schemaInitialized) return
   if (!schemaPromise) {
     schemaPromise = (async () => {
       await waitForBaseSchema()
@@ -161,7 +164,7 @@ async function ensureSchema() {
         WHERE p.store_id=s.id AND p.stock_enabled=true
           AND COALESCE((pp.feature_flags->>'stock')::boolean,false)=false
       `).catch(() => undefined)
-    })().finally(() => { schemaPromise = null })
+    })().then(() => { schemaInitialized = true }).finally(() => { schemaPromise = null })
   }
   return schemaPromise
 }
@@ -512,13 +515,13 @@ async function customerMe(req, res) {
 
 async function logoutCustomer(req, res) {
   res.set('Cache-Control', 'no-store, private')
-  const token = parseCookies(req)[customerCookie]
-  // Não responder sucesso se a revogação falhar: a sessão seguiria válida no servidor.
-  if (token) {
+  const current = parseCookies(req)
+  // Fallback para instalações sem o login WhatsApp: ainda revoga as três sessões.
+  if (browserSessionCookies.some((name) => Boolean(current[name]))) {
     if (!pool) return res.status(503).json({ error: 'Sessão indisponível. Tente novamente.' })
-    await pool.query('DELETE FROM store_customer_sessions WHERE token_hash=$1', [hashToken(token)])
+    await revokeAllBrowserSessions(pool, current)
   }
-  clearCustomerCookie(req, res)
+  clearAllBrowserSessionCookies(req, res)
   return res.json({ ok: true })
 }
 
