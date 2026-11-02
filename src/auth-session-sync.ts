@@ -8,23 +8,25 @@ function channel() {
   try { return sharedChannel || (sharedChannel = new BroadcastChannel(channelKey)) } catch { return null }
 }
 export type AuthScope = 'owner' | 'customer'
+export type AuthAction = 'change' | 'logout'
+export type AuthSignal = { scope: AuthScope; action: AuthAction; timestamp: number; id: string }
 
-export function notifyAuthChange(scope: AuthScope) {
+export function notifyAuthChange(scope: AuthScope, action: AuthAction = 'change') {
   if (typeof window === 'undefined') return
-  const signal = { scope, timestamp: Date.now(), id: Math.random().toString(36).slice(2) }
+  const signal: AuthSignal = { scope, action, timestamp: Date.now(), id: Math.random().toString(36).slice(2) }
   try { window.localStorage.setItem(authSignalKey, JSON.stringify(signal)) } catch { /* armazenamento restrito */ }
   try { channel()?.postMessage(signal) } catch { /* BroadcastChannel indisponível */ }
   window.dispatchEvent(new CustomEvent(authSignalKey, { detail: signal }))
 }
 
-export function listenAuthChanges(scope: AuthScope, handler: () => void) {
+export function listenAuthChanges(scope: AuthScope, handler: (signal: AuthSignal) => void) {
   let latestId = ''
-  const deliver = (value: { scope?: string; id?: string } | null) => {
+  const deliver = (value: Partial<AuthSignal> | null) => {
     if (value?.scope !== scope || (value.id && latestId === value.id)) return
     if (value.id) latestId = value.id
-    handler()
+    handler(value as AuthSignal)
   }
-  const onLocal = (event: Event) => deliver((event as CustomEvent<{ scope?: string; id?: string }>).detail)
+  const onLocal = (event: Event) => deliver((event as CustomEvent<AuthSignal>).detail)
   const onStorage = (event: StorageEvent) => {
     if (event.key !== authSignalKey || !event.newValue) return
     try { deliver(JSON.parse(event.newValue)) } catch { /* evento inválido */ }
