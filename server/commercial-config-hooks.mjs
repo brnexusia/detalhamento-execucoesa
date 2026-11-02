@@ -19,10 +19,11 @@ const deliveryLabels = {
   transportadora: 'Transportadora',
   correios: 'Correios',
   entrega_propria: 'Entrega própria',
+  excursao: 'Ônibus de excursão',
   combinar: 'Combinar com a vendedora',
 }
 const defaultPayments = ['pix', 'dinheiro', 'cartao', 'boleto', 'transferencia']
-const defaultDeliveries = ['retirada', 'motoboy', 'transportadora', 'correios', 'entrega_propria', 'combinar']
+const defaultDeliveries = ['retirada', 'motoboy', 'transportadora', 'correios', 'entrega_propria', 'excursao', 'combinar']
 
 if (pool) pool.on('error', (error) => console.error('[commercial config] pool:', error.message))
 const hashToken = (token) => crypto.createHash('sha256').update(String(token || '')).digest('hex')

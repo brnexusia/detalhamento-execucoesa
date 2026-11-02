@@ -129,10 +129,23 @@ try {
   assert.equal(publicPage.payload.customer.id, a1.id)
   assert.notEqual(publicPage.payload.seller.phone, publicPage.payload.store.whatsapp)
 
-  res = await prepare(first, a1.cookie, firstProduct, { sellerSlug: inactive.payload.seller.slug })
+  const idemKey = 'group1-' + unique
+  const buyerDelivery = { name:'Maria de Teste', phone:'71999999999', email:'maria@example.test', document:'12345678901', cep:'41740100', state:'BA',city:'Salvador',neighborhood:'Pituba',street:'Rua das Flores',number:'140',deliveryMethod:'excursao',busPlate:'ABC1D23',busColor:'Azul',busIdentifier:'Excursão Salvador' }
+  res = await prepare(first, a1.cookie, firstProduct, { sellerSlug: inactive.payload.seller.slug, idempotencyKey: idemKey, buyer: buyerDelivery })
   assert.equal(res.response.status, 201, JSON.stringify(res.payload))
   assert.equal(new URL(res.payload.whatsappUrl).pathname, '/5511982222233')
   const firstOrder = res.payload.orderId
+  assert.match(decodeURIComponent(res.payload.whatsappUrl),/Placa do ônibus: ABC1D23/)
+  const storedBuyer = (await pool.query('SELECT buyer FROM orders WHERE id=$1',[firstOrder])).rows[0].buyer
+  assert.equal(storedBuyer.street,'Rua das Flores')
+  assert.equal(storedBuyer.deliveryMethod,'excursao')
+  const replay = await prepare(first,a1.cookie,firstProduct,{sellerSlug:inactive.payload.seller.slug,idempotencyKey:idemKey,buyer:buyerDelivery})
+  assert.equal(replay.response.status,201,JSON.stringify(replay.payload))
+  assert.equal(replay.payload.orderId,firstOrder,'Mesma tentativa retorna pedido anterior')
+  assert.equal(await countOrders(rowA.id),1,'Retry não cria segundo pedido')
+  const conflict = await prepare(first,a1.cookie,firstProduct,{sellerSlug:inactive.payload.seller.slug,idempotencyKey:idemKey,buyer:{...buyerDelivery,name:'Outra compradora'}})
+  assert.equal(conflict.response.status,409)
+  assert.equal(conflict.payload.code,'ORDER_KEY_CONFLICT')
   const stored = (await pool.query('SELECT total,customer_id,seller_id,store_id,status FROM orders WHERE id=$1', [firstOrder])).rows[0]
   assert.equal(Number(stored.total), 500, 'Preço de cliente manipulado não pode alterar valor do banco')
   assert.equal(stored.customer_id, a1.id)

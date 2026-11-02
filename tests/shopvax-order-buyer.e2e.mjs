@@ -9,7 +9,7 @@ const data={
   orders:[{
     id:'order-1',code:'AS-000041',store_id:'s1',seller_id:'seller1',total:119.80,
     items:[{productId:'p1',name:'Blusa',sku:'SW-22',quantity:2,unitPrice:59.9,lineTotal:119.8,selections:{Cor:'Grena',Tamanho:'P'}}],
-    status:'whatsapp',buyer:{name:'Maria Silva',phone:'71999999999',city:'Salvador',cep:'41740100'},notes:'Entregar na loja',created_at:new Date().toISOString()
+    status:'whatsapp',buyer:{name:'Maria Silva',phone:'71999999999',city:'Salvador',cep:'41740100',state:'BA',neighborhood:'Pituba',street:'Rua das Flores',number:'140',email:'maria@example.test',document:'12345678901',deliveryMethod:'excursao',busPlate:'ABC1D23',busColor:'Azul',busIdentifier:'Excursão Salvador'},notes:'Entregar na loja',created_at:new Date().toISOString()
   }],
   stats:{views:1,carts:1,orders:1,value:119.80}
 }
@@ -60,12 +60,16 @@ try {
     await section.waitFor()
     assert.match(await section.innerText(),/Maria Silva/)
     assert.match(await section.innerText(),/Salvador/)
+    assert.match(await section.innerText(),/Rua das Flores/)
+    assert.match(await section.innerText(),/ABC1D23/)
     assert.match(await section.innerText(),/71999999999/)
     assert.match(await section.innerText(),/Entregar na loja/)
     await page.getByRole('button',{name:'Copiar talão'}).click()
     const copied=await page.evaluate(()=>navigator.clipboard.readText())
     assert.match(copied,/Comprador: Maria Silva/)
     assert.match(copied,/Cidade: Salvador/)
+    assert.match(copied,/Entrega: Ônibus de excursão/)
+    assert.match(copied,/Placa do ônibus: ABC1D23/)
     assert.match(copied,/Observações: Entregar na loja/)
     await page.getByRole('button',{name:'Ver talão AS-000140'}).click()
     const otherBuyer = page.getByRole('region',{name:'Dados do comprador e observações'})

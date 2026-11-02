@@ -54,6 +54,8 @@ jobs:
           done
           cat /tmp/shopvax-phase2.log
           exit 1
+      - name: Grupo 1 - validacao de comprador, endereco e excursao
+        run: node --test server/checkout-buyer.test.mjs
       - name: Final MVP Phase 2 integration
         run: node server/phase2-final-mvp.integration.mjs
       - name: Simulacao real de API com tres lojas e cinco compradores

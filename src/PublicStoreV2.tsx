@@ -354,7 +354,7 @@ export default function PublicStoreV2() {
       store: route.storeSlug,
       seller: route.sellerSlug || '',
       items: cart.map(item => ({ id: item.product.id, quantity: item.quantity, selections: item.selections })),
-      buyer, notes,
+      buyer, notes, coupon: (() => { try { return localStorage.getItem('shopvax-coupon:' + route.storeSlug) || '' } catch { return '' } })(),
     })
     const previous = preparedOrderRef.current
     if (previous?.signature === signature) {
@@ -366,11 +366,20 @@ export default function PublicStoreV2() {
     setSending(true)
     setError('')
     try {
+      const signatureBytes = new TextEncoder().encode(signature)
+      const digest = await crypto.subtle.digest('SHA-256', signatureBytes)
+      const digestKey = Array.from(new Uint8Array(digest)).map(byte => byte.toString(16).padStart(2, '0')).join('')
+      const storageKey = 'shopvax:order-token:' + route.storeSlug + ':' + digestKey
+      let idempotencyKey = ''
+      try {
+        idempotencyKey = sessionStorage.getItem(storageKey) || ''
+        if (!idempotencyKey) { idempotencyKey = crypto.randomUUID(); sessionStorage.setItem(storageKey, idempotencyKey) }
+      } catch { idempotencyKey = crypto.randomUUID() }
       const result = await api.createOrder({
         storeSlug: route.storeSlug,
         sellerSlug: route.sellerSlug,
         items: cart.map(item => ({ productId: item.product.id, quantity: item.quantity, selections: item.selections })),
-        buyer, notes,
+        buyer, notes, idempotencyKey,
       })
       preparedOrderRef.current = { signature, url: result.whatsappUrl, code: result.code }
       setReadyOrder({ code: result.code, url: result.whatsappUrl })
