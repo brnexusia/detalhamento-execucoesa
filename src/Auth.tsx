@@ -36,6 +36,15 @@ function requestedDestination() {
   return next.startsWith('/') && !next.startsWith('//') && !/^\/(?:entrar|login|criar-conta)(?:[/?#]|$)/.test(next) ? next : '/painel'
 }
 
+async function ownerDestination(fallback: string) {
+  if (fallback !== '/painel') return fallback
+  try {
+    const billing = await apiRequest<{enabled:boolean; required:boolean; accessGranted:boolean}>('/api/billing/status')
+    if (billing.required && !billing.accessGranted) return '/painel/assinatura'
+  } catch { /* Sessão ou billing indisponível: painel preserva tratamento de erro. */ }
+  return fallback
+}
+
 function requestedReferral() {
   return (new URLSearchParams(window.location.search).get('ref') || '').trim().toUpperCase().slice(0, 40)
 }
@@ -92,7 +101,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   useEffect(() => {
     // Não exibir credenciais de login para quem já tem um cookie válido no backend.
     if (mode === 'login' && !switchingAccount && !busy && !googleBusy && ownerSession === 'authenticated') {
-      go(requestedDestination())
+      void ownerDestination(requestedDestination()).then(go)
     }
   }, [mode, switchingAccount, busy, googleBusy, ownerSession])
 
@@ -155,7 +164,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     try {
       const result = await api.googleAuth({ credential, intent: 'login' })
       if (result.ok) {
-        await finishAuthenticatedEntry(mode === 'login' ? requestedDestination() : '/painel')
+        await finishAuthenticatedEntry(await ownerDestination(mode === 'login' ? requestedDestination() : '/painel'))
         return
       }
       if (result.needsSignup) {
@@ -188,7 +197,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
         await beginSignupPayment()
       } else if (mode === 'login') {
         await api.login({ email: form.email, password: form.password })
-        await finishAuthenticatedEntry(requestedDestination())
+        await finishAuthenticatedEntry(await ownerDestination(requestedDestination()))
       } else {
         await api.register({ ...form, planCode: form.planCode || DEFAULT_SIGNUP_PLAN })
         await beginSignupPayment()
