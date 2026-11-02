@@ -1,15 +1,15 @@
-import ShopvaxSupport from './ShopvaxSupport'
 import ShopvaxLoading from './ShopvaxLoading'
 import ShopvaxLoginTransition from './ShopvaxLoginTransition'
-import ShopvaxBuyerPreferences from './ShopvaxBuyerPreferences'
 import { Fragment, lazy, Suspense, useEffect, useState } from 'react'
-import PublicRoute from './PublicRoute'
-import Phase3PublicRuntime from './Phase3PublicRuntime'
-import Phase4PublicRuntime from './Phase4PublicRuntime'
 import './intent-tracker'
 import { listenAuthChanges } from './auth-session-sync'
 
 const HomeRoute = lazy(() => import('./HomeRoute'))
+const PublicRoute = lazy(() => import('./PublicRoute'))
+const Phase3PublicRuntime = lazy(() => import('./Phase3PublicRuntime'))
+const Phase4PublicRuntime = lazy(() => import('./Phase4PublicRuntime'))
+const ShopvaxBuyerPreferences = lazy(() => import('./ShopvaxBuyerPreferences'))
+const ShopvaxSupport = lazy(() => import('./ShopvaxSupport'))
 const AuthRoute = lazy(() => import('./AuthRoute'))
 const PlatformRoute = lazy(() => import('./PlatformRoute'))
 const AdminRoute = lazy(() => import('./AdminRoute'))
@@ -102,5 +102,5 @@ export default function App() {
   else if (page === 'platform') content = <PlatformRoute />
   else content = <AdminRoute />
 
-  return <><Suspense fallback={<RouteFallback />}><Fragment key={authRevision}>{content}</Fragment></Suspense>{helpAllowed && <ShopvaxSupport />}<ShopvaxLoginTransition /></>
+  return <><Suspense fallback={<RouteFallback />}><Fragment key={authRevision}>{content}</Fragment></Suspense><Suspense fallback={null}>{helpAllowed && <ShopvaxSupport />}</Suspense><ShopvaxLoginTransition /></>
 }
