@@ -41,7 +41,7 @@ export default function AdminRoute() {
   }, [revision])
 
   useEffect(() => {
-    const onPop = () => setPath(window.location.pathname)
+    const onPop = () => { setPath(window.location.pathname); setRevision(current => current + 1) }
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
   }, [])
