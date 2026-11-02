@@ -163,3 +163,20 @@ test('cadastro por WhatsApp é global e a associação à loja só ocorre por a�
   assert.match(choice, /Você é loja ou comprador\?/)
   assert.match(social, /x-shopvax-follow-role/, 'seguir respeita a identidade escolhida')
 })
+
+test('resposta após OTP válido conserva o identificador do comprador fora da transação', () => {
+  const source = readFileSync(new URL('./buyer-whatsapp-auth-hooks.mjs', import.meta.url), 'utf8')
+  const start = source.indexOf('async function verifyCode(req, res) {')
+  const end = source.indexOf('\nfunction profileFields(', start)
+  assert.ok(start >= 0 && end > start, 'handler de verificação deve existir')
+  const handler = source.slice(start, end)
+  const declaration = handler.indexOf('const createdId = uuid()')
+  const transactionStart = handler.indexOf('try {')
+  const response = handler.indexOf('created: account.id === createdId')
+  assert.ok(declaration > 0 && declaration < transactionStart,
+    'createdId precisa estar no mesmo escopo que a resposta, e não apenas dentro do try')
+  assert.ok(response > handler.indexOf("await client.query('COMMIT')"),
+    'a resposta precisa informar corretamente se a conta foi criada após o commit')
+  assert.equal(handler.split('const createdId = uuid()').length - 1, 1,
+    'não criar identificadores diferentes ao montar a resposta')
+})
