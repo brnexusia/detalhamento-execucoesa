@@ -24,8 +24,8 @@ const channels = [
   ['loja', 'Loja física'], ['virtual', 'Loja virtual'], ['social', 'Instagram e redes sociais'],
   ['whatsapp', 'WhatsApp'], ['market', 'Marketplaces'], ['autonomo', 'Revenda autônoma'], ['outros', 'Outros'],
 ]
-export default function BuyerWhatsappLogin({ storeSlug, onVerified, editOnly = false, enabled = true }: {
-  storeSlug: string; onVerified: () => Promise<boolean>; editOnly?: boolean; enabled?: boolean;
+export default function BuyerWhatsappLogin({ storeSlug, onVerified, editOnly = false }: {
+  storeSlug: string; onVerified: () => Promise<boolean>; editOnly?: boolean;
 }) {
   const [open, setOpen] = useState(!editOnly)
   const [stage, setStage] = useState<Stage>('phone')
@@ -80,7 +80,6 @@ export default function BuyerWhatsappLogin({ storeSlug, onVerified, editOnly = f
     finally { setBusy(false) }
   }
   const send = () => act(async () => {
-    if (!enabled) throw new Error('Verificação por WhatsApp ainda não está habilitada neste ambiente.')
     const response = await apiRequest<{ expiresInSeconds: number; resendAfterSeconds: number }>('/api/public/buyer-auth/request-code', {
       method: 'POST', body: JSON.stringify({ phone, storeSlug }),
     })
@@ -120,13 +119,12 @@ export default function BuyerWhatsappLogin({ storeSlug, onVerified, editOnly = f
           stage === 'code' ? 'Digite o código enviado pela central ShopVax.' : 'Conte um pouco sobre você e como compra.'}</p>
       </div>
     </div>
-    {!enabled && !editOnly && <p className="buyer-auth-pending" role="status">O acesso por código está preparado, mas o envio de WhatsApp ainda precisa ser habilitado pela plataforma. Não é necessário criar senha.</p>}
     {stage === 'phone' && <form onSubmit={(event) => { event.preventDefault(); void send() }}>
       <label><span>Número com DDD</span>
         <input type="tel" inputMode="tel" autoComplete="tel" placeholder="(71) 99999-9999"
           value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={20} required/>
       </label>
-      <button className="customer-submit" type="submit" disabled={!enabled || busy || phone.replace(/\D/g, '').length < 10}>
+      <button className="customer-submit" type="submit" disabled={busy || phone.replace(/\D/g, '').length < 10}>
         <MessageCircle size={17}/> {busy ? 'Enviando…' : 'Receber código no WhatsApp'}
       </button>
     </form>}
