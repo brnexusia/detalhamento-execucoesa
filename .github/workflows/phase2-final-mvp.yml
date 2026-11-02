@@ -24,6 +24,10 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
+      # Suítes legadas usam lojas fictícias sem cobranças. O workflow dedicado
+      # payment-gate verifica o comportamento real SEM essas exceções.
+      NODE_ENV: test
+      SHOPVAX_TEST_BILLING_BYPASS: '1'
       DATABASE_URL: postgresql://atacado:atacado@127.0.0.1:5432/atacado_phase2
       PORT: 3000
       BASE_URL: http://127.0.0.1:3000
