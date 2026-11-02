@@ -49,8 +49,10 @@ const fail = (res, status, error) => res.status(status).json({ error })
 const noCache = (_req, res, next) => { res.set('Cache-Control', 'no-store, private'); next() }
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next)
 let schemaPromise
+let schemaInitialized = false
 async function schema() {
   if (!pool) throw new Error('DATABASE_URL indisponível')
+  if (schemaInitialized) return
   if (!schemaPromise) schemaPromise = (async () => {
     for (let i = 0; i < 100; i++) {
       const r = await pool.query("SELECT to_regclass('public.store_customers') AS customers, to_regclass('public.stores') AS stores")
@@ -72,7 +74,7 @@ async function schema() {
       'CREATE TABLE IF NOT EXISTS buyer_account_origins (buyer_id text PRIMARY KEY REFERENCES buyer_accounts(id) ON DELETE CASCADE, store_id text NOT NULL REFERENCES stores(id) ON DELETE CASCADE, created_at timestamptz NOT NULL DEFAULT now())',
       'CREATE INDEX IF NOT EXISTS idx_buyer_account_origins_store_created ON buyer_account_origins(store_id,created_at DESC)',
     ].join(';') + ';')
-  })().finally(() => { schemaPromise = null })
+  })().then(() => { schemaInitialized = true }).finally(() => { schemaPromise = null })
   return schemaPromise
 }
 const publicBuyer = (b) => b ? ({
