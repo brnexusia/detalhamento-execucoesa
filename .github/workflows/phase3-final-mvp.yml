@@ -58,6 +58,8 @@ jobs:
           exit 1
       - name: Final MVP Phase 3 integration
         run: node server/phase3-final-mvp.integration.mjs
+      - name: Grupo 2 - Stripe + referral + parceiros (simulação de saldo Stripe)
+        run: node server/referral-program.integration.mjs
       - name: Print server log on failure
         if: failure()
         run: cat /tmp/shopvax-phase3.log || true
