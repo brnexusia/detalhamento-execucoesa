@@ -1,12 +1,18 @@
 import crypto from 'node:crypto'
 import express from 'express'
 import pg from 'pg'
+import { cachedCatalogQuery, takeSharedRate } from './redis-runtime.mjs'
 
 const { Pool } = pg
 const databaseUrl = process.env.DATABASE_URL?.trim() || ''
 const pool = databaseUrl ? new Pool({ connectionString: databaseUrl, max: 5, connectionTimeoutMillis: 5000 }) : null
 const visitorCookie = 'atacado_public'
-const cursorKey = crypto.randomBytes(32)
+const cursorSeed = [process.env.SHOPVAX_PUBLIC_CURSOR_SECRET, process.env.SHOPVAX_INTEGRATION_SECRET, process.env.SHOPVAX_OTP_HMAC_SECRET]
+  .map((value) => String(value || '').trim()).find((value) => value.length >= 32)
+const cursorKey = cursorSeed
+  ? crypto.createHash('sha256').update('shopvax-public-cursor-v1:' + cursorSeed).digest()
+  : crypto.randomBytes(32)
+if (!cursorSeed) console.warn('[shopvax] cursor key ephemeral; set SHOPVAX_PUBLIC_CURSOR_SECRET for restart-safe pagination')
 const rateBuckets = new Map()
 
 if (pool) pool.on('error', (error) => console.error('[public protection] pool:', error.message))
@@ -48,16 +54,20 @@ function consume(key, windowMs, limit) {
   return { ok: false, retryAfter: Math.max(1, Math.ceil((current.resetAt - now) / 1000)) }
 }
 
-function checkCatalogRate(req, visitor) {
+async function checkCatalogRate(req, visitor) {
   const ip = String(req.ip || req.socket?.remoteAddress || 'unknown')
   const ua = String(req.headers['user-agent'] || '')
   const automation = /(curl|wget|python-requests|scrapy|go-http-client|httpclient|libwww|aiohttp)/i.test(ua)
-  const checks = [
-    consume(`visitor:${visitor}`, 20_000, automation ? 3 : 10),
-    consume(`visitor:${visitor}`, 10 * 60_000, automation ? 10 : 50),
-    consume(`ip:${ip}`, 20_000, 45),
-    consume(`ip:${ip}`, 10 * 60_000, 240),
+  if (process.env.SHOPVAX_PUBLIC_CATALOG_RATE_LIMIT_DISABLED === '1') return { ok: true, retryAfter: 0 }
+  const limits = [
+    [`visitor:${visitor}`, 20_000, automation ? 3 : 10],
+    [`visitor:${visitor}`, 10 * 60_000, automation ? 10 : 50],
+    [`ip:${ip}`, 20_000, 45],
+    [`ip:${ip}`, 10 * 60_000, 240],
   ]
+  const checks = await Promise.all(limits.map(([key, windowMs, limit]) =>
+    takeSharedRate('catalog:' + key, windowMs, limit, () => consume(key, windowMs, limit)),
+  ))
   const blocked = checks.find((item) => !item.ok)
   return blocked || { ok: true, retryAfter: 0 }
 }
@@ -107,7 +117,7 @@ async function protectedStore(req, res) {
   if (!pool) return res.status(503).json({ error: 'Loja ainda não conectada ao banco.' })
 
   const visitor = ensureVisitor(req, res)
-  const rate = checkCatalogRate(req, visitor)
+  const rate = await checkCatalogRate(req, visitor)
   if (!rate.ok) {
     res.setHeader('Retry-After', String(rate.retryAfter))
     return res.status(429).json({ error: 'Navegação muito rápida. Aguarde alguns segundos e continue.' })
@@ -118,8 +128,8 @@ async function protectedStore(req, res) {
   res.setHeader('X-Content-Type-Options', 'nosniff')
   res.setHeader('Vary', 'Cookie')
 
-  const storeResult = await pool.query(
-    'SELECT * FROM stores WHERE slug=$1 AND is_active=true LIMIT 1',
+  const storeResult = await cachedCatalogQuery(pool, 
+    'SELECT id,slug,name,eyebrow,tagline,minimum_order,whatsapp,logo_url,accent,seasonal_theme FROM stores WHERE slug=$1 AND is_active=true LIMIT 1',
     [req.params.storeSlug],
   )
   if (!storeResult.rowCount) return res.status(404).json({ error: 'Loja não encontrada.' })
@@ -127,14 +137,14 @@ async function protectedStore(req, res) {
 
   let seller = null
   if (req.params.sellerSlug) {
-    const sellerResult = await pool.query(
+    const sellerResult = await cachedCatalogQuery(pool, 
       'SELECT id,slug,name,phone FROM sellers WHERE store_id=$1 AND slug=$2 AND is_active=true LIMIT 1',
       [store.id, req.params.sellerSlug],
     )
     if (sellerResult.rowCount) seller = sellerResult.rows[0]
   }
   if (!seller) {
-    const available = await pool.query(
+    const available = await cachedCatalogQuery(pool, 
       `SELECT id,slug,name,phone FROM sellers
        WHERE store_id=$1 AND is_active=true
        AND length(regexp_replace(phone, '[^0-9]', '', 'g'))>=10
@@ -183,7 +193,7 @@ async function protectedStore(req, res) {
     )`)
   }
   params.push(limit + 1)
-  const productsResult = await pool.query(
+  const productsResult = await cachedCatalogQuery(pool, 
     `SELECT id,sku,name,description,price,category,media_url,media_type,images,variant_images,pack,variations,featured,created_at,
             created_at::text AS created_at_cursor
      FROM products
@@ -208,7 +218,7 @@ async function protectedStore(req, res) {
     expiresAt: Date.now() + 30 * 60_000,
   }) : null
 
-  const categoriesResult = await pool.query(
+  const categoriesResult = await cachedCatalogQuery(pool, 
     `SELECT DISTINCT category FROM products WHERE store_id=$1 AND active=true AND category<>'' ORDER BY category ASC LIMIT 100`,
     [store.id],
   )
