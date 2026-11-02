@@ -16,6 +16,13 @@ try {
       store: { id: 'loja-teste', slug: 'loja-teste', name: 'Loja Teste' },
     }) })
   })
+  await context.route('**/api/billing/status', route => route.fulfill({
+    status: ownerLoggedIn ? 200 : 401,
+    contentType: 'application/json',
+    body: ownerLoggedIn
+      ? JSON.stringify({enabled:true,required:true,accessGranted:true,status:'active',planCode:'bronze',cycle:'monthly',paidUntil:'2027-01-01T00:00:00Z',prices:[]})
+      : '{"error":"Sessão necessária."}',
+  }))
   await context.route('**/api/admin/bootstrap**', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
       user: { id: 'owner-test', name: 'Lojista Teste', email: 'owner@example.test' },

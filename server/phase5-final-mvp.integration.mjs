@@ -92,6 +92,11 @@ try {
   const targetStoreResult = await pool.query('SELECT id,owner_id FROM stores WHERE slug=$1 LIMIT 1', [target.slug])
   assert.equal(targetStoreResult.rowCount, 1)
   const targetStore = targetStoreResult.rows[0]
+  // Suíte legada da Fase 5: os lojistas são fixtures com cobrança de teste própria.
+  // A suíte stripe-payment-gate verifica separadamente que cadastros reais ficam bloqueados.
+  if (process.env.NODE_ENV === 'test' && process.env.SHOPVAX_TEST_BILLING_BYPASS === '1') {
+    await pool.query('UPDATE stores SET billing_required=false WHERE slug=ANY($1)', [[admin.slug,target.slug]])
+  }
 
   let result = await request('/api/platform/phase5/overview', { cookie: admin.cookie })
   assert.equal(result.response.status, 200, JSON.stringify(result.payload))
