@@ -1,0 +1,40 @@
+name: shopvax-grupo2-parceiros
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/ShopvaxPartnerPortal.tsx'
+      - 'src/PlatformReferralPanel.tsx'
+      - 'src/partner-portal.css'
+      - 'src/Auth.tsx'
+      - 'src/ShopvaxStripeBilling.tsx'
+      - 'src/App.tsx'
+      - 'tests/shopvax-partner-portal.e2e.mjs'
+      - '.github/workflows/shopvax-grupo2-parceiros.yml'
+  workflow_dispatch:
+jobs:
+  partners:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - run: npm install --no-save --no-audit --no-fund playwright@1.58.2
+      - run: npx playwright install chromium
+      - run: npm run build
+      - name: Serve SPA
+        run: |
+          npm run dev -- --host 127.0.0.1 > /tmp/grupo2-vite.log 2>&1 &
+          for i in $(seq 1 80); do
+            curl -fsS http://127.0.0.1:5173/ > /dev/null && exit 0
+            sleep .25
+          done
+          cat /tmp/grupo2-vite.log
+          exit 1
+      - name: Portal do parceiro em celular e desktop
+        run: node tests/shopvax-partner-portal.e2e.mjs
+      - name: Vite log em falha
+        if: failure()
+        run: cat /tmp/grupo2-vite.log || true
