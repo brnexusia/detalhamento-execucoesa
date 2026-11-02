@@ -9,7 +9,7 @@ A integração só fica ativa quando **todas** as variáveis de ambiente estiver
 - `SHOPVAX_BUYER_WHATSAPP_LOGIN=1`
 - `UAZAPI_BASE_URL=https://... ` — URL raiz da instância, sem /send/text
 - `UAZAPI_INSTANCE_TOKEN=...` — somente no backend
-- `SHOPVAX_OTP_HMAC_SECRET=...` — segredo aleatório com pelo menos 32 caracteres, estável e exclusivo
+- `SHOPVAX_OTP_HMAC_SECRET=...` — recomendado: segredo aleatório estável e exclusivo, com pelo menos 32 caracteres. Se ausente, o backend deriva uma chave OTP isolada via HKDF de `SHOPVAX_INTEGRATION_SECRET` (também estável e com pelo menos 32 caracteres). Nunca usa uma chave criada no navegador.
 
 **Nunca** commitar credenciais, telefone de teste real ou código de verificação.
 Sem a configuração, o login existente continua operacional e o novo módulo retorna disabled.
