@@ -73,6 +73,30 @@ try{
  const commission=(await pool.query('SELECT status,commission_cents,commission_status FROM shopvax_referral_claims WHERE referred_store_id=$1',[invited.storeId])).rows[0]
  assert.deepEqual({status:commission.status,amount:commission.commission_cents,commission:commission.commission_status},{status:'qualified',amount:1500,commission:'pending_approval'})
  assert.equal((await captureReferral(invited.storeId,codePartner)).existing,true)
+ // HTTP: independent partner has a real account but no merchant store.
+ const base=process.env.BASE_URL || 'http://127.0.0.1:3000'
+ const newEmail='grp2-newpartner-'+seed+'@example.test'
+ const registered=await fetch(base+'/api/partners/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:'Parceira Independente',email:newEmail,password:'SenhaTesteSegura2026!'})})
+ assert.equal(registered.status,201,await registered.text().catch(()=>''),'Cadastro autônomo de parceiro')
+ const cookie=String(registered.headers.get('set-cookie')||'').split(';')[0]
+ assert.match(cookie,/atacado_session=/)
+ const newUser=(await pool.query('SELECT id FROM users WHERE email=$1',[newEmail])).rows[0]
+ users.push(newUser.id)
+ assert.equal((await pool.query('SELECT 1 FROM stores WHERE owner_id=$1',[newUser.id])).rowCount,0,'Parceiro não cria loja')
+ const profileResponse=await fetch(base+'/api/partners/dashboard',{headers:{cookie}})
+ assert.equal(profileResponse.status,200)
+ const profile=await profileResponse.json()
+ assert.equal(profile.partner.status,'pending')
+ assert.equal(profile.partner.code,null,'Código não é público antes da aprovação')
+ const codeNew=(await pool.query('SELECT code FROM shopvax_partners WHERE user_id=$1',[newUser.id])).rows[0].code
+ assert.equal((await fetch(base+'/api/public/referrals/resolve?code='+codeNew)).status,404)
+ await pool.query("UPDATE shopvax_partners SET status='active' WHERE user_id=$1",[newUser.id])
+ const resolvedHttp=await fetch(base+'/api/public/referrals/resolve?code='+codeNew)
+ assert.equal(resolvedHttp.status,200)
+ assert.equal((await resolvedHttp.json()).type,'partner')
+ assert.equal((await fetch(base+'/api/platform/referrals')).status,401,'Métricas centralizadas exigem autorização administrativa')
+ const invalidLogin=await fetch(base+'/api/partners/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:newEmail,password:'incorrect!'})})
+ assert.equal(invalidLogin.status,401)
  console.log('GRUPO2_REFERRALS_STRIPE_LEDGER_OK')
 }finally{
  for(const userId of users.reverse())await pool.query('DELETE FROM users WHERE id=$1',[userId]).catch(()=>undefined)
