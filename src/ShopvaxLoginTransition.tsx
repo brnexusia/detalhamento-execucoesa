@@ -69,14 +69,16 @@ export default function ShopvaxLoginTransition() {
     const observer = new MutationObserver(check)
     observer.observe(document.getElementById('root') || document.body, { childList: true, subtree: true })
     window.addEventListener('popstate', check)
-    const polling = window.setInterval(check, 70)
+    // MutationObserver handles route rendering; one deadline check is enough.
+    // Polling every 70ms wastes work even while nothing in the UI has changed.
+    const deadline = window.setTimeout(check, Math.max(0, LOGIN_MOTION_DURATION_MS - (performance.now() - startedAt.current)))
     // Uma falha de rede nunca pode prender o usuário atrás da vinheta para sempre.
     const safety = window.setTimeout(finish, 15_000)
     check()
     return () => {
       observer.disconnect()
       window.removeEventListener('popstate', check)
-      window.clearInterval(polling)
+      window.clearTimeout(deadline)
       window.clearTimeout(safety)
       cancelAnimationFrame(nextFrame)
       cancelAnimationFrame(revealFrame)
