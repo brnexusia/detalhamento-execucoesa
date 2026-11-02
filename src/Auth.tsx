@@ -252,6 +252,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
           {error && <p className="form-error">{error}</p>}
           <button className="primary-action" disabled={busy || googleBusy || (SHOW_SIGNUP_PLANS && registrationMode && (plansLoading || Boolean(plansError)))}>{busy || googleBusy ? 'Aguarde…' : googleSignup ? 'Criar minha loja com Google' : mode === 'register' ? 'Criar minha loja' : 'Entrar'}<ArrowRight size={18} /></button>
           <p className="auth-switch">{registrationMode ? 'Já tem uma conta?' : 'Ainda não tem conta?'} <button type="button" onClick={() => { setGoogleSignup(null); go(registrationMode ? '/entrar' : '/criar-conta') }}>{registrationMode ? 'Entrar' : 'Criar conta'}</button></p>
+          <p className="auth-switch">Não tem loja e quer apenas indicar? <a href="/parceiros/cadastro">Conheça o Portal de Parceiros</a>.</p>
         </form>
       </main>
     </div>
