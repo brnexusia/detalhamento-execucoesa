@@ -20,7 +20,7 @@ const GlobalBuyerAccount = lazy(() => import('./GlobalBuyerAccount'))
 function pageFor(pathname: string) {
   if (pathname === '/' || pathname === '' || pathname === '/feed' || pathname === '/descobrir') return 'social'
   if (pathname === '/para-lojas') return 'home'
-  if (pathname === '/entrar') return 'login'
+  if (pathname === '/entrar' || pathname === '/login') return 'login'
   if (pathname === '/criar-conta') return 'register'
   if (pathname === '/comprador') return 'buyer'
   if (pathname === '/cliente' || pathname.startsWith('/cliente/')) return 'customer'

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowRight, ShoppingBag, Store, X } from 'lucide-react'
+import { verifyOwnerSession } from './owner-session'
 import './social-account-choice.css'
 
 function go(path: string) {
@@ -31,13 +32,35 @@ export default function SocialAccountChoice({ storeSlug, storeId, reason = 'logi
   const returnToProfile = storeSlug ? `/perfil/${encodeURIComponent(storeSlug)}` : '/feed'
   const loginAs = (role: 'comprador' | 'loja') => {
     onClose()
-    const next = encodeURIComponent(returnToProfile)
+    const next = encodeURIComponent(role === 'comprador' || reason === 'follow' ? returnToProfile : '/painel')
     go(role === 'comprador' ? `/comprador?next=${next}` : `/entrar?next=${next}`)
   }
 
   const choose = async (role: 'comprador' | 'loja') => {
     if (busy) return
-    if (reason !== 'follow' || !storeId) { loginAs(role); return }
+
+    if (reason !== 'follow' || !storeId) {
+      if (role === 'loja') {
+        setBusy(true)
+        setError('')
+        try {
+          const status = await verifyOwnerSession()
+          if (status === 'authenticated') {
+            onClose()
+            go('/painel')
+            return
+          }
+          if (status === 'unavailable') {
+            setError('Não foi possível verificar sua sessão. Confira a conexão e tente novamente.')
+            return
+          }
+        } finally {
+          setBusy(false)
+        }
+      }
+      loginAs(role)
+      return
+    }
     setBusy(true)
     setError('')
     try {

@@ -4,6 +4,7 @@ import './social-profile.css'
 import './shopvax-social-official.css'
 import { shopvaxAccentTextColor } from './ShopvaxDesignSystem'
 import SocialAccountChoice from './SocialAccountChoice'
+import { useOwnerSession } from './owner-session'
 
 type VariationGroup = { name: string; options: string[] }
 type Publication = {
@@ -69,6 +70,7 @@ export default function SocialStoreProfile() {
   }, [])
 
   useEffect(() => {
+  const ownerSession = useOwnerSession()
     if (!slug) { setProfile(null); setError('Perfil não encontrado.'); setLoading(false); return }
     let active = true
     const controller = new AbortController()
@@ -148,7 +150,7 @@ export default function SocialStoreProfile() {
     <header className="social-profile-nav">
       <button onClick={() => go('/')}><ArrowLeft size={18}/> Feed</button>
       <strong className="svx-social-brand"><img src="/brand/shopvax-symbol-dark.svg" className="svx-brand-symbol" alt="" aria-hidden="true" /><img src="/brand/shopvax-wordmark-light.svg" className="svx-brand-wordmark" alt="Shopvax" /></strong>
-      <button type="button" onClick={() => setAccountChoice('login')}>Entrar</button>
+      <button type="button" onClick={() => ownerSession === 'authenticated' ? go('/painel') : setAccountChoice('login')}>{ownerSession === 'authenticated' ? 'Minha loja' : 'Entrar'}</button>
     </header>
 
     <main className="social-profile-shell">
