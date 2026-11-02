@@ -1,0 +1,37 @@
+name: Quick production Googlebot release evidence
+on:
+  push:
+    branches: [audit/shopvax-googlebot-live-20261102]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Probe live storefront HTTP, robots, server-rendered products and release SHA
+        run: |
+          python3 - <<'PY'
+          import urllib.request,json,html,os
+          host='https://shopvax.com.br'
+          headers={'User-Agent':'Googlebot/2.1 (+http://www.google.com/bot.html)','Cache-Control':'no-cache'}
+          def fetch(path):
+              with urllib.request.urlopen(urllib.request.Request(host+path,headers=headers),timeout=20) as r:
+                  body=r.read(4000000)
+                  print(path,'HTTP',r.status,'type',r.headers.get('Content-Type'),'bytes',len(body))
+                  return body.decode()
+          robots=fetch('/robots.txt')
+          page=fetch('/lookpremium')
+          store=json.loads(fetch('/api/public/store/lookpremium'))
+          health=json.loads(fetch('/health'))
+          names=[html.escape(str(p.get('name','')),quote=True) for p in store.get('products',[]) if p.get('name')]
+          print('ROBOTS_ALLOWS_STOREFRONT', 'Allow: /api/public/store/' in robots)
+          print('ROBOTS_BLOCKS_PRIVATE', 'Disallow: /api/' in robots and 'Disallow: /api/public/store/*/customers/' in robots)
+          print('INITIAL_HTML_PUBLIC_PRODUCT_SECTION','Produtos disponíveis' in page)
+          print('INITIAL_HTML_MATCHES_REAL_PRODUCTS',any(n in page for n in names))
+          print('PUBLIC_PRODUCTS_FIRST_PAGE',len(names))
+          print('PUBLIC_STORE_VALID',store.get('store',{}).get('slug')=='lookpremium')
+          print('DB_READY',health.get('database'))
+          print('PUBLISHED_RELEASE_SHA',health.get('releaseSha') or '(not configured)')
+          print('REQUIRED_MAIN_SHA',os.environ['GITHUB_SHA'])
+          PY
