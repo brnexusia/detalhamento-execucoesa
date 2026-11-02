@@ -27,7 +27,6 @@ jobs:
       BASE_URL: http://127.0.0.1:3000
       SCANNER_WORKER_DISABLED: '1'
       SHOPVAX_SECURITY_RATE_LIMIT_DISABLED: '1'
-      NODE_ENV: production
       # Propositalmente SEM credenciais Stripe: não pode conceder acesso grátis.
     steps:
       - uses: actions/checkout@v4
@@ -37,6 +36,8 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npm run build
       - name: Start backend without Stripe credentials
+        env:
+          NODE_ENV: production
         run: |
           npm start > /tmp/shopvax-payment-gate.log 2>&1 &
           for i in $(seq 1 120); do
