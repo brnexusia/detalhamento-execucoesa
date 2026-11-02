@@ -221,6 +221,10 @@ try {
         store:{...store,productCount:1},stats:{followers:0,views:13,following:false},
       }),
     }))
+    // Perfil público testado como visitante sem cookie de lojista.
+    await page.route('**/api/auth/me', route => route.fulfill({
+      status:401,contentType:'application/json',body:'{"error":"Sem sessão"}',
+    }))
     let followAuthenticated = false
     let followRole = ''
     await page.route('**/api/social/stores/s1/follow', r => {
@@ -259,7 +263,7 @@ try {
     await page.getByRole('button',{name:'Entrar',exact:true}).click()
     await page.getByRole('dialog',{name:'Loja ou comprador?'}).getByRole('button',{name:/Loja/}).click()
     await page.waitForURL('**/entrar?next=*')
-    assert.equal(new URL(page.url()).searchParams.get('next'),'/perfil/loja-teste')
+    assert.equal(new URL(page.url()).searchParams.get('next'),'/painel')
     followAuthenticated=true
     await page.goto('http://127.0.0.1:5173/perfil/loja-teste')
     await page.getByRole('button',{name:'Seguir',exact:true}).click()

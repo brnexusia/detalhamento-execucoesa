@@ -55,7 +55,7 @@ try {
   const page=await context.newPage()
   await page.goto('http://127.0.0.1:5173/entrar')
   await page.locator('.auth-form__head h2').waitFor()
-  assert.equal(await page.getByRole('button',{name:'Precisa de ajuda?'}).count(),1)
+  assert.equal(await page.getByRole('button',{name:'Precisa de ajuda?'}).count(),0,'O login editorial não deve ter ajuda flutuante')
   assert.equal(await page.locator('.auth-poster .wordmark > img').count(),2)
   const logos=await page.locator('.auth-poster .wordmark > img').evaluateAll(images=>images.map(el=>({
     loaded:el.complete && el.naturalWidth>0, src:el.getAttribute('src'),
