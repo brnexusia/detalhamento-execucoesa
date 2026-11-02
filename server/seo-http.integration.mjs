@@ -21,6 +21,19 @@ const get = async (path) => {
 const includes = (text, expected) => assert.ok(text.includes(expected), 'Missing ' + expected)
 
 try {
+  // Startup migrations for catalog/social features are scheduled asynchronously.
+  // Wait for their real schema; never create parallel test-only tables.
+  let schemaReady = false
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const r = await pool.query(
+      "SELECT to_regclass('public.catalogs') IS NOT NULL AS catalogs, " +
+      "EXISTS(SELECT 1 FROM information_schema.columns WHERE table_name='stores' AND column_name='social_enabled') AS social, " +
+      "EXISTS(SELECT 1 FROM information_schema.columns WHERE table_name='products' AND column_name='social_published') AS publications"
+    )
+    if (r.rows[0].catalogs && r.rows[0].social && r.rows[0].publications) { schemaReady = true; break }
+    await new Promise((resolve) => setTimeout(resolve, 200))
+  }
+  assert.equal(schemaReady, true, 'Catalog and social startup schema not ready')
   await pool.query('INSERT INTO users(id,email,name) VALUES($1,$2,$3)', [userId, email, 'SEO integration fixture'])
   await pool.query('INSERT INTO stores(id,owner_id,slug,name,tagline,is_active,social_enabled) VALUES($1,$2,$3,$4,$5,true,true)',
     [storeId, userId, slug, 'Loja de teste SEO', 'Teste de catalogo sem dados de clientes'])
