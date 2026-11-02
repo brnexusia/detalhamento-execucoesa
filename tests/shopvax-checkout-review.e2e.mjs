@@ -43,7 +43,7 @@ try{
   await page.getByRole('combobox',{name:'Forma de entrega'}).selectOption('excursao')
   assert.equal(await page.getByRole('button',{name:/Preparar pedido para enviar/}).isDisabled(),true,'Ônibus sem identificação não pode ser enviado')
   await page.getByPlaceholder('Placa').fill('ABC1D23')
-  await page.getByPlaceholder('Cor').fill('Azul')
+  await page.getByRole('textbox',{name:'Cor do ônibus'}).fill('Azul')
   await page.getByPlaceholder('Nome ou identificação do ônibus').fill('Excursão Salvador')
   assert.equal(await page.getByRole('button',{name:/Preparar pedido para enviar/}).isEnabled(),true)
   await page.getByPlaceholder('Ex.: separar outras cores, retirada na loja...').fill('Retirar na loja')
