@@ -1,6 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { normalizeBuyerPhone, buyerWhatsappReady } from './buyer-whatsapp-auth-hooks.mjs'
+import {
+  buildBuyerVerificationMessage,
+  buyerWhatsappDeliveryConfigured,
+  deliverBuyerVerificationCode,
+} from './buyer-whatsapp-delivery.mjs'
 
 test('normaliza telefone brasileiro em formato internacional brasileiro', () => {
   assert.equal(normalizeBuyerPhone('(71) 99999-9999'), '5571999999999')
@@ -13,4 +18,86 @@ test('normaliza telefone brasileiro em formato internacional brasileiro', () => 
 
 test('login não fica habilitado sem configuração completa da central e segredo forte', () => {
   assert.equal(buyerWhatsappReady(), false)
+})
+
+test('login só fica pronto quando flag, entrega e segredo HMAC estão completos', () => {
+  const keys = ['SHOPVAX_BUYER_WHATSAPP_LOGIN', 'UAZAPI_BASE_URL', 'UAZAPI_INSTANCE_TOKEN', 'SHOPVAX_OTP_HMAC_SECRET']
+  const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]]))
+  try {
+    process.env.SHOPVAX_BUYER_WHATSAPP_LOGIN = '1'
+    process.env.UAZAPI_BASE_URL = 'https://uazapi.test'
+    process.env.UAZAPI_INSTANCE_TOKEN = 'token-de-teste'
+    process.env.SHOPVAX_OTP_HMAC_SECRET = 'segredo-hmac-de-teste-com-mais-de-32-caracteres'
+    assert.equal(buyerWhatsappReady(), true)
+    process.env.UAZAPI_BASE_URL = 'http://uazapi.test'
+    assert.equal(buyerWhatsappReady(), false)
+  } finally {
+    for (const key of keys) {
+      if (previous[key] === undefined) delete process.env[key]
+      else process.env[key] = previous[key]
+    }
+  }
+})
+
+test('configuração de entrega exige HTTPS e token sem expor exceções de URL', () => {
+  assert.equal(buyerWhatsappDeliveryConfigured({ UAZAPI_BASE_URL: 'http://uazapi.test', UAZAPI_INSTANCE_TOKEN: 'token' }), false)
+  assert.equal(buyerWhatsappDeliveryConfigured({ UAZAPI_BASE_URL: 'não-é-url', UAZAPI_INSTANCE_TOKEN: 'token' }), false)
+  assert.equal(buyerWhatsappDeliveryConfigured({ UAZAPI_BASE_URL: 'https://uazapi.test', UAZAPI_INSTANCE_TOKEN: '' }), false)
+  assert.equal(buyerWhatsappDeliveryConfigured({ UAZAPI_BASE_URL: 'https://uazapi.test', UAZAPI_INSTANCE_TOKEN: 'token' }), true)
+})
+
+test('mensagem de confirmação contém código, validade e alerta de segurança', () => {
+  assert.equal(
+    buildBuyerVerificationMessage('042731'),
+    'ShopVax: seu código de verificação é 042731. Válido por 5 minutos. Não compartilhe.',
+  )
+  assert.throws(() => buildBuyerVerificationMessage('12345'), /Código de verificação inválido/)
+})
+
+test('envio usa contrato UAZAPI, rastreamento próprio e aguarda resposta síncrona', async () => {
+  let captured
+  const result = await deliverBuyerVerificationCode({
+    phone: '5571999999999',
+    code: '042731',
+    trackingId: '0f4c20c0-90aa-46bb-b465-715b2a7651f6',
+    baseUrl: 'https://uazapi.test/root',
+    token: 'token-de-teste',
+    fetchImpl: async (url, options) => {
+      captured = { url: String(url), options, body: JSON.parse(options.body) }
+      return { ok: true, status: 200 }
+    },
+  })
+
+  assert.deepEqual(result, { ok: true })
+  assert.equal(captured.url, 'https://uazapi.test/send/text')
+  assert.equal(captured.options.method, 'POST')
+  assert.equal(captured.options.headers.token, 'token-de-teste')
+  assert.deepEqual(captured.body, {
+    number: '5571999999999',
+    text: 'ShopVax: seu código de verificação é 042731. Válido por 5 minutos. Não compartilhe.',
+    track_source: 'shopvax_auth',
+    track_id: '0f4c20c0-90aa-46bb-b465-715b2a7651f6',
+    async: false,
+  })
+})
+
+test('falhas e timeout do provedor retornam erro seguro sem resposta ou credencial', async () => {
+  const common = {
+    phone: '5571999999999', code: '042731', trackingId: 'tracking-12345678',
+    baseUrl: 'https://uazapi.test', token: 'segredo-que-nao-pode-vazar',
+  }
+  await assert.rejects(
+    deliverBuyerVerificationCode({ ...common, fetchImpl: async () => ({ ok: false, status: 502 }) }),
+    (error) => error.code === 'PROVIDER_REJECTED' && !error.message.includes(common.token),
+  )
+  await assert.rejects(
+    deliverBuyerVerificationCode({
+      ...common,
+      timeoutMs: 10,
+      fetchImpl: (_url, options) => new Promise((_resolve, reject) => {
+        options.signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })), { once: true })
+      }),
+    }),
+    (error) => error.code === 'DELIVERY_TIMEOUT' && !error.message.includes(common.token),
+  )
 })

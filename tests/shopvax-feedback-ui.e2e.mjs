@@ -142,10 +142,23 @@ try {
   await page.route('**/api/public/buyer-auth/me',route=>route.fulfill({
     status:401,contentType:'application/json',body:'{"error":"Sem sessão"}',
   }))
+  let requestedCode=null
+  await page.route('**/api/public/buyer-auth/request-code',route=>{
+    requestedCode=route.request().postDataJSON()
+    return route.fulfill({
+      status:200,contentType:'application/json',
+      body:JSON.stringify({ok:true,expiresInSeconds:120,resendAfterSeconds:7}),
+    })
+  })
   await page.goto('http://127.0.0.1:5173/cliente/loja-teste')
   await page.getByRole('heading',{name:'Entrar com WhatsApp'}).waitFor()
   assert.equal(await page.getByLabel('Senha').count(),0,'O comprador não deve precisar criar senha')
-  await page.getByRole('button',{name:/Receber código no WhatsApp/}).waitFor()
+  await page.getByLabel('Número com DDD').fill('(71) 99999-9999')
+  await page.getByRole('button',{name:/Receber código no WhatsApp/}).click()
+  await page.getByRole('heading',{name:'Verificar WhatsApp'}).waitFor()
+  assert.deepEqual(requestedCode,{phone:'(71) 99999-9999',storeSlug:'loja-teste'})
+  assert.match(await page.locator('.buyer-code-explanation').innerText(),/expira em 2 min/i)
+  await page.getByRole('button',{name:/Reenviar em [67]s/}).waitFor()
   await page.screenshot({path:`${out}/comprador-entrada.png`})
   await page.unroute('**/api/public/buyer-auth/me')
   await page.route('**/api/public/buyer-auth/me',route=>route.fulfill({
