@@ -100,10 +100,10 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
 
   useEffect(() => {
     // Não exibir credenciais de login para quem já tem um cookie válido no backend.
-    if (mode === 'login' && !switchingAccount && !busy && !googleBusy && ownerSession === 'authenticated') {
+    if (mode === 'login' && !googleSignup && !switchingAccount && !busy && !googleBusy && ownerSession === 'authenticated') {
       void ownerDestination(requestedDestination()).then(go)
     }
-  }, [mode, switchingAccount, busy, googleBusy, ownerSession])
+  }, [mode, googleSignup, switchingAccount, busy, googleBusy, ownerSession])
 
   const finishAuthenticatedEntry = async (destination: string) => {
     // Vinheta apenas após sucesso, independentemente da latência da autenticação.
