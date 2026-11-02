@@ -47,6 +47,21 @@ jobs:
           exit 1
       - name: Assert that checkout is mandatory and panel/order APIs remain blocked
         run: node server/stripe-payment-gate.integration.mjs
+      - name: Install browser for entitlement route checks
+        run: |
+          npm install --no-save --no-audit --no-fund playwright@1.58.2
+          npx playwright install chromium
+      - name: Start Vite for payment gate
+        run: |
+          npm run dev -- --host 127.0.0.1 > /tmp/shopvax-payment-vite.log 2>&1 &
+          for i in $(seq 1 80); do
+            curl -fsS http://127.0.0.1:5173/ > /dev/null && exit 0
+            sleep .25
+          done
+          cat /tmp/shopvax-payment-vite.log
+          exit 1
+      - name: Block all unpaid merchant panel routes on desktop/mobile
+        run: node tests/shopvax-stripe-payment-gate.e2e.mjs
       - name: Debug server startup
         if: failure()
         run: cat /tmp/shopvax-payment-gate.log || true
