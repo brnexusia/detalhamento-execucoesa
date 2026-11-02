@@ -139,8 +139,13 @@ export default function PlatformAdmin() {
   }, [section, insightsDays, data])
 
   const logout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => undefined)
-    go('/entrar?next=/admin')
+    try {
+      await apiRequest('/api/auth/logout-all', { method: 'POST' })
+      setData(null)
+      go('/entrar?next=/admin')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível encerrar a sessão.')
+    }
   }
 
   const claimAdmin = async (event: React.FormEvent) => {
