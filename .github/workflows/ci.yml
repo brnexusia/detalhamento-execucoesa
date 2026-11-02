@@ -161,8 +161,6 @@ jobs:
           const body = await response.json()
           if (body.enabled !== false || body.clientId !== null) throw new Error('Google auth should be disabled when GOOGLE_CLIENT_ID is absent')
           NODE
-      - name: SEO HTTP and PostgreSQL lifecycle integration
-        run: node server/seo-http.integration.mjs
       - name: Stripe billing schema and fail-closed smoke test
         run: node server/stripe-billing.integration.mjs
       - name: Growth endpoints with real PostgreSQL (disabled external services)
@@ -233,6 +231,9 @@ jobs:
         run: node server/scanner-scale.integration.mjs
       - name: Scanner module 6 integration
         run: npm run test:scanner:module6
+      # Execute SEO lifecycle after concurrent startup schema upgrades and commerce regressions.
+      - name: SEO HTTP and PostgreSQL lifecycle integration
+        run: node server/seo-http.integration.mjs
       - name: Start secure launch profile
         env:
           PORT: 3001
