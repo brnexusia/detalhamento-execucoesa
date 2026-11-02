@@ -19,19 +19,27 @@ try{
  const account=await req('/api/auth/register','POST',{
   name:'Teste de Pagamento',email,password:'SenhaDeTeste2026!',storeName,whatsapp:'71999990000',planCode:'ouro',
  })
- assert.equal(account.response.status,201,JSON.stringify(account.payload))
- const setCookie=account.response.headers.get('set-cookie') || ''
- const cookie=setCookie.split(';')[0]
- assert.match(cookie,/(atacado_session|shopvax_session)=/)
- const row=(await pool.query([
-  'SELECT u.id AS user_id,s.id AS store_id,s.slug,s.plan_tier,s.billing_required,s.signup_plan_selected_at',
-  'FROM users u JOIN stores s ON s.owner_id=u.id WHERE u.email=$1',
- ].join(' '),[email])).rows[0]
- assert(row)
- userId=row.user_id
- assert.equal(row.billing_required,true,'Novos cadastros precisam de assinatura mesmo sem Stripe configurada')
- assert(row.signup_plan_selected_at)
- assert.equal(row.plan_tier,'bronze','Plano Ouro não deve ser ativado apenas no cadastro')
+ assert.equal(account.response.status,503,'Cadastro deve falhar antes de criar uma loja se Stripe estiver indisponível')
+ assert.equal(account.payload.code,'BILLING_NOT_CONFIGURED')
+ const googleSignup=await req('/api/auth/google','POST',{intent:'register',credential:'teste-sem-configuracao'})
+ assert.equal(googleSignup.response.status,503,'Cadastro via Google também fica bloqueado quando Stripe não estiver pronta')
+ assert.equal((await pool.query('SELECT id FROM users WHERE email=$1',[email])).rowCount,0,'Não criar conta incompleta sem forma de pagar')
+ // Loja já criada anteriormente sem pagamento também não pode entrar no painel.
+ userId=crypto.randomUUID()
+ const storeId=crypto.randomUUID()
+ await pool.query('INSERT INTO users(id,email,name,password_hash) VALUES($1,$2,$3,$4)',
+  [userId,email,'Teste sem pagamento',null])
+ const inserted=await pool.query([
+  'INSERT INTO stores(id,owner_id,slug,name,plan_tier,billing_required,signup_plan_selected_at)',
+  "VALUES($1,$2,$3,$4,'ouro',true,now()) RETURNING id,slug,plan_tier,billing_required",
+ ].join(' '),[storeId,userId,'payment-gate-'+seed,storeName])
+ const row=inserted.rows[0]
+ assert.equal(row.billing_required,true)
+ assert.equal(row.plan_tier,'bronze','Não liberar plano Ouro apenas pela seleção')
+ const token=crypto.randomBytes(32).toString('base64url')
+ await pool.query("INSERT INTO sessions(token_hash,user_id,expires_at) VALUES($1,$2,now()+interval '30 days')",
+ [crypto.createHash('sha256').update(token).digest('hex'),userId])
+ const cookie='atacado_session='+token
  const status=await req('/api/billing/status','GET',null,cookie)
  assert.equal(status.response.status,200)
  assert.equal(status.payload.required,true)

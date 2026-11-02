@@ -127,12 +127,13 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     fetch('/api/billing/public-plans', { signal: controller.signal })
       .then(async (response) => response.ok ? response.json() : null)
       .then((payload) => {
+        if (!payload?.enabled) throw new Error('Pagamento temporariamente indisponível. Não é possível criar loja até a conexão Stripe ser restabelecida.')
         if (!Array.isArray(payload?.plans) || payload.plans.length === 0) throw new Error('Planos indisponíveis.')
         const nextPlans = (payload.plans as SignupPlan[]).map((plan) => ({ ...plan, name: planName(plan.code, plan.name) }))
         setPlans(nextPlans)
         setForm((current) => nextPlans.some((plan) => plan.code === current.planCode) ? current : { ...current, planCode: '' })
       })
-      .catch((err) => { if (err?.name !== 'AbortError') setPlansError('Não foi possível carregar os planos. Tente novamente.') })
+      .catch((err) => { if (err?.name !== 'AbortError') setPlansError(err?.message || 'Não foi possível carregar os planos. Tente novamente.') })
       .finally(() => setPlansLoading(false))
 
     return () => controller.abort()

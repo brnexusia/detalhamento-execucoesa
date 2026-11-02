@@ -15,7 +15,15 @@ try {
   const url = new URL(originValue)
   if (url.protocol === 'https:' || (process.env.NODE_ENV !== 'production' && url.hostname === 'localhost')) publicOrigin = url.origin
 } catch {}
-const ready = Boolean(/^sk_(test|live)_/.test(key) && /^whsec_/.test(webhookSecret) && publicOrigin)
+const keyReady = /^sk_(test|live)_/.test(key)
+const webhookReady = /^whsec_/.test(webhookSecret)
+const originReady = Boolean(publicOrigin)
+const ready = Boolean(keyReady && webhookReady && originReady)
+if (!ready) console.error('[stripe-billing] assinatura indisponível; valide as variáveis no SERVIÇO DE BACKEND do EasyPanel:', {
+  SHOPVAX_STRIPE_SECRET_KEY_valid: keyReady,
+  SHOPVAX_STRIPE_WEBHOOK_SECRET_valid: webhookReady,
+  SHOPVAX_PUBLIC_URL_https_valid: originReady,
+})
 const pool = process.env.DATABASE_URL?.trim()
   ? new Pool({ connectionString: process.env.DATABASE_URL, max: 3, connectionTimeoutMillis: 5000 }) : null
 if (pool) pool.on('error', (error) => console.error('[stripe-billing] database:', error.message))
@@ -400,7 +408,14 @@ async function gate(req, res, next) {
   try {
     await ensureSchema()
     // A configuração de cobrança precisa estar aplicada ANTES da criação da loja.
-    if (register) return next()
+    if (register) {
+      const isGoogleSignup = req.path === '/api/auth/google' && req.body?.intent === 'register'
+      const isNewStore = req.path === '/api/auth/register' || isGoogleSignup
+      const localTestBypass = process.env.NODE_ENV === 'test' && process.env.SHOPVAX_TEST_BILLING_BYPASS === '1'
+      if (isNewStore && !ready && !localTestBypass)
+        return apiError(res, 503, 'Não é possível criar lojas enquanto a cobrança Stripe estiver indisponível. Tente novamente após a conexão ser restabelecida.', 'BILLING_NOT_CONFIGURED')
+      return next()
+    }
     // Somente suítes locais de integração, nunca produção, podem simular
     // lojas legadas com acesso à API sem um pagamento na Stripe.
     if (process.env.NODE_ENV === 'test' && process.env.SHOPVAX_TEST_BILLING_BYPASS === '1') return next()
@@ -427,7 +442,7 @@ function install(app) {
   app.__shopvaxStripeInstalled = true
   app.post('/api/billing/stripe/webhook', express.raw({ type: 'application/json', limit: '256kb' }), wrap(webhook))
   app.get('/api/billing/public-plans', (_req,res) => {
-    res.set('Cache-Control','public, max-age=120')
+    res.set('Cache-Control','no-store')
     res.json({ enabled:ready, plans: systemPlans.map(plan => ({
       code:plan.code,name:plan.name,monthlyPrice:planPrice(plan.code,'monthly').amountCents/100,
       sellerLimit:plan.sellerLimit,productLimit:plan.productLimit,catalogLimit:plan.catalogLimit,
@@ -439,6 +454,9 @@ function install(app) {
   app.post('/api/billing/checkout', express.json({ limit: '8kb' }), headersNoCache, wrap(checkout))
   app.post('/api/billing/portal', express.json({ limit: '8kb' }), headersNoCache, wrap(portal))
   app.post('/api/billing/change', express.json({ limit: '8kb' }), headersNoCache, wrap(change))
+  // O gate de cadastro Google precisa ler intent=register, mesmo antes do
+  // express.json global ser instalado por server/app.mjs.
+  app.use('/api/auth/google', express.json({ limit: '64kb' }))
   app.use('/api/business/orders', express.json({ limit: '128kb' }))
   app.use(gate)
   if (pool) void ensureSchema().catch((error) => console.error('[stripe-billing] schema:', error.message))
