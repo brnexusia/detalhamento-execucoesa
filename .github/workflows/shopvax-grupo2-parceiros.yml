@@ -11,6 +11,7 @@ on:
       - 'src/App.tsx'
       - 'tests/shopvax-partner-portal.e2e.mjs'
       - 'tests/shopvax-signup-stripe.e2e.mjs'
+      - 'tests/shopvax-google-login-payment.e2e.mjs'
       - 'src/stripe-checkout-client.ts'
       - 'server/stripe-billing-hooks.mjs'
       - '.github/workflows/shopvax-grupo2-parceiros.yml'
@@ -40,6 +41,8 @@ jobs:
         run: node tests/shopvax-partner-portal.e2e.mjs
       - name: Cadastro de lojista inicia Checkout Stripe automaticamente
         run: node tests/shopvax-signup-stripe.e2e.mjs
+      - name: Cadastro Google e entrada de lojistas sem pagamento
+        run: node tests/shopvax-google-login-payment.e2e.mjs
       - name: Vite log em falha
         if: failure()
         run: cat /tmp/grupo2-vite.log || true
