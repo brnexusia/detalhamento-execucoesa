@@ -29,6 +29,13 @@ try {
     const { user, store } = bootstrap()
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ user, store }) })
   })
+  await context.route('**/api/billing/status', route => {
+    if (!activeUser) return route.fulfill({status:401,contentType:'application/json',body:'{"error":"Sessão inválida."}'})
+    return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
+      enabled:true,required:true,accessGranted:true,status:'active',planCode:'bronze',cycle:'monthly',
+      paidUntil:'2027-01-01T00:00:00Z',prices:[],
+    })})
+  })
   await context.route('**/api/auth/login', async route => {
     activeUser = 'B'
     return route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' })
