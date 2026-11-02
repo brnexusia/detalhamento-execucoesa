@@ -40,7 +40,7 @@ async function ensureSchema() {
   if (!pool) throw new Error('DATABASE_URL não configurada.')
   await pool.query(`
     ALTER TABLE stores ADD COLUMN IF NOT EXISTS payment_methods jsonb NOT NULL DEFAULT '["pix","dinheiro","cartao","boleto","transferencia"]'::jsonb;
-    ALTER TABLE stores ADD COLUMN IF NOT EXISTS delivery_methods jsonb NOT NULL DEFAULT '["retirada","motoboy","transportadora","correios","entrega_propria","combinar"]'::jsonb;
+    ALTER TABLE stores ADD COLUMN IF NOT EXISTS delivery_methods jsonb NOT NULL DEFAULT '["retirada","motoboy","transportadora","correios","entrega_propria","excursao","combinar"]'::jsonb;
     ALTER TABLE stores ADD COLUMN IF NOT EXISTS commercial_note text NOT NULL DEFAULT '';
   `)
 }

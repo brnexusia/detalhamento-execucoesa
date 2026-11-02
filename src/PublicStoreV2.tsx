@@ -381,6 +381,8 @@ export default function PublicStoreV2() {
         items: cart.map(item => ({ productId: item.product.id, quantity: item.quantity, selections: item.selections })),
         buyer, notes, idempotencyKey,
       })
+      // Mantenha a chave durante falhas/retries; após sucesso explícito, nova compra pode ter nova chave.
+      try { sessionStorage.removeItem(storageKey) } catch { /* sessionStorage indisponível */ }
       preparedOrderRef.current = { signature, url: result.whatsappUrl, code: result.code }
       setReadyOrder({ code: result.code, url: result.whatsappUrl })
       setReviewOpen(false)

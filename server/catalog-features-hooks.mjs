@@ -598,6 +598,10 @@ async function createCatalogOrder(req, res) {
     const normalized = normalizeCheckoutBuyer(inputBuyer)
     if (normalized.error) { await client.query('ROLLBACK'); return res.status(400).json({ error: normalized.error }) }
     const buyer = normalized.buyer
+    if (buyer.deliveryMethod && Array.isArray(store.delivery_methods) && !store.delivery_methods.includes(buyer.deliveryMethod)) {
+      await client.query('ROLLBACK')
+      return res.status(400).json({ code: 'DELIVERY_UNAVAILABLE', error: 'Essa forma de entrega não está habilitada pela loja.' })
+    }
     const safeText = (value, max) => String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, max)
     const notes = safeText(req.body?.notes, 500)
     const code = `AS-${Date.now().toString().slice(-6)}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`

@@ -42,9 +42,10 @@ export default function ShopvaxCheckoutReview({ items, total, minimum, storeName
       .then(response => response.ok ? response.json() : null)
       .then((data: { deliveryMethods?: Array<{ key: string; label: string }> } | null) => {
         const allowed = data?.deliveryMethods?.filter(option => defaults.some(item => item.key === option.key))
-        if (!allowed?.length) return
+        if (!allowed) return
         setDeliveryOptions(allowed)
-        setBuyer(current => allowed.some(option => option.key === current.deliveryMethod) ? current : { ...current, deliveryMethod: allowed[0].key })
+        setBuyer(current => allowed.some(option => option.key === current.deliveryMethod)
+          ? current : { ...current, deliveryMethod: allowed[0]?.key || '' })
       }).catch(() => undefined)
     return () => controller.abort()
   }, [storeSlug])
@@ -56,7 +57,7 @@ export default function ShopvaxCheckoutReview({ items, total, minimum, storeName
   const hasAddress = !needsAddress || (buyer.cep.replace(/\D/g, '').length === 8 && buyer.state.trim().length === 2 &&
     Boolean(buyer.city.trim() && buyer.neighborhood.trim() && buyer.street.trim() && buyer.number.trim()))
   const hasBus = buyer.deliveryMethod !== 'excursao' || Boolean(buyer.busPlate.trim() && buyer.busColor.trim() && buyer.busIdentifier.trim())
-  const canSend = items.length > 0 && total >= minimum && !sending && validCep && validPhone && validDocument && validEmail && hasAddress && hasBus
+  const canSend = items.length > 0 && total >= minimum && !sending && deliveryOptions.length > 0 && Boolean(buyer.deliveryMethod) && validCep && validPhone && validDocument && validEmail && hasAddress && hasBus
   return <div className="svx-review-layer" role="dialog" aria-modal="true" aria-labelledby="svx-review-title">
     <button type="button" className="svx-review-layer__backdrop" onClick={onClose} aria-label="Fechar revisão"/>
     <section className="svx-review">
@@ -74,7 +75,7 @@ export default function ShopvaxCheckoutReview({ items, total, minimum, storeName
           <label>E-mail<input value={buyer.email} type="email" maxLength={160} autoComplete="email" placeholder="Seu e-mail" onChange={e => update('email', e.target.value)}/></label>
           <label>CPF/CNPJ<input value={buyer.document} inputMode="numeric" maxLength={18} placeholder="CPF ou CNPJ" onChange={e => update('document', e.target.value)}/></label>
           <div className="svx-review__buyer-heading">Forma de entrega <small>Escolha conforme as opções da loja; prazo e frete são combinados com a vendedora.</small></div>
-          <label className="svx-review__full">Modalidade<select aria-label="Forma de entrega" value={buyer.deliveryMethod} onChange={e => update('deliveryMethod', e.target.value)}>{deliveryOptions.map(option => <option key={option.key} value={option.key}>{option.label}</option>)}</select></label>
+          <label className="svx-review__full">Modalidade<select aria-label="Forma de entrega" value={buyer.deliveryMethod} onChange={e => update('deliveryMethod', e.target.value)}>{deliveryOptions.length ? deliveryOptions.map(option => <option key={option.key} value={option.key}>{option.label}</option>) : <option value="">Nenhuma modalidade de entrega disponível</option>}</select></label>
           {buyer.deliveryMethod !== 'retirada' && <div className="svx-review__buyer-subgrid">
             <label>CEP<input value={buyer.cep} inputMode="numeric" autoComplete="postal-code" maxLength={9} placeholder="00000-000" onChange={e => update('cep', e.target.value)}/></label>
             <label>Estado (UF)<input value={buyer.state} maxLength={2} autoComplete="address-level1" placeholder="BA" onChange={e => update('state', e.target.value.toUpperCase())}/></label>
@@ -91,6 +92,7 @@ export default function ShopvaxCheckoutReview({ items, total, minimum, storeName
             <label>Cor do ônibus<input value={buyer.busColor} maxLength={50} placeholder="Cor" onChange={e => update('busColor', e.target.value)}/></label>
             <label>Ônibus / excursão<input value={buyer.busIdentifier} maxLength={160} placeholder="Nome ou identificação do ônibus" onChange={e => update('busIdentifier', e.target.value)}/></label>
           </div>}
+          {!deliveryOptions.length && <small role="alert">Esta loja ainda não disponibilizou formas de entrega. Entre em contato com a vendedora.</small>}
           {!validCep && <small role="alert">Informe um CEP válido de 8 dígitos.</small>}
           {!validPhone && <small role="alert">Informe um telefone válido ou deixe o campo em branco.</small>}
           {!validEmail && <small role="alert">Confira o e-mail informado.</small>}
