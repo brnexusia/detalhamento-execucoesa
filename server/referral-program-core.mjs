@@ -38,7 +38,8 @@ export function ensureReferralSchema() {
     "CHECK (num_nonnulls(referrer_store_id,partner_id)=1));",
     "CREATE INDEX IF NOT EXISTS idx_svx_claims_store ON shopvax_referral_claims(referrer_store_id,status,created_at DESC);",
     "CREATE INDEX IF NOT EXISTS idx_svx_claims_partner ON shopvax_referral_claims(partner_id,status,created_at DESC);",
-    "CREATE TABLE IF NOT EXISTS shopvax_referral_visits (",
+    "CREATE TABLE IF NOT EXISTS store_referrals (id text PRIMARY KEY,referrer_store_id text NOT NULL REFERENCES stores(id) ON DELETE CASCADE,referred_store_id text NOT NULL UNIQUE REFERENCES stores(id) ON DELETE CASCADE,credit_months integer NOT NULL DEFAULT 1,created_at timestamptz NOT NULL DEFAULT now());",
+    "CREATE TABLE IF NOT EXISTS shopvax_referral_visits ("
     "id text PRIMARY KEY, code text NOT NULL, created_at timestamptz NOT NULL DEFAULT now());",
     "CREATE INDEX IF NOT EXISTS idx_svx_referral_visits ON shopvax_referral_visits(code,created_at DESC);",
     "CREATE TABLE IF NOT EXISTS shopvax_referral_audit (",

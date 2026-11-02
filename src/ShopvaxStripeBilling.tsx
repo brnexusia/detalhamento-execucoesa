@@ -16,6 +16,8 @@ type State = {
   paidUntil: string | null
   cancelAtPeriodEnd: boolean
   prices: Price[]
+  referralCode?: string
+  referralStatus?: string | null
 }
 
 const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -40,11 +42,13 @@ export default function ShopvaxStripeBilling() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [referralCode, setReferralCode] = useState(() => (new URLSearchParams(window.location.search).get('ref') || '').toUpperCase().slice(0,40))
 
   const refresh = async () => {
     try {
       const current = await apiRequest<State>('/api/billing/status')
       setState(current)
+      if(current.referralCode) setReferralCode(current.referralCode)
       setError('')
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Não foi possível carregar a cobrança.')
@@ -102,6 +106,7 @@ export default function ShopvaxStripeBilling() {
     </div>
     {notice && <p role="status" className="svx-billing__notice"><ShieldCheck size={16}/>{notice}</p>}
     {error && <p role="alert" className="svx-billing__error"><AlertCircle size={16}/>{error}</p>}
+    {!hasSubscription && <div className="svx-billing__referral"><label htmlFor="svx-billing-referral">Código de indicação (opcional)</label><input id="svx-billing-referral" value={referralCode} maxLength={40} onChange={e=>setReferralCode(e.target.value.toUpperCase())} disabled={Boolean(state.referralCode)} placeholder="SVX- OU SVP-"/><small>{state.referralCode ? 'Código vinculado à sua loja; não pode ser trocado após a atribuição.' : 'Pode ser de lojista ou parceiro independente. O benefício só é liberado após pagamento confirmado.'}</small></div>}
     <div className="svx-billing__term" aria-label="Ciclo de cobrança">
       {terms.map((term) => <button type="button" key={term.key} aria-pressed={cycle === term.key} className={cycle === term.key ? 'is-selected' : ''} onClick={() => setCycle(term.key)}><strong>{term.label}</strong><small>{term.desc}</small></button>)}
     </div>
@@ -116,7 +121,7 @@ export default function ShopvaxStripeBilling() {
           <p>Valor total do ciclo {terms.find((item) => item.key === cycle)?.label.toLowerCase()} em reais.</p>
           <button type="button" disabled={busy || current || !price || (hasSubscription && !activeSubscription)}
             onClick={() => void act(activeSubscription ? '/api/billing/change' : '/api/billing/checkout',
-              { planCode: plan.code, cycle, requestId: crypto.randomUUID() })}>
+              { planCode: plan.code, cycle, referralCode: !activeSubscription ? referralCode.trim() : undefined, requestId: crypto.randomUUID() })}>
             {busy ? 'Processando…' : current ? 'Plano atual' : activeSubscription ? 'Alterar plano' : hasSubscription ? 'Gerencie a cobrança acima' : 'Assinar com cartão'}
           </button>
         </article>

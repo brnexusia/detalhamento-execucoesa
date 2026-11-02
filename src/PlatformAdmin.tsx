@@ -1,5 +1,6 @@
 import ShopvaxLoading from './ShopvaxLoading'
 import PlatformBuyerDirectory from './PlatformBuyerDirectory'
+import PlatformReferralPanel from './PlatformReferralPanel'
 import { useEffect, useState } from 'react'
 import { apiRequest } from './api'
 import {
@@ -54,7 +55,7 @@ type Insights = {
   days: number; rows: InsightRow[]
   coverage: { events: boolean; buyerOrigins: boolean; consents: boolean; billing: boolean }
 }
-type Section = 'visao' | 'contas' | 'compradores' | 'informacoes' | 'planos' | 'admins' | 'auditoria'
+type Section = 'visao' | 'contas' | 'compradores' | 'referrals' | 'informacoes' | 'planos' | 'admins' | 'auditoria'
 
 type DangerTarget =
   | { kind: 'account'; id: string; name: string }
@@ -197,7 +198,7 @@ export default function PlatformAdmin() {
     </div>
   }
 
-  const sectionTitle: Record<Section, string> = { visao: 'Visão geral', contas: 'Contas', compradores: 'Compradores', informacoes: 'Informações', planos: 'Planos', admins: 'Administradores', auditoria: 'Auditoria' }
+  const sectionTitle: Record<Section, string> = { visao: 'Visão geral', contas: 'Contas', compradores: 'Compradores', informacoes: 'Informações', planos: 'Planos', admins: 'Administradores', auditoria: 'Auditoria', referrals: 'Parceiros e indicações' }
 
   return <div className="platform-shell">
     <aside className="platform-sidebar">
@@ -206,6 +207,7 @@ export default function PlatformAdmin() {
         <NavButton active={section === 'visao'} onClick={() => setSection('visao')} icon={<Activity size={18}/>} label="Visão geral" />
         <NavButton active={section === 'contas'} onClick={() => setSection('contas')} icon={<Users size={18}/>} label="Contas" count={data.stats.stores} />
         <NavButton active={section === 'compradores'} onClick={() => setSection('compradores')} icon={<Users size={18}/>} label="Compradores" />
+        <NavButton active={section === 'referrals'} onClick={() => setSection('referrals')} icon={<Users size={18}/>} label="Parceiros e indicações" />
         <NavButton active={section === 'informacoes'} onClick={() => setSection('informacoes')} icon={<BarChart3 size={18}/>} label="Informações" />
         <NavButton active={section === 'planos'} onClick={() => setSection('planos')} icon={<CreditCard size={18}/>} label="Planos" count={data.plans.length} />
         <NavButton active={section === 'admins'} onClick={() => setSection('admins')} icon={<ShieldCheck size={18}/>} label="Administradores" count={data.admins.length} />
@@ -264,6 +266,7 @@ export default function PlatformAdmin() {
         {!accountsLoading && accounts.length === 0 && <p>Nenhuma conta encontrada.</p>}
       </div>}
 
+      {section === 'referrals' && <PlatformReferralPanel />}
       {section === 'compradores' && <PlatformBuyerDirectory />}
 
       {section === 'informacoes' && <div className="platform-page">

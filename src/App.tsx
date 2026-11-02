@@ -16,6 +16,7 @@ const SocialFeed = lazy(() => import('./SocialFeed'))
 const SocialStoreProfile = lazy(() => import('./SocialStoreProfile'))
 const CustomerAccountRoute = lazy(() => import('./CustomerAccountRoute'))
 const GlobalBuyerAccount = lazy(() => import('./GlobalBuyerAccount'))
+const ShopvaxPartnerPortal = lazy(() => import('./ShopvaxPartnerPortal'))
 
 function pageFor(pathname: string) {
   if (pathname === '/' || pathname === '' || pathname === '/feed' || pathname === '/descobrir') return 'social'
@@ -23,6 +24,7 @@ function pageFor(pathname: string) {
   if (pathname === '/entrar' || pathname === '/login') return 'login'
   if (pathname === '/criar-conta') return 'register'
   if (pathname === '/comprador') return 'buyer'
+  if (pathname === '/parceiros' || pathname.startsWith('/parceiros/')) return 'partners'
   if (pathname === '/cliente' || pathname.startsWith('/cliente/')) return 'customer'
   if (pathname === '/admin' || pathname.startsWith('/admin/')) return 'platform'
   if (pathname === '/painel' || pathname.startsWith('/painel/')) return 'admin'
@@ -58,6 +60,7 @@ export default function App() {
       : page === 'platform' ? 'Administração'
         : page === 'login' ? 'Entrar'
           : page === 'register' ? 'Criar loja'
+            : page === 'partners' ? 'Portal de parceiros'
             : page === 'customer' || page === 'buyer' ? 'Minha conta'
               : page === 'social' ? 'Descobrir'
                 : 'Shopvax'
@@ -72,6 +75,7 @@ export default function App() {
   else if (page === 'login') content = <AuthRoute mode="login" />
   else if (page === 'register') content = <AuthRoute mode="register" />
   else if (page === 'buyer') content = <GlobalBuyerAccount />
+  else if (page === 'partners') content = <ShopvaxPartnerPortal />
   else if (page === 'customer') content = <Fragment key={pathname}><CustomerAccountRoute /><ShopvaxBuyerPreferences /></Fragment>
   else if (page === 'platform') content = <PlatformRoute />
   else content = <AdminRoute />

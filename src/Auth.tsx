@@ -215,7 +215,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
             <p>{registrationMode ? 'Criar conta' : 'Entrar'}</p>
             <h2>{googleSignup ? 'Complete os dados da sua loja.' : registrationMode ? 'Comece com a sua loja.' : 'Acesse seu painel.'}</h2>
           </div>
-          {registrationMode && form.referralCode && <div className="poster-note"><Gift size={15}/> Indicação {form.referralCode} · quem indicou recebe 1 mês grátis após seu cadastro válido.</div>}
+          {registrationMode && form.referralCode && <div className="poster-note"><Gift size={15}/> Indicação {form.referralCode} · o benefício depende do primeiro pagamento confirmado pela Stripe.</div>}
           {!googleSignup && <>
             <GoogleSignInButton mode={mode} disabled={googleBusy || busy} onCredential={googleCredential} />
             <div className="auth-divider"><span>ou</span></div>
@@ -229,6 +229,8 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
               {!googleSignup && <label><span>Seu nome</span><input autoComplete="name" value={form.name} onChange={(e) => update('name', e.target.value)} placeholder="Loja" required /></label>}
               <label><span>Nome da loja</span><div className="input-icon"><Store size={17} /><input value={form.storeName} onChange={(e) => update('storeName', e.target.value)} placeholder="Ex.: Atacado Aurora" required /></div></label>
               <label><span>WhatsApp principal</span><input inputMode="tel" value={form.whatsapp} onChange={(e) => update('whatsapp', e.target.value)} placeholder="55 11 99999-9999" /></label>
+              <label><span>Código de indicação (opcional)</span><input value={form.referralCode} maxLength={40} autoCapitalize="characters" onChange={e=>update('referralCode',e.target.value.toUpperCase())} placeholder="SVX- OU SVP-" /></label>
+              <small>O código pode ser de uma loja ou parceiro independente. A recompensa só é validada após o pagamento da primeira assinatura pela Stripe.</small>
               {SHOW_SIGNUP_PLANS && <fieldset className="signup-plans">
                 <legend>Escolha seu plano</legend>
                 {plansLoading && <div className="signup-plans__state">Carregando planos…</div>}
