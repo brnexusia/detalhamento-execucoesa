@@ -48,6 +48,16 @@ try {
   assert.equal(robots.status, 200)
   includes(robots.text, 'Sitemap: https://shopvax.com.br/sitemap.xml')
   includes(robots.text, 'Disallow: /api/')
+  const botGet = async (path) => {
+    const response = await fetch(url(path), { headers: {
+      'User-Agent': 'Googlebot/2.1 (+http://www.google.com/bot.html)'
+    } })
+    return {status: response.status, contentType: response.headers.get('content-type')||'', body:await response.text()}
+  }
+  const pages = await botGet('/sitemap-pages.xml')
+  assert.equal(pages.status, 200)
+  assert.match(pages.contentType, /xml/)
+  includes(pages.body, 'https://shopvax.com.br/para-lojas')
   const index = await get('/sitemap.xml')
   assert.equal(index.status, 200)
   includes(index.text, '/sitemap-pages.xml')
@@ -67,6 +77,10 @@ try {
   assert.equal(products.text.includes(draftId), false)
   assert.equal(products.text.includes(hiddenId), false)
   assert.equal(products.text.includes(email), false)
+  const botProducts = await botGet('/sitemap-products-1.xml')
+  assert.equal(botProducts.status, 200)
+  assert.match(botProducts.contentType, /xml/)
+  includes(botProducts.body, activeId)
   const product = await get('/' + slug + '?produto=' + activeId)
   assert.equal(product.status, 200)
   includes(product.text, '<link rel="canonical" href="https://shopvax.com.br/' + slug + '?produto=' + activeId + '"')
@@ -92,6 +106,9 @@ try {
   assert.match(hidden.headers.get('x-robots-tag') || '', /noindex/)
   await pool.query('UPDATE products SET active=false,updated_at=now() WHERE id=$1', [activeId])
   const removed = await get('/sitemap-products-1.xml')
+  assert.equal(removed.status, 200)
+  includes(removed.text, '<urlset')
+  assert.match(removed.headers.get('content-type') || '', /application\/xml/)
   assert.equal(removed.text.includes(activeId), false)
   const missing = await get('/' + slug + '?produto=' + activeId)
   assert.equal(missing.status, 404)
