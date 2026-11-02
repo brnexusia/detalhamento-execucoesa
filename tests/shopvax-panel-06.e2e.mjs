@@ -17,6 +17,17 @@ try{
   await page.route('**/api/public/auth/google-config',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({enabled:false})}))
   await page.goto('http://127.0.0.1:5173/entrar')
   await page.locator('.auth-form__head h2').waitFor()
+  assert.equal(await page.getByRole('button',{name:'Precisa de ajuda?'}).count(),0,'O login não deve renderizar ajuda flutuante')
+  const brand = page.locator('.auth-login-brand')
+  if (width >= 1000) {
+    assert.equal(await brand.isVisible(),false,'O painel desktop mantém a marca no cartaz')
+  } else {
+    assert.equal(await brand.isVisible(),true,'Login mobile precisa mostrar a marca completa')
+    assert.equal(await brand.locator('img.svx-brand-symbol').count(),1)
+    assert.equal(await brand.locator('img.svx-brand-wordmark').getAttribute('src'),'/brand/shopvax-wordmark.svg')
+    const brandBounds=await brand.boundingBox()
+    assert(brandBounds && brandBounds.x>=-1 && brandBounds.x+brandBounds.width<=width+1,'Marca precisa caber na tela')
+  }
   const ribbon = page.locator('.auth-poster__ribbon--black-friday')
   assert.equal(await ribbon.count(),1,'Login precisa da fita Black Friday')
   assert.match(await ribbon.getAttribute('aria-label') || '',/Black Friday/)
