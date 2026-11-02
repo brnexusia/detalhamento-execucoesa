@@ -12,7 +12,7 @@ const TOPICS: { value: Topic; label: string }[] = [
 
 export default function ShopvaxSupport() {
   const path = window.location.pathname
-  const merchant = path.startsWith('/painel') || path === '/entrar' || path === '/criar-conta'
+  const merchant = path.startsWith('/painel') || path === '/entrar' || path === '/login' || path === '/criar-conta'
   const [open, setOpen] = useState(false)
   const [enabled, setEnabled] = useState(false)
   const [aiEnabled, setAiEnabled] = useState(false)

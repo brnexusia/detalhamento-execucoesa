@@ -8,7 +8,9 @@ export type OwnerSessionStatus = 'checking' | 'authenticated' | 'anonymous' | 'u
 
 export async function verifyOwnerSession(): Promise<OwnerSessionStatus> {
   try {
-    await api.me()
+    const identity = await api.me()
+    // A 200 com HTML do proxy (ou JSON incompleto) não comprova autenticação.
+    if (!identity || typeof identity.user?.id !== 'string' || typeof identity.store?.id !== 'string') return 'unavailable'
     return 'authenticated'
   } catch (error) {
     const status = (error as Error & { status?: number }).status
