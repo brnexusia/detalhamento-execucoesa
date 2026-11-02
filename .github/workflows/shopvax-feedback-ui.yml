@@ -44,6 +44,10 @@ jobs:
         run: node tests/shopvax-feed-owner-login.e2e.mjs
       - name: Simular troca de lojas e carrinhos no navegador
         run: node tests/shopvax-cross-store-navigation.e2e.mjs
+      - name: Sessão global entre abas e perfis
+        run: node tests/shopvax-auth-multitab.e2e.mjs
+      - name: Logout do comprador e troca de lojas
+        run: node tests/shopvax-buyer-session-status.e2e.mjs
       - name: Fotografias de evidência
         if: always()
         uses: actions/upload-artifact@v4
