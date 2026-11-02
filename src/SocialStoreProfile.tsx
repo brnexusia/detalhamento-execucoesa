@@ -61,6 +61,7 @@ export default function SocialStoreProfile() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [accountChoice, setAccountChoice] = useState<'login' | 'follow' | null>(null)
+  const ownerSession = useOwnerSession()
 
   // O SPA deve trocar o perfil quando a URL muda entre lojas sem recarga.
   useEffect(() => {
@@ -70,7 +71,6 @@ export default function SocialStoreProfile() {
   }, [])
 
   useEffect(() => {
-  const ownerSession = useOwnerSession()
     if (!slug) { setProfile(null); setError('Perfil não encontrado.'); setLoading(false); return }
     let active = true
     const controller = new AbortController()
