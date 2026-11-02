@@ -190,6 +190,8 @@ async function checkout(req, res) {
     await client.query('BEGIN')
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['shopvax-billing:' + account.id])
     if (req.body?.referralCode) {
+      const previousPayment = (await client.query('SELECT last_invoice_id FROM shopvax_stripe_billing WHERE store_id=$1',[account.id])).rows[0]
+      if (previousPayment?.last_invoice_id) { await client.query('ROLLBACK'); return apiError(res,409,'O código só pode ser atribuído antes do primeiro pagamento.','REFERRAL_TOO_LATE') }
       const linked = await captureReferral(account.id,req.body.referralCode,client)
       if (!linked.ok) {
         await client.query('ROLLBACK')
@@ -314,6 +316,7 @@ async function syncSubscription(client, id, eventType, paidInvoiceId = null) {
   const priceId = typeof line?.price === 'string' ? line.price : line?.price?.id
   const mapped = priceId ? (await client.query('SELECT plan_code,cycle FROM shopvax_stripe_prices WHERE price_id=$1 AND stripe_mode=$2', [priceId, stripeMode])).rows[0] : null
   const paid = eventType === 'invoice.paid' && Boolean(paidInvoiceId) && mapped && subscription.status === 'active'
+  const firstPaid = paid && !row.last_invoice_id
   const periodEnd = Number(line?.current_period_end || subscription.current_period_end || 0)
   const until = paid && periodEnd > 0 ? new Date(periodEnd * 1000) : null
   await client.query([
@@ -327,7 +330,7 @@ async function syncSubscription(client, id, eventType, paidInvoiceId = null) {
   if (paid) {
     await client.query('UPDATE stores SET plan_tier=$2,billing_required=true,updated_at=now() WHERE id=$1', [storeId, mapped.plan_code])
   }
-  return { storeId, paid }
+  return { storeId, paid, firstPaid }
 }
 
 async function webhook(req, res) {
@@ -357,7 +360,7 @@ async function webhook(req, res) {
       if (typeof sub === 'string') {
         const confirmed = await syncSubscription(client, sub, event.type, obj.id)
         if (confirmed?.paid) {
-          const referred = await qualifyReferralOnPaidInvoice(client,confirmed.storeId,obj.id)
+          const referred = confirmed.firstPaid ? await qualifyReferralOnPaidInvoice(client,confirmed.storeId,obj.id) : null
           if (referred?.referrerStoreId) await applyMerchantStripeCredits(client,referred.referrerStoreId,stripe,stripeMode)
           await applyMerchantStripeCredits(client,confirmed.storeId,stripe,stripeMode)
         }
