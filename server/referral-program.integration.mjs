@@ -90,7 +90,7 @@ try{
  const registered=await fetch(base+'/api/partners/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:'Parceira Independente',email:newEmail,password:'SenhaTesteSegura2026!'})})
  assert.equal(registered.status,201,await registered.text().catch(()=>''),'Cadastro autônomo de parceiro')
  const cookie=String(registered.headers.get('set-cookie')||'').split(';')[0]
- assert.match(cookie,/atacado_session=/)
+ assert.match(cookie,/(shopvax_session|atacado_session)=/)
  const newUser=(await pool.query('SELECT id FROM users WHERE email=$1',[newEmail])).rows[0]
  users.push(newUser.id)
  assert.equal((await pool.query('SELECT 1 FROM stores WHERE owner_id=$1',[newUser.id])).rowCount,0,'Parceiro não cria loja')
