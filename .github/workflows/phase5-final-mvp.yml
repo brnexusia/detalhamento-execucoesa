@@ -60,9 +60,12 @@ jobs:
           grep -Fq '/admin/lancamento' src/PlatformRoute.tsx
           grep -Fq '@media(max-width:820px)' src/phase5-panel.css
           ! grep -Fq '<PlatformLaunchOps' src/PlatformRoute.tsx
-      - name: Start Shopvax production profile
+      - name: Start Shopvax isolated integration profile
+        # Este cenário usa cadastros fictícios e simula o acesso do lojista,
+        # por isso executa somente o bypass restrito a NODE_ENV=test.
+        # O workflow stripe-payment-gate roda NODE_ENV=production SEM bypass.
         env:
-          NODE_ENV: production
+          NODE_ENV: test
         run: |
           npm start > /tmp/shopvax-phase5.log 2>&1 &
           echo $! > /tmp/shopvax-phase5.pid
