@@ -109,7 +109,14 @@ export default function AdminApp() {
       void load()
     }
     const unsubscribe = listenAuthChanges('owner', refreshIdentity)
-    const onFocus = () => { if (document.visibilityState === 'visible') refreshIdentity() }
+    // Bootstrap is more expensive than /auth/me. Avoid repeating it on every
+    // quick switch between browser tabs; auth broadcast remains immediate.
+    let lastFocusRefresh = Date.now()
+    const onFocus = () => {
+      if (document.visibilityState !== 'visible' || Date.now() - lastFocusRefresh < 15_000) return
+      lastFocusRefresh = Date.now()
+      refreshIdentity()
+    }
     window.addEventListener('focus', onFocus)
     return () => {
       unsubscribe()
