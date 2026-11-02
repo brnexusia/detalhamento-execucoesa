@@ -116,10 +116,16 @@ async function metadataFor(req) {
         'WHERE c.store_id=$2 AND c.is_default=true AND c.active=true',
         'AND COALESCE(cp.visible,true)=true LIMIT 1',
       ].join(' ')
+      // Published catalog price overrides are real store-configured prices.
+      // Do not infer stock availability, ratings or promotional values.
+      const publicPrice = `COALESCE((SELECT cp.price_override FROM catalogs c JOIN catalog_products cp
+        ON cp.catalog_id=c.id AND cp.product_id=p.id
+        WHERE c.store_id=p.store_id AND c.is_default=true AND c.active=true AND cp.visible=true
+        LIMIT 1),p.price) AS public_price`
       const found = await pool.query(profile
-        ? 'SELECT p.id,p.name,p.description,p.media_type,p.media_url FROM products p WHERE p.id=$1 AND p.store_id=$2 AND p.active=true AND p.social_published=true LIMIT 1'
+        ? 'SELECT p.id,p.name,p.description,p.media_type,p.media_url, ' + publicPrice + ' FROM products p WHERE p.id=$1 AND p.store_id=$2 AND p.active=true AND p.social_published=true LIMIT 1'
         : [
-          'SELECT p.id,p.name,p.description,p.media_type,p.media_url FROM products p',
+          'SELECT p.id,p.name,p.description,p.media_type,p.media_url, ' + publicPrice + ' FROM products p',
           'WHERE p.id=$1 AND p.store_id=$2 AND p.active=true AND EXISTS (' +
           storefrontVisibility + ') LIMIT 1',
         ].join(' '), [productId, store.id])
@@ -141,12 +147,28 @@ async function metadataFor(req) {
       meta.headline = plain(product.name)
       meta.excerpt = meta.description
       meta.index = cleanQuery && (!profile || !storefrontVisible)
-      meta.schema = {
+      const actualPrice = Number(product.public_price)
+      const productSchema = {
         '@context': 'https://schema.org', '@type': 'Product',
         name: plain(product.name), description: meta.description, url: canonicalProduct,
         ...(meta.image ? { image: meta.image } : {}),
+        ...(Number.isFinite(actualPrice) && actualPrice >= 0 ? {
+          offers: { '@type': 'Offer', url: canonicalProduct, price: actualPrice, priceCurrency: 'BRL' },
+        } : {}),
         isPartOf: { '@type': 'WebPage', name: plain(store.name), url: documentUrl('/' + encodeURIComponent(store.slug)) },
       }
+      const breadcrumbSchema = {
+        '@context': 'https://schema.org', '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: 'Shopvax', item: SITE + '/' },
+          {
+            '@type': 'ListItem', position: 2, name: plain(store.name),
+            item: documentUrl((storefrontVisible ? '/' : '/perfil/') + encodeURIComponent(store.slug)),
+          },
+          { '@type': 'ListItem', position: 3, name: plain(product.name), item: canonicalProduct },
+        ],
+      }
+      meta.schema = [productSchema, breadcrumbSchema]
     }
     return meta
   } catch (error) {
@@ -166,7 +188,7 @@ function injectMetadata(html, meta) {
     '<meta name="robots" content="' + (meta.index && meta.status === 200 ? 'index,follow,max-image-preview:large' : 'noindex,nofollow,noarchive') + '" />',
     '<meta property="og:site_name" content="Shopvax" />',
     '<meta property="og:locale" content="pt_BR" />',
-    '<meta property="og:type" content="' + (meta.schema?.['@type'] === 'Product' ? 'product' : 'website') + '" />',
+    '<meta property="og:type" content="' + ((Array.isArray(meta.schema) ? meta.schema[0]?.['@type'] : meta.schema?.['@type']) === 'Product' ? 'product' : 'website') + '" />',
     '<meta property="og:title" content="' + title + '" />',
     '<meta property="og:description" content="' + description + '" />',
     '<meta property="og:url" content="' + url + '" />',
