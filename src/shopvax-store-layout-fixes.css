@@ -203,6 +203,8 @@
     z-index:45;
   }
   .app .topbar .store-header-navigation.is-open {
+    /* The open menu must receive pointer events over the menu toggle's icon. */
+    z-index:55 !important;
     top:calc(100% + 4px) !important;
     display:grid !important;
     grid-template-columns:repeat(2,minmax(0,1fr));
