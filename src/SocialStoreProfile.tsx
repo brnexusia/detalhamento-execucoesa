@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ArrowLeft, ExternalLink, Grid2X2, Play, Store, X } from 'lucide-react'
 import './social-profile.css'
 import './shopvax-social-official.css'
@@ -52,28 +52,68 @@ async function commercialStorePath(slug: string, productId?: string) {
 }
 
 export default function SocialStoreProfile() {
-  const slug = useMemo(routeSlug, [])
+  const [slug, setSlug] = useState(routeSlug)
   const [profile, setProfile] = useState<ProfilePayload | null>(null)
   const [publications, setPublications] = useState<Publication[]>([])
+  const [publicationsLoading, setPublicationsLoading] = useState(true)
   const [selected, setSelected] = useState<Publication | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [accountChoice, setAccountChoice] = useState<'login' | 'follow' | null>(null)
 
+  // O SPA deve trocar o perfil quando a URL muda entre lojas sem recarga.
   useEffect(() => {
-    if (!slug) { setError('Perfil não encontrado.'); setLoading(false); return }
+    const onRoute = () => setSlug(routeSlug())
+    window.addEventListener('popstate', onRoute)
+    return () => window.removeEventListener('popstate', onRoute)
+  }, [])
+
+  useEffect(() => {
+    if (!slug) { setProfile(null); setError('Perfil não encontrado.'); setLoading(false); return }
+    let active = true
+    const controller = new AbortController()
+    setProfile(null)
+    setPublications([])
+    setSelected(null)
+    setAccountChoice(null)
+    setError('')
     setLoading(true)
-    Promise.all([
-      fetch(`/api/social/stores/${encodeURIComponent(slug)}`, { credentials: 'include' }).then(async (response) => response.ok ? response.json() : Promise.reject(new Error('Perfil não encontrado.'))),
-      fetch(`/api/social/stores/${encodeURIComponent(slug)}/publications`, { credentials: 'include' }).then(async (response) => response.ok ? response.json() : Promise.reject(new Error('Publicações indisponíveis.'))),
-    ]).then(([profileData, publicationData]) => {
-      setProfile(profileData)
-      const items = Array.isArray(publicationData?.publications) ? publicationData.publications : []
-      setPublications(items)
-      const requested = requestedProductId()
-      if (requested) setSelected(items.find((item: Publication) => item.id === requested) || null)
-    }).catch((err) => setError(err instanceof Error ? err.message : 'Não foi possível abrir o perfil.'))
-      .finally(() => setLoading(false))
+    setPublicationsLoading(true)
+
+    // Uma falha nas publicações não pode impedir seguir a loja ou entrar na conta.
+    fetch(`/api/social/stores/${encodeURIComponent(slug)}`, { credentials: 'include', signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('Perfil não encontrado.')
+        return response.json() as Promise<ProfilePayload>
+      })
+      .then((profileData) => {
+        if (!active) return
+        setProfile(profileData)
+        setLoading(false)
+        return fetch(`/api/social/stores/${encodeURIComponent(slug)}/publications`, {
+          credentials: 'include', signal: controller.signal,
+        }).then(async (response) => {
+          if (!response.ok) throw new Error('Publicações indisponíveis. Tente atualizar a página.')
+          return response.json() as Promise<{ publications: Publication[] }>
+        }).then((publicationData) => {
+          if (!active) return
+          const items = Array.isArray(publicationData?.publications) ? publicationData.publications : []
+          setPublications(items)
+          const requested = requestedProductId()
+          if (requested) setSelected(items.find((item) => item.id === requested) || null)
+        }).catch((err: unknown) => {
+          if (active && !(err instanceof DOMException && err.name === 'AbortError')) {
+            setError('Publicações indisponíveis. Você ainda pode acessar a loja.')
+          }
+        }).finally(() => { if (active) setPublicationsLoading(false) })
+      })
+      .catch((err: unknown) => {
+        if (!active || (err instanceof DOMException && err.name === 'AbortError')) return
+        setError(err instanceof Error ? err.message : 'Não foi possível abrir o perfil.')
+        setLoading(false)
+        setPublicationsLoading(false)
+      })
+    return () => { active = false; controller.abort() }
   }, [slug])
 
   useEffect(() => {
@@ -141,7 +181,7 @@ export default function SocialStoreProfile() {
           <span className="social-profile-grid__name">{publication.name}</span>
         </button>)}
       </section>
-      {!publications.length && <div className="social-profile-empty-state">Esta loja ainda não publicou produtos.</div>}
+      {!publications.length && <div className="social-profile-empty-state" role={error ? "alert" : undefined}>{publicationsLoading ? "Carregando publicações…" : error || "Esta loja ainda não publicou produtos."}</div>}
     </main>
 
     {accountChoice && <SocialAccountChoice storeSlug={slug} storeId={profile.store.id} reason={accountChoice}

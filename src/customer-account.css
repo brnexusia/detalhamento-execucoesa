@@ -66,3 +66,6 @@
 .customer-global-note strong{font-size:1rem}
 .customer-global-note p{font-size:.87rem;line-height:1.5}
 .customer-global-orders-hint{margin:0;padding:4px 8px;font-size:.85rem;color:#57645a}
+
+/* Contexto da loja sem confundir a conta global do comprador. */
+.customer-store-context{display:block;margin-top:2px;font-size:12px;font-weight:700;color:#5c635d}

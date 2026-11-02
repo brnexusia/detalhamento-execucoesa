@@ -27,7 +27,7 @@ try {
       if(await btn.count()){
         await btn.click()
         await page.waitForTimeout(450)
-        const modal=page.getByRole('dialog',{name:'Comprador ou vendedor?'})
+        const modal=page.getByRole('dialog',{name:/loja ou comprador\?/i})
         entry.choiceVisible=await modal.isVisible()
         entry.dialogCount=await page.getByRole('dialog').count()
         entry.dialogText=entry.choiceVisible?(await modal.innerText()).slice(0,430):''
@@ -39,7 +39,7 @@ try {
           if(await follow.count()){
             await follow.click()
             await page.waitForTimeout(900)
-            entry.followPromptVisible=await page.getByRole('dialog',{name:'Comprador ou vendedor?'}).isVisible()
+            entry.followPromptVisible=await page.getByRole('dialog',{name:/loja ou comprador\?/i}).isVisible()
           }
         }
       }

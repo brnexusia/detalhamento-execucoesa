@@ -152,7 +152,7 @@ export default function CustomerAccountRoute() {
   return <div className="customer-page" style={{ '--customer-accent': accent } as React.CSSProperties}>
     <div className="customer-wrap">
       <button className="customer-back" onClick={() => go(safeProfileNext || `/${storeSlug}`)}><ArrowLeft size={17}/> {safeProfileNext ? 'Voltar ao perfil da loja' : 'Voltar para a loja'}</button>
-      <header className="customer-store-head">{config.store.logoUrl ? <img src={config.store.logoUrl} alt=""/> : <span>SV</span>}<div><small>{account ? 'Pedidos desta loja' : 'Identidade geral ShopVax'}</small><strong>{account ? config.store.name : 'Conta do comprador'}</strong></div></header>
+      <header className="customer-store-head">{config.store.logoUrl ? <img src={config.store.logoUrl} alt=""/> : <span>SV</span>}<div><small>{account ? 'Pedidos desta loja' : 'Identidade geral ShopVax'}</small><strong>{account ? config.store.name : 'Conta do comprador'}</strong>{!account && <span className="customer-store-context">{config.store.name}</span>}</div></header>
 
       {!config.customerLoginEnabled ? <section className="customer-card"><h1>Conta de cliente indisponível</h1><p>Esta loja desativou temporariamente o acesso por conta.</p></section> : account ? <>
         <section className="customer-card customer-profile"><div><small>Olá,</small><h1>{account.customer.name}</h1><p>{account.customer.email}</p></div><button disabled={busy} onClick={logout}><LogOut size={16}/> {busy ? 'Saindo…' : 'Sair'}</button></section>{error && <div className="customer-error" role="alert">{error}</div>}
