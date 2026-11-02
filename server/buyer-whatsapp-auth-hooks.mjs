@@ -140,6 +140,8 @@ async function verifyCode(req, res) {
   const token = crypto.randomBytes(32).toString('base64url')
   const client = await pool.connect()
   let account
+  // O ID precisa permanecer acessível até a resposta HTTP após o COMMIT.
+  const createdId = uuid()
   try {
     await client.query('BEGIN')
     const result = await client.query('SELECT * FROM buyer_otp_challenges WHERE phone=$1 AND consumed_at IS NULL ORDER BY created_at DESC LIMIT 1 FOR UPDATE', [phone])
@@ -156,7 +158,6 @@ async function verifyCode(req, res) {
       return fail(res, 401, 'Código incorreto ou expirado.')
     }
     await client.query('UPDATE buyer_otp_challenges SET consumed_at=now() WHERE id=$1', [challenge.id])
-    const createdId = uuid()
     const saved = await client.query('INSERT INTO buyer_accounts(id,phone) VALUES($1,$2) ON CONFLICT(phone) DO UPDATE SET updated_at=buyer_accounts.updated_at RETURNING *', [createdId,phone])
     account = saved.rows[0]
     await client.query("INSERT INTO buyer_sessions(token_hash,buyer_id,expires_at) VALUES($1,$2,now()+interval '30 days')", [sha(token),account.id])
