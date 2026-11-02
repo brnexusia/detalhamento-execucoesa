@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import express from 'express'
 import pg from 'pg'
+import { revokeAllBrowserSessions, clearAllBrowserSessionCookies } from './global-logout.mjs'
 import { buyerWhatsappReady, currentBuyerCustomer, buyerProfilesForStore } from './buyer-whatsapp-auth-hooks.mjs'
 
 const { Pool } = pg
@@ -512,13 +513,13 @@ async function customerMe(req, res) {
 
 async function logoutCustomer(req, res) {
   res.set('Cache-Control', 'no-store, private')
-  const token = parseCookies(req)[customerCookie]
-  // Não responder sucesso se a revogação falhar: a sessão seguiria válida no servidor.
-  if (token) {
+  const current = parseCookies(req)
+  // Fallback para instalações sem o login WhatsApp: ainda revoga as três sessões.
+  if (Object.values(current).some(Boolean)) {
     if (!pool) return res.status(503).json({ error: 'Sessão indisponível. Tente novamente.' })
-    await pool.query('DELETE FROM store_customer_sessions WHERE token_hash=$1', [hashToken(token)])
+    await revokeAllBrowserSessions(pool, current)
   }
-  clearCustomerCookie(req, res)
+  clearAllBrowserSessionCookies(req, res)
   return res.json({ ok: true })
 }
 
