@@ -38,6 +38,14 @@ try {
     return route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' })
   })
 
+  await context.route('**/api/public/buyer-auth/me', route => {
+    if (!activeUser) return route.fulfill({ status: 401, contentType: 'application/json', body: '{"error":"Sessão inválida."}' })
+    return route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ buyer: { id: 'buyer-test', name: 'Comprador de teste', phone: '5511999999999', email: 'buyer@example.test', profileCompleted: true } }),
+    })
+  })
+
   const first = await context.newPage()
   await first.goto('http://127.0.0.1:5173/painel')
   await first.getByText('Olá, Laura.').waitFor()
@@ -52,10 +60,16 @@ try {
   assert.doesNotMatch(await first.locator('.panel-brand__username').innerText(), /Laura/, 'Nome da conta antiga não pode permanecer visível')
   assert.match(await first.locator('.panel-brand__username').innerText(), /Beatriz/)
 
+  const buyerTab = await context.newPage()
+  await buyerTab.goto('http://127.0.0.1:5173/comprador')
+  await buyerTab.getByRole('heading', { name: 'Comprador de teste' }).waitFor()
+
   await second.getByRole('button', { name: 'Sair' }).click()
   await second.getByRole('heading', { name: 'Acesse seu painel.' }).waitFor()
   await first.getByRole('heading', { name: 'Acesse seu painel.' }).waitFor({ timeout: 7000 })
   assert.equal(await first.locator('.panel-brand').count(), 0, 'Nenhum dado de empresa deve continuar após logout')
+  await buyerTab.getByRole('heading', { name: 'Comprador de teste' }).waitFor({ state: 'detached', timeout: 7000 })
+  assert.equal(await buyerTab.getByRole('button', { name: 'Sair' }).count(), 0, 'Logout do lojista também deve invalidar o comprador')
   await context.close()
 } finally {
   await browser.close()
