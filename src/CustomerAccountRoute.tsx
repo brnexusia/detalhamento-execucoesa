@@ -106,7 +106,12 @@ export default function CustomerAccountRoute() {
   useEffect(() => {
     const revalidate = () => { setAccount(null); void loadAccount() }
     const unsubscribe = listenAuthChanges('customer', revalidate)
-    const onFocus = () => { if (document.visibilityState === 'visible') revalidate() }
+    let lastFocusRefresh = Date.now()
+    const onFocus = () => {
+      if (document.visibilityState !== 'visible' || Date.now() - lastFocusRefresh < 15_000) return
+      lastFocusRefresh = Date.now()
+      revalidate()
+    }
     window.addEventListener('focus', onFocus)
     document.addEventListener('visibilitychange', onFocus)
     return () => { unsubscribe(); window.removeEventListener('focus', onFocus); document.removeEventListener('visibilitychange', onFocus) }
