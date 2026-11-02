@@ -24,6 +24,15 @@ try {
    await page.close()
   }
  }
+ const signup=await browser.newPage({viewport:{width:390,height:844}})
+ await signup.route('**/api/auth/me',r=>r.fulfill({status:401,contentType:'application/json',body:'{"error":"Não autenticado"}'}))
+ await signup.route('**/api/billing/public-plans',r=>r.fulfill({status:200,contentType:'application/json',
+  body:JSON.stringify({enabled:false,plans:[{code:'bronze',name:'Bronze',monthlyPrice:49.90,sellerLimit:5,catalogLimit:1,photoLimit:5,cycles:[{code:'monthly',amountCents:4990}]}]})}))
+ await signup.goto(url+'/criar-conta')
+ await signup.getByText('Pagamento temporariamente indisponível.',{exact:false}).waitFor()
+ assert.equal(await signup.getByRole('button',{name:/Criar minha loja$/}).isDisabled(),true,
+  'Não permitir criar loja sem Stripe pronta.')
+ await signup.close()
  const down=await browser.newPage()
  await mock(down,'offline')
  await down.goto(url+'/painel/relatorios')
