@@ -69,7 +69,7 @@ export default function App() {
   else if (page === 'home') content = <HomeRoute />
   else if (page === 'login') content = <AuthRoute mode="login" />
   else if (page === 'register') content = <AuthRoute mode="register" />
-  else if (page === 'customer') content = <><CustomerAccountRoute /><ShopvaxBuyerPreferences /><Phase3PublicRuntime /></>
+  else if (page === 'customer') content = <><CustomerAccountRoute /><ShopvaxBuyerPreferences /></>
   else if (page === 'platform') content = <PlatformRoute />
   else content = <AdminRoute />
 

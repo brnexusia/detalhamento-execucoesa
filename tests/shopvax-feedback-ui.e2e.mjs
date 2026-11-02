@@ -150,8 +150,16 @@ try {
       body:JSON.stringify({ok:true,expiresInSeconds:120,resendAfterSeconds:7}),
     })
   })
+  // A conta do comprador não deve exibir a pesquisa de avaliação da loja.
+  let buyerReviewRequests=0
+  await page.route('**/api/public/store/loja-teste/customers/review',route=>{
+    buyerReviewRequests+=1
+    return route.fulfill({status:404,contentType:'application/json',body:'{"error":"Pesquisa desativada neste fluxo."}'})
+  })
   await page.goto('http://127.0.0.1:5173/cliente/loja-teste')
   await page.getByRole('heading',{name:'Entrar com WhatsApp'}).waitFor()
+  assert.equal(await page.locator('.phase3-customer-review').count(),0,'Não mostrar avaliação ao entrar como comprador')
+  assert.equal(buyerReviewRequests,0,'Não consultar avaliações de atendimento no cadastro do comprador')
   assert.equal(await page.getByLabel('Senha').count(),0,'O comprador não deve precisar criar senha')
   await page.getByLabel('Número com DDD').fill('(71) 99999-9999')
   await page.getByRole('button',{name:/Receber código no WhatsApp/}).click()
@@ -170,6 +178,8 @@ try {
   }))
   await page.reload()
   await page.getByRole('heading',{name:'Seu perfil de comprador'}).waitFor()
+  assert.equal(await page.locator('.phase3-customer-review').count(),0,'Não mostrar pesquisa durante criação do perfil')
+  assert.equal(buyerReviewRequests,0,'Cadastro do comprador não deve buscar a pesquisa removida')
   await page.getByLabel('Qual é a finalidade das suas compras? *').waitFor()
   await page.getByLabel('Qual é a finalidade das suas compras? *').selectOption('revenda')
   await page.getByText('Você possui um negócio?').waitFor()
