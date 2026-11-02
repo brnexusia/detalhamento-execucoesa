@@ -203,7 +203,11 @@
     z-index:45;
   }
   .app .topbar .store-header-navigation.is-open {
-    top:calc(100% + 4px) !important;
+    /* Anchor the expanded menu below the mobile header even when the page scrolls.
+       Keep it away from the header toggle and within the viewport touch area. */
+    position:fixed !important;
+    top:calc(env(safe-area-inset-top) + 72px) !important;
+    z-index:35 !important;
     display:grid !important;
     grid-template-columns:repeat(2,minmax(0,1fr));
     align-items:stretch;
