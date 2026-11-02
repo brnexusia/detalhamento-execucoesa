@@ -93,7 +93,8 @@ async function requestCode(req, res) {
   const phone = normalizeBuyerPhone(req.body?.phone)
   if (!phone) return fail(res, 400, 'Informe um WhatsApp brasileiro válido com DDD.')
   await schema()
-  if (!await store(req.body?.storeSlug)) return fail(res, 404, 'Loja não encontrada.')
+  // O cadastro é da plataforma; o contexto da loja é opcional para clientes antigos.
+  if (req.body?.storeSlug && !await store(req.body.storeSlug)) return fail(res, 404, 'Loja não encontrada.')
   const phoneMac = mac('rate-phone:' + phone), ipMac = mac('rate-ip:' + req.ip)
   const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0')
   const challengeId = uuid()
@@ -132,7 +133,8 @@ async function verifyCode(req, res) {
   const phone = normalizeBuyerPhone(req.body?.phone), code = String(req.body?.code ?? '')
   if (!phone || !/^\d{6}$/.test(code)) return fail(res, 400, 'Telefone ou código inválido.')
   await schema()
-  if (!await store(req.body?.storeSlug)) return fail(res, 404, 'Loja não encontrada.')
+  // O cadastro é da plataforma; o contexto da loja é opcional para clientes antigos.
+  if (req.body?.storeSlug && !await store(req.body.storeSlug)) return fail(res, 404, 'Loja não encontrada.')
   const token = crypto.randomBytes(32).toString('base64url')
   const client = await pool.connect()
   let account
@@ -195,11 +197,19 @@ async function saveProfile(req,res) {
   await pool.query('UPDATE store_customers SET name=$1,phone=$2,updated_at=now() WHERE buyer_account_id=$3', [f.name,account.phone,account.id])
   return res.json({ ok: true, buyer: publicBuyer(updated.rows[0]) })
 }
-export async function currentBuyerCustomer(req,storeId) {
+export async function currentBuyerCustomer(req,storeId,{createIfMissing=true}={}) {
   if (!buyerWhatsappReady() || !storeId || !cookies(req)[COOKIE]) return null
   await schema()
   const account = await buyer(req)
   if (!account?.profile_completed) return null
+  // Visitar a vitrine ou consultar a conta não vincula o comprador à loja.
+  if (!createIfMissing) {
+    const linked = await pool.query(
+      'SELECT id FROM store_customers WHERE store_id=$1 AND buyer_account_id=$2 LIMIT 1',
+      [storeId,account.id],
+    )
+    return {id:linked.rows[0]?.id || null,store_id:storeId,name:account.name,email:account.email,phone:account.phone,buyer_account_id:account.id}
+  }
   const client = await pool.connect()
   try {
     await client.query('BEGIN')

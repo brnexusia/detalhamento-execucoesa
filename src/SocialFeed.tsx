@@ -141,11 +141,14 @@ async function sellerSlugForStore(slug: string) {
   } catch { return '' }
 }
 
-const SocialPostCard = memo(function SocialPostCard({ post, cartCount, active, saveData, onProfile, onAdd, onCart }: { post: SocialPost; cartCount: number; active: boolean; saveData: boolean; onProfile: (slug: string) => void; onAdd: (post: SocialPost) => void; onCart: (store: SocialPost['store']) => void }) {
+const SocialPostCard = memo(function SocialPostCard({ post, cartCount, active, saveData, onProfile, onAdd, onCart, onFollow }: { post: SocialPost; cartCount: number; active: boolean; saveData: boolean; onProfile: (slug: string) => void; onAdd: (post: SocialPost) => void; onCart: (store: SocialPost['store']) => void; onFollow: (post: SocialPost) => void }) {
   const cardRef = useRef<HTMLElement | null>(null)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const viewed = useRef(false)
   const [interactions, setInteractions] = useState(post.interactions)
+  useEffect(() => {
+    setInteractions((current) => ({ ...current, following: post.interactions.following, followers: post.interactions.followers }))
+  }, [post.interactions.following, post.interactions.followers])
   const [asking, setAsking] = useState(false)
   const [muted, setMuted] = useState(true)
   const descriptionRef = useRef<HTMLParagraphElement | null>(null)
@@ -246,6 +249,9 @@ const SocialPostCard = memo(function SocialPostCard({ post, cartCount, active, s
     <div className="social-feed-copy">
       <span>{post.product.category}</span>
       <h2>{post.product.name}</h2>
+      <button type="button" className="social-feed-follow" onClick={() => onFollow(post)} aria-label={`Seguir ${post.store.name}`}>
+        {interactions.following ? 'Seguindo' : 'Seguir'} · {post.store.name}
+      </button>
       {post.product.description && <div className={`social-feed-description ${descriptionExpanded ? 'is-expanded' : ''}`}>
         <p
           ref={descriptionRef}
@@ -292,7 +298,7 @@ export default function SocialFeed() {
   const [hasMore, setHasMore] = useState(() => restored.current?.hasMore ?? true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [accountChoiceOpen, setAccountChoiceOpen] = useState(false)
+  const [accountChoice, setAccountChoice] = useState<{reason:'login'|'follow'; storeSlug?:string; storeId?:string} | null>(null)
   const [picker, setPicker] = useState<PickerState | null>(null)
   const [pickerError, setPickerError] = useState('')
   const [activeCart, setActiveCart] = useState<SocialPost['store'] | null>(null)
@@ -504,6 +510,16 @@ export default function SocialFeed() {
   }
 
   const openProfile = useCallback((slug: string) => { persist(); go(profilePath(slug)) }, [persist])
+  const requestFollow = useCallback((post: SocialPost) => {
+    persist()
+    setAccountChoice({ reason: 'follow', storeSlug: post.store.slug, storeId: post.store.id })
+  }, [persist])
+  const updateFollow = useCallback((storeId: string, result: {following:boolean;followers:number}) => {
+    setPosts((current) => current.map((post) =>
+      post.store.id === storeId
+        ? { ...post, interactions: { ...post.interactions, following: result.following, followers: result.followers } }
+        : post))
+  }, [])
   const openCommercialStore = async (slug: string) => { persist(); const seller = await sellerSlugForStore(slug); go(commercialStorePath(slug, seller)) }
   const cartItems = activeCart ? readCart(activeCart.slug) : []
   const cartTotal = cartItems.reduce((sum, item) => sum + Number(item.product.price || 0) * Number(item.quantity || 0), 0)
@@ -519,7 +535,7 @@ export default function SocialFeed() {
   }
 
   return <div className="social-feed-page">
-    <header className="social-feed-nav"><strong className="svx-social-brand"><img src="/brand/shopvax-symbol-dark.svg" className="svx-brand-symbol" alt="" aria-hidden="true" /><img src="/brand/shopvax-wordmark-light.svg" className="svx-brand-wordmark" alt="Shopvax" /></strong><span>PRODUTOS DAS LOJAS</span><div className="social-feed-nav__right"><a href="/para-lojas">Para lojas</a><button type="button" onClick={() => setAccountChoiceOpen(true)}>Entrar</button></div></header>
+    <header className="social-feed-nav"><strong className="svx-social-brand"><img src="/brand/shopvax-symbol-dark.svg" className="svx-brand-symbol" alt="" aria-hidden="true" /><img src="/brand/shopvax-wordmark-light.svg" className="svx-brand-wordmark" alt="Shopvax" /></strong><span>PRODUTOS DAS LOJAS</span><div className="social-feed-nav__right"><a href="/para-lojas">Para lojas</a><button type="button" onClick={() => setAccountChoice({reason:'login',storeSlug:posts[activeIndex]?.store.slug || posts[0]?.store.slug})}>Entrar</button></div></header>
     <main className="social-feed-list" ref={listRef}
       data-feed-initial-posts={initialSession?.posts.length || 0}
       data-feed-restored-index={restoredIndex.current}
@@ -541,7 +557,7 @@ export default function SocialFeed() {
         })
       }}>
       {windowStart > 0 && <div className="social-feed-spacer" aria-hidden="true" style={{ height: `${windowStart * 100}dvh` }}/>}
-      {visiblePosts.map((post, index) => <SocialPostCard post={post} key={post.id} active={windowStart + index === visibleIndex} saveData={saveData} cartCount={cartCount(post.store.slug)} onProfile={openProfile} onAdd={requestAdd} onCart={setActiveCart}/>)}
+      {visiblePosts.map((post, index) => <SocialPostCard post={post} key={post.id} active={windowStart + index === visibleIndex} saveData={saveData} cartCount={cartCount(post.store.slug)} onProfile={openProfile} onAdd={requestAdd} onCart={setActiveCart} onFollow={requestFollow}/>)}
       {windowEnd < posts.length && <div className="social-feed-spacer" aria-hidden="true" style={{ height: `${(posts.length - windowEnd) * 100}dvh` }}/>}
       {!posts.length && !loading && !error && <div className="social-feed-state"><h1>O feed está começando.</h1><p>As publicações das lojas aparecerão aqui.</p></div>}
       {error && <div className="social-feed-state"><p>{error}</p><button onClick={() => void load(cursor)}>Tentar novamente</button></div>}
@@ -549,7 +565,9 @@ export default function SocialFeed() {
       <div ref={sentinel} className="social-feed-sentinel" />
     </main>
 
-    {accountChoiceOpen && <SocialAccountChoice storeSlug={posts[activeIndex]?.store.slug || posts[0]?.store.slug} onClose={() => setAccountChoiceOpen(false)}/>}
+    {accountChoice && <SocialAccountChoice storeSlug={accountChoice.storeSlug} storeId={accountChoice.storeId} reason={accountChoice.reason}
+      onFollowed={(result) => { if (accountChoice.storeId) updateFollow(accountChoice.storeId,result) }}
+      onClose={() => setAccountChoice(null)}/>} 
     {picker && <div className="feed-sheet-layer">
       <button className="feed-sheet-backdrop" onClick={() => setPicker(null)} aria-label="Fechar seleção"/>
       <section className="feed-sheet feed-picker-sheet">

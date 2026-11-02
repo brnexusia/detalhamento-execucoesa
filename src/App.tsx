@@ -15,12 +15,14 @@ const AdminRoute = lazy(() => import('./AdminRoute'))
 const SocialFeed = lazy(() => import('./SocialFeed'))
 const SocialStoreProfile = lazy(() => import('./SocialStoreProfile'))
 const CustomerAccountRoute = lazy(() => import('./CustomerAccountRoute'))
+const GlobalBuyerAccount = lazy(() => import('./GlobalBuyerAccount'))
 
 function pageFor(pathname: string) {
   if (pathname === '/' || pathname === '' || pathname === '/feed' || pathname === '/descobrir') return 'social'
   if (pathname === '/para-lojas') return 'home'
   if (pathname === '/entrar') return 'login'
   if (pathname === '/criar-conta') return 'register'
+  if (pathname === '/comprador') return 'buyer'
   if (pathname === '/cliente' || pathname.startsWith('/cliente/')) return 'customer'
   if (pathname === '/admin' || pathname.startsWith('/admin/')) return 'platform'
   if (pathname === '/painel' || pathname.startsWith('/painel/')) return 'admin'
@@ -35,7 +37,7 @@ function RouteFallback() {
 export default function App() {
   const [pathname, setPathname] = useState(() => window.location.pathname)
   const page = pageFor(pathname)
-  const helpAllowed = page === 'login' || page === 'register' || page === 'customer' ||
+  const helpAllowed = page === 'login' || page === 'register' || page === 'customer' || page === 'buyer' ||
     (page === 'admin' && ['/painel','/painel/loja','/painel/temas','/painel/assinatura','/painel/integracoes','/painel/recursos','/painel/crescimento'].includes(pathname))
 
   useEffect(() => {
@@ -56,7 +58,7 @@ export default function App() {
       : page === 'platform' ? 'Administração'
         : page === 'login' ? 'Entrar'
           : page === 'register' ? 'Criar loja'
-            : page === 'customer' ? 'Minha conta'
+            : page === 'customer' || page === 'buyer' ? 'Minha conta'
               : page === 'social' ? 'Descobrir'
                 : 'Shopvax'
     document.title = `${title} · Shopvax`
@@ -69,6 +71,7 @@ export default function App() {
   else if (page === 'home') content = <HomeRoute />
   else if (page === 'login') content = <AuthRoute mode="login" />
   else if (page === 'register') content = <AuthRoute mode="register" />
+  else if (page === 'buyer') content = <GlobalBuyerAccount />
   else if (page === 'customer') content = <><CustomerAccountRoute /><ShopvaxBuyerPreferences /></>
   else if (page === 'platform') content = <PlatformRoute />
   else content = <AdminRoute />

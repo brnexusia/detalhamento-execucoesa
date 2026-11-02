@@ -59,8 +59,6 @@ export default function SocialStoreProfile() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [accountChoice, setAccountChoice] = useState<'login' | 'follow' | null>(null)
-  const [followBusy, setFollowBusy] = useState(false)
-  const [followError, setFollowError] = useState('')
 
   useEffect(() => {
     if (!slug) { setError('Perfil não encontrado.'); setLoading(false); return }
@@ -99,22 +97,7 @@ export default function SocialStoreProfile() {
 
   const openStore = async (productId?: string) => go(await commercialStorePath(slug, productId))
 
-  const follow = async () => {
-    if (!profile || followBusy) return
-    setFollowBusy(true)
-    setFollowError('')
-    try {
-      const response = await fetch(`/api/social/stores/${encodeURIComponent(profile.store.id)}/follow`, { method: 'POST', credentials: 'include' })
-      const body = await response.json().catch(() => null)
-      if (response.status === 401) { setAccountChoice('follow'); return }
-      if (!response.ok) { setFollowError(body?.error || 'Não foi possível seguir esta loja.'); return }
-      if (body) setProfile((current) => current ? { ...current, stats: { ...current.stats, following: body.following, followers: body.followers } } : current)
-    } catch {
-      setFollowError('Não foi possível conectar. Tente novamente.')
-    } finally {
-      setFollowBusy(false)
-    }
-  }
+  const follow = () => setAccountChoice('follow')
 
   if (loading) return <div className="social-profile-state"><span><img src="/brand/shopvax-symbol.svg" className="svx-brand-symbol" alt="Shopvax" /></span><strong>Abrindo perfil…</strong></div>
   if (!profile) return <div className="social-profile-state"><strong>{error || 'Perfil não encontrado.'}</strong><button onClick={() => go('/')}>Voltar ao feed</button></div>
@@ -137,10 +120,9 @@ export default function SocialStoreProfile() {
             <span>@{store.slug}</span>
             <p>{store.tagline}</p>
             <div className="social-profile-actions">
-              <button className={stats.following ? 'is-following' : ''} disabled={followBusy} onClick={() => void follow()}>{followBusy ? 'Aguarde…' : stats.following ? 'Seguindo' : 'Seguir'}</button>
+              <button className={stats.following ? 'is-following' : ''} onClick={follow}>{stats.following ? 'Seguindo' : 'Seguir'}</button>
               <button className="is-store" onClick={() => void openStore()}><Store size={16}/> Loja</button>
             </div>
-            {followError && <p className="social-profile-follow-error" role="alert">{followError}</p>}
           </div>
         </div>
         <div className="social-profile-stats">
@@ -162,7 +144,9 @@ export default function SocialStoreProfile() {
       {!publications.length && <div className="social-profile-empty-state">Esta loja ainda não publicou produtos.</div>}
     </main>
 
-    {accountChoice && <SocialAccountChoice storeSlug={slug} reason={accountChoice} onClose={() => setAccountChoice(null)}/>}
+    {accountChoice && <SocialAccountChoice storeSlug={slug} storeId={profile.store.id} reason={accountChoice}
+      onFollowed={(result) => setProfile((current) => current ? { ...current, stats: { ...current.stats, following: result.following, followers: result.followers } } : current)}
+      onClose={() => setAccountChoice(null)}/>} 
     {selected && <div className="social-profile-viewer">
       <button className="social-profile-viewer__backdrop" onClick={closePublication} aria-label="Fechar publicação"/>
       <article>

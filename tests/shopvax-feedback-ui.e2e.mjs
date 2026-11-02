@@ -74,6 +74,12 @@ try {
         'Nenhum painel lateral opaco pode tirar largura da foto: '+JSON.stringify(feed))
     }
     assert(feed.overflow<=2,'Feed com rolagem lateral: '+JSON.stringify(feed))
+    await page.getByRole('button',{name:'Seguir Loja Teste'}).click()
+    const followChoice=page.getByRole('dialog',{name:'Você é loja ou comprador?'})
+    await followChoice.waitFor()
+    assert.equal(await followChoice.getByRole('button',{name:/Comprador/}).count(),1)
+    assert.equal(await followChoice.getByRole('button',{name:/Loja/}).count(),1)
+    await followChoice.getByRole('button',{name:'Fechar'}).click()
     await page.screenshot({path:`${out}/feed-${width}.png`})
     await page.close()
   }
@@ -164,7 +170,7 @@ try {
   await page.getByLabel('Número com DDD').fill('(71) 99999-9999')
   await page.getByRole('button',{name:/Receber código no WhatsApp/}).click()
   await page.getByRole('heading',{name:'Verificar WhatsApp'}).waitFor()
-  assert.deepEqual(requestedCode,{phone:'(71) 99999-9999',storeSlug:'loja-teste'})
+  assert.deepEqual(requestedCode,{phone:'(71) 99999-9999'},'OTP de comprador não depende da loja')
   assert.match(await page.locator('.buyer-code-explanation').innerText(),/expira em 2 min/i)
   await page.getByRole('button',{name:/Reenviar em [67]s/}).waitFor()
   await page.screenshot({path:`${out}/comprador-entrada.png`})
@@ -187,6 +193,16 @@ try {
   await page.getByText('Onde vende ou pretende vender?').waitFor()
   assert.equal(await page.getByLabel('Senha').count(),0)
   await page.screenshot({path:`${out}/comprador-perguntas.png`,fullPage:true})
+  // A entrada da plataforma não depende de uma loja.
+  await page.unroute('**/api/public/buyer-auth/me')
+  await page.route('**/api/public/buyer-auth/me',route=>route.fulfill({
+    status:401,contentType:'application/json',body:'{"error":"Sem sessão"}',
+  }))
+  await page.goto('http://127.0.0.1:5173/comprador')
+  await page.getByRole('heading',{name:'Entrar com WhatsApp'}).waitFor()
+  await page.getByText('Uma conta para todas as lojas').waitFor()
+  await page.getByRole('button',{name:/Receber código no WhatsApp/}).waitFor()
+  assert.equal(await page.getByText('Loja Teste', {exact:true}).count(),0)
   await page.goto('http://127.0.0.1:5173/criar-conta')
   await page.getByPlaceholder('Loja').waitFor()
   await page.getByPlaceholder('Ex.: Atacado Aurora').waitFor()
@@ -206,16 +222,20 @@ try {
       }),
     }))
     let followAuthenticated = false
-    await page.route('**/api/social/stores/s1/follow', r => r.fulfill({
-      status:followAuthenticated?200:401,contentType:'application/json',
-      body:JSON.stringify(followAuthenticated
-        ? {following:true,followers:1}
-        : {code:'AUTH_REQUIRED',error:'Entre como comprador ou vendedor para seguir lojas.'}),
-    }))
+    let followRole = ''
+    await page.route('**/api/social/stores/s1/follow', r => {
+      followRole = r.request().headers()['x-shopvax-follow-role'] || ''
+      return r.fulfill({
+        status:followAuthenticated?200:401,contentType:'application/json',
+        body:JSON.stringify(followAuthenticated
+          ? {following:true,followers:1}
+          : {code:'AUTH_REQUIRED',error:'Entre como comprador ou loja para seguir lojas.'}),
+      })
+    })
     await page.goto('http://127.0.0.1:5173/perfil/loja-teste')
     await page.getByRole('heading',{name:'Loja Teste'}).waitFor()
     await page.getByRole('button',{name:'Entrar',exact:true}).click()
-    let dialog=page.getByRole('dialog',{name:'Comprador ou vendedor?'})
+    let dialog=page.getByRole('dialog',{name:'Loja ou comprador?'})
     await dialog.waitFor()
     const mobileSheet=await dialog.boundingBox()
     assert(mobileSheet && mobileSheet.x>=-2 && mobileSheet.x+mobileSheet.width<=392,'Modal de conta não pode ultrapassar tela mobile')
@@ -224,26 +244,31 @@ try {
       assert(Math.abs(mobileSheet.y+mobileSheet.height-844)<=3,'WebKit iOS requer painel alinhado ao rodapé')
     }
     assert.equal(await dialog.getByRole('button',{name:/Comprador/}).count(),1)
-    assert.equal(await dialog.getByRole('button',{name:/Vendedor/}).count(),1)
+    assert.equal(await dialog.getByRole('button',{name:/Loja/}).count(),1)
     await page.screenshot({path:`${out}/perfil-escolha-conta.png`})
     await dialog.getByRole('button',{name:'Fechar'}).click()
     await page.getByRole('button',{name:'Seguir',exact:true}).click()
-    dialog=page.getByRole('dialog',{name:'Comprador ou vendedor?'})
+    dialog=page.getByRole('dialog',{name:'Você é loja ou comprador?'})
     await dialog.waitFor()
-    assert.match(await dialog.innerText(),/Para seguir esta loja/)
+    assert.match(await dialog.innerText(),/Escolha com qual tipo de conta/)
     await dialog.getByRole('button',{name:/Comprador/}).click()
-    await page.waitForURL('**/cliente/loja-teste?next=*')
+    await page.waitForURL('**/comprador?next=*')
+    assert.equal(followRole,'comprador')
     assert.equal(new URL(page.url()).searchParams.get('next'),'/perfil/loja-teste')
     await page.goto('http://127.0.0.1:5173/perfil/loja-teste')
     await page.getByRole('button',{name:'Entrar',exact:true}).click()
-    await page.getByRole('dialog',{name:'Comprador ou vendedor?'}).getByRole('button',{name:/Vendedor/}).click()
+    await page.getByRole('dialog',{name:'Loja ou comprador?'}).getByRole('button',{name:/Loja/}).click()
     await page.waitForURL('**/entrar?next=*')
     assert.equal(new URL(page.url()).searchParams.get('next'),'/perfil/loja-teste')
     followAuthenticated=true
     await page.goto('http://127.0.0.1:5173/perfil/loja-teste')
     await page.getByRole('button',{name:'Seguir',exact:true}).click()
+    dialog=page.getByRole('dialog',{name:'Você é loja ou comprador?'})
+    await dialog.waitFor()
+    await dialog.getByRole('button',{name:/Loja/}).click()
     await page.getByRole('button',{name:'Seguindo',exact:true}).waitFor()
-    assert.equal(await page.getByRole('dialog').count(),0,'Conta autenticada não precisa escolher novamente')
+    assert.equal(followRole,'loja','O follow deve usar apenas a identidade que a pessoa escolheu')
+    assert.equal(await page.getByRole('dialog').count(),0,'A escolha fecha após o follow confirmado')
     await page.close()
   }
 

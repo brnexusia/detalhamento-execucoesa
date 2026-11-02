@@ -200,10 +200,10 @@ function featureDenied(res, label) {
   return res.status(403).json({ error: `${label} está disponível a partir do plano que inclui esse recurso.`, code: 'PLAN_FEATURE' })
 }
 
-async function currentCustomer(req, storeId = null) {
+async function currentCustomer(req, storeId = null, createIfMissing = true) {
   await ensureSchema()
   if (storeId) {
-    const linked = await currentBuyerCustomer(req, storeId)
+    const linked = await currentBuyerCustomer(req, storeId, { createIfMissing })
     if (linked || buyerWhatsappReady()) return linked
   }
   const token = parseCookies(req)[customerCookie]
@@ -498,7 +498,7 @@ async function customerMe(req, res) {
   await ensureSchema()
   const store = await storeBySlug(req.params.storeSlug)
   if (!store) return res.status(404).json({ error: 'Loja não encontrada.' })
-  const customer = await currentCustomer(req, store.id)
+  const customer = await currentCustomer(req, store.id, false)
   if (!customer) return res.status(401).json({ error: 'Entre para acessar sua conta.' })
   const orders = await pool.query(`SELECT o.id,o.code,o.total,o.items,o.status,o.created_at,o.status_updated_at,s.name AS seller_name
     FROM orders o LEFT JOIN sellers s ON s.id=o.seller_id AND s.store_id=o.store_id WHERE o.customer_id=$1 AND o.store_id=$2 ORDER BY o.created_at DESC LIMIT 100`, [customer.id, store.id])
@@ -534,7 +534,7 @@ async function decoratePublicPayload(req, res, next) {
       try {
         const store = await storeBySlug(storeSlug)
         if (store && payload?.store) {
-          const customer = await currentCustomer(req, store.id)
+          const customer = await currentCustomer(req, store.id, false)
           payload.store = {
             ...payload.store,
             customerLoginEnabled: store.customer_login_enabled !== false,

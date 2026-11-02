@@ -122,11 +122,11 @@ function visitorKey(req, res) {
 // Um follow é associado a uma conta verificada, nunca ao cookie de visitante.
 // Identidades de compradores legados só valem na própria loja.
 const sessionHash = (token) => crypto.createHash('sha256').update(token).digest('hex')
-async function authenticatedFollower(req) {
+async function authenticatedFollower(req, preferredRole = null) {
   if (!pool) return null
   const cookies = parseCookies(req)
   const ownerToken = cookies.atacado_session
-  if (ownerToken) {
+  if (ownerToken && preferredRole !== 'comprador') {
     const found = await pool.query(
       'SELECT s.user_id FROM sessions s WHERE s.token_hash=$1 AND s.expires_at>now() LIMIT 1',
       [sessionHash(ownerToken)],
@@ -134,7 +134,7 @@ async function authenticatedFollower(req) {
     if (found.rowCount) return { key: 'owner:' + found.rows[0].user_id, storeId: null, role: 'vendedor' }
   }
   const buyerToken = cookies.shopvax_buyer_session
-  if (buyerToken) {
+  if (buyerToken && preferredRole !== 'loja') {
     // Banco anterior à ativação de WhatsApp pode ainda não ter buyer_sessions.
     try {
       const found = await pool.query(
@@ -147,7 +147,7 @@ async function authenticatedFollower(req) {
     }
   }
   const legacyToken = cookies.shopvax_customer_session
-  if (legacyToken) {
+  if (legacyToken && preferredRole !== 'loja') {
     try {
       const found = await pool.query(
         `SELECT c.id,c.store_id FROM store_customer_sessions s
@@ -415,8 +415,12 @@ function install(app) {
 
   app.post('/api/social/stores/:storeId/follow', async (req, res, next) => {
     try {
-      const follower = await authenticatedFollower(req)
-      if (!follower) return res.status(401).json({ error: 'Entre como comprador ou vendedor para seguir lojas.', code: 'AUTH_REQUIRED' })
+      const role = String(req.headers['x-shopvax-follow-role'] || '')
+      if (role && !['comprador', 'loja'].includes(role)) {
+        return res.status(400).json({ error: 'Tipo de conta inválido.' })
+      }
+      const follower = await authenticatedFollower(req, role || null)
+      if (!follower) return res.status(401).json({ error: 'Entre como comprador ou loja para seguir.', code: 'AUTH_REQUIRED' })
       if (follower.storeId && follower.storeId !== String(req.params.storeId || '')) {
         return res.status(403).json({ error: 'Sua conta de comprador pertence a outra loja.', code: 'STORE_SCOPE' })
       }

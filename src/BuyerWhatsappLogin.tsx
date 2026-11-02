@@ -24,8 +24,8 @@ const channels = [
   ['loja', 'Loja física'], ['virtual', 'Loja virtual'], ['social', 'Instagram e redes sociais'],
   ['whatsapp', 'WhatsApp'], ['market', 'Marketplaces'], ['autonomo', 'Revenda autônoma'], ['outros', 'Outros'],
 ]
-export default function BuyerWhatsappLogin({ storeSlug, onVerified, editOnly = false }: {
-  storeSlug: string; onVerified: () => Promise<boolean>; editOnly?: boolean;
+export default function BuyerWhatsappLogin({ storeSlug = '', onVerified, editOnly = false }: {
+  storeSlug?: string; onVerified: () => Promise<boolean>; editOnly?: boolean;
 }) {
   const [open, setOpen] = useState(!editOnly)
   const [stage, setStage] = useState<Stage>('phone')
@@ -81,7 +81,7 @@ export default function BuyerWhatsappLogin({ storeSlug, onVerified, editOnly = f
   }
   const send = () => act(async () => {
     const response = await apiRequest<{ expiresInSeconds: number; resendAfterSeconds: number }>('/api/public/buyer-auth/request-code', {
-      method: 'POST', body: JSON.stringify({ phone, storeSlug }),
+      method: 'POST', body: JSON.stringify({ phone }),
     })
     setCode(''); setStage('code')
     setCooldown(Math.max(0, Number(response.resendAfterSeconds) || 0))
@@ -89,7 +89,7 @@ export default function BuyerWhatsappLogin({ storeSlug, onVerified, editOnly = f
   })
   const verify = () => act(async () => {
     const response = await apiRequest<{ needsProfile: boolean; buyer: Buyer }>('/api/public/buyer-auth/verify-code', {
-      method: 'POST', body: JSON.stringify({ phone, code, storeSlug }),
+      method: 'POST', body: JSON.stringify({ phone, code }),
     })
     if (response.needsProfile) {
       setStage('profile')
@@ -115,8 +115,8 @@ export default function BuyerWhatsappLogin({ storeSlug, onVerified, editOnly = f
       <ShieldCheck size={24} aria-hidden="true"/>
       <div><small>{editOnly ? 'Minha conta' : 'ShopVax · Conta do comprador'}</small>
         <h1>{stage === 'phone' ? 'Entrar com WhatsApp' : stage === 'code' ? 'Verificar WhatsApp' : 'Seu perfil de comprador'}</h1>
-        <p>{stage === 'phone' ? 'Sem e-mail ou senha para entrar. Use o mesmo número em todas as lojas.' :
-          stage === 'code' ? 'Digite o código enviado pela central ShopVax.' : 'Conte um pouco sobre você e como compra.'}</p>
+        <p>{stage === 'phone' ? 'Sua conta é geral do ShopVax: um único WhatsApp para comprar e seguir lojas diferentes.' :
+          stage === 'code' ? 'Digite o código enviado pela central ShopVax. Sua conta não pertence a nenhuma loja.' : 'Preencha seu perfil uma única vez. Ele será válido em todas as lojas do ShopVax.'}</p>
       </div>
     </div>
     {stage === 'phone' && <form onSubmit={(event) => { event.preventDefault(); void send() }}>

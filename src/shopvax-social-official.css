@@ -291,3 +291,6 @@
 @media(max-width:760px){
   .social-feed-page .social-feed-nav__right button{min-height:30px;padding:6px;font-size:10px;}
 }
+
+.social-feed-follow{display:inline-flex;align-items:center;justify-content:center;max-width:100%;width:max-content;min-height:32px;padding:6px 11px;margin:7px 0 8px;border:1px solid rgba(243,240,232,.6);border-radius:0;background:rgba(22,21,20,.75);color:#f3f0e8;font:700 12px/1.2 var(--svx-font-body,'Archivo',sans-serif);cursor:pointer}
+.social-feed-follow:hover,.social-feed-follow:focus-visible{border-color:#f25c05;outline-offset:2px}
