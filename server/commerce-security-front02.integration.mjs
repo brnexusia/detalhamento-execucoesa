@@ -135,7 +135,7 @@ try {
   const commercial = await call('/api/admin/commercial-config', { method: 'PUT', cookie: first.cookie,
     body: { paymentMethods: ['pix'], deliveryMethods: ['retirada','motoboy','excursao','combinar'], note: '' } })
   assert.equal(commercial.response.status, 200, JSON.stringify(commercial.payload))
-  const forbiddenMethod = await prepare(first,a1.cookie,firstProduct,{buyer:{ deliveryMethod:'correios' }})
+  const forbiddenMethod = await prepare(first,a1.cookie,firstProduct,{buyer:{ ...buyerDelivery, deliveryMethod:'correios' }})
   assert.equal(forbiddenMethod.response.status,400)
   assert.equal(forbiddenMethod.payload.code,'DELIVERY_UNAVAILABLE')
   res = await prepare(first, a1.cookie, firstProduct, { sellerSlug: inactive.payload.seller.slug, idempotencyKey: idemKey, buyer: buyerDelivery })
