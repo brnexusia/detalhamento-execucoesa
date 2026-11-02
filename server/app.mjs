@@ -449,7 +449,7 @@ app.post(
         hashPassword(password),
       ])
       await client.query(
-        'INSERT INTO stores (id,owner_id,slug,name,whatsapp,plan_tier,signup_plan_selected_at) VALUES ($1,$2,$3,$4,$5,$6,now())',
+        'INSERT INTO stores (id,owner_id,slug,name,whatsapp,plan_tier,billing_required,signup_plan_selected_at) VALUES ($1,$2,$3,$4,$5,$6,true,now())',
         [storeId, userId, storeSlug, storeName, whatsapp, planCode],
       )
       await client.query('COMMIT')

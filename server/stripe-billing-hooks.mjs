@@ -51,7 +51,17 @@ async function ensureSchema() {
       "FOR EACH ROW EXECUTE FUNCTION shopvax_stripe_insert_store();",
     ].join(' '))
     // Existing accounts remain grandfathered; only NEW stores start paywalled after full configuration.
-    await pool.query('ALTER TABLE stores ALTER COLUMN billing_required SET DEFAULT ' + (ready ? 'true' : 'false'))
+    // Todo novo cadastro comercial exige assinatura, mesmo se a configuração Stripe
+    // ficar temporariamente indisponível no deploy. Não existe fallback gratuito.
+    await pool.query('ALTER TABLE stores ALTER COLUMN billing_required SET DEFAULT true')
+    // Repare exclusivamente os cadastros recentes criados durante a janela do
+    // problema de configuração. Lojas legadas anteriores continuam preservadas.
+    await pool.query(`
+      UPDATE stores SET billing_required=true,updated_at=now()
+      WHERE billing_required=false
+        AND signup_plan_selected_at IS NOT NULL
+        AND created_at >= TIMESTAMPTZ '2026-11-02 00:00:00-03'
+    `)
   })().catch((error) => { schemaPromise = null; throw error })
   return schemaPromise
 }
@@ -383,7 +393,6 @@ async function webhook(req, res) {
 }
 
 async function gate(req, res, next) {
-  if (!ready) return next()
   const protectedAdmin = req.path.startsWith('/api/admin/') && req.path !== '/api/admin/plan-context'
   const buyerOrder = req.method === 'POST' && req.path === '/api/business/orders'
   const register = req.method === 'POST' && ['/api/auth/register','/api/auth/google'].includes(req.path)
@@ -392,6 +401,9 @@ async function gate(req, res, next) {
     await ensureSchema()
     // A configuração de cobrança precisa estar aplicada ANTES da criação da loja.
     if (register) return next()
+    // Somente suítes locais de integração, nunca produção, podem simular
+    // lojas legadas com acesso à API sem um pagamento na Stripe.
+    if (process.env.NODE_ENV === 'test' && process.env.SHOPVAX_TEST_BILLING_BYPASS === '1') return next()
     let row
     if (protectedAdmin) {
       row = await owner(req)
@@ -405,7 +417,7 @@ async function gate(req, res, next) {
       ].join(' '), [slug])).rows[0]
       if (!row) return next()
     }
-    if (!subscriptionAccess(row)) return apiError(res, 402, 'Assinatura necessária para utilizar a loja. Acesse Plano e uso.', 'PAYMENT_REQUIRED')
+    if (!subscriptionAccess(row)) return apiError(res, 402, 'Pagamento da assinatura necessário para acessar a loja. Acesse Plano e cobrança.', 'PAYMENT_REQUIRED')
     next()
   } catch (error) { next(error) }
 }

@@ -136,7 +136,7 @@ async function createStoreForUser(userId, storeName, whatsapp, planCode) {
   const storeId = id()
   const storeSlug = await uniqueStoreSlug(storeName)
   await pool.query(
-    'INSERT INTO stores (id,owner_id,slug,name,whatsapp,plan_tier,signup_plan_selected_at) VALUES ($1,$2,$3,$4,$5,$6,now())',
+    'INSERT INTO stores (id,owner_id,slug,name,whatsapp,plan_tier,billing_required,signup_plan_selected_at) VALUES ($1,$2,$3,$4,$5,$6,true,now())',
     [storeId, userId, storeSlug, storeName, digits(whatsapp), planCode],
   )
   return storeSlug
@@ -201,7 +201,7 @@ async function googleAuth(req, res) {
       [userId, profile.email, profile.name, profile.sub, profile.picture],
     )
     await client.query(
-      'INSERT INTO stores (id,owner_id,slug,name,whatsapp,plan_tier,signup_plan_selected_at) VALUES ($1,$2,$3,$4,$5,$6,now())',
+      'INSERT INTO stores (id,owner_id,slug,name,whatsapp,plan_tier,billing_required,signup_plan_selected_at) VALUES ($1,$2,$3,$4,$5,$6,true,now())',
       [id(), userId, storeSlug, storeName, digits(req.body?.whatsapp), planCode],
     )
     await client.query('COMMIT')
