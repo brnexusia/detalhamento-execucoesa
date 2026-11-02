@@ -49,7 +49,7 @@ try {
   await owner.getByRole('button', { name: 'Minha loja' }).waitFor()
   await owner.getByRole('button', { name: 'Minha loja' }).click()
   await owner.waitForURL(/\/painel$/)
-  await owner.getByText('Olá, Lojista Teste.').waitFor()
+  await owner.locator('.panel-shell').waitFor() // Panel, not the public profile or login form.
 
   // Session can become valid after the modal was opened: verify again on click.
   ownerLoggedIn = false
