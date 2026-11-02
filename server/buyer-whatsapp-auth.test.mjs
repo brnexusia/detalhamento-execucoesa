@@ -1,5 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { normalizeBuyerPhone, buyerWhatsappReady } from './buyer-whatsapp-auth-hooks.mjs'
 import {
   buildBuyerVerificationMessage,
@@ -100,4 +101,25 @@ test('falhas e timeout do provedor retornam erro seguro sem resposta ou credenci
     }),
     (error) => error.code === 'DELIVERY_TIMEOUT' && !error.message.includes(common.token),
   )
+})
+
+test('bootstrap do backend e da imagem Docker carrega efetivamente a autenticação do comprador', () => {
+  const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
+  const dockerfile = readFileSync(new URL('../Dockerfile', import.meta.url), 'utf8')
+  const modulePath = './server/buyer-whatsapp-auth-hooks.mjs'
+  assert.equal(packageJson.scripts.start.split(modulePath).length - 1, 1, 'npm start deve registrar o módulo uma vez')
+  assert.equal(dockerfile.split('"' + modulePath + '"').length - 1, 1, 'Docker CMD deve registrar o módulo uma vez')
+})
+
+test('OTP é gerado e verificado somente no servidor, sem devolver código ao navegador', () => {
+  const server = readFileSync(new URL('./buyer-whatsapp-auth-hooks.mjs', import.meta.url), 'utf8')
+  const client = readFileSync(new URL('../src/BuyerWhatsappLogin.tsx', import.meta.url), 'utf8')
+  assert.match(server, /crypto\\.randomInt\\(0, 1000000\\)/)
+  assert.match(server, /code_mac/)
+  assert.match(server, /now\\(\\)\\+interval '5 minutes'/)
+  assert.match(server, /crypto\\.timingSafeEqual/)
+  assert.match(server, /consumed_at=now\\(\\)/)
+  assert.match(server, /expiresInSeconds: 300/)
+  assert.doesNotMatch(server, /res\\.json\\(\\{[^}]*\\bcode\\b/s, 'resposta HTTP não pode revelar o OTP')
+  assert.doesNotMatch(client, /UAZAPI_INSTANCE_TOKEN|SHOPVAX_OTP_HMAC_SECRET|UAZAPI_BASE_URL/)
 })
