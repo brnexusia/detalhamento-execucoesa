@@ -26,6 +26,8 @@ if (redisUrl) {
 }
 
 export function redisReady() { return Boolean(redis && redis.status === 'ready') }
+export function closeRedisForTests() { if (redis) redis.disconnect() }
+
 
 const cacheTtl = Math.min(120, Math.max(0, Number(process.env.SHOPVAX_CATALOG_CACHE_TTL_SECONDS ?? 15) || 0))
 const singleFlight = new Map()

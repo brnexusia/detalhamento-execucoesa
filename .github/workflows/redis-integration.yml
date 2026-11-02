@@ -1,0 +1,55 @@
+name: redis-scalability-tests
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'server/redis-*.mjs'
+      - 'server/security-hooks.mjs'
+      - 'server/public-protection-hooks.mjs'
+      - 'server/app.mjs'
+      - 'package.json'
+      - '.github/workflows/redis-integration.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'server/redis-*.mjs'
+      - 'server/security-hooks.mjs'
+      - 'server/public-protection-hooks.mjs'
+      - 'server/app.mjs'
+      - 'package.json'
+      - '.github/workflows/redis-integration.yml'
+jobs:
+  redis:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 12
+    env:
+      REDIS_URL: redis://127.0.0.1:6379
+      SHOPVAX_PUBLIC_CURSOR_SECRET: ci-only-not-for-production-32-characters-strong
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - name: Validate JavaScript syntax
+        run: |
+          node --check server/redis-runtime.mjs
+          node --check server/redis-media-jobs.mjs
+          node --check server/media-worker.mjs
+          node --check server/public-protection-hooks.mjs
+          node --check server/security-hooks.mjs
+          node --check server/app.mjs
+      - name: Test Redis atomic counters and cache
+        run: node --test server/redis-runtime.test.mjs server/redis-integration.test.mjs
+      - name: Media fallback regression
+        run: node --test server/media-upload-queue.test.mjs
