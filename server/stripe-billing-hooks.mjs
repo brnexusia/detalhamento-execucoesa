@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 import express from 'express'
 import pg from 'pg'
 import { cycles, planPrice, subscriptionAccess, verifyStripeSignature } from './stripe-billing-policy.mjs'
+import { systemPlans } from './system-plans.mjs'
 import { ensureReferralSchema, captureReferral, qualifyReferralOnPaidInvoice, applyMerchantStripeCredits, reverseReferralForRefund } from './referral-program-core.mjs'
 
 const { Pool } = pg
@@ -413,6 +414,15 @@ function install(app) {
   if (app.__shopvaxStripeInstalled) return
   app.__shopvaxStripeInstalled = true
   app.post('/api/billing/stripe/webhook', express.raw({ type: 'application/json', limit: '256kb' }), wrap(webhook))
+  app.get('/api/billing/public-plans', (_req,res) => {
+    res.set('Cache-Control','public, max-age=120')
+    res.json({ enabled:ready, plans: systemPlans.map(plan => ({
+      code:plan.code,name:plan.name,monthlyPrice:planPrice(plan.code,'monthly').amountCents/100,
+      sellerLimit:plan.sellerLimit,productLimit:plan.productLimit,catalogLimit:plan.catalogLimit,
+      photoLimit:plan.photoLimit,franchiseeLimit:plan.franchiseeLimit,
+      cycles:Object.keys(cycles).map(cycle => ({code:cycle,amountCents:planPrice(plan.code,cycle).amountCents})),
+    })) })
+  })
   app.get('/api/billing/status', headersNoCache, wrap(status))
   app.post('/api/billing/checkout', express.json({ limit: '8kb' }), headersNoCache, wrap(checkout))
   app.post('/api/billing/portal', express.json({ limit: '8kb' }), headersNoCache, wrap(portal))
