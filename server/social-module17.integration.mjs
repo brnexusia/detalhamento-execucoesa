@@ -33,7 +33,7 @@ try {
   if (!productHtml.includes('<title>Bolsa &lt;Premium&gt; · Loja &amp; Meta | Shopvax</title>')) throw new Error('Título do produto não foi injetado/escapado corretamente.')
   if (!productHtml.includes('property="og:title" content="Bolsa &lt;Premium&gt; · Loja &amp; Meta | Shopvax"')) throw new Error('OG title do produto ausente.')
   if (!productHtml.includes('property="og:image" content="https://cdn.example.test/produto.jpg"')) throw new Error('OG image do produto ausente.')
-  if (!productHtml.includes(`property="og:url" content="${baseUrl}/perfil/${slug}?produto=${productId}"`)) throw new Error('OG URL não preserva o deep link social do produto.')
+  if (!productHtml.includes(`property="og:url" content="https://shopvax.com.br/perfil/${slug}?produto=${productId}"`)) throw new Error('OG URL não preserva o deep link social do produto.')
 
   const profileResponse = await fetch(`${baseUrl}/perfil/${slug}`)
   const profileHtml = await profileResponse.text()
