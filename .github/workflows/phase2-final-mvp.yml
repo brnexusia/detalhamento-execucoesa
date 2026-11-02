@@ -95,6 +95,10 @@ jobs:
           exit 1
       - name: Frente 02 - comprador em duas abas, historico e falha de rede
         run: node tests/shopvax-buyer-session-status.e2e.mjs
+      - name: Grupo 1 - checkout comprador responsivo
+        run: node tests/shopvax-checkout-review.e2e.mjs
+      - name: Grupo 1 - talão comprador no painel
+        run: node tests/shopvax-order-buyer.e2e.mjs
       - name: Print server log on failure
         if: failure()
         run: |
