@@ -603,15 +603,26 @@ function installPlatformRoutes(app) {
     if (admin.rowCount) return res.status(409).json({ error: 'Remova primeiro o acesso administrativo dessa conta.' })
     const target = await pool.query('SELECT id,name,email FROM users WHERE id=$1 LIMIT 1', [req.params.userId])
     if (!target.rowCount) return res.status(404).json({ error: 'Conta não encontrada.' })
-    const client = await pool.connect()
-    try {
-      await client.query('BEGIN')
-      await client.query('DELETE FROM users WHERE id=$1', [req.params.userId])
-      await client.query('COMMIT')
-    } catch (error) {
-      try { await client.query('ROLLBACK') } catch {}
-      throw error
-    } finally { client.release() }
+    // Inicializações de schema em outra instância podem disputar locks com o
+    // ON DELETE CASCADE. PostgreSQL aborta a transação vítima do deadlock (40P01),
+    // portanto somente esse erro transitório é seguro para tentar novamente.
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      const client = await pool.connect()
+      let retryDeadlock = false
+      try {
+        await client.query('BEGIN')
+        await client.query('DELETE FROM users WHERE id=$1', [req.params.userId])
+        await client.query('COMMIT')
+        break
+      } catch (error) {
+        try { await client.query('ROLLBACK') } catch {}
+        retryDeadlock = error?.code === '40P01' && attempt < 5
+        if (!retryDeadlock) throw error
+      } finally {
+        client.release()
+      }
+      if (retryDeadlock) await new Promise((resolve) => setTimeout(resolve, 80 * 2 ** attempt))
+    }
     await audit(req.platformUser.id, 'account.delete', 'user', req.params.userId, { email: target.rows[0].email, name: target.rows[0].name })
     res.json({ ok: true })
   }))
