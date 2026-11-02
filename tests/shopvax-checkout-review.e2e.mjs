@@ -32,7 +32,7 @@ try{
   await page.getByPlaceholder('DDD + número').fill('71999999999')
   await page.getByPlaceholder('Sua cidade').fill('Salvador')
   await page.getByPlaceholder('00000-000').fill('41740100')
-  await page.getByPlaceholder('BA').fill('BA')
+  await page.getByRole('textbox',{name:'Estado (UF)'}).fill('BA')
   await page.getByPlaceholder('Bairro').fill('Pituba')
   await page.getByPlaceholder('Rua ou avenida').fill('Rua das Flores')
   await page.getByPlaceholder('Número / S/N').fill('140')
