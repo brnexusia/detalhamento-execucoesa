@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { ArrowRight, Eye, EyeOff, Gift, Store, X } from 'lucide-react'
 import { api } from './api'
+import { useOwnerSession } from './owner-session'
+import ShopvaxLoading from './ShopvaxLoading'
 import GoogleSignInButton from './GoogleSignInButton'
 import './shopvax-auth-official.css'
 import './shopvax-panel-login-06.css'
@@ -29,7 +31,7 @@ function go(path: string) {
 
 function requestedDestination() {
   const next = new URLSearchParams(window.location.search).get('next') || ''
-  return next.startsWith('/') && !next.startsWith('//') ? next : '/painel'
+  return next.startsWith('/') && !next.startsWith('//') && !/^\/(?:entrar|login|criar-conta)(?:[/?#]|$)/.test(next) ? next : '/painel'
 }
 
 function requestedReferral() {
@@ -50,6 +52,9 @@ function planSummary(plan: SignupPlan) {
 
 export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const [showPassword, setShowPassword] = useState(false)
+  const ownerSession = useOwnerSession()
+  // A troca de conta continua possível, mas precisa ser explicitamente solicitada.
+  const switchingAccount = new URLSearchParams(window.location.search).get('trocar-conta') === '1'
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [plans, setPlans] = useState<SignupPlan[]>([])
@@ -69,6 +74,13 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
 
   const update = (key: keyof typeof form, value: string) => setForm((current) => ({ ...current, [key]: value }))
   const registrationMode = mode === 'register' || Boolean(googleSignup)
+
+  useEffect(() => {
+    // Não exibir credenciais de login para quem já tem um cookie válido no backend.
+    if (mode === 'login' && !switchingAccount && !busy && !googleBusy && ownerSession === 'authenticated') {
+      go(requestedDestination())
+    }
+  }, [mode, switchingAccount, busy, googleBusy, ownerSession])
 
   const finishAuthenticatedEntry = async (destination: string) => {
     // Vinheta apenas após sucesso, independentemente da latência da autenticação.
@@ -154,6 +166,10 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     } finally {
       setBusy(false)
     }
+  }
+
+  if (mode === 'login' && !switchingAccount && (ownerSession === 'checking' || ownerSession === 'authenticated')) {
+    return <ShopvaxLoading label="Verificando sua sessão…" />
   }
 
   return (

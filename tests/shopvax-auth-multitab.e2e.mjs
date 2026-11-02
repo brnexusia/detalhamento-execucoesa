@@ -24,6 +24,11 @@ try {
     if (!activeUser) return route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ error: 'Sessão inválida.' }) })
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(bootstrap()) })
   })
+  await context.route('**/api/auth/me', route => {
+    if (!activeUser) return route.fulfill({ status: 401, contentType: 'application/json', body: '{"error":"Sessão inválida."}' })
+    const { user, store } = bootstrap()
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ user, store }) })
+  })
   await context.route('**/api/auth/login', async route => {
     activeUser = 'B'
     return route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' })
@@ -38,7 +43,7 @@ try {
   await first.getByText('Olá, Laura.').waitFor()
   assert.match(await first.locator('.panel-brand__username').innerText(), /Laura/)
   const second = await context.newPage()
-  await second.goto('http://127.0.0.1:5173/entrar')
+  await second.goto('http://127.0.0.1:5173/entrar?trocar-conta=1')
   await second.locator('input[type=email]').fill('empresa-b@example.test')
   await second.locator('input[type=password]').fill('senha-de-teste-123')
   await second.locator('.auth-form .primary-action').click()
