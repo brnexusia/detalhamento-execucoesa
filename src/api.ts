@@ -103,6 +103,12 @@ export async function apiRequest<T>(url: string, options: RequestInit = {}): Pro
       : /^\/api\/public\/(customers\/logout|store\/[^/]+\/customers\/(login|register))$/.test(url)
         ? 'customer' : null
     if (scope && (url !== '/api/auth/google' || payload?.ok === true)) notifyAuthChange(scope)
+    // O comprador tem uma sessão global; a verificação WhatsApp também precisa
+    // atualizar Feed, perfis e outras abas sem armazenar credenciais no navegador.
+    if (url === '/api/public/buyer-auth/verify-code') notifyAuthChange('customer')
+  }
+  if (options.method?.toUpperCase() === 'PUT' && url === '/api/public/buyer-auth/profile') {
+    notifyAuthChange('customer')
   }
   return payload as T
 }
