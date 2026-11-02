@@ -22,8 +22,10 @@ test('recognizes two products and prices in a text catalog page', () => {
   assert.equal(result.candidates[0].title, 'Vestido Aurora')
   assert.equal(result.candidates[0].price, 49.90)
   assert.equal(result.candidates[0].sku, 'VA-42')
+  assert.equal(result.candidates[0].category, 'Vestidos')
   assert.equal(result.candidates[1].title, 'Blusa Linho -')
   assert.equal(result.candidates[1].price, 35.50)
+  assert.equal(result.candidates[1].category, 'Blusas')
   assert.equal(result.candidates[1].pdf_page, 1)
 })
 

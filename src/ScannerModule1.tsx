@@ -43,6 +43,9 @@ function platformLabel(value: string) {
 }
 
 function jobDetails(job: ImportJob) {
+  if (job.status === 'completed' && job.platform === 'pdf') {
+    return `Catálogo PDF · ${job.published_count ?? 0} produto(s) cadastrado(s) de ${job.selected_count} selecionado(s)`
+  }
   if (job.status === 'review') {
     const alerts = job.warning_count ? ` · ${job.warning_count} para conferir` : ''
     const duplicates = job.duplicate_count ? ` · ${job.duplicate_count} duplicado(s) removido(s)` : ''
@@ -94,6 +97,7 @@ export default function ScannerModule1() {
   const [reviewLoading, setReviewLoading] = useState(false)
   const [reviewError, setReviewError] = useState('')
   const [selectionBusy, setSelectionBusy] = useState(false)
+  const [recoveringId, setRecoveringId] = useState<string | null>(null)
 
   const [editing, setEditing] = useState<ImportReviewProduct | null>(null)
   const [draft, setDraft] = useState<ImportReviewData | null>(null)
@@ -253,6 +257,27 @@ export default function ScannerModule1() {
     }
   }
 
+  const recoverLegacyPdf = async (job: ImportJob) => {
+    const missing = Math.max(0, job.selected_count - (job.published_count || 0) - (job.skipped_existing_count || 0))
+    if (!await confirmAction(
+      `Recuperar as ${missing} ocorrências agrupadas no PDF ${job.source_host}?\\n\\n` +
+      'Os produtos atuais serão preservados. Só serão criados registros adicionais; categorias ainda como Geral serão ajustadas.',
+    )) return
+    setRecoveringId(job.id)
+    setError('')
+    setSuccess('')
+    try {
+      const result = await api.recoverLegacyPdfImport(job.id)
+      setSuccess(`Catálogo corrigido: ${result.recovered} peça(s) recuperada(s), ${result.recategorized} categoria(s) corrigida(s). Total: ${result.total_published}.`)
+      window.dispatchEvent(new Event('shopvax:catalog-changed'))
+      await loadJobs()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível recuperar as peças do PDF.')
+    } finally {
+      setRecoveringId(null)
+    }
+  }
+
   const openReview = async (job: ImportJob) => {
     setMode('review')
     setReviewJob(job)
@@ -396,6 +421,10 @@ export default function ScannerModule1() {
               <div><strong>{job.source_host}</strong><small>{jobDetails(job)}</small>{job.status === 'failed' && job.error && <small className="scanner-job-error">{job.error}</small>}</div>
               <div className="scanner-job-actions">
                 {job.status === 'review' && <button type="button" className="scanner-review-open" onClick={() => void openReview(job)}>Revisar</button>}
+                {job.status === 'completed' && job.platform === 'pdf' && !job.publish_mode && job.selected_count > (job.published_count || 0) + (job.skipped_existing_count || 0) &&
+                  <button type="button" className="scanner-review-open" disabled={recoveringId === job.id} onClick={() => void recoverLegacyPdf(job)}>
+                    {recoveringId === job.id ? 'Recuperando…' : 'Recuperar peças agrupadas'}
+                  </button>}
                 <button type="button" className="scanner-discard" disabled={discardingId === job.id} onClick={() => void discardImport(job)} title="Apagar esta importação"><Trash2 size={14} /> {discardingId === job.id ? 'Descartando…' : 'Descartar'}</button>
                 <span data-status={job.status}>{job.status === 'scanning' || job.status === 'processing' ? `${statusLabel(job.status)} ${job.progress}%` : statusLabel(job.status)}</span>
               </div>

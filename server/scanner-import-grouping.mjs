@@ -171,3 +171,39 @@ export function mergeImportParentProducts(values) {
     source_url: sourceUrl,
   }
 }
+
+
+/** PDF row identities are deliberately page-specific in individual mode.
+ * Website import grouping remains unchanged for product variants.
+ */
+export function importPublishGroupHash(data, { pdfSeparate = false, rowId = '' } = {}) {
+  if (pdfSeparate) {
+    const identity = String(rowId || data?.source_url || '').trim()
+    if (!identity) throw new Error('Identidade da peça do PDF ausente.')
+    return crypto.createHash('sha256').update('pdf-occurrence:' + identity).digest('hex')
+  }
+  return importParentHash(data)
+}
+
+export function previewPdfPublishGroups(rows, mode = 'separate') {
+  if (!['separate', 'grouped'].includes(mode)) throw new Error('Modo de importação inválido.')
+  const groups = new Map()
+  for (const row of rows) {
+    const data = row.data || {}
+    const key = importPublishGroupHash(data, { pdfSeparate: mode === 'separate', rowId: row.id })
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key).push(data)
+  }
+  const examples = [...groups.values()]
+    .filter((items) => items.length > 1)
+    .sort((a, b) => b.length - a.length)
+    .slice(0, 5)
+    .map((items) => ({ name: String(items[0]?.name || 'Produto').slice(0, 180), occurrences: items.length }))
+  return {
+    mode,
+    selected_count: rows.length,
+    publication_count: groups.size,
+    grouped_count: rows.length - groups.size,
+    examples,
+  }
+}

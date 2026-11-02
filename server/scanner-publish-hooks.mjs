@@ -2,7 +2,8 @@ import crypto from 'node:crypto'
 import express from 'express'
 import pg from 'pg'
 import { prepareReview } from './scanner-review.mjs'
-import { importParentHash, mergeImportParentProducts } from './scanner-import-grouping.mjs'
+import { importPublishGroupHash, previewPdfPublishGroups, mergeImportParentProducts } from './scanner-import-grouping.mjs'
+import { inferPdfProductCategory } from './scanner-pdf-category.mjs'
 import { fetchBestImportImage, isBraavoImageUrl, localizeImportedProductMedia } from './import-media-localizer.mjs'
 
 const { Pool } = pg
@@ -31,6 +32,7 @@ async function ensurePublisherSchema() {
     ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS published_count integer NOT NULL DEFAULT 0;
     ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS skipped_existing_count integer NOT NULL DEFAULT 0;
     ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS published_at timestamptz;
+    ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS publish_mode text;
     ALTER TABLE import_normalized_products ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
     ALTER TABLE import_normalized_products ADD COLUMN IF NOT EXISTS published_product_id text;
     ALTER TABLE import_normalized_products ADD COLUMN IF NOT EXISTS publish_result text NOT NULL DEFAULT '';
@@ -73,6 +75,7 @@ function publicResult(job, idempotent = false) {
       published_count: Number(job.published_count || 0),
       skipped_existing_count: Number(job.skipped_existing_count || 0),
       published_at: job.published_at || null,
+      publish_mode: job.publish_mode || null,
     },
     result: {
       selected: parentProducts,
@@ -84,7 +87,38 @@ function publicResult(job, idempotent = false) {
   }
 }
 
-async function assignPublishGroups(client, jobId, storeId) {
+function pdfMode(value, platform) {
+  if (platform !== 'pdf') return 'grouped'
+  if (!value) return 'separate'
+  return value === 'separate' || value === 'grouped' ? value : null
+}
+
+function categoryForPublication(data, platform) {
+  const category = String(data?.category || '').trim()
+  if (platform === 'pdf' && (!category || /^geral$/i.test(category))) return inferPdfProductCategory(data?.name)
+  return category || 'Geral'
+}
+
+async function previewJob(req, res) {
+  await ensurePublisherSchema()
+  const store = await currentStore(req)
+  if (!store) return res.status(401).json({ error: 'Sessão necessária.' })
+  const found = await pool.query('SELECT * FROM import_jobs WHERE id=$1 AND store_id=$2 LIMIT 1', [req.params.jobId, store.store_id])
+  if (!found.rowCount) return res.status(404).json({ error: 'Importação não encontrada.' })
+  const job = found.rows[0]
+  if (job.status !== 'review') return res.status(409).json({ error: 'A importação ainda não está em revisão.' })
+  const mode = pdfMode(String(req.query.mode || ''), job.platform)
+  if (!mode) return res.status(400).json({ error: 'Modo de importação inválido.' })
+  const selected = await pool.query(
+    `SELECT id,COALESCE(review_data,normalized_data) AS data FROM import_normalized_products
+     WHERE job_id=$1 AND store_id=$2 AND selected=true ORDER BY id ASC`,
+    [job.id, store.store_id],
+  )
+  const preview = previewPdfPublishGroups(selected.rows, mode)
+  res.json({ preview, job: { id: job.id, platform: job.platform } })
+}
+
+async function assignPublishGroups(client, jobId, storeId, pdfSeparate = false) {
   let cursorId = ''
   while (true) {
     const result = await client.query(
@@ -98,7 +132,7 @@ async function assignPublishGroups(client, jobId, storeId) {
     )
     if (!result.rowCount) break
 
-    const updates = result.rows.map((row) => ({ id: row.id, group_key: importParentHash(row.data) }))
+    const updates = result.rows.map((row) => ({ id: row.id, group_key: importPublishGroupHash(row.data, { pdfSeparate, rowId: row.id }) }))
     await client.query(
       `UPDATE import_normalized_products p
        SET publish_group_key=x.group_key,updated_at=now()
@@ -278,7 +312,12 @@ async function publishJob(req, res) {
       return res.status(409).json({ error: 'Essa importação ainda não está pronta para publicação.' })
     }
 
-    await assignPublishGroups(client, job.id, store.store_id)
+    const mode = pdfMode(String(req.body?.mode || ''), job.platform)
+    if (!mode) {
+      await client.query('ROLLBACK')
+      return res.status(400).json({ error: 'Modo de importação inválido.' })
+    }
+    await assignPublishGroups(client, job.id, store.store_id, job.platform === 'pdf' && mode === 'separate')
 
     const groupCountResult = await client.query(
       `SELECT count(DISTINCT publish_group_key)::int AS count
@@ -380,7 +419,7 @@ async function publishJob(req, res) {
           name: String(data.name || '').trim().slice(0, 180),
           description: String(data.description || '').trim().slice(0, 2000),
           price: Number(data.price),
-          category: String(data.category || 'Geral').trim().slice(0, 80) || 'Geral',
+          category: categoryForPublication(data, job.platform).slice(0, 80),
           media_url: mediaUrl,
           media_type: data.media_type === 'video' ? 'video' : 'image',
           images,
@@ -424,10 +463,10 @@ async function publishJob(req, res) {
 
     const updated = await client.query(
       `UPDATE import_jobs
-       SET status='completed',published_count=$1,skipped_existing_count=$2,published_at=now(),updated_at=now()
-       WHERE id=$3 AND store_id=$4
+       SET status='completed',published_count=$1,skipped_existing_count=$2,publish_mode=$3,published_at=now(),updated_at=now()
+       WHERE id=$4 AND store_id=$5
        RETURNING *`,
-      [created, skippedExisting, job.id, store.store_id],
+      [created, skippedExisting, mode, job.id, store.store_id],
     )
     await client.query('COMMIT')
     if (process.env.SHOPVAX_IMPORT_MEDIA_REPAIR_DISABLED !== '1') {
@@ -445,11 +484,148 @@ async function publishJob(req, res) {
   }
 }
 
+
+/**
+ * Explicit repair of previously grouped PDF jobs. Only rows which the old job
+ * created and linked to the same product are split. Existing product IDs, user
+ * edits, prices, and media are preserved; re-running is idempotent.
+ */
+async function recoverLegacyPdfJob(req, res) {
+  await ensurePublisherSchema()
+  const store = await currentStore(req)
+  if (!store) return res.status(401).json({ error: 'Sessão necessária.' })
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1)::bigint)", [`scanner-publish-store:${store.store_id}`])
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1)::bigint)", [`scanner-publish-job:${req.params.jobId}`])
+    const found = await client.query(
+      'SELECT * FROM import_jobs WHERE id=$1 AND store_id=$2 FOR UPDATE',
+      [req.params.jobId, store.store_id],
+    )
+    if (!found.rowCount) {
+      await client.query('ROLLBACK')
+      return res.status(404).json({ error: 'Importação não encontrada.' })
+    }
+    const job = found.rows[0]
+    if (job.platform !== 'pdf' || job.status !== 'completed' || job.publish_mode) {
+      await client.query('ROLLBACK')
+      return res.status(409).json({ error: 'A recuperação é exclusiva de PDFs antigos publicados com agrupamento automático.' })
+    }
+
+    const result = await client.query(
+      `SELECT id,published_product_id,publish_result,COALESCE(review_data,normalized_data) AS data
+       FROM import_normalized_products
+       WHERE job_id=$1 AND store_id=$2 AND selected=true AND published_product_id IS NOT NULL
+       ORDER BY id ASC FOR UPDATE`,
+      [job.id, store.store_id],
+    )
+    const groups = new Map()
+    for (const row of result.rows) {
+      if (row.publish_result !== 'created') continue
+      if (!groups.has(row.published_product_id)) groups.set(row.published_product_id, [])
+      groups.get(row.published_product_id).push(row)
+    }
+
+    const existingIds = [...groups.keys()]
+    const existing = existingIds.length ? await client.query(
+      'SELECT id,category FROM products WHERE store_id=$1 AND id=ANY($2::text[]) FOR UPDATE',
+      [store.store_id, existingIds],
+    ) : { rows: [] }
+    const existingById = new Map(existing.rows.map((row) => [row.id, row]))
+    if (existingById.size !== existingIds.length) {
+      await client.query('ROLLBACK')
+      return res.status(409).json({ error: 'Há produtos originais removidos. Requer revisão manual para evitar duplicações.' })
+    }
+
+    let recovered = 0
+    let recategorized = 0
+    let notSplitWithSku = 0
+    for (const [originalId, members] of groups) {
+      const original = existingById.get(originalId)
+      const first = members[0]
+      const inferred = categoryForPublication(first.data, 'pdf')
+      if (inferred !== 'Outros' && (!original.category || /^geral$/i.test(original.category))) {
+        const updated = await client.query(
+          `UPDATE products SET category=$1 WHERE id=$2 AND store_id=$3
+           AND (category IS NULL OR btrim(category)='' OR lower(btrim(category))='geral')`,
+          [inferred, originalId, store.store_id],
+        )
+        recategorized += updated.rowCount
+      }
+      if (members.length < 2) continue
+      // Identical SKUs may be the same stocked item across pages; never split them blindly.
+      if (members.some((member) => String(member.data?.sku || '').trim())) {
+        notSplitWithSku += members.length - 1
+        continue
+      }
+      for (const member of members.slice(1)) {
+        const prepared = prepareReview(member.data)
+        if (!prepared.publishable) {
+          await client.query('ROLLBACK')
+          return res.status(409).json({ error: 'Uma peça do PDF não tem nome ou preço válido. Corrija antes de recuperar.' })
+        }
+        const data = prepared.data
+        const images = Array.isArray(data.images) ? data.images.slice(0, 40) : []
+        const productId = id()
+        await client.query(
+          `INSERT INTO products
+           (id,store_id,sku,name,description,price,category,media_url,media_type,images,variant_images,pack,variations,featured,active)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11::jsonb,$12,$13::jsonb,false,true)`,
+          [
+            productId, store.store_id, '', String(data.name || '').trim().slice(0, 180),
+            String(data.description || '').trim().slice(0, 2000), Number(data.price),
+            categoryForPublication(data, 'pdf').slice(0, 80),
+            String(data.media_url || images[0] || '').trim().slice(0, 1000),
+            data.media_type === 'video' ? 'video' : 'image',
+            JSON.stringify(images), JSON.stringify(Array.isArray(data.variant_images) ? data.variant_images.slice(0, 80) : []),
+            String(data.pack || '').slice(0, 160),
+            JSON.stringify(Array.isArray(data.variations) ? data.variations : []),
+          ],
+        )
+        await client.query(
+          `UPDATE import_normalized_products
+           SET published_product_id=$1,publish_result='created',published_at=now(),updated_at=now()
+           WHERE id=$2 AND job_id=$3 AND store_id=$4`,
+          [productId, member.id, job.id, store.store_id],
+        )
+        recovered += 1
+      }
+    }
+
+    const stats = await client.query(
+      `SELECT count(DISTINCT published_product_id) FILTER (WHERE publish_result='created')::int AS created
+       FROM import_normalized_products WHERE job_id=$1 AND store_id=$2 AND selected=true`,
+      [job.id, store.store_id],
+    )
+    const totalCreated = Number(stats.rows[0]?.created || 0)
+    await client.query(
+      `UPDATE import_jobs SET published_count=$1,
+       publish_mode=CASE WHEN $2=0 THEN 'separate' ELSE publish_mode END,updated_at=now()
+       WHERE id=$3 AND store_id=$4`,
+      [totalCreated, notSplitWithSku, job.id, store.store_id],
+    )
+    await client.query('COMMIT')
+    res.json({ recovered, recategorized, preserved_originals: groups.size, total_published: totalCreated, not_split_with_sku: notSplitWithSku })
+  } catch (error) {
+    try { await client.query('ROLLBACK') } catch {}
+    throw error
+  } finally {
+    client.release()
+  }
+}
+
 function installPublisherRoute(app) {
   if (app.__atacadoScannerPublisherInstalled) return
   app.__atacadoScannerPublisherInstalled = true
+  app.get('/api/admin/imports/:jobId/publish-preview', (req, res, next) => {
+    Promise.resolve(previewJob(req, res)).catch(next)
+  })
   app.post('/api/admin/imports/:jobId/publish', express.json({ limit: '16kb' }), (req, res, next) => {
     Promise.resolve(publishJob(req, res)).catch(next)
+  })
+  app.post('/api/admin/imports/:jobId/recover-pdf', express.json({ limit: '16kb' }), (req, res, next) => {
+    Promise.resolve(recoverLegacyPdfJob(req, res)).catch(next)
   })
 
   if (pool && process.env.SHOPVAX_IMPORT_MEDIA_REPAIR_DISABLED !== '1') {

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { canonicalImportProductUrl, importParentKey, mergeImportParentProducts } from './scanner-import-grouping.mjs'
+import { canonicalImportProductUrl, importParentKey, mergeImportParentProducts, previewPdfPublishGroups } from './scanner-import-grouping.mjs'
 
 assert.equal(
   canonicalImportProductUrl('https://loja.example/produto/camiseta?sku=PRETO-P&utm_source=teste&variant=123'),
@@ -48,3 +48,19 @@ assert.deepEqual(merged.variations, [
 ])
 
 console.log('[scanner import grouping] parent product merge: ok')
+
+// Regression: 75 PDF occurrences must not silently become 32 products.
+const pdfRows = Array.from({ length: 75 }, (_, i) => ({
+  id: 'pdf-row-' + i,
+  data: {
+    name: i < 44 ? 'Calça Milano' : 'Peça ' + (i - 43),
+    price: 70,
+    category: 'Calças',
+    source_url: 'pdf://page/' + (i + 1) + '/item/0',
+    source: 'pdf',
+  },
+}))
+assert.equal(previewPdfPublishGroups(pdfRows, 'separate').publication_count, 75)
+assert.equal(previewPdfPublishGroups(pdfRows, 'separate').grouped_count, 0)
+assert.equal(previewPdfPublishGroups(pdfRows, 'grouped').publication_count, 32)
+assert.equal(previewPdfPublishGroups(pdfRows, 'grouped').grouped_count, 43)

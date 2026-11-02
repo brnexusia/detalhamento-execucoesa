@@ -5,6 +5,7 @@ import path from 'node:path'
 import os from 'node:os'
 import crypto from 'node:crypto'
 import sharp from 'sharp'
+import { inferPdfProductCategory } from './scanner-pdf-category.mjs'
 
 const run = promisify(execFile)
 export const MAX_PDF_BYTES = 50 * 1024 * 1024
@@ -91,7 +92,7 @@ function pageCandidates(pageText, page) {
       title: name,
       description: lookAhead.join(' ').slice(0, 2000),
       sku,
-      category: 'Geral',
+      category: inferPdfProductCategory(name),
       price,
       currency: 'BRL',
       images: [],

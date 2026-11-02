@@ -6,6 +6,7 @@ import './scanner-publish.css'
 type Job = {
   id: string
   source_host: string
+  platform: string
   status: string
   normalized_count: number
   selected_count: number
@@ -13,6 +14,14 @@ type Job = {
   duplicate_count: number
 }
 
+type PdfMode = 'separate' | 'grouped'
+type PublishPreview = {
+  mode: PdfMode
+  selected_count: number
+  publication_count: number
+  grouped_count: number
+  examples: Array<{ name: string; occurrences: number }>
+}
 type PublishResult = {
   result: { selected: number; created: number; skipped_existing: number }
   idempotent: boolean
@@ -39,6 +48,8 @@ export default function ScannerPublishModule() {
   const [busyId, setBusyId] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState<PublishResult | null>(null)
+  const [modes, setModes] = useState<Record<string, PdfMode>>({})
+  const [previews, setPreviews] = useState<Record<string, PublishPreview | undefined>>({})
 
   const readyJobs = useMemo(
     () => jobs.filter((job) => job.status === 'review' && Number(job.selected_count || 0) > 0),
@@ -118,6 +129,25 @@ export default function ScannerPublishModule() {
     return () => window.clearTimeout(timer)
   }, [slot, scannerOpen, visible, jobs, pollCount])
 
+  const loadPreview = async (job: Job, mode: PdfMode) => {
+    setPreviews((current) => ({ ...current, [job.id]: undefined }))
+    try {
+      const payload = await request<{ preview: PublishPreview }>(
+        `/api/admin/imports/${encodeURIComponent(job.id)}/publish-preview?mode=${mode}`,
+      )
+      setPreviews((current) => ({ ...current, [job.id]: payload.preview }))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível calcular a prévia.')
+    }
+  }
+
+  useEffect(() => {
+    if (!open) return
+    for (const job of readyJobs) {
+      if (job.platform === 'pdf') void loadPreview(job, modes[job.id] || 'separate')
+    }
+  }, [open, readyJobs])
+
   const show = () => {
     setError('')
     setSuccess(null)
@@ -132,7 +162,7 @@ export default function ScannerPublishModule() {
     try {
       const result = await request<PublishResult>(`/api/admin/imports/${encodeURIComponent(job.id)}/publish`, {
         method: 'POST',
-        body: '{}',
+        body: JSON.stringify({ mode: job.platform === 'pdf' ? (modes[job.id] || 'separate') : 'grouped' }),
       })
       setSuccess(result)
       window.dispatchEvent(new Event('shopvax:catalog-changed'))
@@ -169,8 +199,34 @@ export default function ScannerPublishModule() {
               {readyJobs.length === 0 ? <div className="scanner-publish-empty">Não há importações pendentes com produtos válidos.</div> : readyJobs.map((job) => {
                 const exceptions = Math.max(0, Number(job.normalized_count || 0) - Number(job.selected_count || 0))
                 return <article key={job.id}>
-                  <div><strong>{job.source_host}</strong><span>{job.selected_count} pronto(s) para cadastrar{exceptions ? ` · ${exceptions} exceção(ões) ficam de fora` : ''}</span></div>
-                  <button type="button" disabled={Boolean(busyId)} onClick={() => void publish(job)}>{busyId === job.id ? 'Importando…' : `Importar ${job.selected_count}`}</button>
+                  <div>
+                    <strong>{job.source_host}</strong>
+                    <span>{job.selected_count} selecionado(s){exceptions ? ` · ${exceptions} exceção(ões) ficam de fora` : ''}</span>
+                    {job.platform === 'pdf' && <>
+                      <label className="scanner-publish-mode">
+                        <span>Como cadastrar este PDF</span>
+                        <select value={modes[job.id] || 'separate'} disabled={Boolean(busyId)} onChange={(event) => {
+                          const mode = event.target.value as PdfMode
+                          setModes((current) => ({ ...current, [job.id]: mode }))
+                          void loadPreview(job, mode)
+                        }}>
+                          <option value="separate">Cada ocorrência como produto (recomendado)</option>
+                          <option value="grouped">Agrupar modelos iguais</option>
+                        </select>
+                      </label>
+                      {previews[job.id]?.mode === (modes[job.id] || 'separate') ?
+                        <span>Prévia: {previews[job.id]?.selected_count} selecionados → {previews[job.id]?.publication_count} produtos; {previews[job.id]?.grouped_count} ocorrência(s) agrupada(s).</span>
+                        : <span>Calculando prévia…</span>}
+                      {previews[job.id]?.mode === 'grouped' && previews[job.id]?.examples.length ?
+                        <small>Exemplos: {previews[job.id]?.examples.map((group) => `${group.name} (${group.occurrences}x)`).join(' · ')}</small> : null}
+                    </>}
+                  </div>
+                  <button type="button"
+                    disabled={Boolean(busyId) || (job.platform === 'pdf' && previews[job.id]?.mode !== (modes[job.id] || 'separate'))}
+                    onClick={() => void publish(job)}>
+                    {busyId === job.id ? 'Importando…' :
+                      `Importar ${job.platform === 'pdf' ? (previews[job.id]?.publication_count ?? '…') : job.selected_count}`}
+                  </button>
                 </article>
               })}
             </div>

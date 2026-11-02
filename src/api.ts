@@ -13,6 +13,9 @@ export type ImportJob = {
   duplicate_count: number
   selected_count: number
   review_changed_count: number
+  published_count?: number
+  skipped_existing_count?: number
+  publish_mode?: 'separate' | 'grouped' | null
   platform: string
   pages_scanned: number
   error: string
@@ -219,6 +222,9 @@ export const api = {
     return request<{ job: ImportJob; duplicated: boolean }>('/api/admin/imports/pdf', { method: 'POST', body })
   },
   discardImportJob: (jobId: string) => request<{ ok: true }>(`/api/admin/imports/${encodeURIComponent(jobId)}`, { method: 'DELETE' }),
+  recoverLegacyPdfImport: (jobId: string) => request<{ recovered: number; recategorized: number; preserved_originals: number; total_published: number; not_split_with_sku: number }>(
+    `/api/admin/imports/${encodeURIComponent(jobId)}/recover-pdf`, { method: 'POST', body: '{}' },
+  ),
   importCandidates: (jobId: string, limit = 25) => request<{ job: ImportJob; candidates: Array<{ id: string; source_url: string; raw_data: Record<string, unknown>; created_at: string }> }>(`/api/admin/imports/${encodeURIComponent(jobId)}/candidates?limit=${limit}`),
   normalizedImportProducts: (jobId: string, limit = 25) => request<{ job: ImportJob; products: NormalizedImportProduct[] }>(`/api/admin/imports/${encodeURIComponent(jobId)}/normalized?limit=${limit}`),
   reviewImportProducts: (jobId: string, options: { limit?: number; offset?: number; filter?: 'all' | 'alerts' | 'selected'; q?: string } = {}) => {
