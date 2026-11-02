@@ -213,6 +213,13 @@
     box-sizing:border-box;
   }
   .app .topbar .store-header-navigation .view-switch {
+    /* A regra mobile antiga prende este controle ao viewport;
+       dentro do menu ele precisa participar do grid e receber cliques. */
+    position:static !important;
+    inset:auto !important;
+    transform:none !important;
+    z-index:auto;
+    box-shadow:none;
     grid-column:1/-1;
     display:flex !important;
     width:100%;
