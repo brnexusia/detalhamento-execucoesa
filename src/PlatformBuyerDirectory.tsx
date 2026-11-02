@@ -85,7 +85,7 @@ function BuyerDetails({ detail, onClose }: { detail: BuyerDetail; onClose: () =>
       </header>
       <div className="pb-detail-body">
         <section className="pb-metrics" aria-label="Resumo dos pedidos">
-          <Metric label="Pedidos registrados" value={int.format(s.ordersCount)} note={s.cancelledOrders + ' cancelado(s)'} />
+          <Metric label="Pedidos registrados" value={int.format(s.ordersCount)} note={s.cancelledOrders === 1 ? '1 cancelado' : s.cancelledOrders + ' cancelados'} />
           <Metric label="Valor dos pedidos" value={money.format(s.ordersValue)} note="Exclui cancelados; não é faturamento" />
           <Metric label="Ticket médio" value={money.format(s.averageTicket)} note="Média dos pedidos não cancelados" />
           <Metric label="Contas vinculadas" value={int.format(s.storesCount)} note="Associações identificadas" />
@@ -109,7 +109,7 @@ function BuyerDetails({ detail, onClose }: { detail: BuyerDetail; onClose: () =>
         <section className="pb-section"><h3>Contas comerciais relacionadas <span>({detail.stores.length})</span></h3>
           {detail.stores.length === 0 ? <p className="pb-note">Nenhuma vinculação comercial identificada. Apenas visitar uma vitrine não cria vínculo automaticamente.</p> :
           <div className="pb-store-list">{detail.stores.map((item) => <article key={item.id}>
-            <div><strong>{item.name}</strong><small>Desde {formatted(item.linkedAt)} · {item.ordersCount} pedido(s)</small>
+            <div><strong>{item.name}</strong><small>Desde {formatted(item.linkedAt)} · {item.ordersCount === 1 ? '1 pedido' : item.ordersCount + ' pedidos'}</small>
               <small>Promoções: {item.promoWhatsapp ? 'WhatsApp autorizado' : 'WhatsApp não autorizado'} · {item.promoEmail ? 'E-mail autorizado' : 'E-mail não autorizado'}</small>
             </div><div><strong>{money.format(item.ordersValue)}</strong><small>Último pedido: {formatted(item.lastOrderAt)}</small>
               <a href={'/' + item.slug} target="_blank" rel="noreferrer">Ver vitrine</a>
