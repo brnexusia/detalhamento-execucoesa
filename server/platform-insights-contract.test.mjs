@@ -1,0 +1,25 @@
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+
+const read = (path) => readFileSync(path, 'utf8')
+const panel = read('src/PlatformAdmin.tsx')
+const route = read('src/PlatformRoute.tsx')
+const server = read('server/platform-hooks.mjs')
+const buyer = read('server/buyer-whatsapp-auth-hooks.mjs')
+const login = read('src/BuyerWhatsappLogin.tsx')
+
+assert.doesNotMatch(panel, /section === 'lojas'|label="Lojas"/)
+assert.doesNotMatch(route, /PlatformLaunchOps|Fechamento para lançamento/)
+assert.match(panel, /section === 'informacoes'/)
+assert.match(panel, /setStorePlan\(store/)
+assert.match(panel, /toggleStore\(store/)
+assert.match(panel, /kind: 'account'/)
+assert.match(server, /router.get\('\/insights', requirePlatformAdmin/)
+assert.match(server, /to_regclass\('public.intent_events'\)/)
+assert.match(server, /buyer_account_origins/)
+assert.match(server, /shopvax_growth_consents/)
+assert.match(server, /billing_last_amount>0/)
+assert.match(buyer, /account.id === createdId/)
+assert.match(buyer, /INSERT INTO buyer_account_origins/)
+assert.match(login, /JSON.stringify\(\{ phone, code, storeSlug \}\)/)
+console.log('[platform insights contract] admin unification, authorization and signup origin: ok')

@@ -318,6 +318,87 @@ async function requireReauth(req, res) {
 
 const asyncRoute = (handler) => (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next)
 
+function registerPlatformInsights(router, requirePlatformAdmin, asyncRoute, pool) {
+  router.get('/insights', requirePlatformAdmin, asyncRoute(async (req, res) => {
+    const requested = Number(req.query.days ?? 30)
+    const days = [0, 7, 30, 90, 365].includes(requested) ? requested : 30
+    const tablesResult = await pool.query(`SELECT
+      to_regclass('public.intent_events') AS events,
+      to_regclass('public.buyer_accounts') AS buyers,
+      to_regclass('public.buyer_account_origins') AS origins,
+      to_regclass('public.store_customers') AS customers,
+      to_regclass('public.shopvax_growth_consents') AS consents,
+      to_regclass('public.platform_billing_ledger') AS ledger`)
+    const tables = tablesResult.rows[0] || {}
+    const columns = await pool.query(`SELECT column_name FROM information_schema.columns
+      WHERE table_schema='public' AND table_name='stores'
+      AND column_name IN ('billing_status','billing_last_amount','billing_period_ends_at')`)
+    const columnSet = new Set(columns.rows.map((row) => row.column_name))
+    const period = (alias) => `($1::int=0 OR ${alias}.created_at >= now()-($1::int * interval '1 day'))`
+    const event = (expression) => tables.events
+      ? `(SELECT ${expression} FROM intent_events e WHERE e.store_id=s.id AND ${period('e')})`
+      : '0'
+    const order = (expression) => `(SELECT ${expression} FROM orders o WHERE o.store_id=s.id AND ${period('o')})`
+    const origins = (expression) => tables.origins && tables.buyers
+      ? `(SELECT ${expression} FROM buyer_account_origins origin
+        JOIN buyer_accounts buyer ON buyer.id=origin.buyer_id
+        WHERE origin.store_id=s.id AND ${period('origin')})`
+      : '0'
+    const consents = (expression) => tables.consents
+      ? `(SELECT ${expression} FROM shopvax_growth_consents consent
+        WHERE (consent.scope='all_current' OR s.id=ANY(consent.store_ids)))`
+      : '0'
+    const customers = tables.customers
+      ? `(SELECT count(*)::int FROM store_customers c WHERE c.store_id=s.id AND ${period('c')})`
+      : '0'
+    const billingAvailable = ['billing_status','billing_last_amount','billing_period_ends_at'].every((key) => columnSet.has(key))
+    const recordedPayment = tables.ledger
+      ? `EXISTS (SELECT 1 FROM platform_billing_ledger ledger
+        WHERE ledger.store_id=s.id AND ledger.charged_amount>0 AND ledger.period_ends_at>now())`
+      : 'false'
+    const paying = billingAvailable
+      ? `(s.billing_status='active' AND s.is_active=true AND
+         ((s.billing_last_amount>0 AND s.billing_period_ends_at>now()) OR ${recordedPayment}))`
+      : 'false'
+    const query = `SELECT s.id,s.name,s.slug,s.plan_tier AS plan_code,u.name AS owner_name,
+      ${paying} AS paying,
+      ${event("count(*) FILTER (WHERE e.kind='access')::int")} AS accesses,
+      ${event("count(DISTINCT NULLIF(e.visitor_key,'')) FILTER (WHERE e.kind='access')::int")} AS unique_visitors,
+      ${event("count(*) FILTER (WHERE e.kind='product_view')::int")} AS product_views,
+      ${event("count(*) FILTER (WHERE e.kind='cart_add')::int")} AS carts,
+      ${event("count(*) FILTER (WHERE e.kind='checkout_start')::int")} AS checkouts,
+      ${event("count(*) FILTER (WHERE e.kind='whatsapp_click' AND e.product_id IS NULL)::int")} AS whatsapp_clicks,
+      ${order('count(*)::int')} AS orders,
+      ${origins("count(*) FILTER (WHERE buyer.profile_completed=true)::int")} AS buyer_signups,
+      ${origins("count(*) FILTER (WHERE buyer.marketing_consent=true AND buyer.profile_completed=true)::int")} AS global_promo_optins,
+      ${customers} AS store_customers,
+      ${consents("count(DISTINCT consent.customer_id) FILTER (WHERE consent.whatsapp=true OR consent.email=true)::int")} AS promo_subscribers,
+      ${consents("count(DISTINCT consent.customer_id) FILTER (WHERE consent.whatsapp=true)::int")} AS promo_whatsapp,
+      ${consents("count(DISTINCT consent.customer_id) FILTER (WHERE consent.email=true)::int")} AS promo_email
+      FROM stores s JOIN users u ON u.id=s.owner_id
+      ORDER BY s.name ASC,s.id ASC`
+    const result = await pool.query(query, [days])
+    const asNumber = (row, key) => Number(row[key] || 0)
+    res.set('Cache-Control', 'private, no-store')
+    return res.json({
+      days,
+      coverage: { events: Boolean(tables.events), buyerOrigins: Boolean(tables.origins && tables.buyers), consents: Boolean(tables.consents), billing: billingAvailable },
+      rows: result.rows.map((row) => ({
+        id: row.id, name: row.name, slug: row.slug, ownerName: row.owner_name,
+        planCode: row.plan_code || 'bronze', paying: row.paying === true,
+        accesses: asNumber(row, 'accesses'), uniqueVisitors: asNumber(row, 'unique_visitors'),
+        productViews: asNumber(row, 'product_views'), carts: asNumber(row, 'carts'),
+        checkouts: asNumber(row, 'checkouts'), whatsappClicks: asNumber(row, 'whatsapp_clicks'),
+        orders: asNumber(row, 'orders'), buyerSignups: asNumber(row, 'buyer_signups'),
+        globalPromoOptins: asNumber(row, 'global_promo_optins'),
+        storeCustomers: asNumber(row, 'store_customers'),
+        promoSubscribers: asNumber(row, 'promo_subscribers'),
+        promoWhatsapp: asNumber(row, 'promo_whatsapp'), promoEmail: asNumber(row, 'promo_email'),
+      })),
+    })
+  }))
+}
+
 function installPlatformRoutes(app) {
   if (app.__shopvaxPlatformRoutesInstalled) return
   app.__shopvaxPlatformRoutesInstalled = true
@@ -533,6 +614,8 @@ function installPlatformRoutes(app) {
     await audit(req.platformUser.id, 'account.delete', 'user', req.params.userId, { email: target.rows[0].email, name: target.rows[0].name })
     res.json({ ok: true })
   }))
+
+  registerPlatformInsights(router, requirePlatformAdmin, asyncRoute, pool)
 
   router.get('/health', requirePlatformAdmin, asyncRoute(async (_req, res) => {
     const db = await pool.query('SELECT now() AS now')

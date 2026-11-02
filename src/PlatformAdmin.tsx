@@ -1,5 +1,5 @@
 import ShopvaxLoading from './ShopvaxLoading'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { apiRequest } from './api'
 import {
   Activity,
@@ -7,6 +7,7 @@ import {
   CreditCard,
   ExternalLink,
   FileClock,
+  BarChart3,
   LogOut,
   Package,
   Pencil,
@@ -41,7 +42,18 @@ type Bootstrap = {
   user: { id: string; name: string; email: string; hasPassword: boolean; hasGoogle: boolean }; stats: PlatformStats; stores: PlatformStore[]; admins: PlatformAdminUser[]
   latestUsers: LatestUser[]; plans: PlatformPlan[]; audit: AuditEntry[]
 }
-type Section = 'visao' | 'lojas' | 'contas' | 'planos' | 'admins' | 'auditoria'
+type InsightRow = {
+  id: string; name: string; slug: string; ownerName: string; planCode: string; paying: boolean
+  accesses: number; uniqueVisitors: number; productViews: number; carts: number
+  checkouts: number; whatsappClicks: number; orders: number; buyerSignups: number
+  storeCustomers: number; promoSubscribers: number; promoWhatsapp: number
+  promoEmail: number; globalPromoOptins: number
+}
+type Insights = {
+  days: number; rows: InsightRow[]
+  coverage: { events: boolean; buyerOrigins: boolean; consents: boolean; billing: boolean }
+}
+type Section = 'visao' | 'contas' | 'informacoes' | 'planos' | 'admins' | 'auditoria'
 
 type DangerTarget =
   | { kind: 'account'; id: string; name: string }
@@ -60,7 +72,7 @@ function semesterPrice(plan: PlatformPlan) { return plan.monthlyPrice * 6 * (1 -
 function annualPrice(plan: PlatformPlan) { return plan.monthlyPrice * 12 * (1 - plan.annualDiscount / 100) }
 function actionLabel(action: string) {
   return ({
-    'store.activate': 'Loja reativada', 'store.suspend': 'Loja suspensa', 'store.plan.change': 'Plano alterado',
+    'store.activate': 'Conta reativada', 'store.suspend': 'Conta suspensa', 'store.plan.change': 'Plano alterado',
     'plan.create': 'Plano criado', 'plan.update': 'Plano editado', 'plan.delete': 'Plano apagado',
     'admin.add': 'Administrador adicionado', 'admin.remove': 'Administrador removido', 'admin.claim': 'Admin inicial ativado',
     'account.delete': 'Conta apagada',
@@ -73,10 +85,15 @@ export default function PlatformAdmin() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
-  const [storeQuery, setStoreQuery] = useState('')
   const [accountQuery, setAccountQuery] = useState('')
   const [accounts, setAccounts] = useState<PlatformAccount[]>([])
   const [accountsLoading, setAccountsLoading] = useState(false)
+  const [accountsHasMore, setAccountsHasMore] = useState(false)
+  const [insights, setInsights] = useState<Insights | null>(null)
+  const [insightsLoading, setInsightsLoading] = useState(false)
+  const [insightsDays, setInsightsDays] = useState(30)
+  const [insightsStore, setInsightsStore] = useState('')
+  const [onlyPaying, setOnlyPaying] = useState(false)
   const [adminOpen, setAdminOpen] = useState(false)
   const [planOpen, setPlanOpen] = useState<PlatformPlan | 'new' | null>(null)
   const [danger, setDanger] = useState<DangerTarget | null>(null)
@@ -95,18 +112,30 @@ export default function PlatformAdmin() {
     finally { setLoading(false) }
   }
 
-  const loadAccounts = async () => {
+  const loadAccounts = async (offset = 0) => {
     setAccountsLoading(true)
     try {
-      const q = accountQuery.trim() ? `?q=${encodeURIComponent(accountQuery.trim())}&limit=100` : '?limit=100'
-      const result = await apiRequest<{ accounts: PlatformAccount[] }>(`/api/platform/accounts${q}`)
-      setAccounts(result.accounts)
+      const q = new URLSearchParams({ limit: '100', offset: String(offset) })
+      if (accountQuery.trim()) q.set('q', accountQuery.trim())
+      const result = await apiRequest<{ accounts: PlatformAccount[] }>(`/api/platform/accounts?${q.toString()}`)
+      setAccounts((current) => offset ? [...current, ...result.accounts] : result.accounts)
+      setAccountsHasMore(result.accounts.length === 100)
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível carregar as contas.') }
     finally { setAccountsLoading(false) }
   }
 
   useEffect(() => { void load() }, [])
-  useEffect(() => { if (data && section === 'contas') void loadAccounts() }, [section, data])
+  useEffect(() => { if (data && section === 'contas') void loadAccounts(0) }, [section, data])
+  useEffect(() => {
+    if (!data || section !== 'informacoes') return
+    let active = true
+    setInsightsLoading(true)
+    apiRequest<Insights>('/api/platform/insights?days=' + insightsDays)
+      .then((value) => { if (active) { setInsights(value); setError('') } })
+      .catch((err) => { if (active) { setInsights(null); setError(err instanceof Error ? err.message : 'Falha ao carregar informações.') } })
+      .finally(() => { if (active) setInsightsLoading(false) })
+    return () => { active = false }
+  }, [section, insightsDays, data])
 
   const logout = async () => {
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => undefined)
@@ -123,8 +152,8 @@ export default function PlatformAdmin() {
   const toggleStore = async (store: PlatformStore) => {
     try {
       await apiRequest(`/api/platform/stores/${store.id}/status`, { method: 'PATCH', body: JSON.stringify({ active: !store.isActive }) })
-      flash(store.isActive ? 'Loja suspensa.' : 'Loja reativada.'); await load()
-    } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível atualizar a loja.') }
+      flash(store.isActive ? 'Conta suspensa.' : 'Conta reativada.'); await load()
+    } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível atualizar a conta.') }
   }
 
   const setStorePlan = async (store: PlatformStore, planCode: string) => {
@@ -150,12 +179,9 @@ export default function PlatformAdmin() {
     if (kind === 'account') await loadAccounts()
   }
 
-  const filteredStores = useMemo(() => {
-    if (!data) return []
-    const term = storeQuery.trim().toLowerCase()
-    if (!term) return data.stores
-    return data.stores.filter((store) => `${store.name} ${store.slug} ${store.ownerName} ${store.ownerEmail} ${store.planCode}`.toLowerCase().includes(term))
-  }, [data, storeQuery])
+  const visibleInsights = (insights?.rows || []).filter((row) =>
+    (!insightsStore || row.id === insightsStore) && (!onlyPaying || row.paying))
+  const insightSum = (key: keyof InsightRow) => visibleInsights.reduce((sum, row) => sum + Number(row[key] || 0), 0)
 
   if (loading) return <ShopvaxLoading label="Abrindo administração…" />
 
@@ -170,15 +196,15 @@ export default function PlatformAdmin() {
     </div>
   }
 
-  const sectionTitle: Record<Section, string> = { visao: 'Visão geral', lojas: 'Lojas', contas: 'Contas', planos: 'Planos', admins: 'Administradores', auditoria: 'Auditoria' }
+  const sectionTitle: Record<Section, string> = { visao: 'Visão geral', contas: 'Contas', informacoes: 'Informações', planos: 'Planos', admins: 'Administradores', auditoria: 'Auditoria' }
 
   return <div className="platform-shell">
     <aside className="platform-sidebar">
       <div className="platform-brand"><span className="platform-mark"><img src="/brand/shopvax-symbol-dark.svg" className="svx-brand-symbol" alt="" aria-hidden="true" /></span><div><strong><img className="svx-brand-wordmark" src="/brand/shopvax-wordmark-light.svg" alt="Shopvax" /></strong><small>Administração</small></div></div>
       <nav>
         <NavButton active={section === 'visao'} onClick={() => setSection('visao')} icon={<Activity size={18}/>} label="Visão geral" />
-        <NavButton active={section === 'lojas'} onClick={() => setSection('lojas')} icon={<Store size={18}/>} label="Lojas" count={data.stats.stores} />
-        <NavButton active={section === 'contas'} onClick={() => setSection('contas')} icon={<Users size={18}/>} label="Contas" count={data.stats.users} />
+        <NavButton active={section === 'contas'} onClick={() => setSection('contas')} icon={<Users size={18}/>} label="Contas" count={data.stats.stores} />
+        <NavButton active={section === 'informacoes'} onClick={() => setSection('informacoes')} icon={<BarChart3 size={18}/>} label="Informações" />
         <NavButton active={section === 'planos'} onClick={() => setSection('planos')} icon={<CreditCard size={18}/>} label="Planos" count={data.plans.length} />
         <NavButton active={section === 'admins'} onClick={() => setSection('admins')} icon={<ShieldCheck size={18}/>} label="Administradores" count={data.admins.length} />
         <NavButton active={section === 'auditoria'} onClick={() => setSection('auditoria')} icon={<FileClock size={18}/>} label="Auditoria" />
@@ -187,39 +213,93 @@ export default function PlatformAdmin() {
     </aside>
 
     <main className="platform-main">
-      <header className="platform-topbar"><div><span><img className="svx-brand-wordmark" src="/brand/shopvax-wordmark.svg" alt="Shopvax" /></span><strong>{sectionTitle[section]}</strong></div><a href="/painel">Painel da minha loja <ExternalLink size={14}/></a></header>
+      <header className="platform-topbar"><div><span><img className="svx-brand-wordmark" src="/brand/shopvax-wordmark.svg" alt="Shopvax" /></span><strong>{sectionTitle[section]}</strong></div><a href="/painel">Painel da minha conta <ExternalLink size={14}/></a></header>
       {notice && <div className="platform-toast"><CheckCircle2 size={16}/> {notice}</div>}
       {error && <div className="platform-error">{error}</div>}
 
       {section === 'visao' && <div className="platform-page">
         <Title kicker="Operação" title="Visão geral" copy="Saúde operacional do Shopvax sem confundir intenção de compra com faturamento confirmado." />
         <section className="platform-metrics">
-          <Metric icon={<Store size={18}/>} label="Lojas" value={String(data.stats.stores)} note={`${data.stats.active_stores} ativas`} />
+          <Metric icon={<Store size={18}/>} label="Contas comerciais" value={String(data.stats.stores)} note={`${data.stats.active_stores} ativas`} />
           <Metric icon={<Users size={18}/>} label="Usuários" value={String(data.stats.users)} note="contas cadastradas" />
           <Metric icon={<Package size={18}/>} label="Produtos" value={String(data.stats.products)} note="publicados" />
           <Metric icon={<ReceiptText size={18}/>} label="Pedidos" value={String(data.stats.orders)} note="enviados ao WhatsApp" />
           <Metric icon={<CreditCard size={18}/>} label="Valor dos pedidos" value={money.format(data.stats.order_value)} note="intenção enviada ao WhatsApp" wide />
         </section>
         <section className="platform-grid-2">
-          <div className="platform-card"><div className="platform-card__head"><div><span>Lojas recentes</span><h2>Últimas entradas</h2></div><button onClick={() => setSection('lojas')}>Ver todas</button></div><div className="platform-list">{data.stores.slice(0,6).map((store) => <div key={store.id}><span className={`platform-dot ${store.isActive ? 'is-on' : ''}`}/><div><strong>{store.name}</strong><small>{store.ownerName} · {store.ownerEmail}</small></div><b>{store.planCode.toUpperCase()}</b></div>)}</div></div>
-          <div className="platform-card"><div className="platform-card__head"><div><span>Usuários recentes</span><h2>Novas contas</h2></div></div><div className="platform-list">{data.latestUsers.slice(0,6).map((user) => <div key={user.id}><div className="platform-avatar">{user.name.slice(0,2).toUpperCase()}</div><div><strong>{user.name}</strong><small>{user.storeName || 'Acesso sem loja'} · {user.email}</small></div><b>{date.format(new Date(user.createdAt)).split(' ')[0]}</b></div>)}</div></div>
+          <div className="platform-card"><div className="platform-card__head"><div><span>Contas recentes</span><h2>Últimas entradas</h2></div><button onClick={() => setSection('contas')}>Ver todas</button></div><div className="platform-list">{data.stores.slice(0,6).map((store) => <div key={store.id}><span className={`platform-dot ${store.isActive ? 'is-on' : ''}`}/><div><strong>{store.name}</strong><small>{store.ownerName} · {store.ownerEmail}</small></div><b>{store.planCode.toUpperCase()}</b></div>)}</div></div>
+          <div className="platform-card"><div className="platform-card__head"><div><span>Usuários recentes</span><h2>Novas contas</h2></div></div><div className="platform-list">{data.latestUsers.slice(0,6).map((user) => <div key={user.id}><div className="platform-avatar">{user.name.slice(0,2).toUpperCase()}</div><div><strong>{user.name}</strong><small>{user.storeName || 'Sem conta comercial'} · {user.email}</small></div><b>{date.format(new Date(user.createdAt)).split(' ')[0]}</b></div>)}</div></div>
         </section>
       </div>}
 
-      {section === 'lojas' && <div className="platform-page">
-        <Title kicker="Clientes" title="Lojas" copy="Suspenda operações e troque planos sem acessar a conta do cliente." />
-        <div className="platform-toolbar"><label><Search size={17}/><input value={storeQuery} onChange={(e) => setStoreQuery(e.target.value)} placeholder="Buscar loja, responsável, e-mail ou plano" /></label><span>{filteredStores.length} lojas</span></div>
-        <div className="platform-store-list">{filteredStores.map((store) => <article key={store.id}>
-          <div className="platform-store-main"><span className={`platform-status ${store.isActive ? 'is-active' : ''}`}>{store.isActive ? 'Ativa' : 'Suspensa'}</span><h2>{store.name}</h2><code>/{store.slug}</code><small>{store.ownerName} · {store.ownerEmail}</small></div>
-          <div className="platform-store-stats"><span><b>{store.products}</b> produtos</span><span><b>{store.sellers}</b> vendedoras</span><span><b>{store.orders}</b> pedidos</span><span><b>{money.format(store.orderValue)}</b> pedidos enviados</span></div>
-          <div className="platform-store-actions platform-store-actions--stack"><select value={store.planCode} onChange={(e) => void setStorePlan(store, e.target.value)} aria-label={`Plano da ${store.name}`}>{data.plans.filter((plan) => plan.active || plan.code === store.planCode).map((plan) => <option key={plan.id} value={plan.code}>{plan.name}</option>)}</select><div><a href={`/${store.slug}`} target="_blank" rel="noreferrer"><ExternalLink size={16}/> Abrir</a><button className={store.isActive ? 'is-danger' : 'is-success'} onClick={() => void toggleStore(store)}>{store.isActive ? <><XCircle size={16}/> Suspender</> : <><CheckCircle2 size={16}/> Reativar</>}</button></div></div>
-        </article>)}</div>
+      {section === 'contas' && <div className="platform-page">
+        <Title kicker="Gestão" title="Contas" copy="Gestão completa de cada conta: responsável, operação, plano, suspensão, acesso e exclusão." />
+        <form className="platform-toolbar" onSubmit={(e) => { e.preventDefault(); void loadAccounts(0) }}><label><Search size={17}/><input value={accountQuery} onChange={(e) => setAccountQuery(e.target.value)} placeholder="Buscar conta, responsável ou e-mail" /></label><button className="platform-secondary" disabled={accountsLoading}>{accountsLoading ? 'Buscando…' : 'Buscar'}</button></form>
+        <div className="platform-account-list">{accounts.map((account) => {
+          const store = data.stores.find((item) => item.id === account.store?.id)
+          return <article key={account.id} className="platform-unified-account">
+            <div className="platform-avatar platform-avatar--large">{account.name.slice(0, 2).toUpperCase()}</div>
+            <div className="platform-account-main"><h2>{account.store?.name || account.name}</h2><span>{account.name} · {account.email}</span>
+              <small>{account.store ? '/' + account.store.slug : 'Sem operação comercial associada'}</small>
+              <div className="platform-account-flags">{account.isAdmin && <b>ADMIN</b>}{account.store && <b>{account.store.isActive ? 'ATIVA' : 'SUSPENSA'}</b>}</div>
+              {store && <div className="platform-account-facts"><span>{store.products} produtos</span><span>{store.sellers} vendedoras</span><span>{store.orders} pedidos</span><span>{money.format(store.orderValue)} em pedidos preparados</span></div>}
+            </div>
+            <div className="platform-account-operations">
+              {store && <>
+                <select value={store.planCode} onChange={(e) => void setStorePlan(store, e.target.value)} aria-label={'Plano da conta ' + store.name}>
+                  {data.plans.filter((plan) => plan.active || plan.code === store.planCode).map((plan) => <option key={plan.id} value={plan.code}>{plan.name}</option>)}
+                </select>
+                <div><a href={'/' + store.slug} target="_blank" rel="noreferrer"><ExternalLink size={15}/> Abrir</a>
+                  <button type="button" className={store.isActive ? 'is-danger' : 'is-success'} onClick={() => void toggleStore(store)}>{store.isActive ? 'Suspender' : 'Reativar'}</button></div>
+              </>}
+              <button className="platform-icon-danger" disabled={account.id === data.user.id || account.isAdmin}
+                onClick={() => setDanger({ kind: 'account', id: account.id, name: account.store?.name || account.name })}
+                title={account.isAdmin ? 'Remova o acesso administrativo primeiro' : 'Apagar conta'} aria-label={'Apagar conta ' + account.name}><Trash2 size={17}/></button>
+            </div>
+          </article>
+        })}</div>
+        {accountsHasMore && <button className="platform-secondary platform-load-more" disabled={accountsLoading} onClick={() => void loadAccounts(accounts.length)}>{accountsLoading ? 'Carregando…' : 'Carregar mais contas'}</button>}
+        {!accountsLoading && accounts.length === 0 && <p>Nenhuma conta encontrada.</p>}
       </div>}
 
-      {section === 'contas' && <div className="platform-page">
-        <Title kicker="Usuários" title="Contas" copy="Busca operacional e exclusão definitiva com reautenticação administrativa." />
-        <form className="platform-toolbar" onSubmit={(e) => { e.preventDefault(); void loadAccounts() }}><label><Search size={17}/><input value={accountQuery} onChange={(e) => setAccountQuery(e.target.value)} placeholder="Buscar nome, e-mail ou loja" /></label><button className="platform-secondary" disabled={accountsLoading}>{accountsLoading ? 'Buscando…' : 'Buscar'}</button></form>
-        <div className="platform-account-list">{accounts.map((account) => <article key={account.id}><div className="platform-avatar platform-avatar--large">{account.name.slice(0,2).toUpperCase()}</div><div><h2>{account.name}</h2><span>{account.email}</span><small>{account.store ? `${account.store.name} · ${account.store.planCode.toUpperCase()}` : 'Sem loja'}</small></div><div className="platform-account-flags">{account.isAdmin && <b>ADMIN</b>}{account.store && <b>{account.store.isActive ? 'LOJA ATIVA' : 'LOJA SUSPENSA'}</b>}</div><button className="platform-icon-danger" disabled={account.id === data.user.id || account.isAdmin} onClick={() => setDanger({ kind: 'account', id: account.id, name: account.name })} title={account.isAdmin ? 'Remova o acesso administrativo primeiro' : 'Apagar conta'}><Trash2 size={17}/></button></article>)}</div>
+      {section === 'informacoes' && <div className="platform-page">
+        <Title kicker="Inteligência comercial" title="Informações" copy="Acessos, intenção de compra, cadastros e consentimentos por conta. Pedidos não representam vendas ou faturamento confirmado." />
+        <div className="platform-insights-filters">
+          <label>Período <select value={insightsDays} onChange={(e) => setInsightsDays(Number(e.target.value))}>
+            <option value={7}>Últimos 7 dias</option><option value={30}>Últimos 30 dias</option>
+            <option value={90}>Últimos 90 dias</option><option value={365}>Últimos 365 dias</option>
+            <option value={0}>Todo o período</option>
+          </select></label>
+          <label>Conta <select value={insightsStore} onChange={(e) => setInsightsStore(e.target.value)}>
+            <option value="">Todas as contas</option>{insights?.rows.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
+          </select></label>
+          <label className="platform-insights-check"><input type="checkbox" checked={onlyPaying} onChange={(e) => setOnlyPaying(e.target.checked)}/> Apenas pagantes identificados</label>
+        </div>
+        {insightsLoading && <p role="status">Atualizando dados reais…</p>}
+        {insights && <>
+          <section className="platform-metrics">
+            <Metric icon={<Users size={18}/>} label="Contas selecionadas" value={String(visibleInsights.length)} note={visibleInsights.filter((row) => row.paying).length + ' com cobrança vigente registrada'} />
+            <Metric icon={<Activity size={18}/>} label="Acessos" value={String(insightSum('accesses'))} note={insightSum('uniqueVisitors') + ' visitantes distintos (por conta)'} />
+            <Metric icon={<Package size={18}/>} label="Views de produtos" value={String(insightSum('productViews'))} note="visualizações registradas" />
+            <Metric icon={<ReceiptText size={18}/>} label="Pedidos" value={String(insightSum('orders'))} note="pedidos preparados, não vendas concluídas" />
+            <Metric icon={<Users size={18}/>} label="Novos compradores originados" value={String(insightSum('buyerSignups'))} note="conta global criada e perfil concluído" />
+            <Metric icon={<UserPlus size={18}/>} label="Clientes vinculados" value={String(insightSum('storeCustomers'))} note="cadastros locais, não necessariamente novos compradores" />
+            <Metric icon={<CheckCircle2 size={18}/>} label="Inscritos em promoções" value={String(insightSum('promoSubscribers'))} note={'WhatsApp: ' + insightSum('promoWhatsapp') + ' · e-mail: ' + insightSum('promoEmail')} />
+            <Metric icon={<ExternalLink size={18}/>} label="Cliques ao WhatsApp" value={String(insightSum('whatsappClicks'))} note="não comprovam envio ou pagamento" />
+          </section>
+          <p className="platform-insights-caption">Funil: {insightSum('carts')} adições ao carrinho · {insightSum('checkouts')} checkouts iniciados. {insightSum('globalPromoOptins')} opt-ins gerais originados nessas contas (não equivalem à autorização para campanhas de cada conta).</p>
+          {(!insights.coverage.events || !insights.coverage.buyerOrigins || !insights.coverage.consents || !insights.coverage.billing) &&
+            <p className="platform-insights-warning">Algumas fontes ainda não estão disponíveis neste banco: dados ausentes aparecem como zero. Registros de origem só são coletados em novos cadastros; histórico anterior não é atribuído retroativamente.</p>}
+          <div className="platform-insights-table-wrap"><table className="platform-insights-table">
+            <thead><tr><th>Conta / plano</th><th>Pagante</th><th>Acessos</th><th>Views</th><th>Pedidos</th><th>Novos compradores</th><th>Clientes vinculados</th><th>Promoções</th><th>WhatsApp</th></tr></thead>
+            <tbody>{visibleInsights.map((row) => <tr key={row.id}><td><strong>{row.name}</strong><small>{row.ownerName} · {row.planCode.toUpperCase()}</small></td>
+              <td>{row.paying ? 'Sim' : 'Não identificado'}</td><td>{row.accesses}</td><td>{row.productViews}</td><td>{row.orders}</td>
+              <td>{row.buyerSignups}</td><td>{row.storeCustomers}</td><td>{row.promoSubscribers}</td><td>{row.whatsappClicks}</td>
+            </tr>)}</tbody>
+          </table></div>
+          {visibleInsights.length === 0 && <p>Nenhuma conta corresponde aos filtros.</p>}
+          <p className="platform-insights-caption">Pagante identificado: conta ativa com cobrança monetária registrada e período vigente. Acesso = carregamento de vitrine; views de produtos podem ocorrer várias vezes no mesmo acesso. Inscritos em promoções refletem consentimentos explícitos em vigor.</p>
+        </>}
       </div>}
 
       {section === 'planos' && <div className="platform-page">
@@ -229,7 +309,7 @@ export default function PlatformAdmin() {
 
       {section === 'admins' && <div className="platform-page">
         <div className="platform-title platform-title--action"><div><span>Acesso</span><h1>Administradores</h1><p>Quem pode gerenciar toda a plataforma.</p></div><button className="platform-primary" onClick={() => setAdminOpen(true)}><UserPlus size={17}/> Adicionar admin</button></div>
-        <div className="platform-admin-list">{data.admins.map((admin) => <article key={admin.id}><div className="platform-avatar platform-avatar--large">{admin.name.slice(0,2).toUpperCase()}</div><div><small>ADMINISTRADOR</small><h2>{admin.name}</h2><span>{admin.email}</span></div><div className="platform-admin-origin">{admin.hasStore ? 'Também possui loja' : 'Somente administração'}</div><button disabled={admin.id === data.user.id} onClick={() => setDanger({ kind: 'admin', id: admin.id, name: admin.name })} title={admin.id === data.user.id ? 'Seu próprio acesso não pode ser removido' : 'Remover acesso'}><Trash2 size={17}/></button></article>)}</div>
+        <div className="platform-admin-list">{data.admins.map((admin) => <article key={admin.id}><div className="platform-avatar platform-avatar--large">{admin.name.slice(0,2).toUpperCase()}</div><div><small>ADMINISTRADOR</small><h2>{admin.name}</h2><span>{admin.email}</span></div><div className="platform-admin-origin">{admin.hasStore ? 'Também possui conta comercial' : 'Somente administração'}</div><button disabled={admin.id === data.user.id} onClick={() => setDanger({ kind: 'admin', id: admin.id, name: admin.name })} title={admin.id === data.user.id ? 'Seu próprio acesso não pode ser removido' : 'Remover acesso'}><Trash2 size={17}/></button></article>)}</div>
       </div>}
 
       {section === 'auditoria' && <div className="platform-page"><Title kicker="Segurança" title="Auditoria" copy="Últimas ações administrativas sensíveis registradas pelo servidor." /><div className="platform-audit-list">{data.audit.map((entry) => <article key={entry.id}><span>{date.format(new Date(entry.createdAt))}</span><strong>{actionLabel(entry.action)}</strong><small>{entry.actorName || 'Sistema'}{entry.actorEmail ? ` · ${entry.actorEmail}` : ''}</small><code>{entry.targetType}{entry.targetId ? ` · ${entry.targetId}` : ''}</code></article>)}</div></div>}

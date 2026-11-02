@@ -81,7 +81,7 @@ export default function BuyerWhatsappLogin({ storeSlug = '', onVerified, editOnl
   }
   const send = () => act(async () => {
     const response = await apiRequest<{ expiresInSeconds: number; resendAfterSeconds: number }>('/api/public/buyer-auth/request-code', {
-      method: 'POST', body: JSON.stringify({ phone }),
+      method: 'POST', body: JSON.stringify({ phone, storeSlug }),
     })
     setCode(''); setStage('code')
     setCooldown(Math.max(0, Number(response.resendAfterSeconds) || 0))
@@ -89,7 +89,7 @@ export default function BuyerWhatsappLogin({ storeSlug = '', onVerified, editOnl
   })
   const verify = () => act(async () => {
     const response = await apiRequest<{ needsProfile: boolean; buyer: Buyer }>('/api/public/buyer-auth/verify-code', {
-      method: 'POST', body: JSON.stringify({ phone, code }),
+      method: 'POST', body: JSON.stringify({ phone, code, storeSlug }),
     })
     if (response.needsProfile) {
       setStage('profile')

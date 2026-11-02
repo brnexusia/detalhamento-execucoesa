@@ -68,6 +68,8 @@ async function schema() {
       'CREATE INDEX IF NOT EXISTS idx_buyer_otp_ip_rate ON buyer_otp_requests(ip_mac,created_at DESC)',
       'ALTER TABLE store_customers ADD COLUMN IF NOT EXISTS buyer_account_id text REFERENCES buyer_accounts(id) ON DELETE SET NULL',
       'CREATE UNIQUE INDEX IF NOT EXISTS idx_store_customer_buyer_unique ON store_customers(store_id,buyer_account_id) WHERE buyer_account_id IS NOT NULL',
+      'CREATE TABLE IF NOT EXISTS buyer_account_origins (buyer_id text PRIMARY KEY REFERENCES buyer_accounts(id) ON DELETE CASCADE, store_id text NOT NULL REFERENCES stores(id) ON DELETE CASCADE, created_at timestamptz NOT NULL DEFAULT now())',
+      'CREATE INDEX IF NOT EXISTS idx_buyer_account_origins_store_created ON buyer_account_origins(store_id,created_at DESC)',
     ].join(';') + ';')
   })().finally(() => { schemaPromise = null })
   return schemaPromise
@@ -134,7 +136,8 @@ async function verifyCode(req, res) {
   if (!phone || !/^\d{6}$/.test(code)) return fail(res, 400, 'Telefone ou código inválido.')
   await schema()
   // O cadastro é da plataforma; o contexto da loja é opcional para clientes antigos.
-  if (req.body?.storeSlug && !await store(req.body.storeSlug)) return fail(res, 404, 'Loja não encontrada.')
+  const originStore = req.body?.storeSlug ? await store(req.body.storeSlug) : null
+  if (req.body?.storeSlug && !originStore) return fail(res, 404, 'Loja não encontrada.')
   const token = crypto.randomBytes(32).toString('base64url')
   const client = await pool.connect()
   let account
@@ -154,8 +157,13 @@ async function verifyCode(req, res) {
       return fail(res, 401, 'Código incorreto ou expirado.')
     }
     await client.query('UPDATE buyer_otp_challenges SET consumed_at=now() WHERE id=$1', [challenge.id])
-    const saved = await client.query('INSERT INTO buyer_accounts(id,phone) VALUES($1,$2) ON CONFLICT(phone) DO UPDATE SET updated_at=buyer_accounts.updated_at RETURNING *', [uuid(),phone])
+    const createdId = uuid()
+    const saved = await client.query('INSERT INTO buyer_accounts(id,phone) VALUES($1,$2) ON CONFLICT(phone) DO UPDATE SET updated_at=buyer_accounts.updated_at RETURNING *', [createdId,phone])
     account = saved.rows[0]
+    // Atribuição única: só a primeira conta criada recebe uma origem de acesso.
+    if (originStore && account.id === createdId) {
+      await client.query('INSERT INTO buyer_account_origins(buyer_id,store_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [account.id,originStore.id])
+    }
     await client.query("INSERT INTO buyer_sessions(token_hash,buyer_id,expires_at) VALUES($1,$2,now()+interval '30 days')", [sha(token),account.id])
     await client.query('COMMIT')
   } catch (error) {
