@@ -63,6 +63,10 @@ function installSeo(app) {
   app.get('/robots.txt', (_req, res) => res.type('text/plain').set('Cache-Control', 'no-store').send([
     'User-agent: *',
     'Allow: /',
+    // Google Web Rendering Service must load the anonymous storefront JSON.
+    // This exception is read-only; protected customer/admin endpoints stay disallowed.
+    'Allow: /api/public/store/',
+    'Disallow: /api/public/store/*/customers/',
     'Disallow: /api/',
     'Disallow: /painel',
     'Disallow: /admin',

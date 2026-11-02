@@ -1,0 +1,101 @@
+name: ShopVax storefront live diagnosis
+on:
+  push:
+    branches: [main, fix/shopvax-storefront-googlebot-20261102]
+    paths:
+      - '.github/workflows/storefront-live-diagnosis.yml'
+      - 'server/public-protection-hooks.mjs'
+      - 'server/seo-routes-hooks.mjs'
+      - 'server/page-metadata-hooks.mjs'
+      - 'src/api.ts'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install headless Chromium for browser-level smoke
+        run: |
+          npm install --no-save --no-audit --no-fund playwright@1.58.2
+          npx playwright install chromium --with-deps
+      - name: Verify real storefront render and JavaScript with Googlebot User-Agent
+        run: node scripts/storefront-live-smoke.mjs
+      - name: Verify deployed public content and crawler rules (release gate)
+        if: github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import html, json, os, urllib.request
+          origin='https://shopvax.com.br'
+          headers={'User-Agent':'Googlebot/2.1 (+http://www.google.com/bot.html)','Cache-Control':'no-cache'}
+          def get(path):
+              with urllib.request.urlopen(urllib.request.Request(origin+path,headers=headers),timeout=20) as r:
+                  assert r.status==200
+                  return r.read(3000000).decode('utf8')
+          robots=get('/robots.txt')
+          assert 'Disallow: /api/' in robots
+          assert 'Allow: /api/public/store/' in robots, 'Current deploy blocks WRS from storefront JSON'
+          assert 'Disallow: /api/public/store/*/customers/' in robots
+          payload=json.loads(get('/api/public/store/lookpremium'))
+          assert payload.get('store',{}).get('slug')=='lookpremium'
+          public_products=payload.get('products') or []
+          assert public_products, 'Look Premium has no public products in live API'
+          page=get('/lookpremium')
+          assert 'Produtos disponíveis' in page, 'Public HTML still lacks server-rendered products'
+          assert any(html.escape(str(p.get('name','')),quote=True) in page for p in public_products if p.get('name')), 'Real public product name not found in initial HTML'
+          health=json.loads(get('/health'))
+          expected=os.environ['GITHUB_SHA']
+          print('release_sha_present=',bool(health.get('releaseSha')),'matches_main=',health.get('releaseSha')==expected,'store_products=',len(public_products))
+          assert health.get('releaseSha')==expected, 'Cannot prove deployed code SHA against main'
+          print('ACCEPTED: public HTML real products + robots exception + matching production release SHA')
+          PY
+      - name: Inspect public HTML, API, cache, robots, and store samples
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import re,urllib.request,urllib.error,json,xml.etree.ElementTree as ET,time
+          root='https://shopvax.com.br'
+          agents={'googlebot':'Googlebot/2.1 (+http://www.google.com/bot.html)','browser':'Mozilla/5.0 Chrome/130.0'}
+          def get(path,agent='googlebot',cookie=None):
+              head={'User-Agent':agents[agent], 'Cache-Control':'no-cache','Accept':'application/json' if path.startswith('/api/') else 'text/html,application/xml'}
+              if cookie: head['Cookie']=cookie
+              req=urllib.request.Request(root+path,headers=head)
+              t=time.monotonic()
+              try:
+                  with urllib.request.urlopen(req,timeout=25) as res:
+                      data=res.read(2500000);status=res.status;headers=res.headers
+              except urllib.error.HTTPError as e:
+                  data=e.read(1000);status=e.code;headers=e.headers
+              except Exception as e:
+                  print('FETCH_FAILED',path,type(e).__name__,str(e),flush=True);return None
+              print('FETCH',path,'agent',agent,'HTTP',status,'content_type',headers.get('Content-Type'),'ms',round((time.monotonic()-t)*1000),'bytes',len(data),'set_cookie',bool(headers.get('Set-Cookie')),'robots',headers.get('X-Robots-Tag'),'vary',headers.get('Vary'),'retry_after',headers.get('Retry-After'),flush=True)
+              return status,data,headers
+          robots=get('/robots.txt')
+          if robots:print('ROBOTS',robots[1].decode('utf8','replace')[:1500],flush=True)
+          index=get('/sitemap-stores-1.xml')
+          samples=['lookpremium']
+          if index and index[0]==200:
+              try:
+                  x=ET.fromstring(index[1]); ns={'s':'http://www.sitemaps.org/schemas/sitemap/0.9'}
+                  urls=[n.text for n in x.findall('.//s:loc',ns) if n.text and '/perfil/' not in n.text]
+                  samples+= [u.rsplit('/',1)[-1] for u in urls if u.rsplit('/',1)[-1]!='lookpremium'][:3]
+              except Exception as e:print('SITEMAP_PARSE_ERROR',str(e))
+          for slug in dict.fromkeys(samples):
+              for agent in ('googlebot','browser') if slug=='lookpremium' else ('googlebot',):
+                  page=get('/'+slug,agent)
+                  if page and page[0]==200:
+                      text=page[1].decode('utf8','replace')
+                      print('HTML',slug,'h1',re.findall(r'<h1[^>]*>([^<]{1,90})',text)[:2],'canonical',re.findall(r'<link rel="canonical" href="([^"]+)"',text)[:1],'seo_boot', 'shopvax-seo-boot' in text,flush=True)
+                  result=get('/api/public/store/'+slug,agent)
+                  if result and result[0]==200:
+                      try:
+                          body=json.loads(result[1]); print('STORE',slug,'public_slug_match',body.get('store',{}).get('slug')==slug,'product_count',len(body.get('products',[])),'has_page',bool(body.get('page')),'has_seller',bool(body.get('seller')),'keys',sorted(body.keys()),flush=True)
+                      except Exception as e:print('INVALID_JSON',slug,str(e),flush=True)
+                  elif result:print('STORE_FAIL',slug,'HTTP',result[0],'body_summary',result[1][:140].decode('utf8','replace'),flush=True)
+          PY

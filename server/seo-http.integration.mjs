@@ -48,6 +48,8 @@ try {
   assert.equal(robots.status, 200)
   includes(robots.text, 'Sitemap: https://shopvax.com.br/sitemap.xml')
   includes(robots.text, 'Disallow: /api/')
+  includes(robots.text, 'Allow: /api/public/store/')
+  includes(robots.text, 'Disallow: /api/public/store/*/customers/')
   const botGet = async (path) => {
     const response = await fetch(url(path), { headers: {
       'User-Agent': 'Googlebot/2.1 (+http://www.google.com/bot.html)'
@@ -94,6 +96,17 @@ try {
   const listing = await get('/' + slug)
   assert.equal(listing.status, 200)
   includes(listing.text, '"@type":"Store"')
+  includes(listing.text, 'Produto SEO visivel')
+  assert.equal(listing.text.includes('Produto nao publicado'), false)
+  assert.equal(listing.text.includes('Produto oculto no catalogo'), false)
+  assert.equal(listing.text.includes(email), false)
+  const anonymous = await botGet('/api/public/store/' + slug)
+  assert.equal(anonymous.status, 200)
+  assert.match(anonymous.contentType, /application\/json/)
+  const publicData = JSON.parse(anonymous.body)
+  assert.equal(publicData.store.slug, slug)
+  assert.ok(publicData.products.some((p) => p.id === activeId))
+  assert.equal(anonymous.body.includes(email), false)
   const param = await get('/' + slug + '?q=secreto')
   assert.equal(param.status, 200)
   includes(param.text, 'noindex,nofollow,noarchive')
