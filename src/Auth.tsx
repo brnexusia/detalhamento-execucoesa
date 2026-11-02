@@ -195,7 +195,12 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
                 <img className="svx-brand-symbol" src="/brand/shopvax-symbol.svg" alt="" aria-hidden="true" draggable={false} />
                 <img className="svx-brand-wordmark" src="/brand/shopvax-wordmark.svg" alt="Shopvax" draggable={false} />
               </div>
-            ) : <span className="brand__mark"><img className="svx-brand-symbol" src="/brand/shopvax-symbol.svg" alt="" aria-hidden="true" draggable={false} /></span>}
+            ) : (
+              <div className="auth-login-brand" aria-label="Shopvax">
+                <img className="svx-brand-symbol" src="/brand/shopvax-symbol.svg" alt="" aria-hidden="true" draggable={false} />
+                <img className="svx-brand-wordmark" src="/brand/shopvax-wordmark.svg" alt="Shopvax" draggable={false} />
+              </div>
+            )}
             <p>{registrationMode ? 'Criar conta' : 'Entrar'}</p>
             <h2>{googleSignup ? 'Complete os dados da sua loja.' : registrationMode ? 'Comece com a sua loja.' : 'Acesse seu painel.'}</h2>
           </div>
