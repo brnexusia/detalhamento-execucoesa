@@ -51,6 +51,18 @@ try {
   await owner.waitForURL(/\/painel$/)
   await owner.locator('.panel-shell').waitFor() // Panel, not the public profile or login form.
 
+  // A rota de login precisa reconhecer o cookie já válido; não pedir senha novamente.
+  const resumed = await context.newPage()
+  await resumed.goto('http://127.0.0.1:5173/entrar?next=%2Fpainel')
+  await resumed.waitForURL(/\/painel$/)
+  await resumed.locator('.panel-shell').waitFor()
+  assert.equal(await resumed.locator('.auth-form').count(), 0, 'Login não deve aparecer com sessão autenticada')
+
+  // A troca explícita de conta continua acessível para quem precisa usar outra loja.
+  const switching = await context.newPage()
+  await switching.goto('http://127.0.0.1:5173/entrar?trocar-conta=1')
+  await switching.getByRole('heading', { name: 'Acesse seu painel.' }).waitFor()
+
   // Session can become valid after the modal was opened: verify again on click.
   ownerLoggedIn = false
   const delayed = await context.newPage()
