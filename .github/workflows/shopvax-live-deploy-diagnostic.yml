@@ -27,13 +27,13 @@ jobs:
           echo "UTC=$(date -u +%FT%TZ)"
           echo "=== DOMÍNIO ==="
           getent ahostsv4 shopvax.com.br | head -5 || true
-          for resource in / /shopvax-ui-version.json /health /api/public/buyer-auth/config /perfil/sw-moda-feminina; do
+          for resource in / /shopvax-ui-version.json /health /api/public/buyer-auth/config /api/billing/public-plans /perfil/sw-moda-feminina; do
             echo "=== HTTP $resource ==="
             tmp="$(mktemp)"
             curl -L -sS --max-time 20 --connect-timeout 7 -D - -o "$tmp" \
               -w 'HTTP_FINAL=%{http_code} FINAL_URL=%{url_effective} IP=%{remote_ip} SIZE=%{size_download}\n' \
               "$SHOPVAX_ORIGIN$resource" | head -45
-            if [[ "$resource" == "/shopvax-ui-version.json" || "$resource" == "/health" || "$resource" == "/api/public/buyer-auth/config" ]]; then
+            if [[ "$resource" == "/shopvax-ui-version.json" || "$resource" == "/health" || "$resource" == "/api/public/buyer-auth/config" || "$resource" == "/api/billing/public-plans" ]]; then
               head -c 1500 "$tmp"; echo
             else
               grep -Eo '<script[^>]*src="[^"]+|<link[^>]*href="[^"]+' "$tmp" | head -10 || true
