@@ -108,6 +108,19 @@ async function metadataFor(req) {
       name: plain(store.name), url: meta.url,
       ...(meta.image ? { image: meta.image } : {}),
     }
+    // Real, server-rendered public catalog teaser. Identical for humans and crawlers.
+    // Never include unpublished, hidden or non-default-catalog items in initial HTML.
+    if (!profile && !productId && meta.index) {
+      const preview = await pool.query([
+        'SELECT p.id,p.name FROM products p WHERE p.store_id=$1 AND p.active=true',
+        'AND EXISTS (SELECT 1 FROM catalogs c LEFT JOIN catalog_products cp',
+        'ON cp.catalog_id=c.id AND cp.product_id=p.id',
+        'WHERE c.store_id=$1 AND c.is_default=true AND c.active=true',
+        'AND COALESCE(cp.visible,true)=true)',
+        'ORDER BY p.featured DESC,p.created_at DESC,p.id DESC LIMIT 12',
+      ].join(' '), [store.id])
+      meta.publicProducts = preview.rows.map((row) => ({ id: String(row.id), name: plain(row.name) }))
+    }
     if (productId) {
       if (!cleanQuery || parts.length !== (profile ? 2 : 1)) return { ...meta, index: false }
       const storefrontVisibility = [
@@ -216,10 +229,16 @@ function injectMetadata(html, meta) {
   // Real server response content for crawlers; React replaces this boot markup when mounted.
   // Same content is presented to visitors and bots; no UA-specific rendering or hidden text.
   if (meta.index && meta.headline) {
+    const productList = Array.isArray(meta.publicProducts) && meta.publicProducts.length
+      ? '<section aria-label="Produtos públicos da loja"><h2>Produtos disponíveis</h2><ul>' +
+        meta.publicProducts.map((product) =>
+          '<li><a href="' + esc(meta.url + '?produto=' + encodeURIComponent(product.id)) + '">' +
+          esc(product.name) + '</a></li>').join('') + '</ul></section>'
+      : ''
     const fallback = '<main class="shopvax-seo-boot" style="max-width:64rem;margin:auto;padding:3rem 1.5rem">' +
       '<h1>' + esc(meta.headline) + '</h1>' +
       (meta.excerpt ? '<p>' + esc(meta.excerpt) + '</p>' : '') +
-      '</main>'
+      productList + '</main>'
     result = result.replace('<div id="root"></div>', '<div id="root">' + fallback + '</div>')
   }
   return result
