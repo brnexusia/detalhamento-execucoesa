@@ -45,4 +45,14 @@ try {
     console.log(success?'SIGNUP_TO_STRIPE_AUTO_REDIRECT_OK':'SIGNUP_STRIPE_ERROR_FALLBACK_OK')
     await page.close()
   }
+  const paid = await browser.newPage({viewport:{width:390,height:844}})
+  await paid.route('**/api/auth/me',r=>r.fulfill({status:200,contentType:'application/json',body:'{"user":{"id":"u1","name":"Lojista","email":"lojista@example.test"},"store":{"id":"s1","slug":"loja","name":"Loja"}}'}))
+  await paid.route('**/api/billing/status',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
+    enabled:true,required:true,accessGranted:true,status:'active',planCode:'prata',cycle:'semiannual',
+    paidUntil:'2027-01-01T00:00:00Z',cancelAtPeriodEnd:false,prices:[],
+  })}))
+  await paid.goto(origin+'/painel/assinatura?stripe=success')
+  await paid.waitForURL(/\\/painel$/, {timeout:10000})
+  console.log('PAID_STRIPE_WEBHOOK_TO_MERCHANT_DASHBOARD_OK')
+  await paid.close()
 } finally { await browser.close() }
