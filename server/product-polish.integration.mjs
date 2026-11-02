@@ -23,7 +23,8 @@ assert.doesNotMatch(auth, /\/api\/account\/plan/)
 assert.doesNotMatch(auth, /fallbackPlans/)
 
 const app = read('server/app.mjs')
-assert.match(app, /plan_tier,signup_plan_selected_at/)
+assert.match(app, /plan_tier,billing_required,signup_plan_selected_at/)
+assert.match(app, /\$5,\$6,true,now\(\)/)
 assert.match(app, /Selecione Bronze, Prata ou Ouro/)
 assert.match(app, /\/api\/admin\/products\/:id\/visibility/)
 

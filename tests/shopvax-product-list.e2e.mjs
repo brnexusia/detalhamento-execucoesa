@@ -29,6 +29,11 @@ try {
     // Each viewport starts with identical, isolated API data.
     const items = products.map((item) => ({ ...item }))
     const page = await browser.newPage({ viewport: { width, height } })
+    // Fixture comercial já paga: teste de produtos não deve simular assinatura pendente.
+    await page.route('**/api/billing/status', route => route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({enabled:true,required:true,accessGranted:true,status:'active',planCode:'prata',cycle:'monthly',paidUntil:'2027-01-01T00:00:00Z',prices:[]}),
+    }))
     await page.route('**/api/admin/bootstrap*', (route) => {
       const categories = [...new Set(items.map((item) => item.category))]
       route.fulfill({
