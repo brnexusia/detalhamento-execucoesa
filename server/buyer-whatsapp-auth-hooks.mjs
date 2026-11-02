@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import express from 'express'
 import pg from 'pg'
+import { revokeAllBrowserSessions, clearAllBrowserSessionCookies, browserSessionCookies } from './global-logout.mjs'
 import { buyerWhatsappDeliveryConfigured, deliverBuyerVerificationCode } from './buyer-whatsapp-delivery.mjs'
 
 // Serviço independente: jamais modifica o webhook da central, o Chatwoot ou o n8n.
@@ -266,14 +267,12 @@ async function me(req,res) {
   return res.json({ buyer: publicBuyer(account) })
 }
 async function logout(req,res,next) {
-  if (!cookies(req)[COOKIE]) return next()
+  const current = cookies(req)
+  if (!browserSessionCookies.some((name) => Boolean(current[name]))) return next()
   if (!pool) return fail(res,503,'Sessão indisponível.')
-  await schema()
-  const old = cookies(req)[LEGACY_COOKIE]
-  if (old) await pool.query('DELETE FROM store_customer_sessions WHERE token_hash=$1',[sha(old)])
-  await pool.query('DELETE FROM buyer_sessions WHERE token_hash=$1',[sha(cookies(req)[COOKIE])])
-  res.clearCookie(COOKIE,opts(req))
-  res.clearCookie(LEGACY_COOKIE,opts(req))
+  await revokeAllBrowserSessions(pool, current)
+  clearAllBrowserSessionCookies(req, res)
+  res.set('Cache-Control', 'no-store, private')
   return res.json({ok:true})
 }
 function install(app) {
