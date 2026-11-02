@@ -52,7 +52,7 @@ try {
     paidUntil:'2027-01-01T00:00:00Z',cancelAtPeriodEnd:false,prices:[],
   })}))
   await paid.goto(origin+'/painel/assinatura?stripe=success')
-  await paid.waitForURL(/\\/painel$/, {timeout:10000})
+  await paid.waitForURL(url => url.pathname === '/painel', {timeout:10000})
   console.log('PAID_STRIPE_WEBHOOK_TO_MERCHANT_DASHBOARD_OK')
   await paid.close()
 } finally { await browser.close() }
