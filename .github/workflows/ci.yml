@@ -48,6 +48,7 @@ jobs:
           npm audit --omit=dev --audit-level=moderate
       - name: Validate production Docker hooks
         run: |
+          grep -Fq '"./server/seo-routes-hooks.mjs"' Dockerfile
           grep -Fq '"./server/brand-compat-hooks.mjs"' Dockerfile
           grep -Fq '"./server/security-hooks.mjs"' Dockerfile
           grep -Fq '"./server/stripe-billing-hooks.mjs"' Dockerfile
@@ -83,6 +84,8 @@ jobs:
           grep -Fq '#F25C05' public/favicon.svg
           ! grep -Eiq '#c8ff38' public/favicon.svg
           grep -Fq 'content="#161514"' index.html
+      - name: Validate XML escaping and SEO route helpers
+        run: npm run test:seo
       - name: Release smoke test (local, read-only)
         run: node --test tests/verify-production.test.mjs
       - name: Aprovacao dos planos comerciais e migracao segura
@@ -158,6 +161,8 @@ jobs:
           const body = await response.json()
           if (body.enabled !== false || body.clientId !== null) throw new Error('Google auth should be disabled when GOOGLE_CLIENT_ID is absent')
           NODE
+      - name: SEO HTTP and PostgreSQL lifecycle integration
+        run: node server/seo-http.integration.mjs
       - name: Stripe billing schema and fail-closed smoke test
         run: node server/stripe-billing.integration.mjs
       - name: Growth endpoints with real PostgreSQL (disabled external services)

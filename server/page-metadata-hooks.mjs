@@ -35,88 +35,172 @@ function absoluteUrl(req, value) {
   } catch { return '' }
 }
 
-async function metadataFor(req) {
-  const origin = originFor(req)
-  const url = new URL(req.originalUrl || req.url || '/', origin)
-  const segments = url.pathname.split('/').filter(Boolean)
-  const isProfile = segments[0] === 'perfil'
-  const slug = isProfile ? segments[1] || '' : segments[0] || ''
-  const canonicalUrl = `${origin}${url.pathname}${url.search}`
-  const fallback = {
-    title: 'Shopvax',
-    description: 'Shopvax — descubra produtos e lojas e monte seu pedido direto pelo WhatsApp.',
-    url: canonicalUrl,
-    image: '',
-    video: '',
-  }
-
-  if (!pool || !slug || (!isProfile && reserved.has(slug))) return fallback
-
+const SITE = 'https://shopvax.com.br'
+const NON_PUBLIC = new Set([
+  'feed','descobrir','para-lojas','entrar','login','criar-conta','comprador',
+  'cliente','painel','admin','api','media','assets','health','robots.txt','sitemap.xml',
+  'perfil','favicon.svg'
+])
+const plain = (value, fallback = '') => String(value || fallback).replace(/\s+/g, ' ').trim().slice(0, 220)
+const safeJson = (value) => JSON.stringify(value).replace(/</g, '\\u003c')
+const documentUrl = (path, query = '') => SITE + path + query
+const publicImage = (value) => {
   try {
-    const storeResult = await pool.query(
-      'SELECT id,slug,name,tagline,logo_url FROM stores WHERE slug=$1 AND is_active=true LIMIT 1',
-      [slug],
+    const u = new URL(String(value || ''), SITE)
+    return u.protocol === 'https:' &&
+      !/^(?:localhost|127\.|10\.|192\.168\.|169\.254\.|0\.0\.0\.0$)/i.test(u.hostname) &&
+      !/^172\.(?:1[6-9]|2\d|3[01])\./.test(u.hostname) &&
+      !u.username && !u.password ? u.href : ''
+  } catch { return '' }
+}
+const base = (status = 200) => ({
+  title: 'Shopvax | Catálogos, lojas e compras pelo WhatsApp',
+  description: 'Descubra lojas, explore produtos e organize pedidos diretamente pelo WhatsApp no Shopvax.',
+  url: SITE + '/', status, index: status === 200, image: '', schema: null, headline: '', excerpt: '',
+})
+async function metadataFor(req) {
+  const url = new URL(req.originalUrl || '/', SITE)
+  const pathname = url.pathname.replace(/\/+$/, '') || '/'
+  const parts = pathname.split('/').filter(Boolean)
+  const params = [...url.searchParams.keys()]
+  const productId = String(url.searchParams.get('produto') || '').trim().slice(0, 100)
+  const cleanQuery = params.length === 0 || (params.length === 1 && params[0] === 'produto' && productId)
+  const meta = base()
+  meta.url = documentUrl(pathname)
+  if (pathname === '/') {
+    meta.url = SITE + '/'
+    meta.headline = 'Descubra lojas e produtos no Shopvax'
+    return meta
+  }
+  if (pathname === '/para-lojas') {
+    meta.title = 'Catálogo digital para atacado e varejo | Shopvax'
+    meta.description = 'Organize produtos, catálogos e vendedoras; seus clientes escolhem os itens e enviam o pedido pelo WhatsApp.'
+    meta.headline = 'Seu catálogo digital com pedidos pelo WhatsApp'
+    meta.excerpt = meta.description
+    return meta
+  }
+  if (parts[0] === 'perfil' && parts.length !== 2) return { ...meta, status: 404, index: false }
+  const profile = parts[0] === 'perfil' && parts.length === 2
+  const storeSlug = profile ? parts[1] : parts[0]
+  if (!pool || !storeSlug || NON_PUBLIC.has(storeSlug) || (!profile && parts.length > 2)) {
+    return { ...meta, index: false, status: pool ? 200 : 503 }
+  }
+  if (!/^[a-z0-9][a-z0-9-]{0,119}$/.test(storeSlug)) return { ...meta, status: 404, index: false }
+  try {
+    const stores = await pool.query(
+      'SELECT id,slug,name,tagline,logo_url,social_enabled FROM stores WHERE slug=$1 AND is_active=true LIMIT 1',
+      [storeSlug],
     )
-    if (!storeResult.rowCount) return fallback
-    const store = storeResult.rows[0]
-    const productId = String(url.searchParams.get('produto') || '').trim().slice(0, 100)
-
+    if (!stores.rowCount || (profile && stores.rows[0].social_enabled !== true)) {
+      return { ...meta, status: 404, index: false }
+    }
+    const store = stores.rows[0]
+    const canonicalPath = (profile ? '/perfil/' : '/') + encodeURIComponent(store.slug)
+    meta.url = documentUrl(canonicalPath)
+    meta.title = plain(store.name) + (profile ? ' | Shopvax' : ' — Catálogo | Shopvax')
+    meta.description = plain(store.tagline, 'Explore o catálogo de ' + store.name + ' no Shopvax.')
+    meta.image = publicImage(store.logo_url)
+    meta.headline = plain(store.name)
+    meta.excerpt = meta.description
+    meta.index = cleanQuery && (profile || parts.length === 1)
+    meta.schema = {
+      '@context': 'https://schema.org', '@type': 'Store',
+      name: plain(store.name), url: meta.url,
+      ...(meta.image ? { image: meta.image } : {}),
+    }
     if (productId) {
-      const productResult = await pool.query(
-        `SELECT id,name,description,media_url,media_type
-         FROM products WHERE id=$1 AND store_id=$2 AND active=true LIMIT 1`,
-        [productId, store.id],
+      if (!cleanQuery || parts.length !== (profile ? 2 : 1)) return { ...meta, index: false }
+      const storefrontVisibility = [
+        'SELECT 1 FROM catalogs c LEFT JOIN catalog_products cp',
+        'ON cp.catalog_id=c.id AND cp.product_id=$1',
+        'WHERE c.store_id=$2 AND c.is_default=true AND c.active=true',
+        'AND COALESCE(cp.visible,true)=true LIMIT 1',
+      ].join(' ')
+      const found = await pool.query(profile
+        ? 'SELECT p.id,p.name,p.description,p.media_type,p.media_url FROM products p WHERE p.id=$1 AND p.store_id=$2 AND p.active=true AND p.social_published=true LIMIT 1'
+        : [
+          'SELECT p.id,p.name,p.description,p.media_type,p.media_url FROM products p',
+          'WHERE p.id=$1 AND p.store_id=$2 AND p.active=true AND EXISTS (' +
+          storefrontVisibility + ') LIMIT 1',
+        ].join(' '), [productId, store.id])
+      if (!found.rowCount) return { ...meta, status: 404, index: false, schema: null }
+      const product = found.rows[0]
+      let storefrontVisible = !profile
+      if (profile) {
+        const available = await pool.query(storefrontVisibility, [product.id, store.id])
+        storefrontVisible = available.rowCount > 0
+      }
+      const canonicalProduct = documentUrl(
+        (storefrontVisible ? '/' : '/perfil/') + encodeURIComponent(store.slug),
+        '?produto=' + encodeURIComponent(product.id),
       )
-      if (productResult.rowCount) {
-        const product = productResult.rows[0]
-        return {
-          title: `${product.name} · ${store.name} | Shopvax`,
-          description: String(product.description || `Veja ${product.name} no perfil da ${store.name} no Shopvax.`).slice(0, 220),
-          url: canonicalUrl,
-          image: product.media_type === 'image' ? absoluteUrl(req, product.media_url) : absoluteUrl(req, store.logo_url),
-          video: product.media_type === 'video' ? absoluteUrl(req, product.media_url) : '',
-        }
+      meta.url = canonicalProduct
+      meta.title = plain(product.name) + ' · ' + plain(store.name) + ' | Shopvax'
+      meta.description = plain(product.description, 'Conheça ' + product.name + ' no catálogo da loja ' + store.name + '.')
+      meta.image = product.media_type === 'image' ? (publicImage(product.media_url) || meta.image) : meta.image
+      meta.headline = plain(product.name)
+      meta.excerpt = meta.description
+      meta.index = cleanQuery && (!profile || !storefrontVisible)
+      meta.schema = {
+        '@context': 'https://schema.org', '@type': 'Product',
+        name: plain(product.name), description: meta.description, url: canonicalProduct,
+        ...(meta.image ? { image: meta.image } : {}),
+        isPartOf: { '@type': 'WebPage', name: plain(store.name), url: documentUrl('/' + encodeURIComponent(store.slug)) },
       }
     }
-
-    return {
-      title: `${store.name} | Shopvax`,
-      description: String(store.tagline || `Veja o perfil da ${store.name} no Shopvax.`).slice(0, 220),
-      url: canonicalUrl,
-      image: absoluteUrl(req, store.logo_url),
-      video: '',
-    }
+    return meta
   } catch (error) {
-    console.error('[page metadata] lookup:', error instanceof Error ? error.message : String(error))
-    return fallback
+    console.error('[seo] metadata lookup failed:', error instanceof Error ? error.message : String(error))
+    return { ...base(503), index: false, url: SITE + pathname }
   }
 }
 
 function injectMetadata(html, meta) {
-  const title = escapeHtml(meta.title)
-  const description = escapeHtml(meta.description)
-  const url = escapeHtml(meta.url)
+  const esc = escapeHtml
+  const description = esc(meta.description)
+  const title = esc(meta.title)
+  const url = esc(meta.url)
+  const image = meta.image ? esc(meta.image) : ''
   const tags = [
-    `<meta property="og:site_name" content="Shopvax" />`,
-    `<meta property="og:type" content="website" />`,
-    `<meta property="og:title" content="${title}" />`,
-    `<meta property="og:description" content="${description}" />`,
-    `<meta property="og:url" content="${url}" />`,
-    `<meta name="twitter:card" content="${meta.image ? 'summary_large_image' : 'summary'}" />`,
-    `<meta name="twitter:title" content="${title}" />`,
-    `<meta name="twitter:description" content="${description}" />`,
+    '<link rel="canonical" href="' + url + '" />',
+    '<meta name="robots" content="' + (meta.index && meta.status === 200 ? 'index,follow,max-image-preview:large' : 'noindex,nofollow,noarchive') + '" />',
+    '<meta property="og:site_name" content="Shopvax" />',
+    '<meta property="og:locale" content="pt_BR" />',
+    '<meta property="og:type" content="' + (meta.schema?.['@type'] === 'Product' ? 'product' : 'website') + '" />',
+    '<meta property="og:title" content="' + title + '" />',
+    '<meta property="og:description" content="' + description + '" />',
+    '<meta property="og:url" content="' + url + '" />',
+    '<meta name="twitter:card" content="' + (image ? 'summary_large_image' : 'summary') + '" />',
+    '<meta name="twitter:title" content="' + title + '" />',
+    '<meta name="twitter:description" content="' + description + '" />',
   ]
-  if (meta.image) {
-    const image = escapeHtml(meta.image)
-    tags.push(`<meta property="og:image" content="${image}" />`)
-    tags.push(`<meta name="twitter:image" content="${image}" />`)
+  if (image) {
+    tags.push('<meta property="og:image" content="' + image + '" />')
+    tags.push('<meta name="twitter:image" content="' + image + '" />')
   }
-  if (meta.video) tags.push(`<meta property="og:video" content="${escapeHtml(meta.video)}" />`)
-
-  return html
-    .replace(/<title>[^<]*<\/title>/i, `<title>${title}</title>`)
-    .replace(/<meta\s+name="description"\s+content="[^"]*"\s*\/?>/i, `<meta name="description" content="${description}" />`)
-    .replace('</head>', `    ${tags.join('\n    ')}\n  </head>`)
+  const organization = {
+    '@context': 'https://schema.org', '@type': 'Organization',
+    name: 'Shopvax', url: SITE, logo: SITE + '/brand/shopvax-lockup.svg',
+  }
+  const website = { '@context': 'https://schema.org', '@type': 'WebSite', name: 'Shopvax', url: SITE + '/', inLanguage: 'pt-BR' }
+  if (meta.url === SITE + '/' || meta.url === SITE + '/para-lojas') {
+    tags.push('<script type="application/ld+json">' + safeJson([organization, website]) + '</script>')
+  } else if (meta.schema && meta.index) {
+    tags.push('<script type="application/ld+json">' + safeJson(meta.schema) + '</script>')
+  }
+  let result = html.replace(/<title>[^<]*<\/title>/i, '<title>' + title + '</title>')
+    .replace(/<meta\s+name="description"\s+content="[^"]*"\s*\/?>/i, '<meta name="description" content="' + description + '" />')
+    .replace('</head>', '    ' + tags.join('\n    ') + '\n  </head>')
+  // Real server response content for crawlers; React replaces this boot markup when mounted.
+  // Same content is presented to visitors and bots; no UA-specific rendering or hidden text.
+  if (meta.index && meta.headline) {
+    const fallback = '<main class="shopvax-seo-boot" style="max-width:64rem;margin:auto;padding:3rem 1.5rem">' +
+      '<h1>' + esc(meta.headline) + '</h1>' +
+      (meta.excerpt ? '<p>' + esc(meta.excerpt) + '</p>' : '') +
+      '</main>'
+    result = result.replace('<div id="root"></div>', '<div id="root">' + fallback + '</div>')
+  }
+  return result
 }
 
 const originalSendFile = express.response.sendFile
@@ -139,7 +223,8 @@ express.response.sendFile = function metadataSendFile(filePath, options, callbac
     metadataFor(res.req),
   ]).then(([html, meta]) => {
     if (res.headersSent) return
-    res.type('html').send(injectMetadata(html, meta))
+    res.setHeader('X-Robots-Tag', meta.index && meta.status === 200 ? 'index,follow' : 'noindex,nofollow,noarchive')
+    res.status(meta.status || 200).type('html').send(injectMetadata(html, meta))
     if (typeof callback === 'function') callback(null)
   }).catch((error) => {
     console.error('[page metadata] fallback:', error instanceof Error ? error.message : String(error))
