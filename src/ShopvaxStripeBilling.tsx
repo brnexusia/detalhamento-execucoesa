@@ -60,6 +60,13 @@ export default function ShopvaxStripeBilling() {
   }
   useEffect(() => { void refresh() }, [])
   useEffect(() => {
+    if (params.get('stripe') !== 'success' || !state?.accessGranted) return
+    // Só abrir o painel quando o webhook autenticado confirmar a assinatura.
+    window.history.replaceState({}, '', '/painel')
+    window.dispatchEvent(new PopStateEvent('popstate'))
+  }, [state?.accessGranted])
+
+  useEffect(() => {
     if (new URLSearchParams(window.location.search).get('stripe') !== 'success') return
     setNotice('Checkout concluído. Aguardando a confirmação segura da Stripe para liberar seu plano.')
     let attempts = 0
