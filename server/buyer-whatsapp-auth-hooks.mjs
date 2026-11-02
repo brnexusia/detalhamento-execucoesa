@@ -1,14 +1,15 @@
 import crypto from 'node:crypto'
 import express from 'express'
 import pg from 'pg'
+import { buyerWhatsappDeliveryConfigured, deliverBuyerVerificationCode } from './buyer-whatsapp-delivery.mjs'
 
 // Serviço independente: jamais modifica o webhook da central, o Chatwoot ou o n8n.
 const pool = process.env.DATABASE_URL ? new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 4 }) : null
 const COOKIE = 'shopvax_buyer_session'
 const LEGACY_COOKIE = 'shopvax_customer_session'
 const enabled = () => process.env.SHOPVAX_BUYER_WHATSAPP_LOGIN === '1'
-export const buyerWhatsappReady = () => enabled() && /^https:\/\//.test(process.env.UAZAPI_BASE_URL || '') &&
-  Boolean(process.env.UAZAPI_INSTANCE_TOKEN) && (process.env.SHOPVAX_OTP_HMAC_SECRET || '').length >= 32
+export const buyerWhatsappReady = () => enabled() && buyerWhatsappDeliveryConfigured() &&
+  (process.env.SHOPVAX_OTP_HMAC_SECRET || '').length >= 32
 const mac = (value) => crypto.createHmac('sha256', process.env.SHOPVAX_OTP_HMAC_SECRET).update(value).digest('hex')
 const sha = (value) => crypto.createHash('sha256').update(value).digest('hex')
 const uuid = () => crypto.randomUUID()
@@ -75,21 +76,6 @@ async function store(slug) {
   const r = await pool.query('SELECT id FROM stores WHERE slug=$1 AND is_active=true AND customer_login_enabled=true LIMIT 1', [String(slug || '')])
   return r.rows[0] || null
 }
-async function deliver(phone, code, trackingId) {
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 8000)
-  try {
-    const response = await fetch(new URL('/send/text', process.env.UAZAPI_BASE_URL), {
-      method: 'POST', signal: controller.signal,
-      headers: { 'content-type': 'application/json', token: process.env.UAZAPI_INSTANCE_TOKEN },
-      body: JSON.stringify({
-        number: phone, text: 'ShopVax: seu código de verificação é ' + code + '. Válido por 5 minutos. Não compartilhe.',
-        track_source: 'shopvax_auth', track_id: trackingId, async: false,
-      }),
-    })
-    if (!response.ok) throw new Error('UAZAPI indisponível')
-  } finally { clearTimeout(timeout) }
-}
 async function requestCode(req, res) {
   if (!buyerWhatsappReady()) return fail(res, 503, 'Verificação indisponível.')
   const phone = normalizeBuyerPhone(req.body?.phone)
@@ -122,7 +108,7 @@ async function requestCode(req, res) {
     await client.query('ROLLBACK').catch(() => undefined)
     throw error
   } finally { client.release() }
-  try { await deliver(phone, code, challengeId) }
+  try { await deliverBuyerVerificationCode({ phone, code, trackingId: challengeId }) }
   catch {
     await pool.query('UPDATE buyer_otp_challenges SET consumed_at=now() WHERE id=$1', [challengeId])
     return fail(res, 503, 'Não foi possível enviar o código agora.')

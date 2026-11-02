@@ -36,10 +36,11 @@ export default function BuyerWhatsappLogin({ storeSlug, onVerified, editOnly = f
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [cooldown, setCooldown] = useState(0)
+  const [expiresIn, setExpiresIn] = useState(0)
 
   useEffect(() => {
     let active = true
-    setStage('phone'); setOpen(!editOnly); setPhone(''); setCode(''); setError('')
+    setStage('phone'); setOpen(!editOnly); setPhone(''); setCode(''); setError(''); setCooldown(0); setExpiresIn(0)
     apiRequest<{ buyer: Buyer }>('/api/public/buyer-auth/me')
       .then(({ buyer }) => {
         if (!active) return
@@ -60,10 +61,13 @@ export default function BuyerWhatsappLogin({ storeSlug, onVerified, editOnly = f
   }, [storeSlug, editOnly])
 
   useEffect(() => {
-    if (cooldown < 1) return
-    const timer = window.setTimeout(() => setCooldown((s) => Math.max(0, s - 1)), 1000)
+    if (cooldown < 1 && expiresIn < 1) return
+    const timer = window.setTimeout(() => {
+      setCooldown((seconds) => Math.max(0, seconds - 1))
+      setExpiresIn((seconds) => Math.max(0, seconds - 1))
+    }, 1000)
     return () => window.clearTimeout(timer)
-  }, [cooldown])
+  }, [cooldown, expiresIn])
 
   const change = (field: keyof Form, value: string | boolean | string[]) => {
     setForm((old) => ({ ...old, [field]: value }))
@@ -77,10 +81,12 @@ export default function BuyerWhatsappLogin({ storeSlug, onVerified, editOnly = f
   }
   const send = () => act(async () => {
     if (!enabled) throw new Error('Verificação por WhatsApp ainda não está habilitada neste ambiente.')
-    await apiRequest('/api/public/buyer-auth/request-code', {
+    const response = await apiRequest<{ expiresInSeconds: number; resendAfterSeconds: number }>('/api/public/buyer-auth/request-code', {
       method: 'POST', body: JSON.stringify({ phone, storeSlug }),
     })
-    setCode(''); setStage('code'); setCooldown(60)
+    setCode(''); setStage('code')
+    setCooldown(Math.max(0, Number(response.resendAfterSeconds) || 0))
+    setExpiresIn(Math.max(0, Number(response.expiresInSeconds) || 0))
   })
   const verify = () => act(async () => {
     const response = await apiRequest<{ needsProfile: boolean; buyer: Buyer }>('/api/public/buyer-auth/verify-code', {
@@ -125,17 +131,17 @@ export default function BuyerWhatsappLogin({ storeSlug, onVerified, editOnly = f
       </button>
     </form>}
     {stage === 'code' && <form onSubmit={(event) => { event.preventDefault(); void verify() }}>
-      <p className="buyer-code-explanation">Enviamos um código para <strong>{phone}</strong>.</p>
+      <p className="buyer-code-explanation" role="status">Enviamos um código para <strong>{phone}</strong>. {expiresIn > 0 ? `Ele expira em ${Math.ceil(expiresIn / 60)} min.` : 'O código expirou; solicite outro.'}</p>
       <label><span>Código de 6 dígitos</span>
         <input className="buyer-otp-input" type="text" inputMode="numeric" autoComplete="one-time-code"
           pattern="[0-9]{6}" maxLength={6} placeholder="000000" value={code}
           onChange={(e) => setCode(e.target.value.replace(/\D/g,'').slice(0,6))} required/>
       </label>
-      <button className="customer-submit" type="submit" disabled={busy || code.length !== 6}>
+      <button className="customer-submit" type="submit" disabled={busy || code.length !== 6 || expiresIn < 1}>
         <CheckCircle2 size={17}/> {busy ? 'Validando…' : 'Confirmar código'}
       </button>
       <div className="buyer-inline-actions">
-        <button type="button" disabled={busy} onClick={() => { setStage('phone'); setCode(''); setCooldown(0) }}>Alterar número</button>
+        <button type="button" disabled={busy} onClick={() => { setStage('phone'); setCode(''); setCooldown(0); setExpiresIn(0) }}>Alterar número</button>
         <button type="button" disabled={busy || cooldown > 0} onClick={() => void send()}>
           {cooldown ? 'Reenviar em ' + cooldown + 's' : 'Reenviar código'}
         </button>

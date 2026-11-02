@@ -27,6 +27,11 @@ Envia texto via `POST /send/text` com header `token`, `track_source:shopvax_auth
 Somente o backend gera, armazena MAC, verifica e consome códigos (6 dígitos, 5 minutos, 5 tentativas), com limitação por telefone e IP.
 Não usa mensagens de resposta do comprador para validação e não processa código dentro da IA/n8n.
 
+O contrato de entrega possui teste automatizado para URL HTTPS, header de autenticação, telefone normalizado,
+texto do código, rastreamento, `async:false`, rejeição HTTP e timeout. Falhas externas devolvem mensagem genérica e
+não incluem token, corpo da UAZAPI ou código em logs/respostas. Essa cobertura valida a integração do código, mas
+não substitui o teste de entrega em um aparelho nem a auditoria da ponte/Chatwoot descrita abaixo.
+
 ## Fluxo de contas existentes
 A identidade global é o telefone **verificado**, não o e-mail.
 Cada loja cria seu próprio vínculo com `store_customers` e vê apenas seus pedidos/históricos.
