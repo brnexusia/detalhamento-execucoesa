@@ -1,0 +1,55 @@
+name: shopvax-grupo1-checkout
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/ShopvaxCheckoutReview.tsx'
+      - 'src/checkout-buyer.css'
+      - 'src/PublicStoreV2.tsx'
+      - 'src/ShopvaxOrders.tsx'
+      - 'src/checkout-buyer-lines.ts'
+      - 'src/types.ts'
+      - 'src/api.ts'
+      - 'server/checkout-buyer.mjs'
+      - 'server/checkout-buyer.test.mjs'
+      - 'server/catalog-features-hooks.mjs'
+      - 'server/phase3-checkout-hooks.mjs'
+      - 'server/phase3-growth-hooks.mjs'
+      - 'tests/shopvax-checkout-review.e2e.mjs'
+      - 'tests/shopvax-order-buyer.e2e.mjs'
+      - '.github/workflows/shopvax-grupo1-checkout.yml'
+  workflow_dispatch:
+jobs:
+  checkout:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install
+        run: npm install --no-audit --no-fund
+      - name: Browser
+        run: |
+          npm install --no-save --no-audit --no-fund playwright@1.58.2
+          npx playwright install chromium
+      - name: Unit tests
+        run: node --test server/checkout-buyer.test.mjs
+      - name: Build
+        run: npm run build
+      - name: Start Vite
+        run: |
+          npm run dev -- --host 127.0.0.1 > /tmp/shopvax-grupo1-vite.log 2>&1 &
+          for i in {1..80}; do
+            if curl -fsS http://127.0.0.1:5173/ >/dev/null; then exit 0; fi
+            sleep .25
+          done
+          cat /tmp/shopvax-grupo1-vite.log
+          exit 1
+      - name: Checkout comprador - celular e desktop
+        run: node tests/shopvax-checkout-review.e2e.mjs
+      - name: Talão no painel - celular e desktop
+        run: node tests/shopvax-order-buyer.e2e.mjs
+      - name: Logs em falha
+        if: failure()
+        run: cat /tmp/shopvax-grupo1-vite.log || true

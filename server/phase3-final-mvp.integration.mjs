@@ -158,10 +158,11 @@ try {
   assert.equal(result.payload.contactable, 1)
   assert.match(result.payload.recoveries[0].whatsappUrl, /^https:\/\/wa\.me\/5511977700033/)
 
+  const couponIdemKey = 'group1-coupon-' + unique.replace(/[^a-zA-Z0-9_-]/g,'')
   // Pedido aplica cupom após o pedido mínimo (subtotal), vincula cliente e converte o carrinho.
   result = await request('/api/business/orders', {
     method: 'POST', cookie: publicCookies,
-    body: { storeSlug: owner.slug, sellerSlug: seller.slug, catalogSlug: catalog.slug, couponCode: 'BEMVINDO10', items: [{ productId: product.id, quantity: 5, selections: {} }] },
+    body: { storeSlug: owner.slug, sellerSlug: seller.slug, catalogSlug: catalog.slug, couponCode: 'BEMVINDO10', idempotencyKey: couponIdemKey, items: [{ productId: product.id, quantity: 5, selections: {} }] },
   })
   assert.equal(result.response.status, 201)
   assert.equal(result.payload.subtotal, 400)
@@ -170,6 +171,12 @@ try {
   assert.equal(result.payload.couponCode, 'BEMVINDO10')
   assert.match(decodeURIComponent(result.payload.whatsappUrl), /Cupom BEMVINDO10/)
   const discountedOrderId = result.payload.orderId
+  const repeated = await request('/api/business/orders',{method:'POST',cookie:publicCookies,
+    body:{storeSlug:owner.slug,sellerSlug:seller.slug,catalogSlug:catalog.slug,couponCode:'BEMVINDO10',idempotencyKey:couponIdemKey,items:[{productId:product.id,quantity:5,selections:{}}]}})
+  assert.equal(repeated.response.status,201,JSON.stringify(repeated.payload))
+  assert.equal(repeated.payload.orderId,discountedOrderId)
+  assert.equal(repeated.payload.discount,40)
+  assert.equal(Number((await pool.query('SELECT used_count FROM coupons WHERE store_id=(SELECT id FROM stores WHERE slug=$1) AND code=$2',[owner.slug,'BEMVINDO10'])).rows[0].used_count),1,'Retry não consome cupom novamente')
 
   result = await request('/api/admin/phase3/cart-recovery', { cookie: owner.cookie })
   assert.equal(result.response.status, 200)

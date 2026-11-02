@@ -140,7 +140,7 @@ export type AdminOrder = {
   seller_id?: string | null
   catalog_id?: string | null
   stock_reverted?: boolean
-  buyer?: { name?: string; city?: string; cep?: string; phone?: string }
+  buyer?: { name?: string; phone?: string; email?: string; document?: string; cep?: string; state?: string; city?: string; neighborhood?: string; street?: string; number?: string; complement?: string; reference?: string; deliveryMethod?: string; busPlate?: string; busColor?: string; busIdentifier?: string }
   notes?: string
   created_at: string
 }

@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 import express from 'express'
 import pg from 'pg'
 import { loadCatalogMedia, streamCatalogPdf } from './catalog-pdf.mjs'
+import { normalizeCheckoutBuyer, checkoutBuyerLines } from './checkout-buyer.mjs'
 
 const { Pool } = pg
 const databaseUrl = process.env.DATABASE_URL?.trim() || ''
@@ -81,6 +82,15 @@ async function ensureSchema() {
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS catalog_id text REFERENCES catalogs(id) ON DELETE SET NULL;
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS buyer jsonb NOT NULL DEFAULT '{}'::jsonb;
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS notes text NOT NULL DEFAULT '';
+    CREATE TABLE IF NOT EXISTS checkout_order_idempotency (
+      store_id text NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+      request_key text NOT NULL,
+      request_hash text NOT NULL,
+      order_id text REFERENCES orders(id) ON DELETE SET NULL,
+      response jsonb,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (store_id, request_key)
+    );
   `)
 }
 
@@ -510,9 +520,22 @@ async function createCatalogOrder(req, res) {
   const requestedItems = Array.isArray(req.body?.items) ? req.body.items : []
   if (!requestedItems.length) return res.status(400).json({ error: 'Carrinho vazio.' })
   const productIds = [...new Set(requestedItems.map((item) => String(item?.productId || '')).filter(Boolean))]
+  const requestKey = String(req.body?.idempotencyKey || '').trim()
+  if (requestKey && !/^[A-Za-z0-9_-]{16,100}$/.test(requestKey)) return res.status(400).json({ error: 'Chave de segurança do pedido inválida.' })
+  const requestHash = requestKey ? hashToken(JSON.stringify({ storeSlug: store.slug, catalogSlug: String(req.body?.catalogSlug || ''), sellerSlug: String(req.body?.sellerSlug || ''), items: requestedItems, buyer: req.body?.buyer || {}, notes: req.body?.notes || '' })) : ''
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
+    if (requestKey) {
+      const reservation = await client.query(`INSERT INTO checkout_order_idempotency (store_id,request_key,request_hash) VALUES($1,$2,$3) ON CONFLICT DO NOTHING RETURNING request_key`,[store.id,requestKey,requestHash])
+      if (!reservation.rowCount) {
+        const existing = (await client.query('SELECT request_hash,response FROM checkout_order_idempotency WHERE store_id=$1 AND request_key=$2 FOR UPDATE',[store.id,requestKey])).rows[0]
+        if (!existing || existing.request_hash !== requestHash) { await client.query('ROLLBACK'); return res.status(409).json({ code:'ORDER_KEY_CONFLICT',error:'Essa tentativa de pedido foi usada com outros dados.' }) }
+        if (!existing.response) { await client.query('ROLLBACK'); return res.status(409).json({ code:'ORDER_PENDING',error:'Pedido em processamento. Confira seus pedidos antes de tentar novamente.' }) }
+        await client.query('COMMIT')
+        return res.status(201).json(existing.response)
+      }
+    }
     const productsResult = await client.query(
       `SELECT p.*,COALESCE(cp.price_override,p.price) AS public_price,COALESCE(cp.visible,true) AS catalog_visible
        FROM products p LEFT JOIN catalog_products cp ON cp.product_id=p.id AND cp.catalog_id=$3
@@ -571,32 +594,30 @@ async function createCatalogOrder(req, res) {
       await client.query('ROLLBACK')
       return res.status(409).json({ code: 'NO_AVAILABLE_SELLER', error: 'Nenhuma vendedora disponível para receber o pedido. Ative uma vendedora antes de continuar.' })
     }
-    const inputBuyer = req.body?.buyer && typeof req.body.buyer === 'object' && !Array.isArray(req.body.buyer) ? req.body.buyer : {}
+    const inputBuyer = req.body?.buyer
+    const normalized = normalizeCheckoutBuyer(inputBuyer)
+    if (normalized.error) { await client.query('ROLLBACK'); return res.status(400).json({ error: normalized.error }) }
+    const buyer = normalized.buyer
+    if (buyer.deliveryMethod && Array.isArray(store.delivery_methods) && !store.delivery_methods.includes(buyer.deliveryMethod)) {
+      await client.query('ROLLBACK')
+      return res.status(400).json({ code: 'DELIVERY_UNAVAILABLE', error: 'Essa forma de entrega não está habilitada pela loja.' })
+    }
     const safeText = (value, max) => String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, max)
-    const buyer = {
-      name: safeText(inputBuyer.name, 120),
-      city: safeText(inputBuyer.city, 100),
-      cep: digits(inputBuyer.cep).slice(0, 8),
-      phone: digits(inputBuyer.phone).slice(0, 20),
-    }
-    if (buyer.cep && buyer.cep.length !== 8) {
-      await client.query('ROLLBACK')
-      return res.status(400).json({ error: 'O CEP precisa ter 8 dígitos.' })
-    }
-    if (buyer.phone && buyer.phone.length < 10) {
-      await client.query('ROLLBACK')
-      return res.status(400).json({ error: 'Informe um telefone válido ou deixe o campo em branco.' })
-    }
     const notes = safeText(req.body?.notes, 500)
     const code = `AS-${Date.now().toString().slice(-6)}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`
     const orderId = id()
     await client.query('INSERT INTO orders (id,code,store_id,seller_id,catalog_id,total,items,status,buyer,notes,customer_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)', [orderId, code, store.id, seller?.id || null, catalog.id, total, JSON.stringify(items), 'whatsapp', JSON.stringify(buyer), notes, req.shopvaxCustomerId || null])
     await client.query('INSERT INTO events (id,store_id,seller_id,kind) VALUES ($1,$2,$3,$4)', [id(), store.id, seller?.id || null, 'whatsapp'])
-    await client.query('COMMIT')
     const formatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
     const lines = items.map((item) => `${item.quantity}x ${item.name}${Object.keys(item.selections).length ? ` (${Object.entries(item.selections).map(([key,value]) => `${key}: ${value}`).join(' · ')})` : ''} — ${formatter.format(item.lineTotal)}`)
-    const message = [`Olá! Montei este pedido na ${store.name}:`, `Catálogo: ${catalog.name}`, '', ...lines, '', `Total dos produtos: ${formatter.format(total)}`, `Pedido: ${code}`, ...(buyer.name ? [`Comprador: ${buyer.name}`] : []), ...(buyer.city ? [`Cidade: ${buyer.city}`] : []), ...(buyer.cep ? [`CEP: ${buyer.cep}`] : []), ...(buyer.phone ? [`Contato: ${buyer.phone}`] : []), ...(notes ? [`Observações: ${notes}`] : []), '', `Quero finalizar com ${seller?.name || 'atendimento'}.`].join('\n')
-    return res.status(201).json({ code, orderId, catalog: catalogShape(catalog), whatsappUrl: `https://wa.me/${phone}?text=${encodeURIComponent(message)}` })
+    const message = [`Olá! Montei este pedido na ${store.name}:`, `Catálogo: ${catalog.name}`, '', ...lines, '',
+      `Total dos produtos: ${formatter.format(total)}`, `Pedido: ${code}`,
+      ...checkoutBuyerLines(buyer), ...(notes ? [`Observações: ${notes}`] : []), '',
+      `Quero finalizar com ${seller?.name || 'atendimento'}.`].join('\n')
+    const response = { code, orderId, catalog: catalogShape(catalog), whatsappUrl: `https://wa.me/${phone}?text=${encodeURIComponent(message)}` }
+    if (requestKey) await client.query('UPDATE checkout_order_idempotency SET order_id=$1,response=$2::jsonb WHERE store_id=$3 AND request_key=$4',[orderId,JSON.stringify(response),store.id,requestKey])
+    await client.query('COMMIT')
+    return res.status(201).json(response)
   } catch (error) {
     try { await client.query('ROLLBACK') } catch {}
     throw error

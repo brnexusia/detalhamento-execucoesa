@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import express from 'express'
 import pg from 'pg'
+import { checkoutBuyerLines } from './checkout-buyer.mjs'
 
 const { Pool } = pg
 const databaseUrl = process.env.DATABASE_URL?.trim() || ''
@@ -453,6 +454,8 @@ function orderMessage(order, store, seller, catalog, subtotal, discount, total, 
     discount > 0 ? `Cupom ${code}: -${formatter.format(discount)}` : '',
     `Total dos produtos: ${formatter.format(total)}`,
     `Pedido: ${order.code}`,
+    ...checkoutBuyerLines(order.buyer || {}),
+    ...(order.notes ? [`Observações: ${order.notes}`] : []),
     '',
     `Quero finalizar com ${seller?.name || 'atendimento'}.`,
   ].filter((line, index, all) => line !== '' || (index > 0 && all[index - 1] !== ''))

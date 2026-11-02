@@ -1,0 +1,10 @@
+.svx-review__buyer-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:14px;background:#fcfaf5;border:1px solid #d9d3c6}
+.svx-review__buyer-form label{min-width:0;display:grid;gap:5px;font-size:12px;font-weight:600}
+.svx-review__buyer-form input,.svx-review__buyer-form select{box-sizing:border-box;max-width:100%;min-width:0;width:100%;min-height:43px;padding:9px 10px;background:#fff;border:1px solid #bdb6aa;border-radius:0;color:#161514;font:inherit}
+.svx-review__buyer-form input:focus-visible,.svx-review__buyer-form select:focus-visible{outline:2px solid #f25c05;outline-offset:2px}
+.svx-review__buyer-heading{grid-column:1/-1;display:grid;gap:5px;padding-top:4px;font-size:14px;font-weight:800}
+.svx-review__buyer-heading small{font-size:11px;font-weight:400;line-height:1.5;color:#625e56}
+.svx-review__buyer-form .svx-review__full,.svx-review__buyer-subgrid{grid-column:1/-1}
+.svx-review__buyer-subgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.svx-review__buyer-form>small[role=alert]{grid-column:1/-1;color:#a42d12;font-size:12px}
+@media(max-width:480px){.svx-review__buyer-form,.svx-review__buyer-subgrid{grid-template-columns:minmax(0,1fr)}}

@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import express from 'express'
 import pg from 'pg'
+import { checkoutBuyerLines } from './checkout-buyer.mjs'
 
 const { Pool } = pg
 const databaseUrl = process.env.DATABASE_URL?.trim() || ''
@@ -118,6 +119,8 @@ function buildMessage(order, store, seller, catalog, subtotal, discount, total, 
     discount > 0 ? `Cupom ${coupon.code}: -${formatter.format(discount)}` : '',
     `Total dos produtos: ${formatter.format(total)}`,
     `Pedido: ${order.code}`,
+    ...checkoutBuyerLines(order.buyer || {}),
+    ...(order.notes ? [`Observações: ${order.notes}`] : []),
     '',
     `Quero finalizar com ${seller?.name || 'atendimento'}.`,
   ].filter((line, index, linesAll) => line !== '' || (index > 0 && linesAll[index - 1] !== '')).join('\n')
@@ -168,6 +171,46 @@ async function finalize(req, payload, coupon) {
   }
 }
 
+async function finalizeIdempotentCoupon(req, payload, rawCode) {
+  if (!payload?.orderId) return payload
+  const code = codeOf(rawCode)
+  const client = await pool.connect()
+  let order, coupon, store, seller, catalog
+  try {
+    await client.query('BEGIN')
+    order = (await client.query('SELECT * FROM orders WHERE id=$1 FOR UPDATE',[payload.orderId])).rows[0]
+    if (!order) { await client.query('ROLLBACK'); return payload }
+    if (order.coupon_code && order.coupon_code !== code) { await client.query('ROLLBACK'); return { ...payload, couponRejected: true, couponError: 'O pedido já utilizou outro cupom.' } }
+    coupon = (await client.query('SELECT * FROM coupons WHERE store_id=$1 AND code=$2 FOR UPDATE',[order.store_id,code])).rows[0]
+    if (!coupon) { await client.query('ROLLBACK'); return { ...payload, couponRejected: true, couponError: 'Cupom inválido.' } }
+    if (!order.coupon_id) {
+      const status = usable(coupon)
+      const subtotal = money(order.total)
+      if (!status.ok || subtotal < Number(coupon.minimum_subtotal || 0)) {
+        await client.query('ROLLBACK')
+        return { ...payload, couponRejected: true, couponError: status.ok ? 'Valor mínimo do cupom não atingido.' : status.error }
+      }
+      const discount = discountFor(coupon, subtotal)
+      await client.query('UPDATE coupons SET used_count=used_count+1,updated_at=now() WHERE id=$1',[coupon.id])
+      await client.query('UPDATE orders SET subtotal=$1,discount=$2,total=$3,coupon_id=$4,coupon_code=$5 WHERE id=$6',
+        [subtotal,discount,money(subtotal-discount),coupon.id,code,order.id])
+      order = { ...order, subtotal,discount,total:money(subtotal-discount),coupon_id:coupon.id,coupon_code:code }
+    }
+    store = (await client.query('SELECT name FROM stores WHERE id=$1',[order.store_id])).rows[0] || {name:'Loja'}
+    seller = order.seller_id ? (await client.query('SELECT name,phone FROM sellers WHERE id=$1 AND store_id=$2',[order.seller_id,order.store_id])).rows[0] : null
+    catalog = order.catalog_id ? (await client.query('SELECT name FROM catalogs WHERE id=$1 AND store_id=$2',[order.catalog_id,order.store_id])).rows[0] : null
+    await client.query('COMMIT')
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => undefined)
+    throw error
+  } finally { client.release() }
+  await convertRecovery(req,order)
+  const phone = digits(seller?.phone || '')
+  const subtotal = money(order.subtotal == null ? Number(order.total)+Number(order.discount || 0) : order.subtotal)
+  return { ...payload, subtotal, discount: money(order.discount || 0), total: money(order.total), couponCode: code,
+    whatsappUrl: phone.length >= 10 ? 'https://wa.me/' + phone + '?text=' + encodeURIComponent(buildMessage(order,store,seller,catalog,subtotal,money(order.discount || 0),money(order.total),coupon)) : payload.whatsappUrl }
+}
+
 async function callCoreOrder(req) {
   const port = Number(process.env.PORT || 80)
   const body = { ...(req.body || {}) }
@@ -185,7 +228,8 @@ async function callCoreOrder(req) {
 async function checkout(req, res) {
   await ready()
   const storeSlug = String(req.body?.storeSlug || '')
-  const coupon = req.body?.couponCode ? await reserveCoupon(storeSlug, req.body.couponCode) : null
+  const hasIdempotency = /^[A-Za-z0-9_-]{16,100}$/.test(String(req.body?.idempotencyKey || ''))
+  const coupon = !hasIdempotency && req.body?.couponCode ? await reserveCoupon(storeSlug, req.body.couponCode) : null
   if (coupon?.error) return res.status(coupon.status || 400).json({ error: coupon.error, code: 'COUPON_INVALID' })
 
   let coreResponse
@@ -202,7 +246,9 @@ async function checkout(req, res) {
     return res.status(coreResponse.status).json(payload)
   }
   try {
-    const finalPayload = await finalize(req, payload, coupon)
+    const finalPayload = hasIdempotency && req.body?.couponCode
+      ? await finalizeIdempotentCoupon(req, payload, req.body.couponCode)
+      : await finalize(req, payload, coupon)
     return res.status(coreResponse.status).json(finalPayload)
   } catch (error) {
     if (coupon?.reserved) await releaseCoupon(coupon.id)

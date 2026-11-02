@@ -19,10 +19,11 @@ const deliveryLabels = {
   transportadora: 'Transportadora',
   correios: 'Correios',
   entrega_propria: 'Entrega própria',
+  excursao: 'Ônibus de excursão',
   combinar: 'Combinar com a vendedora',
 }
 const defaultPayments = ['pix', 'dinheiro', 'cartao', 'boleto', 'transferencia']
-const defaultDeliveries = ['retirada', 'motoboy', 'transportadora', 'correios', 'entrega_propria', 'combinar']
+const defaultDeliveries = ['retirada', 'motoboy', 'transportadora', 'correios', 'entrega_propria', 'excursao', 'combinar']
 
 if (pool) pool.on('error', (error) => console.error('[commercial config] pool:', error.message))
 const hashToken = (token) => crypto.createHash('sha256').update(String(token || '')).digest('hex')
@@ -39,7 +40,7 @@ async function ensureSchema() {
   if (!pool) throw new Error('DATABASE_URL não configurada.')
   await pool.query(`
     ALTER TABLE stores ADD COLUMN IF NOT EXISTS payment_methods jsonb NOT NULL DEFAULT '["pix","dinheiro","cartao","boleto","transferencia"]'::jsonb;
-    ALTER TABLE stores ADD COLUMN IF NOT EXISTS delivery_methods jsonb NOT NULL DEFAULT '["retirada","motoboy","transportadora","correios","entrega_propria","combinar"]'::jsonb;
+    ALTER TABLE stores ADD COLUMN IF NOT EXISTS delivery_methods jsonb NOT NULL DEFAULT '["retirada","motoboy","transportadora","correios","entrega_propria","excursao","combinar"]'::jsonb;
     ALTER TABLE stores ADD COLUMN IF NOT EXISTS commercial_note text NOT NULL DEFAULT '';
   `)
 }

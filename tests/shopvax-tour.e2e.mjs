@@ -12,7 +12,7 @@ try {
    const page=await browser.newPage({viewport:{width,height:844}})
    await page.route('**/api/public/auth/google-config',r=>r.fulfill({status:200,contentType:'application/json',body:'{"enabled":false}'}))
    await page.route('**/api/public/support/config',r=>r.fulfill({status:200,contentType:'application/json',body:'{"ticketsEnabled":false,"aiEnabled":false}'}))
-   await page.goto('http://127.0.0.1:5173/entrar')
+   await page.goto('http://127.0.0.1:5173/criar-conta')
    await page.getByRole('button',{name:'Precisa de ajuda?'}).click()
    const summary=page.getByText(/Ver vídeo explicativo do Shopvax/)
    await summary.click()
