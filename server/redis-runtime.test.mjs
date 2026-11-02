@@ -1,6 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { redisKey, cachedCatalogQuery, takeSharedRate } from './redis-runtime.mjs'
+import { redisKey, cachedCatalogQuery, takeSharedRate, closeRedisForTests } from './redis-runtime.mjs'
+
+test.after(() => closeRedisForTests())
 
 test('cache keys are deterministic and do not disclose visitor/store identifiers', () => {
   const input = 'store:123:buyer:456'
