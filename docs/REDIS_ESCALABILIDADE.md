@@ -26,3 +26,6 @@ O scanner já oferece `SCANNER_WORKER_DISABLED=1`. Não desativar seu worker sem
 `tests/load/catalog-checkout.k6.js` é **somente leitura** (catálogo). Rodar exclusivamente num staging isolado com carga e dados representativos. O rate limit por IP dos testes deve ser configurado explicitamente no staging, nunca relaxado em produção. Medir p50/p95/p99, CPU, RAM, conexões e erros. Adicionar benchmark de pedidos com dados fictícios, contas e webhooks isolados antes de afirmar capacidade de checkout.
 
 **Não existe número de usuários simultâneos homologado até executar benchmark reproduzível.**
+
+## Métricas HTTP protegidas
+O endpoint `GET /internal/metrics` responde 404 sem `SHOPVAX_METRICS_TOKEN` de pelo menos 32 caracteres, ou se o Bearer estiver incorreto. Retorna contadores por classe HTTP, histograma cumulativo de latência em milissegundos e RSS; um Prometheus externo pode calcular p95/p99 por réplica. Não colocar token em URL, frontend nem GitHub. CPU/disco/rede do KVM exigem coletor externo.

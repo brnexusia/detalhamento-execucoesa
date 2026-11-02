@@ -4,6 +4,8 @@ on:
     branches: [main]
     paths:
       - 'server/redis-*.mjs'
+      - 'server/metrics-hooks.mjs'
+      - 'server/metrics-hooks.test.mjs'
       - 'server/security-hooks.mjs'
       - 'server/public-protection-hooks.mjs'
       - 'server/app.mjs'
@@ -13,6 +15,8 @@ on:
     branches: [main]
     paths:
       - 'server/redis-*.mjs'
+      - 'server/metrics-hooks.mjs'
+      - 'server/metrics-hooks.test.mjs'
       - 'server/security-hooks.mjs'
       - 'server/public-protection-hooks.mjs'
       - 'server/app.mjs'
@@ -44,6 +48,7 @@ jobs:
       - name: Validate JavaScript syntax
         run: |
           node --check server/redis-runtime.mjs
+          node --check server/metrics-hooks.mjs
           node --check server/redis-media-jobs.mjs
           node --check server/media-worker.mjs
           node --check server/public-protection-hooks.mjs
@@ -51,5 +56,7 @@ jobs:
           node --check server/app.mjs
       - name: Test Redis atomic counters and cache
         run: node --test server/redis-runtime.test.mjs server/redis-integration.test.mjs
+      - name: Protected telemetry test
+        run: node --test server/metrics-hooks.test.mjs
       - name: Media fallback regression
         run: node --test server/media-upload-queue.test.mjs
