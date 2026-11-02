@@ -190,11 +190,13 @@ try {
   const referralCode = result.payload.code
 
   const referred = await registerOwner('indicado', referralCode)
-  assert.equal(referred.payload.referralCredited, true)
+  assert.equal(referred.payload.referralCredited, false)
+  assert.equal(referred.payload.referralPending, true)
   result = await request('/api/admin/phase3/referral', { cookie: owner.cookie })
   assert.equal(result.response.status, 200)
   assert.equal(result.payload.referrals, 1)
-  assert.equal(result.payload.availableCreditMonths, 1)
+  assert.equal(result.payload.availableCreditMonths, 0)
+  assert.equal(result.payload.pending, 1)
   assert.match(result.payload.rule, /1 indicação válida = 1 mês grátis/)
 
   const storeRow = await pool.query('SELECT id FROM stores WHERE slug=$1 LIMIT 1', [owner.slug])
