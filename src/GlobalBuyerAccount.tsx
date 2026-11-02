@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { ArrowLeft, CheckCircle2, LogOut, ShoppingBag, UserRound } from 'lucide-react'
 import BuyerWhatsappLogin from './BuyerWhatsappLogin'
 import { apiRequest } from './api'
-import { notifyAuthChange } from './auth-session-sync'
 import './customer-account.css'
 
 type GlobalBuyer = {
@@ -57,9 +56,8 @@ export default function GlobalBuyerAccount() {
     setBusy(true)
     setError('')
     try {
-      await apiRequest('/api/public/customers/logout', {method:'POST'})
+      await apiRequest('/api/auth/logout-all', {method:'POST'})
       setBuyer(null)
-      notifyAuthChange('customer')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível sair.')
     } finally { setBusy(false) }
