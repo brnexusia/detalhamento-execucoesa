@@ -15,7 +15,7 @@ const publicRouteSource = await fs.readFile('src/PublicRoute.tsx', 'utf8')
 const commercialStoreSource = await fs.readFile('src/PublicStoreV2.tsx', 'utf8')
 const storeNavCss = await fs.readFile('src/store-social-nav.css', 'utf8')
 
-if (!appSource.includes("pathname === '/perfil' || pathname.startsWith('/perfil/')") || !appSource.includes('<SocialStoreProfile />')) throw new Error('Perfil social não possui rota própria.')
+if (!appSource.includes("pathname === '/perfil' || pathname.startsWith('/perfil/')") || !/<SocialStoreProfile(?:\s+key=\{pathname\})?\s*\/>/.test(appSource)) throw new Error('Perfil social não possui rota própria.')
 if (publicRouteSource.includes('SocialProfileHeader') || !commercialStoreSource.includes('<StoreSocialNav />') || !commercialStoreSource.includes('<CustomerAccountLauncher />')) throw new Error('Navegação social e conta precisam integrar o cabeçalho comercial da loja.')
 if (!storeNavCss.includes('.store-social-nav') || !commercialStoreSource.includes('id="shopvax-store-navigation"') || !commercialStoreSource.includes('className="store-nav-toggle"') || !commercialStoreSource.includes('className="view-switch"')) throw new Error('Navegação integrada não permite alternar loja, feed local e feed geral.')
 if (!feedCss.includes('position:fixed;inset:0;overflow:hidden') || !feedCss.includes('overflow-y:auto') || !feedCss.includes('scroll-snap-type:y mandatory') || !feedCss.includes('height:100dvh')) throw new Error('Feed não funciona como rolagem vertical em telas.')
