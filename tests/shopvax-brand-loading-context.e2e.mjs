@@ -53,7 +53,8 @@ try {
   await context.route('**/api/public/auth/google-config',route=>route.fulfill({status:200,contentType:'application/json',body:'{"enabled":false}'}))
   await context.route('**/api/admin/bootstrap*',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(fixture)}))
   const page=await context.newPage()
-  await page.goto('http://127.0.0.1:5173/entrar')
+  // Fixar o teste no login editorial mesmo quando há sessão do lojista em CI.
+  await page.goto('http://127.0.0.1:5173/entrar?trocar-conta=1')
   await page.locator('.auth-form__head h2').waitFor()
   assert.equal(await page.getByRole('button',{name:'Precisa de ajuda?'}).count(),0,'O login editorial não deve ter ajuda flutuante')
   assert.equal(await page.locator('.auth-poster .wordmark > img').count(),2)
