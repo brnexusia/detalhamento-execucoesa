@@ -135,7 +135,7 @@ export default function CustomerAccountRoute() {
     setBusy(true); setError('')
     try {
       // Só descartar o estado depois de o servidor confirmar a revogação.
-      await apiRequest('/api/public/customers/logout', { method: 'POST' })
+      await apiRequest('/api/auth/logout-all', { method: 'POST' })
       accountVersion.current += 1
       setAccount(null)
       setForm({ email: '', password: '' })
