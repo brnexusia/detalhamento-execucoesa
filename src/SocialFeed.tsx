@@ -1,6 +1,7 @@
 import ShopvaxLoading from './ShopvaxLoading'
 import SocialAccountChoice from './SocialAccountChoice'
 import { useOwnerSession } from './owner-session'
+import { useBuyerSession } from './buyer-session'
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { showToast } from './ui-dialogs'
 import { ChevronRight, Eye, Heart, MessageCircleQuestion, Minus, Play, Plus, Share2, ShoppingBag, Store, Volume2, VolumeX, X } from 'lucide-react'
@@ -301,6 +302,7 @@ export default function SocialFeed() {
   const [error, setError] = useState('')
   const [accountChoice, setAccountChoice] = useState<{reason:'login'|'follow'; storeSlug?:string; storeId?:string} | null>(null)
   const ownerSession = useOwnerSession()
+  const buyerSession = useBuyerSession()
   const [picker, setPicker] = useState<PickerState | null>(null)
   const [pickerError, setPickerError] = useState('')
   const [activeCart, setActiveCart] = useState<SocialPost['store'] | null>(null)
@@ -539,7 +541,9 @@ export default function SocialFeed() {
   return <div className="social-feed-page">
     <header className="social-feed-nav"><strong className="svx-social-brand"><img src="/brand/shopvax-symbol-dark.svg" className="svx-brand-symbol" alt="" aria-hidden="true" /><img src="/brand/shopvax-wordmark-light.svg" className="svx-brand-wordmark" alt="Shopvax" /></strong><span>PRODUTOS DAS LOJAS</span><div className="social-feed-nav__right"><a href="/para-lojas">Para lojas</a><button type="button" onClick={() => ownerSession === 'authenticated'
       ? go('/painel')
-      : setAccountChoice({reason:'login',storeSlug:posts[activeIndex]?.store.slug || posts[0]?.store.slug})}>{ownerSession === 'authenticated' ? 'Minha loja' : 'Entrar'}</button></div></header>
+      : buyerSession === 'authenticated'
+        ? go('/comprador')
+        : setAccountChoice({reason:'login',storeSlug:posts[activeIndex]?.store.slug || posts[0]?.store.slug})}>{ownerSession === 'authenticated' ? 'Minha loja' : buyerSession === 'authenticated' ? 'Minha conta' : 'Entrar'}</button></div></header>
     <main className="social-feed-list" ref={listRef}
       data-feed-initial-posts={initialSession?.posts.length || 0}
       data-feed-restored-index={restoredIndex.current}
