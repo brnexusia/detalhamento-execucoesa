@@ -98,8 +98,10 @@ async function waitForBaseSchema() {
 }
 
 let schemaPromise = null
+let schemaInitialized = false
 async function ensureSchema() {
   if (!pool) throw new Error('DATABASE_URL não configurada.')
+  if (schemaInitialized) return
   if (!schemaPromise) {
     schemaPromise = (async () => {
       await waitForBaseSchema()
@@ -162,7 +164,7 @@ async function ensureSchema() {
         WHERE p.store_id=s.id AND p.stock_enabled=true
           AND COALESCE((pp.feature_flags->>'stock')::boolean,false)=false
       `).catch(() => undefined)
-    })().finally(() => { schemaPromise = null })
+    })().then(() => { schemaInitialized = true }).finally(() => { schemaPromise = null })
   }
   return schemaPromise
 }
