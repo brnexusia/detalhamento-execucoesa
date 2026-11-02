@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { AlertCircle, ArrowUpRight, CreditCard, RefreshCw, ShieldCheck } from 'lucide-react'
 import { apiRequest } from './api'
 import Phase5Panel from './Phase5Panel'
+import { trustedStripeCheckoutUrl } from './stripe-checkout-client'
 import './stripe-billing.css'
 
 type Cycle = 'monthly' | 'semiannual' | 'annual'
@@ -37,10 +38,13 @@ const stripeHost = (value: string) => {
 
 export default function ShopvaxStripeBilling() {
   const [state, setState] = useState<State | null>(null)
-  const [cycle, setCycle] = useState<Cycle>('monthly')
+  const params = new URLSearchParams(window.location.search)
+  const initialCycle = params.get('cycle')
+  const [cycle, setCycle] = useState<Cycle>(initialCycle === 'semiannual' || initialCycle === 'annual' ? initialCycle : 'monthly')
+  const resumePlan = ['bronze','prata','ouro'].includes(params.get('plan') || '') ? params.get('plan') : null
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setError] = useState(() => params.get('checkout') === 'error' ? 'Sua conta foi criada, mas não foi possível abrir o checkout Stripe. Selecione o plano abaixo para tentar novamente; não crie outra conta.' : '')
   const [notice, setNotice] = useState('')
   const [referralCode, setReferralCode] = useState(() => (new URLSearchParams(window.location.search).get('ref') || '').toUpperCase().slice(0,40))
 
@@ -49,7 +53,7 @@ export default function ShopvaxStripeBilling() {
       const current = await apiRequest<State>('/api/billing/status')
       setState(current)
       if(current.referralCode) setReferralCode(current.referralCode)
-      setError('')
+      if (params.get('checkout') !== 'error') setError('')
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Não foi possível carregar a cobrança.')
     } finally { setLoading(false) }
@@ -72,7 +76,7 @@ export default function ShopvaxStripeBilling() {
     try {
       const result = await apiRequest<{ url?: string; message?: string; unchanged?: boolean }>(endpoint, { method: 'POST', body: JSON.stringify(body) })
       if (result.url) {
-        if (!stripeHost(result.url)) throw new Error('A Stripe retornou um endereço de cobrança inválido.')
+        if (endpoint === '/api/billing/checkout' ? !trustedStripeCheckoutUrl(result.url) : !stripeHost(result.url)) throw new Error('A Stripe retornou um endereço de cobrança inválido.')
         window.location.assign(result.url)
         return
       }
@@ -84,7 +88,7 @@ export default function ShopvaxStripeBilling() {
   }
 
   if (loading) return <div className="svx-billing"><p>Carregando cobrança segura…</p></div>
-  if (!state?.enabled) return <Phase5Panel />
+  if (!state?.enabled) return <div className="svx-billing"><p role="alert" className="svx-billing__error">Pagamento Stripe indisponível nesta instância. Sua conta está registrada, mas a assinatura não pode ser iniciada até que a conexão seja restabelecida.</p><Phase5Panel /></div>
 
   const activeSubscription = state.status === 'active' && state.accessGranted
   const hasSubscription = state.status !== 'none' && state.status !== 'canceled' && state.status !== 'incomplete_expired'
@@ -114,7 +118,7 @@ export default function ShopvaxStripeBilling() {
       {plans.map((plan) => {
         const price = state.prices.find((item) => item.code === plan.code && item.cycle === cycle)
         const current = activeSubscription && state.planCode === plan.code && state.cycle === cycle
-        return <article key={plan.code} className={plan.code === 'prata' ? 'is-featured' : ''}>
+        return <article key={plan.code} className={plan.code === resumePlan ? 'is-featured' : plan.code === 'prata' ? 'is-featured' : ''}>
           <span>{plan.code === 'prata' ? 'RECOMENDADO' : 'PLANO'}</span>
           <h2>{plan.name}</h2>
           <strong>{price ? brl.format(price.amount / 100) : 'Indisponível'}</strong>
@@ -122,7 +126,7 @@ export default function ShopvaxStripeBilling() {
           <button type="button" disabled={busy || current || !price || (hasSubscription && !activeSubscription)}
             onClick={() => void act(activeSubscription ? '/api/billing/change' : '/api/billing/checkout',
               { planCode: plan.code, cycle, referralCode: !activeSubscription ? referralCode.trim() : undefined, requestId: crypto.randomUUID() })}>
-            {busy ? 'Processando…' : current ? 'Plano atual' : activeSubscription ? 'Alterar plano' : hasSubscription ? 'Gerencie a cobrança acima' : 'Assinar com cartão'}
+            {busy ? 'Processando…' : current ? 'Plano atual' : activeSubscription ? 'Alterar plano' : hasSubscription ? 'Gerencie a cobrança acima' : resumePlan === plan.code ? 'Retomar pagamento na Stripe' : 'Assinar com cartão'}
           </button>
         </article>
       })}
