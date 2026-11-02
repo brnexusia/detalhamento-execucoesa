@@ -16,6 +16,8 @@ try{
     })})
   })
   await page.goto('http://127.0.0.1:5173/entrar')
+  assert.equal(await page.getByRole('button',{name:'Precisa de ajuda?'}).count(),0,'Ajuda não deve aparecer no login')
+  await page.goto('http://127.0.0.1:5173/criar-conta')
   const open=page.getByRole('button',{name:'Precisa de ajuda?'})
   await open.click()
   const panel=page.locator('#svx-support-panel')
