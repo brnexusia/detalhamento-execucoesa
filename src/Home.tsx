@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ArrowRight, Grid2X2, ShoppingBag, Smartphone } from 'lucide-react'
 import { apiRequest } from './api'
+import { useOwnerSession } from './owner-session'
 import UiState from './UiState'
 import ShopvaxPlans from './ShopvaxPlans'
 
@@ -12,6 +13,7 @@ function go(path: string) {
 type HomePlan = { code: string; name: string; monthlyPrice: number; sellerLimit: number | null; catalogLimit: number | null; photoLimit: number | null; franchiseeLimit: number | null }
 
 export default function Home() {
+  const ownerSession = useOwnerSession()
   const [plans, setPlans] = useState<HomePlan[]>([])
   const [plansLoading, setPlansLoading] = useState(true)
   const [plansError, setPlansError] = useState('')
@@ -37,7 +39,7 @@ export default function Home() {
           <img src="/brand/shopvax-symbol.svg" className="svx-brand-symbol" alt="" aria-hidden="true" /><img src="/brand/shopvax-wordmark.svg" className="svx-brand-wordmark" alt="" aria-hidden="true" />
         </a>
         <nav aria-label="Acesso à plataforma">
-          <button type="button" className="text-button" onClick={() => go('/entrar')}>Entrar</button>
+          <button type="button" className="text-button" onClick={() => go(ownerSession === 'authenticated' ? '/painel' : '/entrar')}>{ownerSession === 'authenticated' ? 'Minha loja' : 'Entrar'}</button>
           <button type="button" className="nav-cta" onClick={() => go('/criar-conta')}>Criar loja</button>
         </nav>
       </header>
