@@ -35,7 +35,7 @@ try {
     await page.getByLabel('Seu nome').fill('Lojista Teste')
     await page.getByLabel('Nome da loja').fill('Loja Teste')
     await page.getByLabel('E-mail').fill('lojista@example.test')
-    await page.getByLabel('Senha').fill('SenhaSegura2026!')
+    await page.locator('input[autocomplete="new-password"]').fill('SenhaSegura2026!')
     await page.getByRole('button',{name:/Criar minha loja/}).click()
     await page.waitForURL(success?/checkout\.stripe\.com\/c\/pay\//:/\/painel\/assinatura\?checkout=error/)
     assert.equal(registerCount,1,'Falha do Checkout não deve recriar a conta')
