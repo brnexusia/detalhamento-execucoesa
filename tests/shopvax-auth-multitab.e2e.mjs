@@ -33,7 +33,7 @@ try {
     activeUser = 'B'
     return route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' })
   })
-  await context.route('**/api/auth/logout', async route => {
+  await context.route('**/api/auth/logout-all', async route => {
     activeUser = ''
     return route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' })
   })
