@@ -1,7 +1,7 @@
 name: ShopVax storefront live diagnosis
 on:
   push:
-    branches: [fix/shopvax-storefront-googlebot-20261102]
+    branches: [main, fix/shopvax-storefront-googlebot-20261102]
     paths:
       - '.github/workflows/storefront-live-diagnosis.yml'
       - 'server/public-protection-hooks.mjs'
@@ -26,6 +26,35 @@ jobs:
           npx playwright install chromium --with-deps
       - name: Verify real storefront render and JavaScript with Googlebot User-Agent
         run: node scripts/storefront-live-smoke.mjs
+      - name: Verify deployed public content and crawler rules (release gate)
+        if: github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import html, json, os, urllib.request
+          origin='https://shopvax.com.br'
+          headers={'User-Agent':'Googlebot/2.1 (+http://www.google.com/bot.html)','Cache-Control':'no-cache'}
+          def get(path):
+              with urllib.request.urlopen(urllib.request.Request(origin+path,headers=headers),timeout=20) as r:
+                  assert r.status==200
+                  return r.read(3000000).decode('utf8')
+          robots=get('/robots.txt')
+          assert 'Disallow: /api/' in robots
+          assert 'Allow: /api/public/store/' in robots, 'Current deploy blocks WRS from storefront JSON'
+          assert 'Disallow: /api/public/store/*/customers/' in robots
+          payload=json.loads(get('/api/public/store/lookpremium'))
+          assert payload.get('store',{}).get('slug')=='lookpremium'
+          public_products=payload.get('products') or []
+          assert public_products, 'Look Premium has no public products in live API'
+          page=get('/lookpremium')
+          assert 'Produtos disponíveis' in page, 'Public HTML still lacks server-rendered products'
+          assert any(html.escape(str(p.get('name','')),quote=True) in page for p in public_products if p.get('name')), 'Real public product name not found in initial HTML'
+          health=json.loads(get('/health'))
+          expected=os.environ['GITHUB_SHA']
+          print('release_sha_present=',bool(health.get('releaseSha')),'matches_main=',health.get('releaseSha')==expected,'store_products=',len(public_products))
+          assert health.get('releaseSha')==expected, 'Cannot prove deployed code SHA against main'
+          print('ACCEPTED: public HTML real products + robots exception + matching production release SHA')
+          PY
       - name: Inspect public HTML, API, cache, robots, and store samples
         shell: bash
         run: |
