@@ -5,6 +5,7 @@ import './shopvax-social-official.css'
 import { shopvaxAccentTextColor } from './ShopvaxDesignSystem'
 import SocialAccountChoice from './SocialAccountChoice'
 import { useOwnerSession } from './owner-session'
+import { useBuyerSession } from './buyer-session'
 
 type VariationGroup = { name: string; options: string[] }
 type Publication = {
@@ -62,6 +63,7 @@ export default function SocialStoreProfile() {
   const [error, setError] = useState('')
   const [accountChoice, setAccountChoice] = useState<'login' | 'follow' | null>(null)
   const ownerSession = useOwnerSession()
+  const buyerSession = useBuyerSession()
 
   // O SPA deve trocar o perfil quando a URL muda entre lojas sem recarga.
   useEffect(() => {
@@ -150,7 +152,7 @@ export default function SocialStoreProfile() {
     <header className="social-profile-nav">
       <button onClick={() => go('/')}><ArrowLeft size={18}/> Feed</button>
       <strong className="svx-social-brand"><img src="/brand/shopvax-symbol-dark.svg" className="svx-brand-symbol" alt="" aria-hidden="true" /><img src="/brand/shopvax-wordmark-light.svg" className="svx-brand-wordmark" alt="Shopvax" /></strong>
-      <button type="button" onClick={() => ownerSession === 'authenticated' ? go('/painel') : setAccountChoice('login')}>{ownerSession === 'authenticated' ? 'Minha loja' : 'Entrar'}</button>
+      <button type="button" onClick={() => ownerSession === 'authenticated' ? go('/painel') : buyerSession === 'authenticated' ? go('/comprador') : setAccountChoice('login')}>{ownerSession === 'authenticated' ? 'Minha loja' : buyerSession === 'authenticated' ? 'Minha conta' : 'Entrar'}</button>
     </header>
 
     <main className="social-profile-shell">
