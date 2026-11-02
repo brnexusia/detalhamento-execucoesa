@@ -134,7 +134,7 @@ try {
   await page.route('**/api/public/store/loja-teste/phase2-config',route=>route.fulfill({
     status:200,contentType:'application/json',
     body:JSON.stringify({store:{slug:store.slug,name:store.name},
-      customerLoginEnabled:true,buyerWhatsAppLoginEnabled:true}),
+      customerLoginEnabled:true,buyerWhatsAppLoginEnabled:false}),
   }))
   await page.route('**/api/public/store/loja-teste/customers/me',route=>route.fulfill({
     status:401,contentType:'application/json',body:'{"error":"Não autenticado"}',

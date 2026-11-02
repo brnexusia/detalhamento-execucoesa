@@ -99,10 +99,12 @@ test('comprador recebe formulario WhatsApp e perguntas comerciais, sem senha na 
   const route = read('src/CustomerAccountRoute.tsx')
   const buyer = read('src/BuyerWhatsappLogin.tsx')
   const server = read('server/buyer-whatsapp-auth-hooks.mjs')
-  assert.match(route, /<BuyerWhatsappLogin key=\{storeSlug\} storeSlug=\{storeSlug\} enabled=/)
+  assert.match(route, /<BuyerWhatsappLogin key=\{storeSlug\} storeSlug=\{storeSlug\} onVerified=/)
   assert.doesNotMatch(route, /customers\/register|customer-tabs|Criar minha conta/)
   assert.match(route, /Já tinha conta com e-mail\?/)
   assert.match(buyer, /Receber código no WhatsApp/)
+  assert.doesNotMatch(buyer, /disabled=\{!enabled/)
+  assert.doesNotMatch(buyer, /if \(!enabled\)/)
   for (const option of ['Comprar para revender','Comprar para minha empresa ou negócio','Comprar para uso pessoal','Revenda e uso pessoal','Estou começando a vender']) {
     assert(buyer.includes(option), 'Finalidade ausente: '+option)
   }
