@@ -1,0 +1,58 @@
+name: ShopVax sitemap public Googlebot smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server/seo-routes-hooks.mjs'
+      - 'public/sitemap-pages.xml'
+      - '.github/workflows/shopvax-sitemaps-live.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sitemap-public:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify deployed SHA and all Googlebot sitemap children
+        shell: bash
+        env:
+          SHOPVAX_HOST: https://shopvax.com.br
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, urllib.request, xml.etree.ElementTree as ET
+          host=os.environ['SHOPVAX_HOST']
+          sha=os.environ['GITHUB_SHA']
+          headers={'User-Agent':'Googlebot/2.1 (+http://www.google.com/bot.html)', 'Cache-Control':'no-cache'}
+          def fetch(path, xml=True):
+              req=urllib.request.Request(host+path, headers=headers)
+              with urllib.request.urlopen(req,timeout=20) as r:
+                  body=r.read(3000000)
+                  mime=r.headers.get('Content-Type','')
+                  print(path, 'HTTP',r.status,'type=',mime,'bytes=',len(body),'final=',r.url,flush=True)
+                  assert r.status==200 and r.url==host+path, 'Not HTTP 200 canonical: '+path
+                  if xml:
+                      assert 'xml' in mime.lower(), 'Unexpected XML content type: '+path
+                      return ET.fromstring(body)
+                  return json.loads(body)
+          health=fetch('/health',False)
+          print('GitHub SHA:',sha,'Deployed SHA:',health.get('releaseSha'),'DB:',health.get('database'))
+          assert health.get('database') is True, 'Deployed database unavailable'
+          assert health.get('releaseSha')==sha, 'Production deploy not at expected SHA'
+          sitemap=fetch('/sitemap.xml')
+          ns='{http://www.sitemaps.org/schemas/sitemap/0.9}'
+          assert sitemap.tag==ns+'sitemapindex','Invalid sitemapindex XML'
+          children=[loc.text for loc in sitemap.findall('.//'+ns+'loc')]
+          assert children, 'Index has no sitemaps'
+          for child in children:
+              assert child.startswith(host+'/sitemap-'), 'Invalid child location '+str(child)
+              child_xml=fetch(child[len(host):])
+              assert child_xml.tag==ns+'urlset','Invalid child URL set: '+child
+              print('Child URLs:',child,len(child_xml.findall(ns+'url')))
+          assert fetch('/sitemap-pages.xml').tag==ns+'urlset', 'Missing pages.xml'
+          print('VERIFIED: production SHA, Googlebot HTTP 200, XML and',len(children),'sitemaps')
+          PY

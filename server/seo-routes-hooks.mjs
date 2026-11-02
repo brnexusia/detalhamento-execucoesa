@@ -27,12 +27,21 @@ export function sitemapIndex(urls) {
     urls.map((url) => '  <sitemap><loc>' + xmlEscape(url) + '</loc></sitemap>').join('\n') +
     '\n</sitemapindex>'
 }
+export function sitemapChildren({ stores = 0, products = 0, socialProducts = 0 } = {}) {
+  const pages = (n) => Number.isSafeInteger(Number(n)) && Number(n) >= 0 ? Math.min(Number(n), 100000) : 0
+  const urls = [SITE + '/sitemap-pages.xml']
+  for (let i = 1; i <= pages(stores); i++) urls.push(SITE + '/sitemap-stores-' + i + '.xml')
+  for (let i = 1; i <= pages(products); i++) urls.push(SITE + '/sitemap-products-' + i + '.xml')
+  for (let i = 1; i <= pages(socialProducts); i++) urls.push(SITE + '/sitemap-social-products-' + i + '.xml')
+  return urls
+}
+
 const protect = (handler) => (req, res, next) =>
   Promise.resolve(handler(req, res)).catch((err) => {
     console.error('[seo] sitemap unavailable:', err.message)
     if (!res.headersSent) res.status(503).type('text/plain').send('Sitemap temporarily unavailable.')
   })
-const xml = (res, body) => res.set('Cache-Control', 'no-store')
+const xml = (res, body) => res.set('Cache-Control', 'public, max-age=60, s-maxage=60')
   .set('X-Content-Type-Options', 'nosniff')
   .type('application/xml').send(body)
 
@@ -90,10 +99,7 @@ function installSeo(app) {
       'WHERE c.store_id=s.id AND c.is_default=true AND c.active=true AND COALESCE(cp.visible,true)=true)',
     ].join(' '))
     const socialCount = Math.ceil(Number(socialResult.rows[0].total) / PAGE_SIZE)
-    const urls = [SITE + '/sitemap-pages.xml']
-    for (let i = 1; i <= sCount; i++) urls.push(SITE + '/sitemap-stores-' + i + '.xml')
-    for (let i = 1; i <= pCount; i++) urls.push(SITE + '/sitemap-products-' + i + '.xml')
-    for (let i = 1; i <= socialCount; i++) urls.push(SITE + '/sitemap-social-products-' + i + '.xml')
+    const urls = sitemapChildren({ stores: sCount, products: pCount, socialProducts: socialCount })
     return xml(res, sitemapIndex(urls))
   }))
 
@@ -133,7 +139,7 @@ function installSeo(app) {
       'AND COALESCE(cp.visible,true)=true)',
       'ORDER BY s.slug,p.id LIMIT $1 OFFSET $2',
     ].join(' '), [PAGE_SIZE, offset])
-    if (!rows.rowCount) return res.status(404).end()
+    if (!rows.rowCount) return xml(res, urlset([]))
     return xml(res, urlset(rows.rows.map((row) => ({
       url: SITE + '/' + encodeURIComponent(row.slug) + '?produto=' + encodeURIComponent(row.id),
       modified: row.updated_at,
@@ -152,7 +158,7 @@ function installSeo(app) {
       'WHERE c.store_id=s.id AND c.is_default=true AND c.active=true AND COALESCE(cp.visible,true)=true)',
       'ORDER BY s.slug,p.id LIMIT $1 OFFSET $2',
     ].join(' '), [PAGE_SIZE, offset])
-    if (!found.rowCount) return res.status(404).end()
+    if (!found.rowCount) return xml(res, urlset([]))
     return xml(res, urlset(found.rows.map((row) => ({
       url: SITE + '/perfil/' + encodeURIComponent(row.slug) + '?produto=' + encodeURIComponent(row.id),
       modified: row.updated_at,
