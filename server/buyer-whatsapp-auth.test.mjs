@@ -40,6 +40,29 @@ test('login só fica pronto quando flag, entrega e segredo HMAC estão completos
   }
 })
 
+test('segredo estável de integração pode derivar OTP isolado quando não há chave dedicada', () => {
+  const keys = ['SHOPVAX_BUYER_WHATSAPP_LOGIN', 'UAZAPI_BASE_URL', 'UAZAPI_INSTANCE_TOKEN', 'SHOPVAX_OTP_HMAC_SECRET', 'SHOPVAX_INTEGRATION_SECRET']
+  const previous = Object.fromEntries(keys.map(key => [key, process.env[key]]))
+  try {
+    process.env.SHOPVAX_BUYER_WHATSAPP_LOGIN = '1'
+    process.env.UAZAPI_BASE_URL = 'https://central.test'
+    process.env.UAZAPI_INSTANCE_TOKEN = 'token-de-teste'
+    delete process.env.SHOPVAX_OTP_HMAC_SECRET
+    process.env.SHOPVAX_INTEGRATION_SECRET = 'chave-estavel-de-integracao-com-mais-de-32-caracteres'
+    assert.equal(buyerWhatsappReady(), true)
+    process.env.SHOPVAX_INTEGRATION_SECRET = 'fraca'
+    assert.equal(buyerWhatsappReady(), false)
+    process.env.SHOPVAX_INTEGRATION_SECRET = 'chave-estavel-de-integracao-com-mais-de-32-caracteres'
+    process.env.SHOPVAX_BUYER_WHATSAPP_LOGIN = '0'
+    assert.equal(buyerWhatsappReady(), false, 'flag de ativação permanece obrigatória')
+  } finally {
+    for (const key of keys) {
+      if (previous[key] === undefined) delete process.env[key]
+      else process.env[key] = previous[key]
+    }
+  }
+})
+
 test('configuração de entrega exige HTTPS e token sem expor exceções de URL', () => {
   assert.equal(buyerWhatsappDeliveryConfigured({ UAZAPI_BASE_URL: 'http://uazapi.test', UAZAPI_INSTANCE_TOKEN: 'token' }), false)
   assert.equal(buyerWhatsappDeliveryConfigured({ UAZAPI_BASE_URL: 'não-é-url', UAZAPI_INSTANCE_TOKEN: 'token' }), false)
