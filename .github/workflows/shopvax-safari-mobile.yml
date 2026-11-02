@@ -45,6 +45,11 @@ jobs:
           SHOPVAX_TEST_BROWSER: webkit
         run: node tests/shopvax-feedback-ui.e2e.mjs
 
+      - name: Simular troca de lojas no Safari local
+        env:
+          SHOPVAX_TEST_BROWSER: webkit
+        run: node tests/shopvax-cross-store-navigation.e2e.mjs
+
       - name: Aguardar a mesma revisão da main em produção
         shell: bash
         run: |

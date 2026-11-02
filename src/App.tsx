@@ -2,7 +2,7 @@ import ShopvaxSupport from './ShopvaxSupport'
 import ShopvaxLoading from './ShopvaxLoading'
 import ShopvaxLoginTransition from './ShopvaxLoginTransition'
 import ShopvaxBuyerPreferences from './ShopvaxBuyerPreferences'
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { Fragment, lazy, Suspense, useEffect, useState } from 'react'
 import PublicRoute from './PublicRoute'
 import Phase3PublicRuntime from './Phase3PublicRuntime'
 import Phase4PublicRuntime from './Phase4PublicRuntime'
@@ -65,14 +65,14 @@ export default function App() {
   }, [page])
 
   let content
-  if (page === 'store') content = <><PublicRoute /><Phase3PublicRuntime /><Phase4PublicRuntime /></>
+  if (page === 'store') content = <Fragment key={pathname}><PublicRoute /><Phase3PublicRuntime /><Phase4PublicRuntime /></Fragment>
   else if (page === 'social') content = <SocialFeed />
-  else if (page === 'profile') content = <SocialStoreProfile />
+  else if (page === 'profile') content = <SocialStoreProfile key={pathname} />
   else if (page === 'home') content = <HomeRoute />
   else if (page === 'login') content = <AuthRoute mode="login" />
   else if (page === 'register') content = <AuthRoute mode="register" />
   else if (page === 'buyer') content = <GlobalBuyerAccount />
-  else if (page === 'customer') content = <><CustomerAccountRoute /><ShopvaxBuyerPreferences /></>
+  else if (page === 'customer') content = <Fragment key={pathname}><CustomerAccountRoute /><ShopvaxBuyerPreferences /></Fragment>
   else if (page === 'platform') content = <PlatformRoute />
   else content = <AdminRoute />
 

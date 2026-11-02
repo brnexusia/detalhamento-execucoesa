@@ -40,6 +40,8 @@ jobs:
           exit 1
       - name: Validar layout real e capturar telas
         run: node tests/shopvax-feedback-ui.e2e.mjs
+      - name: Simular troca de lojas e carrinhos no navegador
+        run: node tests/shopvax-cross-store-navigation.e2e.mjs
       - name: Fotografias de evidência
         if: always()
         uses: actions/upload-artifact@v4
