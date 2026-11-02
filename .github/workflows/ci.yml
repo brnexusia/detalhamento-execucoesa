@@ -125,6 +125,8 @@ jobs:
         run: npm run test:buyer-whatsapp
       - name: Platform Google reauthentication regression checks
         run: node server/platform-google-reauth.test.mjs
+      - name: Unified admin insights regression checks
+        run: node --test server/platform-insights-contract.test.mjs
       - name: Growth policy and consent privacy tests
         run: node --test server/onboarding-growth-policy.test.mjs
       - name: Growth hook JavaScript syntax

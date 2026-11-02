@@ -55,7 +55,7 @@ jobs:
           grep -Fq '/painel/assinatura' src/AdminRoute.tsx
           grep -Fq '/admin/lancamento' src/PlatformRoute.tsx
           grep -Fq '@media(max-width:820px)' src/phase5-panel.css
-          grep -Fq '@media(max-width:640px)' src/platform-launch-ops.css
+          ! grep -Fq '<PlatformLaunchOps' src/PlatformRoute.tsx
       - name: Start Shopvax production profile
         env:
           NODE_ENV: production
@@ -73,7 +73,7 @@ jobs:
       - name: Owner and platform route smoke
         run: |
           curl -fsS http://127.0.0.1:3000/painel/assinatura >/dev/null
-          curl -fsS http://127.0.0.1:3000/admin/lancamento >/dev/null
+          curl -fsS http://127.0.0.1:3000/admin >/dev/null
       - name: Print server log on failure
         if: failure()
         run: cat /tmp/shopvax-phase5.log || true

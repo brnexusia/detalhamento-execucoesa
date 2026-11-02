@@ -136,8 +136,7 @@ async function verifyCode(req, res) {
   if (!phone || !/^\d{6}$/.test(code)) return fail(res, 400, 'Telefone ou código inválido.')
   await schema()
   // O cadastro é da plataforma; o contexto da loja é opcional para clientes antigos.
-  const originStore = req.body?.storeSlug ? await store(req.body.storeSlug) : null
-  if (req.body?.storeSlug && !originStore) return fail(res, 404, 'Loja não encontrada.')
+  if (req.body?.storeSlug && !await store(req.body.storeSlug)) return fail(res, 404, 'Loja não encontrada.')
   const token = crypto.randomBytes(32).toString('base64url')
   const client = await pool.connect()
   let account
@@ -160,10 +159,6 @@ async function verifyCode(req, res) {
     const createdId = uuid()
     const saved = await client.query('INSERT INTO buyer_accounts(id,phone) VALUES($1,$2) ON CONFLICT(phone) DO UPDATE SET updated_at=buyer_accounts.updated_at RETURNING *', [createdId,phone])
     account = saved.rows[0]
-    // Atribuição única: só a primeira conta criada recebe uma origem de acesso.
-    if (originStore && account.id === createdId) {
-      await client.query('INSERT INTO buyer_account_origins(buyer_id,store_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [account.id,originStore.id])
-    }
     await client.query("INSERT INTO buyer_sessions(token_hash,buyer_id,expires_at) VALUES($1,$2,now()+interval '30 days')", [sha(token),account.id])
     await client.query('COMMIT')
   } catch (error) {
@@ -171,7 +166,7 @@ async function verifyCode(req, res) {
     throw error
   } finally { client.release() }
   res.cookie(COOKIE, token, opts(req))
-  return res.json({ ok: true, needsProfile: !account.profile_completed, buyer: publicBuyer(account) })
+  return res.json({ ok: true, created: account.id === createdId, needsProfile: !account.profile_completed, buyer: publicBuyer(account) })
 }
 function profileFields(body) {
   const name = clean(body?.name, 120), email = clean(body?.email, 240).toLowerCase(), purpose = String(body?.purpose || '')
@@ -248,6 +243,20 @@ export async function buyerProfilesForStore(storeId) {
   const r = await pool.query('SELECT c.id AS customer_id,b.purpose,b.business_status,b.business_name,b.cnpj_status,b.segment,b.channels FROM store_customers c JOIN buyer_accounts b ON b.id=c.buyer_account_id WHERE c.store_id=$1', [storeId])
   return r.rows
 }
+async function attributeOrigin(req, res) {
+  if (!buyerWhatsappReady()) return fail(res, 503, 'Serviço indisponível.')
+  await schema()
+  const account = await buyer(req)
+  if (!account?.profile_completed) return fail(res, 401, 'Conclua o cadastro de comprador.')
+  // A origem só é registrada durante o primeiro cadastro, nunca em login ou edição posterior.
+  const fresh = Date.now() - new Date(account.created_at).getTime() < 30 * 60 * 1000
+  if (!fresh) return fail(res, 409, 'Origem não pode ser alterada em uma conta existente.')
+  const originStore = await store(req.body?.storeSlug)
+  if (!originStore) return fail(res, 404, 'Conta comercial não encontrada.')
+  await pool.query('INSERT INTO buyer_account_origins(buyer_id,store_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [account.id,originStore.id])
+  res.set('Cache-Control', 'private, no-store')
+  return res.status(204).end()
+}
 async function me(req,res) {
   if (!buyerWhatsappReady()) return fail(res,503,'Serviço indisponível.')
   await schema()
@@ -274,6 +283,7 @@ function install(app) {
   app.post('/api/public/buyer-auth/verify-code',express.json({limit:'8kb'}),noCache,wrap(verifyCode))
   app.get('/api/public/buyer-auth/me',noCache,wrap(me))
   app.put('/api/public/buyer-auth/profile',express.json({limit:'16kb'}),noCache,wrap(saveProfile))
+  app.post('/api/public/buyer-auth/attribute-origin',express.json({limit:'4kb'}),noCache,wrap(attributeOrigin))
   app.post('/api/public/customers/logout',noCache,wrap(logout))
 }
 const previousInit = express.application.init

@@ -30,6 +30,7 @@ export default function BuyerWhatsappLogin({ storeSlug = '', onVerified, editOnl
   const [open, setOpen] = useState(!editOnly)
   const [stage, setStage] = useState<Stage>('phone')
   const [phone, setPhone] = useState('')
+  const [freshSignup, setFreshSignup] = useState(false)
   const [code, setCode] = useState('')
   const [form, setForm] = useState<Form>(empty)
   const [privacy, setPrivacy] = useState(false)
@@ -81,17 +82,18 @@ export default function BuyerWhatsappLogin({ storeSlug = '', onVerified, editOnl
   }
   const send = () => act(async () => {
     const response = await apiRequest<{ expiresInSeconds: number; resendAfterSeconds: number }>('/api/public/buyer-auth/request-code', {
-      method: 'POST', body: JSON.stringify({ phone, storeSlug }),
+      method: 'POST', body: JSON.stringify({ phone }),
     })
     setCode(''); setStage('code')
     setCooldown(Math.max(0, Number(response.resendAfterSeconds) || 0))
     setExpiresIn(Math.max(0, Number(response.expiresInSeconds) || 0))
   })
   const verify = () => act(async () => {
-    const response = await apiRequest<{ needsProfile: boolean; buyer: Buyer }>('/api/public/buyer-auth/verify-code', {
-      method: 'POST', body: JSON.stringify({ phone, code, storeSlug }),
+    const response = await apiRequest<{ needsProfile: boolean; created: boolean; buyer: Buyer }>('/api/public/buyer-auth/verify-code', {
+      method: 'POST', body: JSON.stringify({ phone, code }),
     })
     if (response.needsProfile) {
+      setFreshSignup(response.created === true)
       setStage('profile')
       setPrivacy(false)
     } else {
@@ -103,6 +105,12 @@ export default function BuyerWhatsappLogin({ storeSlug = '', onVerified, editOnl
     await apiRequest('/api/public/buyer-auth/profile', {
       method: 'PUT', body: JSON.stringify({ ...form, privacyAccepted: privacy }),
     })
+    // Origem comercial é opcional, posterior à autenticação global e só para novas contas.
+    if (freshSignup && storeSlug && !editOnly) {
+      await apiRequest('/api/public/buyer-auth/attribute-origin', {
+        method: 'POST', body: JSON.stringify({ storeSlug }),
+      }).catch(() => undefined)
+    }
     notifyAuthChange('customer')
     if (editOnly) setOpen(false)
     await onVerified()
