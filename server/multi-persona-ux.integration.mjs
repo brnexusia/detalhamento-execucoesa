@@ -73,7 +73,7 @@ try {
     }
     const order = await request('/api/business/orders', { method: 'POST', cookie: buyer.cookie,
       body: { storeSlug: shop.slug,
-        items: [{ productId: shop.productId, quantity: 1, selections: {} }] },
+        items: [{ productId: shop.productId, quantity: 5, selections: {} }] },
     })
     expectOk(order, 201, 'Pedido do comprador ' + i)
     assert.equal(new URL(order.data.whatsappUrl).hostname, 'wa.me')
