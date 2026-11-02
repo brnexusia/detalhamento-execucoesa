@@ -72,9 +72,11 @@ try {
    assert(m.card.bottom<=height+3 && m.card.height>=height-3,'Publicação não ocupa janela útil: '+JSON.stringify({width,height,m}))
    assert(m.cta.right<=m.card.right+2 && m.cta.bottom<=height+2,'CTA do produto cortado: '+JSON.stringify({width,height,m}))
    if(width>=800) {
-     assert(m.card.width>=Math.min(width*.94,1160),'Feed estreito em desktop: '+JSON.stringify({width,height,m}))
-     assert(m.media.right<=m.copy.left+3 && m.media.width>m.card.width*.55,'Mídia e dados não estão lado a lado: '+JSON.stringify({width,height,m}))
-     assert(m.copy.bottom<=m.actions.top+3,'Interações estão sobre o texto/preço: '+JSON.stringify({width,height,m}))
+     // O feed atual é imersivo: um cartão vertical por viewport, mídia ao fundo
+     // e ações em trilho lateral. Não exigir duas colunas do layout legado.
+     assert(m.card.width>=Math.min(480,width*.55) && m.card.width<=width+2,'Cartão vertical fora da largura útil: '+JSON.stringify({width,height,m}))
+     assert(Math.abs(m.media.width-m.card.width)<=3 && Math.abs(m.media.height-m.card.height)<=3,'Mídia não preenche o cartão imersivo: '+JSON.stringify({width,height,m}))
+     assert(m.copy.right<=m.actions.left+3,'Trilho lateral das interações sobrepõe o texto: '+JSON.stringify({width,height,m}))
      assert(m.actions.right<=m.card.right+3,'Interações vazaram para fora do cartão: '+JSON.stringify({width,height,m}))
    } else if(width>700) {
      assert(m.card.width>=width-40,'Feed usa coluna estreita no notebook: '+JSON.stringify({width,height,m}))
