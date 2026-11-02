@@ -2,6 +2,8 @@ import crypto from 'node:crypto'
 import express from 'express'
 import pg from 'pg'
 import { cycles, planPrice, subscriptionAccess, verifyStripeSignature } from './stripe-billing-policy.mjs'
+import { systemPlans } from './system-plans.mjs'
+import { ensureReferralSchema, captureReferral, qualifyReferralOnPaidInvoice, applyMerchantStripeCredits, reverseReferralForRefund } from './referral-program-core.mjs'
 
 const { Pool } = pg
 const key = String(process.env.SHOPVAX_STRIPE_SECRET_KEY || '').trim()
@@ -156,7 +158,9 @@ async function requireOwner(req, res) {
 async function status(req, res) {
   const account = await requireOwner(req, res)
   if (!account) return
-  res.json(billingShape(account))
+  await ensureReferralSchema()
+  const referral = (await pool.query('SELECT referral_code,status FROM shopvax_referral_claims WHERE referred_store_id=$1',[account.id])).rows[0]
+  res.json({ ...billingShape(account), referralCode: referral?.referral_code || '', referralStatus: referral?.status || null })
 }
 
 async function customerFor(account, client) {
@@ -181,10 +185,20 @@ async function checkout(req, res) {
   if (!ready) return apiError(res, 503, 'A cobrança online ainda não está disponível.', 'BILLING_NOT_CONFIGURED')
   const plan = planPrice(String(req.body?.planCode || '').toLowerCase(), String(req.body?.cycle || 'monthly'))
   if (!plan) return apiError(res, 400, 'Selecione um plano e um ciclo válidos.', 'INVALID_PLAN')
+  await ensureReferralSchema()
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['shopvax-billing:' + account.id])
+    if (req.body?.referralCode) {
+      const previousPayment = (await client.query('SELECT last_invoice_id FROM shopvax_stripe_billing WHERE store_id=$1',[account.id])).rows[0]
+      if (previousPayment?.last_invoice_id) { await client.query('ROLLBACK'); return apiError(res,409,'O código só pode ser atribuído antes do primeiro pagamento.','REFERRAL_TOO_LATE') }
+      const linked = await captureReferral(account.id,req.body.referralCode,client)
+      if (!linked.ok) {
+        await client.query('ROLLBACK')
+        return apiError(res,409,linked.error,'REFERRAL_INVALID')
+      }
+    }
     const current = (await client.query('SELECT * FROM shopvax_stripe_billing WHERE store_id=$1 FOR UPDATE', [account.id])).rows[0]
     if (current?.customer_id && current.stripe_mode !== stripeMode) {
       await client.query('ROLLBACK')
@@ -291,18 +305,19 @@ async function change(req, res) {
 async function syncSubscription(client, id, eventType, paidInvoiceId = null) {
   const subscription = await stripe('GET', 'subscriptions/' + encodeURIComponent(id))
   const storeId = String(subscription?.metadata?.shopvax_store_id || '')
-  if (!storeId || !subscription.customer) return
+  if (!storeId || !subscription.customer) return null
   const row = (await client.query('SELECT * FROM shopvax_stripe_billing WHERE store_id=$1 FOR UPDATE', [storeId])).rows[0]
   if (!row || row.stripe_mode !== stripeMode || row.customer_id !== subscription.customer) {
     throw new Error('Assinatura Stripe não corresponde à loja vinculada.')
   }
   // Eventos atrasados de uma assinatura já substituída não podem afetar a nova.
-  if (row.subscription_id && row.subscription_id !== subscription.id) return
-  if (!row.subscription_id && row.checkout_started_at && Number(subscription.created) * 1000 < new Date(row.checkout_started_at).getTime() - 30_000) return
+  if (row.subscription_id && row.subscription_id !== subscription.id) return null
+  if (!row.subscription_id && row.checkout_started_at && Number(subscription.created) * 1000 < new Date(row.checkout_started_at).getTime() - 30_000) return null
   const line = subscription.items?.data?.[0]
   const priceId = typeof line?.price === 'string' ? line.price : line?.price?.id
   const mapped = priceId ? (await client.query('SELECT plan_code,cycle FROM shopvax_stripe_prices WHERE price_id=$1 AND stripe_mode=$2', [priceId, stripeMode])).rows[0] : null
   const paid = eventType === 'invoice.paid' && Boolean(paidInvoiceId) && mapped && subscription.status === 'active'
+  const firstPaid = paid && !row.last_invoice_id
   const periodEnd = Number(line?.current_period_end || subscription.current_period_end || 0)
   const until = paid && periodEnd > 0 ? new Date(periodEnd * 1000) : null
   await client.query([
@@ -316,6 +331,7 @@ async function syncSubscription(client, id, eventType, paidInvoiceId = null) {
   if (paid) {
     await client.query('UPDATE stores SET plan_tier=$2,billing_required=true,updated_at=now() WHERE id=$1', [storeId, mapped.plan_code])
   }
+  return { storeId, paid, firstPaid }
 }
 
 async function webhook(req, res) {
@@ -326,6 +342,7 @@ async function webhook(req, res) {
   catch { return apiError(res, 400, 'JSON inválido.', 'INVALID_EVENT') }
   if (!event?.id || !event?.type || !event?.data?.object) return apiError(res, 400, 'Evento inválido.', 'INVALID_EVENT')
   await ensureSchema()
+  await ensureReferralSchema()
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
@@ -341,7 +358,18 @@ async function webhook(req, res) {
       // Nunca liberar acesso somente porque o usuário retornou do Checkout.
     } else if (event.type === 'invoice.paid' && obj.status === 'paid' && obj.paid_out_of_band !== true) {
       const sub = typeof obj.subscription === 'string' ? obj.subscription : obj.parent?.subscription_details?.subscription
-      if (typeof sub === 'string') await syncSubscription(client, sub, event.type, obj.id)
+      if (typeof sub === 'string') {
+        const confirmed = await syncSubscription(client, sub, event.type, obj.id)
+        if (confirmed?.paid) {
+          const referred = confirmed.firstPaid ? await qualifyReferralOnPaidInvoice(client,confirmed.storeId,obj.id) : null
+          if (referred?.referrerStoreId) await applyMerchantStripeCredits(client,referred.referrerStoreId,stripe,stripeMode)
+          await applyMerchantStripeCredits(client,confirmed.storeId,stripe,stripeMode)
+        }
+      }
+    } else if ((event.type === 'invoice.voided' && obj.id) ||
+      (event.type === 'charge.refunded' && obj.refunded === true && Number(obj.amount_refunded) >= Number(obj.amount) && obj.invoice)) {
+      const refundedInvoice = event.type === 'charge.refunded' ? obj.invoice : obj.id
+      await reverseReferralForRefund(client,refundedInvoice,stripe,stripeMode)
     } else if (['invoice.payment_failed', 'customer.subscription.created', 'customer.subscription.updated', 'customer.subscription.deleted'].includes(event.type)) {
       const sub = event.type.startsWith('invoice.') ? (typeof obj.subscription === 'string' ? obj.subscription : obj.parent?.subscription_details?.subscription) : obj.id
       if (typeof sub === 'string') await syncSubscription(client, sub, event.type)
@@ -386,6 +414,15 @@ function install(app) {
   if (app.__shopvaxStripeInstalled) return
   app.__shopvaxStripeInstalled = true
   app.post('/api/billing/stripe/webhook', express.raw({ type: 'application/json', limit: '256kb' }), wrap(webhook))
+  app.get('/api/billing/public-plans', (_req,res) => {
+    res.set('Cache-Control','public, max-age=120')
+    res.json({ enabled:ready, plans: systemPlans.map(plan => ({
+      code:plan.code,name:plan.name,monthlyPrice:planPrice(plan.code,'monthly').amountCents/100,
+      sellerLimit:plan.sellerLimit,productLimit:plan.productLimit,catalogLimit:plan.catalogLimit,
+      photoLimit:plan.photoLimit,franchiseeLimit:plan.franchiseeLimit,
+      cycles:Object.keys(cycles).map(cycle => ({code:cycle,amountCents:planPrice(plan.code,cycle).amountCents})),
+    })) })
+  })
   app.get('/api/billing/status', headersNoCache, wrap(status))
   app.post('/api/billing/checkout', express.json({ limit: '8kb' }), headersNoCache, wrap(checkout))
   app.post('/api/billing/portal', express.json({ limit: '8kb' }), headersNoCache, wrap(portal))

@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import express from 'express'
 import pg from 'pg'
+import { ensureReferralSchema, lookupReferral, captureReferral } from './referral-program-core.mjs'
 
 const { Pool } = pg
 const databaseUrl = process.env.DATABASE_URL?.trim() || ''
@@ -634,62 +635,56 @@ async function ensureReferralCode(storeId) {
 }
 
 async function referralStatus(req, res) {
+  await ensureReferralSchema()
   const code = await ensureReferralCode(req.phase3Store.id)
-  const result = await pool.query('SELECT count(*)::int AS referrals,COALESCE(sum(credit_months),0)::int AS credited FROM store_referrals WHERE referrer_store_id=$1', [req.phase3Store.id])
+  const result = await pool.query([
+    "SELECT count(*)::int AS referrals,",
+    "count(*) FILTER (WHERE status='pending')::int AS pending,",
+    "count(*) FILTER (WHERE status='qualified')::int AS qualified,",
+    "count(*) FILTER (WHERE status='reversed')::int AS reversed,",
+    "count(*) FILTER (WHERE credit_status='applied')::int AS applied",
+    "FROM shopvax_referral_claims WHERE referrer_store_id=$1",
+  ].join(' '),[req.phase3Store.id])
   const freshStore = await pool.query('SELECT billing_credit_months FROM stores WHERE id=$1', [req.phase3Store.id])
+  const detail = await pool.query([
+    "SELECT c.status,c.credit_status,c.created_at,c.qualified_at,s.name AS store_name",
+    "FROM shopvax_referral_claims c JOIN stores s ON s.id=c.referred_store_id",
+    "WHERE c.referrer_store_id=$1 ORDER BY c.created_at DESC LIMIT 100",
+  ].join(' '),[req.phase3Store.id])
   return res.json({
     code,
     referrals: Number(result.rows[0]?.referrals || 0),
-    creditedMonths: Number(result.rows[0]?.credited || 0),
+    pending: Number(result.rows[0]?.pending || 0),
+    qualified: Number(result.rows[0]?.qualified || 0),
+    reversed: Number(result.rows[0]?.reversed || 0),
+    applied: Number(result.rows[0]?.applied || 0),
+    creditedMonths: Number(result.rows[0]?.qualified || 0),
     availableCreditMonths: Number(freshStore.rows[0]?.billing_credit_months || 0),
+    details: detail.rows.map(row=>({ storeName:row.store_name,status:row.status,creditStatus:row.credit_status,createdAt:row.created_at,qualifiedAt:row.qualified_at })),
     rule: '1 indicação válida = 1 mês grátis',
-    billingNote: 'O crédito fica registrado para ser consumido pela cobrança recorrente quando o módulo de billing estiver ativo.',
+    billingNote: 'Somente o primeiro pagamento confirmado pela Stripe libera o crédito. Quando houver assinatura Stripe ativa, o benefício entra como saldo no próximo faturamento.',
   })
-}
-
-async function awardReferral(referrerStoreId, referredSlug) {
-  if (!referrerStoreId || !referredSlug) return false
-  const client = await pool.connect()
-  try {
-    await client.query('BEGIN')
-    const referred = await client.query('SELECT id FROM stores WHERE slug=$1 FOR UPDATE', [referredSlug])
-    if (!referred.rowCount || referred.rows[0].id === referrerStoreId) {
-      await client.query('ROLLBACK')
-      return false
-    }
-    const inserted = await client.query(`
-      INSERT INTO store_referrals (id,referrer_store_id,referred_store_id,credit_months)
-      VALUES ($1,$2,$3,1) ON CONFLICT (referred_store_id) DO NOTHING RETURNING id
-    `, [id(), referrerStoreId, referred.rows[0].id])
-    if (inserted.rowCount) await client.query('UPDATE stores SET billing_credit_months=billing_credit_months+1 WHERE id=$1', [referrerStoreId])
-    await client.query('COMMIT')
-    return Boolean(inserted.rowCount)
-  } catch (error) {
-    try { await client.query('ROLLBACK') } catch {}
-    throw error
-  } finally { client.release() }
 }
 
 async function referralRegistration(req, res, next) {
   try {
     await ensureSchema()
+    await ensureReferralSchema()
     const code = couponCode(req.body?.referralCode)
     if (!code) return next()
-    const referrer = await pool.query('SELECT id FROM stores WHERE upper(referral_code)=upper($1) AND is_active=true LIMIT 1', [code])
-    if (!referrer.rowCount) return res.status(400).json({ error: 'Código de indicação inválido.', code: 'REFERRAL_INVALID' })
-    const referrerStoreId = referrer.rows[0].id
+    const referrer = await lookupReferral(pool,code)
+    if (!referrer) return res.status(400).json({ error: 'Código de indicação inválido.', code: 'REFERRAL_INVALID' })
     const originalJson = res.json.bind(res)
     let sent = false
     res.json = function phase3ReferralJson(payload) {
       if (sent) return originalJson(payload)
       sent = true
       if (res.statusCode === 201 && payload?.storeSlug) {
-        Promise.resolve(awardReferral(referrerStoreId, payload.storeSlug))
-          .then((credited) => originalJson({ ...payload, referralCredited: credited }))
-          .catch((error) => {
-            console.error('[phase3] referral award:', error.message)
-            originalJson(payload)
-          })
+        Promise.resolve().then(async()=>{
+          const row = (await pool.query('SELECT id FROM stores WHERE slug=$1',[payload.storeSlug])).rows[0]
+          return row ? captureReferral(row.id,code) : {ok:false}
+        }).then(result=>originalJson({ ...payload, referralPending: result.ok === true, referralCredited: false }))
+          .catch(error=>{console.error('[phase3] referral capture:',error.message);originalJson(payload)})
         return res
       }
       return originalJson(payload)

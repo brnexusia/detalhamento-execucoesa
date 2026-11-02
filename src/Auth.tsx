@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ArrowRight, Eye, EyeOff, Gift, Store, X } from 'lucide-react'
-import { api } from './api'
+import { api, apiRequest } from './api'
+import { trustedStripeCheckoutUrl } from './stripe-checkout-client'
 import { useOwnerSession } from './owner-session'
 import ShopvaxLoading from './ShopvaxLoading'
 import GoogleSignInButton from './GoogleSignInButton'
@@ -16,12 +17,13 @@ type SignupPlan = {
   catalogLimit: number | null
   photoLimit: number | null
   franchiseeLimit: number | null
+  cycles: Array<{code: string; amountCents: number}>
 }
 
 const planName = (code: string, fallback = '') => ({ bronze: 'Bronze', prata: 'Prata', ouro: 'Ouro' } as Record<string, string>)[code] || fallback
 
 const planMoney = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
-const SHOW_SIGNUP_PLANS = false
+const SHOW_SIGNUP_PLANS = true
 const DEFAULT_SIGNUP_PLAN = 'bronze'
 
 function go(path: string) {
@@ -32,6 +34,15 @@ function go(path: string) {
 function requestedDestination() {
   const next = new URLSearchParams(window.location.search).get('next') || ''
   return next.startsWith('/') && !next.startsWith('//') && !/^\/(?:entrar|login|criar-conta)(?:[/?#]|$)/.test(next) ? next : '/painel'
+}
+
+async function ownerDestination(fallback: string) {
+  if (!fallback.startsWith('/painel') || fallback.startsWith('/painel/assinatura')) return fallback
+  try {
+    const billing = await apiRequest<{enabled:boolean; required:boolean; accessGranted:boolean}>('/api/billing/status')
+    if (billing.required && !billing.accessGranted) return '/painel/assinatura'
+  } catch { /* Sessão ou billing indisponível: painel preserva tratamento de erro. */ }
+  return fallback
 }
 
 function requestedReferral() {
@@ -61,6 +72,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const [plansLoading, setPlansLoading] = useState(mode === 'register')
   const [plansError, setPlansError] = useState('')
   const [googleBusy, setGoogleBusy] = useState(false)
+  const [cycle, setCycle] = useState<'monthly'|'semiannual'|'annual'>('monthly')
   const [googleSignup, setGoogleSignup] = useState<{ credential: string; name: string; email: string; picture?: string } | null>(null)
   const [form, setForm] = useState({
     name: '',
@@ -76,11 +88,22 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const registrationMode = mode === 'register' || Boolean(googleSignup)
 
   useEffect(() => {
+    if (mode !== 'register') return
+    const initialCode = requestedReferral()
+    if (!initialCode) return
+    const controller = new AbortController()
+    fetch('/api/public/referrals/resolve?code=' + encodeURIComponent(initialCode), {
+      signal: controller.signal, credentials: 'same-origin',
+    }).catch(() => undefined)
+    return () => controller.abort()
+  }, [mode])
+
+  useEffect(() => {
     // Não exibir credenciais de login para quem já tem um cookie válido no backend.
-    if (mode === 'login' && !switchingAccount && !busy && !googleBusy && ownerSession === 'authenticated') {
-      go(requestedDestination())
+    if (mode === 'login' && !googleSignup && !switchingAccount && !busy && !googleBusy && ownerSession === 'authenticated') {
+      void ownerDestination(requestedDestination()).then(go)
     }
-  }, [mode, switchingAccount, busy, googleBusy, ownerSession])
+  }, [mode, googleSignup, switchingAccount, busy, googleBusy, ownerSession])
 
   const finishAuthenticatedEntry = async (destination: string) => {
     // Vinheta apenas após sucesso, independentemente da latência da autenticação.
@@ -101,7 +124,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
 
     setPlansLoading(true)
     setPlansError('')
-    fetch('/api/public/plans', { signal: controller.signal })
+    fetch('/api/billing/public-plans', { signal: controller.signal })
       .then(async (response) => response.ok ? response.json() : null)
       .then((payload) => {
         if (!Array.isArray(payload?.plans) || payload.plans.length === 0) throw new Error('Planos indisponíveis.')
@@ -116,6 +139,24 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   }, [registrationMode])
 
   const selectedPlan = plans.find((plan) => plan.code === form.planCode)
+  const selectedCyclePrice = selectedPlan?.cycles.find((option) => option.code === cycle)?.amountCents
+
+  // O cadastro já foi salvo no servidor: se Stripe falhar, continuar na cobrança,
+  // nunca solicitar um segundo cadastro nem liberar acesso sem webhook pago.
+  const beginSignupPayment = async () => {
+    const planCode = form.planCode || DEFAULT_SIGNUP_PLAN
+    try {
+      const result = await apiRequest<{url: string}>('/api/billing/checkout', {
+        method: 'POST',
+        body: JSON.stringify({ planCode, cycle, referralCode: form.referralCode.trim() }),
+      })
+      if (!trustedStripeCheckoutUrl(result.url)) throw new Error('Link de checkout Stripe inválido.')
+      window.location.assign(result.url)
+    } catch {
+      const params = new URLSearchParams({checkout:'error',plan:planCode,cycle})
+      go('/painel/assinatura?' + params.toString())
+    }
+  }
 
   const googleCredential = async (credential: string) => {
     setGoogleBusy(true)
@@ -123,7 +164,19 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     try {
       const result = await api.googleAuth({ credential, intent: 'login' })
       if (result.ok) {
-        await finishAuthenticatedEntry(mode === 'login' ? requestedDestination() : '/painel')
+        // Conta Google existente sem loja ainda precisa concluir a criação
+        // da loja, escolher assinatura e passar pela Stripe.
+        if (!result.storeSlug) {
+          setGoogleSignup({ credential, ...result.profile })
+          setForm((current) => ({
+            ...current,
+            name: result.profile.name || current.name,
+            email: result.profile.email || current.email,
+            planCode: current.planCode || DEFAULT_SIGNUP_PLAN,
+          }))
+          return
+        }
+        await finishAuthenticatedEntry(await ownerDestination(mode === 'login' ? requestedDestination() : '/painel'))
         return
       }
       if (result.needsSignup) {
@@ -153,13 +206,13 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
           referralCode: form.referralCode,
         })
         if (!result.ok) throw new Error('Não foi possível concluir o cadastro com Google.')
-        await finishAuthenticatedEntry('/painel')
+        await beginSignupPayment()
       } else if (mode === 'login') {
         await api.login({ email: form.email, password: form.password })
-        await finishAuthenticatedEntry(requestedDestination())
+        await finishAuthenticatedEntry(await ownerDestination(requestedDestination()))
       } else {
         await api.register({ ...form, planCode: form.planCode || DEFAULT_SIGNUP_PLAN })
-        await finishAuthenticatedEntry('/painel')
+        await beginSignupPayment()
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível continuar.')
@@ -215,7 +268,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
             <p>{registrationMode ? 'Criar conta' : 'Entrar'}</p>
             <h2>{googleSignup ? 'Complete os dados da sua loja.' : registrationMode ? 'Comece com a sua loja.' : 'Acesse seu painel.'}</h2>
           </div>
-          {registrationMode && form.referralCode && <div className="poster-note"><Gift size={15}/> Indicação {form.referralCode} · quem indicou recebe 1 mês grátis após seu cadastro válido.</div>}
+          {registrationMode && form.referralCode && <div className="poster-note"><Gift size={15}/> Indicação {form.referralCode} · o benefício depende do primeiro pagamento confirmado pela Stripe.</div>}
           {!googleSignup && <>
             <GoogleSignInButton mode={mode} disabled={googleBusy || busy} onCredential={googleCredential} />
             <div className="auth-divider"><span>ou</span></div>
@@ -229,6 +282,8 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
               {!googleSignup && <label><span>Seu nome</span><input autoComplete="name" value={form.name} onChange={(e) => update('name', e.target.value)} placeholder="Loja" required /></label>}
               <label><span>Nome da loja</span><div className="input-icon"><Store size={17} /><input value={form.storeName} onChange={(e) => update('storeName', e.target.value)} placeholder="Ex.: Atacado Aurora" required /></div></label>
               <label><span>WhatsApp principal</span><input inputMode="tel" value={form.whatsapp} onChange={(e) => update('whatsapp', e.target.value)} placeholder="55 11 99999-9999" /></label>
+              <label><span>Código de indicação (opcional)</span><input value={form.referralCode} maxLength={40} autoCapitalize="characters" onChange={e=>update('referralCode',e.target.value.toUpperCase())} placeholder="SVX- OU SVP-" /></label>
+              <small>O código pode ser de uma loja ou parceiro independente. A recompensa só é validada após o pagamento da primeira assinatura pela Stripe.</small>
               {SHOW_SIGNUP_PLANS && <fieldset className="signup-plans">
                 <legend>Escolha seu plano</legend>
                 {plansLoading && <div className="signup-plans__state">Carregando planos…</div>}
@@ -239,7 +294,12 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
                   </button>)}
                 </div>}
                 <input className="signup-plan-required" tabIndex={-1} aria-hidden="true" value={form.planCode} onChange={() => undefined} required />
-                {selectedPlan && <small className="signup-plan-choice">Selecionado: {selectedPlan.name}</small>}
+                <div className="signup-plan-grid signup-plan-cycle" role="group" aria-label="Ciclo da assinatura">
+                  {([{code:'monthly',label:'Mensal'},{code:'semiannual',label:'Semestral'},{code:'annual',label:'Anual'}] as const).map(option =>
+                    <button type="button" key={option.code} className={cycle===option.code?'signup-plan is-selected':'signup-plan'} aria-pressed={cycle===option.code} onClick={()=>setCycle(option.code)}>{option.label}</button>
+                  )}
+                </div>
+                {selectedPlan && <small className="signup-plan-choice">Selecionado: {selectedPlan.name} · {cycle==='monthly'?'Mensal':cycle==='semiannual'?'Semestral':'Anual'} · {selectedCyclePrice==null?'Valor indisponível':planMoney.format(selectedCyclePrice/100)} por período. Após criar a conta, você será encaminhado automaticamente à Stripe.</small>}
               </fieldset>}
             </>
           )}
@@ -250,6 +310,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
           {error && <p className="form-error">{error}</p>}
           <button className="primary-action" disabled={busy || googleBusy || (SHOW_SIGNUP_PLANS && registrationMode && (plansLoading || Boolean(plansError)))}>{busy || googleBusy ? 'Aguarde…' : googleSignup ? 'Criar minha loja com Google' : mode === 'register' ? 'Criar minha loja' : 'Entrar'}<ArrowRight size={18} /></button>
           <p className="auth-switch">{registrationMode ? 'Já tem uma conta?' : 'Ainda não tem conta?'} <button type="button" onClick={() => { setGoogleSignup(null); go(registrationMode ? '/entrar' : '/criar-conta') }}>{registrationMode ? 'Entrar' : 'Criar conta'}</button></p>
+          <p className="auth-switch">Não tem loja e quer apenas indicar? <a href="/parceiros/cadastro">Conheça o Portal de Parceiros</a>.</p>
         </form>
       </main>
     </div>

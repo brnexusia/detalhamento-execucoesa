@@ -83,8 +83,8 @@ function installSecurity(app) {
     }
 
     const customerAuthMatch = req.path.match(/^\/api\/public\/store\/[^/]+\/customers\/(login|register)$/)
-    if (!rateLimitDisabled && req.method === 'POST' && (['/api/auth/login', '/api/auth/register', '/api/auth/google'].includes(req.path) || customerAuthMatch)) {
-      const isRegister = req.path === '/api/auth/register' || customerAuthMatch?.[1] === 'register'
+    if (!rateLimitDisabled && req.method === 'POST' && (['/api/auth/login', '/api/auth/register', '/api/auth/google', '/api/partners/login', '/api/partners/register'].includes(req.path) || customerAuthMatch)) {
+      const isRegister = ['/api/auth/register', '/api/partners/register'].includes(req.path) || customerAuthMatch?.[1] === 'register'
       const limit = isRegister ? 6 : 12
       const key = `${req.path}:${clientIp(req)}`
       const ttl = isRegister ? 60 * 60 * 1000 : windowMs
@@ -104,7 +104,7 @@ function installSecurity(app) {
       }
     }
 
-    if (req.method === 'POST' && (req.path === '/api/auth/register' || req.path === '/api/auth/google' || /^\/api\/public\/store\/[^/]+\/customers\/register$/.test(req.path))) {
+    if (req.method === 'POST' && (req.path === '/api/auth/register' || req.path === '/api/auth/google' || req.path === '/api/partners/register' || /^\/api\/public\/store\/[^/]+\/customers\/register$/.test(req.path))) {
       const length = Number(req.get('content-length') || 0)
       if (length > 64 * 1024) return res.status(413).json({ error: 'Cadastro maior que o permitido.' })
     }

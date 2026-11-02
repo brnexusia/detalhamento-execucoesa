@@ -12,7 +12,7 @@ type Order = { id: string; code: string; total: number; status: string; seller_i
 type Phase3Data = { plan: Plan; summary: { activeCoupons: number; activeCarts: number; referrals: number; creditMonths: number }; sellers: Seller[]; orders: Order[] }
 type Coupon = { id: string; code: string; type: 'percent' | 'fixed'; value: number; minimumSubtotal: number; maxUses: number | null; usedCount: number; active: boolean; startsAt?: string | null; expiresAt?: string | null }
 type Recovery = { id: string; items: Array<{ name?: string; quantity?: number }>; subtotal: number; state: string; updatedAt: string; ageMinutes: number; abandoned: boolean; customer?: { name?: string; email?: string; phone?: string } | null; sellerName?: string | null; catalogName?: string | null; whatsappUrl?: string | null }
-type Referral = { code: string; referrals: number; creditedMonths: number; availableCreditMonths: number; rule: string; billingNote: string }
+type Referral = { code: string; referrals: number; pending: number; qualified: number; applied: number; reversed: number; creditedMonths: number; availableCreditMonths: number; rule: string; billingNote: string; details?: Array<{storeName:string; status:string; creditStatus:string; createdAt:string; qualifiedAt:string|null}> }
 type Catalog = { id: string; slug: string; name: string; kind: string }
 type ReviewSummary = { enabled: boolean; average: number; count: number }
 type Bootstrap = { store: { slug: string; name: string } }
@@ -188,7 +188,7 @@ export default function Phase3Panel() {
     <section className="phase3-grid">
       <article className="phase3-card">
         <div className="phase3-card-head"><div><span>1 por 1</span><h2>Indique e ganhe</h2><p>{referral?.rule}</p></div><Gift size={23}/></div>
-        {referral && <><div className="phase3-referral-code"><code>{referral.code}</code><button onClick={() => copy(referralUrl)}><Copy size={16}/> Copiar link</button></div><div className="phase3-credit"><strong>{referral.availableCreditMonths}</strong><span>mês(es) de crédito acumulado(s)</span></div><p className="phase3-muted">{referral.billingNote}</p></>}
+        {referral && <><div className="phase3-referral-code"><code>{referral.code}</code><button onClick={() => copy(referralUrl)}><Copy size={16}/> Copiar link</button></div><div className="phase3-credit"><strong>{referral.availableCreditMonths}</strong><span>mês(es) aguardando aplicação na Stripe</span></div><p className="phase3-muted">{referral.pending || 0} aguardando pagamento · {referral.qualified || 0} pagos · {referral.applied || 0} créditos aplicados · {referral.reversed || 0} estornados</p><p className="phase3-muted">{referral.billingNote}</p><div className="phase3-list">{referral.details?.map((row,i)=><div key={i}><div><strong>{row.storeName}</strong><span>{row.status==='pending'?'Aguardando primeiro pagamento':row.status==='reversed'?'Pagamento estornado':row.creditStatus==='applied'?'Crédito lançado na Stripe':'Pagamento confirmado, crédito aguardando'} · {date.format(new Date(row.createdAt))}</span></div></div>)}</div></>}
       </article>
 
       <article className="phase3-card">

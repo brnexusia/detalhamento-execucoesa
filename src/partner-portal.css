@@ -1,0 +1,51 @@
+.svx-partner{min-height:100dvh;background:#f3f0e8;color:#161514;font-family:var(--svx-font-body,Arial,sans-serif);padding:0 clamp(16px,4vw,70px) 70px}
+.svx-partner__top{min-height:74px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #d4cfc4;gap:14px}
+.svx-partner__top>a{color:#161514;font-weight:800;text-decoration:none;letter-spacing:-.025em}
+.svx-partner__top>a span{font-weight:950;letter-spacing:-.06em}
+.svx-partner__top>span{display:flex;align-items:center;gap:6px;font-size:12px}
+.svx-partner__auth{width:min(540px,100%);margin:clamp(35px,8vw,100px) auto;background:#fff;padding:clamp(20px,5vw,44px);border:1px solid #d5d0c7}
+.svx-partner__eyebrow{font:700 11px/1.5 monospace;letter-spacing:.13em}
+.svx-partner h1{font-size:clamp(27px,4vw,48px);line-height:1.05;margin:12px 0}
+.svx-partner p{line-height:1.5;color:#5d5850}
+.svx-partner__auth form{display:grid;gap:15px;margin-top:26px}
+.svx-partner__auth form label{display:grid;gap:7px;font-size:13px;font-weight:650}
+.svx-partner input,.svx-referral-admin input{box-sizing:border-box;min-height:40px;max-width:100%;width:100%;padding:10px 12px;border:1px solid #ada79a;background:white;color:#161514;font:inherit}
+.svx-partner input:focus-visible,.svx-referral-admin input:focus-visible{outline:2px solid #eb6718;outline-offset:2px}
+.svx-partner button,.svx-referral-admin button{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid #191919;min-height:42px;padding:9px 14px;background:#161514;color:#fff;font:700 12px/1.3 inherit;cursor:pointer}
+.svx-partner button:disabled,.svx-referral-admin button:disabled{opacity:.55;cursor:not-allowed}
+.svx-partner button.svx-partner__link{background:transparent;color:#161514;border:0;margin-top:14px;width:100%;text-decoration:underline}
+.svx-partner__dashboard{width:min(1220px,100%);margin:38px auto}
+.svx-partner__heading{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:22px}
+.svx-partner__heading>div:last-child{display:flex;gap:8px}
+.svx-partner__grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:18px 0 25px}
+.svx-partner__grid article{border:1px solid #d0cabe;padding:22px 18px;background:#fff;min-width:0;display:grid;gap:9px}
+.svx-partner__grid small{color:#736b60;font-size:12px}
+.svx-partner__grid strong{font-size:clamp(21px,3vw,32px)}
+.svx-partner__card{background:#fff;border:1px solid #d0cabe;padding:clamp(16px,3vw,27px);margin:18px 0}
+.svx-partner__card h2{margin:0 0 12px;font-size:22px}
+.svx-partner__card code{display:inline-block;padding:10px 14px;background:#f1efe9;font-size:16px}
+.svx-partner__card>p{overflow-wrap:anywhere}
+.svx-partner__card>small{display:block;margin-top:13px;color:#655e55}
+.svx-partner__inline{display:flex;align-items:center;flex-wrap:wrap;gap:9px}
+.svx-partner__inline input{width:min(420px,100%)}
+.svx-partner__history article{display:grid;grid-template-columns:1fr 1fr auto;gap:12px;border-top:1px solid #e3dfd7;padding:15px 0;align-items:center}
+.svx-partner__history article div{display:grid;gap:5px}
+.svx-partner__history article span,.svx-partner__history article small{font-size:12px;color:#736b60}
+.svx-partner__warning,.svx-partner__notice,.svx-partner__error{display:flex;align-items:center;gap:8px;padding:12px 14px;background:#f5eddd;border:1px solid #dbd0b8}
+.svx-partner__error{background:#fff0ed;border-color:#d29284;color:#9d2c14!important}
+.svx-partner__notice{background:#eaf3ed;border-color:#b6d4bf;color:#214f35!important}
+.svx-referral-admin{display:grid;gap:12px;width:100%;max-width:100%;min-width:0}
+.svx-referral-admin>.platform-secondary{justify-self:start}
+.svx-referral-admin__scroll{overflow-x:auto;width:100%}
+.svx-referral-admin table{width:100%;border-collapse:collapse;min-width:740px;font-size:12px}
+.svx-referral-admin th{text-align:left;background:#f3f0e8;padding:11px}
+.svx-referral-admin td{vertical-align:top;padding:12px;border-bottom:1px solid #dedbd6}
+.svx-referral-admin td strong,.svx-referral-admin td small{display:block;margin-bottom:6px}
+.svx-referral-admin td small{color:#6a665e}
+.svx-referral-admin__actions{display:grid;gap:6px;max-width:220px}
+.svx-referral-admin__actions button{min-height:35px}
+.svx-billing__referral{display:grid;gap:7px;background:#fcfaf5;border:1px solid #ded6ca;padding:16px;margin:20px 0}
+.svx-billing__referral label{font-weight:700;font-size:13px}
+.svx-billing__referral input{min-height:44px;max-width:380px;border:1px solid #adada5;padding:8px 12px;background:#fff}
+.svx-billing__referral small{color:#6c645b}
+@media(max-width:640px){.svx-partner__top>span{display:none}.svx-partner__grid{grid-template-columns:repeat(2,minmax(0,1fr))}.svx-partner__history article{grid-template-columns:1fr auto}.svx-partner__history article div:nth-child(2){grid-column:1/-1;grid-row:2}.svx-partner__heading{align-items:stretch}.svx-partner__heading>div:last-child{width:100%}}
