@@ -40,7 +40,7 @@ try {
     activeUser = route.request().postDataJSON().email.startsWith('um') ? '1' : '2'
     return route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' })
   })
-  await context.route('**/api/public/customers/logout', route => {
+  await context.route('**/api/auth/logout-all', route => {
     if (denyLogout) return route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"Falha na revogação da sessão."}' })
     activeUser = ''
     return route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' })
