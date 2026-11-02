@@ -59,6 +59,17 @@ try{
  assert.equal(fakeCalls.length,2,'Estorno total gera ajuste reverso idempotente')
  assert.equal(fakeCalls[1].fields.amount.startsWith('-'),false)
  assert.equal((await pool.query('SELECT status FROM shopvax_referral_claims WHERE referred_store_id=$1',[indicada.storeId])).rows[0].status,'reversed')
+ // Estorno recebido antes do invoice.paid nunca libera crédito retroativo.
+ const late=await makeUser('estornoantes')
+ assert.equal((await captureReferral(late.storeId,code)).ok,true)
+ const earlyRefund=await pool.connect()
+ try {
+  await earlyRefund.query('BEGIN')
+  assert.equal(await reverseReferralForRefund(earlyRefund,'in_reversed_before_paid_'+seed,fakeStripe,'test'),false)
+  assert.equal(await qualifyReferralOnPaidInvoice(earlyRefund,late.storeId,'in_reversed_before_paid_'+seed),null)
+  await earlyRefund.query('COMMIT')
+ } catch(e) { await earlyRefund.query('ROLLBACK');throw e } finally{earlyRefund.release()}
+ assert.equal((await pool.query('SELECT status FROM shopvax_referral_claims WHERE referred_store_id=$1',[late.storeId])).rows[0].status,'pending')
  // Independent partner, no reward assumed before commercial terms are configured.
  const partnerUser=await makeUser('parceiro')
  const partnerId=crypto.randomUUID()

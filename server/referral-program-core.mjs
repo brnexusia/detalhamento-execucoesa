@@ -39,6 +39,7 @@ export function ensureReferralSchema() {
     "CREATE INDEX IF NOT EXISTS idx_svx_claims_store ON shopvax_referral_claims(referrer_store_id,status,created_at DESC);",
     "CREATE INDEX IF NOT EXISTS idx_svx_claims_partner ON shopvax_referral_claims(partner_id,status,created_at DESC);",
     "CREATE TABLE IF NOT EXISTS store_referrals (id text PRIMARY KEY,referrer_store_id text NOT NULL REFERENCES stores(id) ON DELETE CASCADE,referred_store_id text NOT NULL UNIQUE REFERENCES stores(id) ON DELETE CASCADE,credit_months integer NOT NULL DEFAULT 1,created_at timestamptz NOT NULL DEFAULT now());",
+    "CREATE TABLE IF NOT EXISTS shopvax_referral_refunded_invoices (invoice_id text PRIMARY KEY,recorded_at timestamptz NOT NULL DEFAULT now());",
     "CREATE TABLE IF NOT EXISTS shopvax_referral_visits (",
     "id text PRIMARY KEY, code text NOT NULL, created_at timestamptz NOT NULL DEFAULT now());",
     "CREATE INDEX IF NOT EXISTS idx_svx_referral_visits ON shopvax_referral_visits(code,created_at DESC);",
@@ -82,6 +83,7 @@ export async function captureReferral(referredStoreId, rawCode, client = pool) {
 export async function qualifyReferralOnPaidInvoice(client, referredStoreId, invoiceId) {
   if (!invoiceId || !referredStoreId) return null
   await ensureReferralSchema()
+  if ((await client.query('SELECT 1 FROM shopvax_referral_refunded_invoices WHERE invoice_id=$1',[invoiceId])).rowCount) return null
   const row = (await client.query('SELECT * FROM shopvax_referral_claims WHERE referred_store_id=$1 FOR UPDATE', [referredStoreId])).rows[0]
   if (!row || row.status !== 'pending') return null
   if (row.referrer_store_id) {
@@ -135,6 +137,7 @@ export async function applyMerchantStripeCredits(client, referrerStoreId, stripe
 
 export async function reverseReferralForRefund(client, invoiceId, stripe, stripeMode) {
   if (!invoiceId) return false
+  await client.query('INSERT INTO shopvax_referral_refunded_invoices(invoice_id) VALUES($1) ON CONFLICT DO NOTHING',[invoiceId])
   const row = (await client.query("SELECT * FROM shopvax_referral_claims WHERE first_invoice_id=$1 AND status='qualified' FOR UPDATE",[invoiceId])).rows[0]
   if (!row) return false
   if (row.referrer_store_id) {
