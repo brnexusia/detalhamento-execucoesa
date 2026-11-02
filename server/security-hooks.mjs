@@ -1,4 +1,5 @@
 import express from 'express'
+import { takeSharedRate } from './redis-runtime.mjs'
 
 const authBuckets = new Map()
 const platformBuckets = new Map()
@@ -72,7 +73,8 @@ function installSecurity(app) {
   if (app.__shopvaxSecurityInstalled) return
   app.__shopvaxSecurityInstalled = true
   app.disable('x-powered-by')
-  app.use((req, res, next) => {
+  app.use(async (req, res, next) => {
+    try {
     setSecurityHeaders(req, res)
 
     const unsafe = !['GET', 'HEAD', 'OPTIONS'].includes(req.method)
@@ -84,7 +86,9 @@ function installSecurity(app) {
     if (!rateLimitDisabled && req.method === 'POST' && (['/api/auth/login', '/api/auth/register', '/api/auth/google'].includes(req.path) || customerAuthMatch)) {
       const isRegister = req.path === '/api/auth/register' || customerAuthMatch?.[1] === 'register'
       const limit = isRegister ? 6 : 12
-      const result = take(authBuckets, `${req.path}:${clientIp(req)}`, limit, isRegister ? 60 * 60 * 1000 : windowMs)
+      const key = `${req.path}:${clientIp(req)}`
+      const ttl = isRegister ? 60 * 60 * 1000 : windowMs
+      const result = await takeSharedRate('auth:' + key, ttl, limit, () => take(authBuckets, key, limit, ttl))
       if (!result.ok) {
         res.setHeader('Retry-After', String(result.retryAfter))
         return res.status(429).json({ error: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.' })
@@ -92,7 +96,8 @@ function installSecurity(app) {
     }
 
     if (!rateLimitDisabled && unsafe && req.path.startsWith('/api/platform/')) {
-      const result = take(platformBuckets, clientIp(req), 120, 10 * 60 * 1000)
+      const ip = clientIp(req)
+      const result = await takeSharedRate('platform:' + ip, 10 * 60 * 1000, 120, () => take(platformBuckets, ip, 120, 10 * 60 * 1000))
       if (!result.ok) {
         res.setHeader('Retry-After', String(result.retryAfter))
         return res.status(429).json({ error: 'Muitas operações administrativas em pouco tempo.' })
@@ -105,6 +110,7 @@ function installSecurity(app) {
     }
 
     next()
+    } catch (error) { next(error) }
   })
 }
 

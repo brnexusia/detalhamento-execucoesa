@@ -7,6 +7,8 @@ import multer from 'multer'
 import pg from 'pg'
 import { generateMediaVariants, requestedMediaWidth } from './media-variants.mjs'
 import { createMediaVariantQueue } from './media-upload-queue.mjs'
+import { createRedisMediaVariantQueue } from './redis-media-jobs.mjs'
+import { redisReady } from './redis-runtime.mjs'
 import { isShopvaxSeasonOpen, resolveShopvaxTheme } from './shopvax-theme-presets.mjs'
 
 const { Pool } = pg
@@ -349,6 +351,7 @@ app.get('/health', (_req, res) =>
     database: dbReady,
     databaseError: dbReady ? null : dbError,
     storage: dbReady ? 'postgres' : 'unavailable',
+    redis: redisReady() ? 'ready' : (process.env.REDIS_URL ? 'degraded' : 'disabled'),
     releaseSha: process.env.SHOPVAX_RELEASE_SHA?.trim() || null,
     uiRevision: packagedUiVersion?.revision || null,
     uiFingerprint: packagedUiVersion?.sourceFingerprint || null,
@@ -647,7 +650,9 @@ const upload = multer({
 
 // A resposta do upload depende apenas da gravação do original; a otimização é
 // opcional e executada em uma fila pequena, fora do caminho crítico HTTP.
-const mediaVariantQueue = createMediaVariantQueue({
+const mediaVariantQueue = process.env.REDIS_URL ? createRedisMediaVariantQueue({
+  onError: (error) => console.warn('[shopvax-media] redis queue:', error?.message || error),
+}) : createMediaVariantQueue({
   generate: generateMediaVariants,
   persist: async (assetId, variant) => {
     await pool.query(
@@ -662,6 +667,13 @@ const mediaVariantQueue = createMediaVariantQueue({
     error instanceof Error ? error.message : 'erro',
   ),
 })
+
+if (process.env.REDIS_URL && process.env.SHOPVAX_MEDIA_WORKER_DISABLED !== '1') {
+  import('./redis-media-jobs.mjs').then(({ startRedisMediaWorker }) =>
+    startRedisMediaWorker({ onError: (error) =>
+      console.warn('[shopvax-media-worker]', error.message) }),
+  ).catch((error) => console.error('[shopvax-media-worker] falha:', error.message))
+}
 
 app.post(
   '/api/admin/upload',
