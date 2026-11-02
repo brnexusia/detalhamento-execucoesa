@@ -8,9 +8,21 @@ const pool = process.env.DATABASE_URL ? new pg.Pool({ connectionString: process.
 const COOKIE = 'shopvax_buyer_session'
 const LEGACY_COOKIE = 'shopvax_customer_session'
 const enabled = () => process.env.SHOPVAX_BUYER_WHATSAPP_LOGIN === '1'
-export const buyerWhatsappReady = () => enabled() && buyerWhatsappDeliveryConfigured() &&
-  (process.env.SHOPVAX_OTP_HMAC_SECRET || '').length >= 32
-const mac = (value) => crypto.createHmac('sha256', process.env.SHOPVAX_OTP_HMAC_SECRET).update(value).digest('hex')
+// Compatibilidade segura: aproveita a chave estável de integrações do backend quando
+// não houver chave OTP dedicada; HKDF isola criptograficamente os dois usos.
+function otpHmacKey() {
+  const dedicated = String(process.env.SHOPVAX_OTP_HMAC_SECRET || '')
+  if (dedicated.length >= 32) return dedicated
+  const integration = String(process.env.SHOPVAX_INTEGRATION_SECRET || '')
+  if (integration.length < 32) return null
+  return crypto.hkdfSync('sha256', Buffer.from(integration), Buffer.from('shopvax-buyer-otp-v1'), Buffer.from('buyer-otp-hmac'), 32)
+}
+export const buyerWhatsappReady = () => enabled() && buyerWhatsappDeliveryConfigured() && Boolean(otpHmacKey())
+const mac = (value) => {
+  const key = otpHmacKey()
+  if (!key) throw new Error('Configuração OTP indisponível')
+  return crypto.createHmac('sha256', key).update(value).digest('hex')
+}
 const sha = (value) => crypto.createHash('sha256').update(value).digest('hex')
 const uuid = () => crypto.randomUUID()
 const digits = (v) => String(v ?? '').replace(/\D/g, '')
