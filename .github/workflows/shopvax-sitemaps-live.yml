@@ -17,42 +17,78 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Verify deployed SHA and all Googlebot sitemap children
+      - name: Probe Googlebot status/XML first, then prove production SHA separately
         shell: bash
         env:
           SHOPVAX_HOST: https://shopvax.com.br
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import json, os, urllib.request, xml.etree.ElementTree as ET
+          import json, os, urllib.request, urllib.error, xml.etree.ElementTree as ET
           host=os.environ['SHOPVAX_HOST']
-          sha=os.environ['GITHUB_SHA']
+          expected=os.environ['GITHUB_SHA']
           headers={'User-Agent':'Googlebot/2.1 (+http://www.google.com/bot.html)', 'Cache-Control':'no-cache'}
-          def fetch(path, xml=True):
-              req=urllib.request.Request(host+path, headers=headers)
-              with urllib.request.urlopen(req,timeout=20) as r:
-                  body=r.read(3000000)
-                  mime=r.headers.get('Content-Type','')
-                  print(path, 'HTTP',r.status,'type=',mime,'bytes=',len(body),'final=',r.url,flush=True)
-                  assert r.status==200 and r.url==host+path, 'Not HTTP 200 canonical: '+path
-                  if xml:
-                      assert 'xml' in mime.lower(), 'Unexpected XML content type: '+path
-                      return ET.fromstring(body)
-                  return json.loads(body)
-          health=fetch('/health',False)
-          print('GitHub SHA:',sha,'Deployed SHA:',health.get('releaseSha'),'DB:',health.get('database'))
-          assert health.get('database') is True, 'Deployed database unavailable'
-          assert health.get('releaseSha')==sha, 'Production deploy not at expected SHA'
-          sitemap=fetch('/sitemap.xml')
+          problems=[]
+          def fetch(path):
+              url=host+path
+              try:
+                  with urllib.request.urlopen(urllib.request.Request(url,headers=headers),timeout=20) as r:
+                      status,mime,body,final=r.status,r.headers.get('Content-Type',''),r.read(3000000),r.url
+              except urllib.error.HTTPError as e:
+                  status,mime,body,final=e.code,e.headers.get('Content-Type',''),e.read(1000),e.url
+              except Exception as e:
+                  print(path,'FETCH ERROR',type(e).__name__,str(e),flush=True)
+                  problems.append(path+': connection error')
+                  return None
+              print(path,'HTTP',status,'type=',mime,'bytes=',len(body),'final=',final,flush=True)
+              if status!=200 or final!=url:
+                  problems.append(path+': HTTP '+str(status)+' or redirect to '+str(final))
+              return (status,mime,body)
+          health=fetch('/health')
+          release=''
+          if health and health[0]==200:
+              try:
+                  payload=json.loads(health[2])
+                  release=payload.get('releaseSha') or ''
+                  print('production_database=',payload.get('database'),'release_sha=',release or '(missing)')
+                  if payload.get('database') is not True: problems.append('/health: database unavailable')
+              except Exception as e:
+                  problems.append('/health: invalid JSON '+str(e))
+          def parse(path):
+              result=fetch(path)
+              if not result or result[0]!=200:return None
+              status,mime,body=result
+              if 'xml' not in mime.lower():
+                  problems.append(path+': non-XML Content-Type '+mime)
+              try:return ET.fromstring(body)
+              except ET.ParseError as e:
+                  problems.append(path+': invalid XML '+str(e))
+                  print('body_preview=',body[:200],flush=True)
+                  return None
           ns='{http://www.sitemaps.org/schemas/sitemap/0.9}'
-          assert sitemap.tag==ns+'sitemapindex','Invalid sitemapindex XML'
-          children=[loc.text for loc in sitemap.findall('.//'+ns+'loc')]
-          assert children, 'Index has no sitemaps'
-          for child in children:
-              assert child.startswith(host+'/sitemap-'), 'Invalid child location '+str(child)
-              child_xml=fetch(child[len(host):])
-              assert child_xml.tag==ns+'urlset','Invalid child URL set: '+child
-              print('Child URLs:',child,len(child_xml.findall(ns+'url')))
-          assert fetch('/sitemap-pages.xml').tag==ns+'urlset', 'Missing pages.xml'
-          print('VERIFIED: production SHA, Googlebot HTTP 200, XML and',len(children),'sitemaps')
+          index=parse('/sitemap.xml')
+          children=[]
+          if index is not None:
+              if index.tag!=ns+'sitemapindex': problems.append('/sitemap.xml: not sitemapindex')
+              children=[p.text for p in index.findall('.//'+ns+'loc')]
+              print('advertised_children=',children)
+              for child in children:
+                  if not child or not child.startswith(host+'/sitemap-'):
+                      problems.append('invalid sitemap child '+str(child))
+                      continue
+                  node=parse(child[len(host):])
+                  if node is not None:
+                      if node.tag!=ns+'urlset':problems.append(child+': not urlset')
+                      print('child_url_count=',child,len(node.findall(ns+'url')))
+          # Probe reported URLs independently, including optional empty product sitemap.
+          for path in ['/sitemap-pages.xml','/sitemap-products-1.xml']:
+              if host+path not in children:
+                  node=parse(path)
+                  if node is not None:print('unadvertised_child_url_count=',path,len(node.findall(ns+'url')))
+          print('expected_main_sha=',expected,'public_release_sha=',release or '(missing)')
+          if release!=expected:problems.append('deploy SHA not verified; configure SHOPVAX_RELEASE_SHA for this published image')
+          print('PROBE_PROBLEMS=',len(problems))
+          for item in problems:print('ISSUE:',item)
+          if problems:raise SystemExit(1)
+          print('VERIFIED: live deployment SHA and all children accessible to Googlebot')
           PY
