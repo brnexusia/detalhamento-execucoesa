@@ -26,6 +26,8 @@ on:
       - 'tests/shopvax-product-question-seller.e2e.mjs'
       - 'src/product-picker-responsive.css'
       - 'src/shopvax-desktop-product-page.css'
+      - 'src/shopvax-store-layout-fixes.css'
+      - 'tests/shopvax-storefront-quantity-ribbon.e2e.mjs'
       - 'src/shopvax-desktop-ticket-05.css'
       - 'tests/shopvax-desktop-ticket-05.e2e.mjs'
       - 'tests/shopvax-desktop-product-05.e2e.mjs'
@@ -152,6 +154,8 @@ jobs:
         run: node tests/product-picker-responsive.e2e.mjs
       - name: Product list browser regression
         run: node tests/shopvax-product-list.e2e.mjs
+      - name: Storefront quantity selector and edge-to-edge conditions ribbon
+        run: node tests/shopvax-storefront-quantity-ribbon.e2e.mjs
       - name: Branded loading, official login mark, panel 3-minute motion and contextual help
         run: node tests/shopvax-brand-loading-context.e2e.mjs
       - name: Growth onboarding, buyer preferences and support

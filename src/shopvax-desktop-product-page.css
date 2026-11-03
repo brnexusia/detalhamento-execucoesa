@@ -165,3 +165,64 @@
   .app .product-picker__body {padding-top:8px;padding-bottom:4px;}
   .app .picker-add {height:44px;}
 }
+
+/* Correção visual: o contador da ficha de produto deve ficar ENTRE - e +
+ * na mesma linha em desktop, tablet e celular (inclusive com animação). */
+.app .picker-quantity .quantity-control--large {
+  display:grid;
+  grid-template-columns:48px minmax(42px,auto) 48px;
+  grid-template-rows:48px;
+  align-items:stretch;
+  justify-items:stretch;
+  width:max-content;
+  max-width:100%;
+  min-width:0;
+  padding:0;
+  border:1px solid var(--svx-line,#D9D3C6);
+  background:#FCFAF5;
+}
+.app .picker-quantity .quantity-control--large > button {
+  display:grid;
+  place-items:center;
+  grid-row:1;
+  min-width:44px;
+  height:48px;
+  min-height:48px;
+  margin:0;
+  padding:0;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  color:#161514;
+}
+.app .picker-quantity .quantity-control--large > button:first-child {
+  grid-column:1;
+  border-right:1px solid var(--svx-line,#D9D3C6);
+}
+.app .picker-quantity .quantity-control--large > button:last-child {
+  grid-column:3;
+  border-left:1px solid var(--svx-line,#D9D3C6);
+}
+.app .picker-quantity .quantity-control--large > b {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  grid-column:2;
+  grid-row:1;
+  min-width:0;
+  height:48px;
+  padding:0 8px;
+  font:700 16px/1 var(--svx-font-mono,'Fragment Mono',monospace);
+  font-variant-numeric:tabular-nums;
+  color:#161514;
+}
+.app .picker-quantity .quantity-control--large > b > .svx-motion-count {
+  display:inline-block;
+  color:inherit;
+  font:inherit;
+  line-height:1;
+}
+.app .picker-quantity .quantity-control--large > button:focus-visible {
+  outline:2px solid #161514;
+  outline-offset:-3px;
+}

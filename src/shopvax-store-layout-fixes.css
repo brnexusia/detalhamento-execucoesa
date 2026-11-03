@@ -282,3 +282,31 @@
     grid-template-columns:minmax(0,1fr);
   }
 }
+
+/* A fita de condições acompanha as bordas da capa, não o padding interno.
+ * O texto segue correndo dentro dela, com o catálogo e a identidade intactos. */
+.app .store-intro.svx-vitrine {
+  --svx-hero-ribbon-gutter:clamp(18px,4vw,52px);
+}
+.app .store-intro.svx-vitrine .store-intro__ribbon {
+  box-sizing:border-box;
+  width:calc(100% + var(--svx-hero-ribbon-gutter) + var(--svx-hero-ribbon-gutter));
+  max-width:none;
+  margin-inline:calc(0px - var(--svx-hero-ribbon-gutter));
+  justify-self:start;
+}
+@media(max-width:760px) {
+  .app .store-intro.svx-vitrine {
+    --svx-hero-ribbon-gutter:16px;
+  }
+}
+@media(max-width:700px) {
+  .app .store-intro.svx-vitrine {
+    --svx-hero-ribbon-gutter:clamp(17px,4.5vw,26px);
+  }
+}
+@media(max-width:700px) and (orientation:landscape) and (max-height:450px) {
+  .app .store-intro.svx-vitrine {
+    --svx-hero-ribbon-gutter:15px;
+  }
+}
