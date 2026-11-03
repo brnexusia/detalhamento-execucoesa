@@ -26,6 +26,8 @@ on:
       - 'tests/shopvax-product-question-seller.e2e.mjs'
       - 'src/product-picker-responsive.css'
       - 'src/shopvax-desktop-product-page.css'
+      - 'src/shopvax-store-layout-fixes.css'
+      - 'tests/shopvax-storefront-quantity-ribbon.e2e.mjs'
       - 'src/shopvax-desktop-ticket-05.css'
       - 'tests/shopvax-desktop-ticket-05.e2e.mjs'
       - 'tests/shopvax-desktop-product-05.e2e.mjs'
@@ -162,6 +164,8 @@ jobs:
         run: node tests/shopvax-responsive-media.e2e.mjs
       - name: Official design layer 05 - desktop product as a page, related products and mobile modal
         run: node tests/shopvax-desktop-product-05.e2e.mjs
+      - name: Storefront quantity selector and edge-to-edge conditions ribbon
+        run: node tests/shopvax-storefront-quantity-ribbon.e2e.mjs
       - name: Official design layer 05 - desktop cart ticket always visible
         run: node tests/shopvax-desktop-ticket-05.e2e.mjs
       - name: Shopvax institutional identity across viewports
