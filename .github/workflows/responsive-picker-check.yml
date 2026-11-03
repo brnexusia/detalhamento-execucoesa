@@ -154,6 +154,8 @@ jobs:
         run: node tests/product-picker-responsive.e2e.mjs
       - name: Product list browser regression
         run: node tests/shopvax-product-list.e2e.mjs
+      - name: Storefront quantity selector and edge-to-edge conditions ribbon
+        run: node tests/shopvax-storefront-quantity-ribbon.e2e.mjs
       - name: Branded loading, official login mark, panel 3-minute motion and contextual help
         run: node tests/shopvax-brand-loading-context.e2e.mjs
       - name: Growth onboarding, buyer preferences and support
@@ -164,8 +166,6 @@ jobs:
         run: node tests/shopvax-responsive-media.e2e.mjs
       - name: Official design layer 05 - desktop product as a page, related products and mobile modal
         run: node tests/shopvax-desktop-product-05.e2e.mjs
-      - name: Storefront quantity selector and edge-to-edge conditions ribbon
-        run: node tests/shopvax-storefront-quantity-ribbon.e2e.mjs
       - name: Official design layer 05 - desktop cart ticket always visible
         run: node tests/shopvax-desktop-ticket-05.e2e.mjs
       - name: Shopvax institutional identity across viewports
