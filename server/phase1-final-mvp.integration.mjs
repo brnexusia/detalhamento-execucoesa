@@ -142,6 +142,39 @@ try {
   assert.equal(result.response.status, 201)
   const productId = result.payload.product.id
 
+  // Regressão: fotos de produtos existentes devem ser salvas individualmente,
+  // sem exigir atualizar todo o cadastro do produto.
+  result = await request(`/api/admin/products/${productId}/gallery/photos`, {
+    method: 'POST', cookie: account.cookie, body: { url: media.url },
+  })
+  assert.equal(result.response.status, 200)
+  assert.deepEqual(result.payload.product.images, [media.url])
+  assert.equal(result.payload.product.media_url, media.url)
+  assert.equal(result.payload.added, true)
+  result = await request(`/api/admin/products/${productId}/gallery/photos`, {
+    method: 'POST', cookie: account.cookie, body: { url: cameraMedia.url },
+  })
+  assert.equal(result.response.status, 200)
+  assert.deepEqual(result.payload.product.images, [media.url, cameraMedia.url])
+  assert.equal(result.payload.product.media_url, media.url, 'Adicionar não pode substituir a capa existente')
+  result = await request(`/api/admin/products/${productId}/gallery/photos`, {
+    method: 'POST', cookie: account.cookie, body: { url: cameraMedia.url },
+  })
+  assert.equal(result.response.status, 200)
+  assert.equal(result.payload.added, false)
+  assert.equal(result.payload.product.images.length, 2, 'Reenvio não deve duplicar a foto')
+  result = await request(`/api/admin/products/${productId}/gallery/photos`, {
+    method: 'POST', cookie: account.cookie, body: { url: '/media/nao-existe' },
+  })
+  assert.equal(result.response.status, 400, 'Não pode adicionar arquivo que não pertence à loja')
+  result = await request(`/api/admin/products/${productId}/gallery/photos`, {
+    method: 'POST', body: { url: media.url },
+  })
+  assert.equal(result.response.status, 401, 'Não pode editar fotos sem sessão')
+  result = await request(`/api/admin/products/${productId}/gallery`, { cookie: account.cookie })
+  assert.equal(result.response.status, 200)
+  assert.deepEqual(result.payload.product.images, [media.url, cameraMedia.url], 'Fotos devem continuar no banco após a resposta')
+
   result = await request('/api/admin/products', {
     method: 'POST', cookie: account.cookie,
     body: {
