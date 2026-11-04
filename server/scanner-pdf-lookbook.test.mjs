@@ -21,7 +21,7 @@ test('links numbered prices to the next colors board by item number and preserve
   const parsed = parsePdfCatalogText(pages.join('\f'))
   assert.equal(parsed.lookbook, true)
   assert.equal(parsed.candidates.length, 6)
-  assert.deepEqual(parsed.candidates.slice(0, 3).map(x => x.price), [23, 24, 45].sort((a,b) => a-b).length ? [23,24,45] : [])
+  assert.deepEqual(parsed.candidates.slice(0, 3).map(x => x.price), [23, 24, 45])
   assert.equal(parsed.candidates[0].title.startsWith('Brinco 01'), true)
   assert.equal(parsed.candidates[0].pdf_page, 4)
   assert.equal(parsed.candidates[0].pdf_detail_page, 6)
