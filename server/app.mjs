@@ -1,3 +1,4 @@
+import { requiresPaymentForSignup } from './signup-billing-mode.mjs'
 import crypto from 'node:crypto'
 import path from 'node:path'
 import { readFileSync } from 'node:fs'
@@ -449,8 +450,8 @@ app.post(
         hashPassword(password),
       ])
       await client.query(
-        'INSERT INTO stores (id,owner_id,slug,name,whatsapp,plan_tier,billing_required,signup_plan_selected_at) VALUES ($1,$2,$3,$4,$5,$6,true,now())',
-        [storeId, userId, storeSlug, storeName, whatsapp, planCode],
+        'INSERT INTO stores (id,owner_id,slug,name,whatsapp,plan_tier,billing_required,signup_plan_selected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,now())',
+        [storeId, userId, storeSlug, storeName, whatsapp, planCode, requiresPaymentForSignup()],
       )
       await client.query('COMMIT')
     } catch (error) {

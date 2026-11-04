@@ -27,7 +27,8 @@ jobs:
       BASE_URL: http://127.0.0.1:3000
       SCANNER_WORKER_DISABLED: '1'
       SHOPVAX_SECURITY_RATE_LIMIT_DISABLED: '1'
-      # Propositalmente SEM credenciais Stripe: não pode conceder acesso grátis.
+      SHOPVAX_REQUIRE_PAYMENT_ON_SIGNUP: '1'
+      # Cobrança obrigatória, sem credenciais Stripe: nenhum cadastro deve ser liberado.
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

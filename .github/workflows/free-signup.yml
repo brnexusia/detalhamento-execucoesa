@@ -1,0 +1,54 @@
+name: free-signup
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  free-merchant-signup:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: shopvax
+          POSTGRES_PASSWORD: shopvax
+          POSTGRES_DB: free_signup
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U shopvax -d free_signup"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://shopvax:shopvax@127.0.0.1:5432/free_signup
+      PORT: 3000
+      BASE_URL: http://127.0.0.1:3000
+      SCANNER_WORKER_DISABLED: '1'
+      SHOPVAX_SECURITY_RATE_LIMIT_DISABLED: '1'
+      SHOPVAX_REQUIRE_PAYMENT_ON_SIGNUP: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --include=dev --no-audit --no-fund
+      - run: npm run build
+      - name: Unit test free signup flag
+        run: node --test server/signup-billing-mode.test.mjs
+      - name: Start backend without Stripe credentials
+        run: |
+          npm start > /tmp/shopvax-free-signup.log 2>&1 &
+          for i in $(seq 1 120); do
+            curl -fsS http://127.0.0.1:3000/health | grep -q '"database":true' && exit 0
+            sleep .25
+          done
+          cat /tmp/shopvax-free-signup.log
+          exit 1
+      - name: Register without card and access merchant panel
+        run: node server/free-signup.integration.mjs
+      - name: Debug server startup
+        if: failure()
+        run: cat /tmp/shopvax-free-signup.log || true

@@ -71,6 +71,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const [plans, setPlans] = useState<SignupPlan[]>([])
   const [plansLoading, setPlansLoading] = useState(mode === 'register')
   const [plansError, setPlansError] = useState('')
+  const [signupPaymentRequired, setSignupPaymentRequired] = useState(true)
   const [googleBusy, setGoogleBusy] = useState(false)
   const [cycle, setCycle] = useState<'monthly'|'semiannual'|'annual'>('monthly')
   const [googleSignup, setGoogleSignup] = useState<{ credential: string; name: string; email: string; picture?: string } | null>(null)
@@ -127,7 +128,9 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     fetch('/api/billing/public-plans', { signal: controller.signal })
       .then(async (response) => response.ok ? response.json() : null)
       .then((payload) => {
-        if (!payload?.enabled) throw new Error('Pagamento temporariamente indisponível. Não é possível criar loja até a conexão Stripe ser restabelecida.')
+        const requiresPayment = payload?.paymentRequired !== false
+        if (requiresPayment && !payload?.enabled) throw new Error('Pagamento temporariamente indisponível. Não é possível criar loja até a conexão Stripe ser restabelecida.')
+        setSignupPaymentRequired(requiresPayment)
         if (!Array.isArray(payload?.plans) || payload.plans.length === 0) throw new Error('Planos indisponíveis.')
         const nextPlans = (payload.plans as SignupPlan[]).map((plan) => ({ ...plan, name: planName(plan.code, plan.name) }))
         setPlans(nextPlans)
@@ -207,13 +210,15 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
           referralCode: form.referralCode,
         })
         if (!result.ok) throw new Error('Não foi possível concluir o cadastro com Google.')
-        await beginSignupPayment()
+        if (signupPaymentRequired) await beginSignupPayment()
+        else await finishAuthenticatedEntry('/painel')
       } else if (mode === 'login') {
         await api.login({ email: form.email, password: form.password })
         await finishAuthenticatedEntry(await ownerDestination(requestedDestination()))
       } else {
         await api.register({ ...form, planCode: form.planCode || DEFAULT_SIGNUP_PLAN })
-        await beginSignupPayment()
+        if (signupPaymentRequired) await beginSignupPayment()
+        else await finishAuthenticatedEntry('/painel')
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível continuar.')
@@ -269,7 +274,8 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
             <p>{registrationMode ? 'Criar conta' : 'Entrar'}</p>
             <h2>{googleSignup ? 'Complete os dados da sua loja.' : registrationMode ? 'Comece com a sua loja.' : 'Acesse seu painel.'}</h2>
           </div>
-          {registrationMode && form.referralCode && <div className="poster-note"><Gift size={15}/> Indicação {form.referralCode} · o benefício depende do primeiro pagamento confirmado pela Stripe.</div>}
+          {registrationMode && !signupPaymentRequired && <div className="poster-note" role="status">Cadastro liberado sem pagamento por enquanto. O plano escolhido ficará disponível sem cobrança nesta etapa.</div>}
+          {registrationMode && form.referralCode && <div className="poster-note"><Gift size={15}/> Indicação {form.referralCode} · benefícios dependem de pagamento confirmado.</div>}
           {!googleSignup && <>
             <GoogleSignInButton mode={mode} disabled={googleBusy || busy} onCredential={googleCredential} />
             <div className="auth-divider"><span>ou</span></div>
@@ -284,7 +290,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
               <label><span>Nome da loja</span><div className="input-icon"><Store size={17} /><input value={form.storeName} onChange={(e) => update('storeName', e.target.value)} placeholder="Ex.: Atacado Aurora" required /></div></label>
               <label><span>WhatsApp principal</span><input inputMode="tel" value={form.whatsapp} onChange={(e) => update('whatsapp', e.target.value)} placeholder="55 11 99999-9999" /></label>
               <label><span>Código de indicação (opcional)</span><input value={form.referralCode} maxLength={40} autoCapitalize="characters" onChange={e=>update('referralCode',e.target.value.toUpperCase())} placeholder="SVX- OU SVP-" /></label>
-              <small>O código pode ser de uma loja ou parceiro independente. A recompensa só é validada após o pagamento da primeira assinatura pela Stripe.</small>
+              <small>O código pode ser de uma loja ou parceiro independente. A recompensa depende de uma assinatura paga e não será concedida durante a liberação gratuita.</small>
               {SHOW_SIGNUP_PLANS && <fieldset className="signup-plans">
                 <legend>Escolha seu plano</legend>
                 {plansLoading && <div className="signup-plans__state">Carregando planos…</div>}
@@ -295,12 +301,12 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
                   </button>)}
                 </div>}
                 <input className="signup-plan-required" tabIndex={-1} aria-hidden="true" value={form.planCode} onChange={() => undefined} required />
-                <div className="signup-plan-grid signup-plan-cycle" role="group" aria-label="Ciclo da assinatura">
+                {signupPaymentRequired && <div className="signup-plan-grid signup-plan-cycle" role="group" aria-label="Ciclo da assinatura">
                   {([{code:'monthly',label:'Mensal'},{code:'semiannual',label:'Semestral'},{code:'annual',label:'Anual'}] as const).map(option =>
                     <button type="button" key={option.code} className={cycle===option.code?'signup-plan is-selected':'signup-plan'} aria-pressed={cycle===option.code} onClick={()=>setCycle(option.code)}>{option.label}</button>
                   )}
-                </div>
-                {selectedPlan && <small className="signup-plan-choice">Selecionado: {selectedPlan.name} · {cycle==='monthly'?'Mensal':cycle==='semiannual'?'Semestral':'Anual'} · {selectedCyclePrice==null?'Valor indisponível':planMoney.format(selectedCyclePrice/100)} por período. Após criar a conta, você será encaminhado automaticamente à Stripe.</small>}
+                </div>}
+                {selectedPlan && <small className="signup-plan-choice">{signupPaymentRequired ? `Selecionado: ${selectedPlan.name} · ${cycle==='monthly'?'Mensal':cycle==='semiannual'?'Semestral':'Anual'} · ${selectedCyclePrice==null?'Valor indisponível':planMoney.format(selectedCyclePrice/100)} por período. Após criar a conta, você será encaminhado automaticamente à Stripe.` : `Plano ${selectedPlan.name} selecionado. Nenhum pagamento será solicitado no cadastro.`}</small>}
               </fieldset>}
             </>
           )}

@@ -8,6 +8,11 @@ const browser = await chromium.launch({ headless:true })
 try {
   for (const [width,height] of [[390,844],[1366,768]]) {
     const context = await browser.newContext({ viewport:{ width,height } })
+    // Este teste cobre onboarding/UX; simular a elegibilidade gratuita no gate de assinatura.
+    await context.route('**/api/billing/status', route => route.fulfill({
+      status:200,contentType:'application/json',
+      body:JSON.stringify({ enabled:false,required:false,accessGranted:true,status:'none',planCode:'bronze',prices:[] }),
+    }))
     const page = await context.newPage()
     await page.route('**/api/public/support/config', route => route.fulfill({ status:200,contentType:'application/json',body:JSON.stringify({ticketsEnabled:false,aiEnabled:false}) }))
     // Bootstrap can use ?compact=1 once Frente 06 is integrated.
