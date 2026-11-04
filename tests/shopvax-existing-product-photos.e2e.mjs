@@ -69,6 +69,7 @@ try {
   assert.equal(productUpdates,0,'Upload não deve sobrescrever campos do produto')
   await page.locator('.editor-modal header button[aria-label="Fechar"]').click()
   await page.locator('.editor-modal').waitFor({state:'detached'})
+  await page.reload()
   await page.locator('.svx-products__edit').first().click()
   await page.locator('.editor-modal').waitFor()
   assert.equal(await page.locator('.product-inline-gallery > div').count(),2,'Ao reabrir deve ter a foto já salva')
