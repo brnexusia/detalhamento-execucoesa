@@ -99,6 +99,8 @@ jobs:
           node --check server/stripe-billing-hooks.mjs
           node --test server/signup-billing-mode.test.mjs
           npm run test:billing
+      - name: Catalog camera photos and HEIC conversion
+        run: node --test server/catalog-photo-upload.test.mjs
       - name: Responsive media variants preserve originals
         run: node --test server/media-variants.test.mjs
       - name: Revisão de ergonomia - fontes, cursor e copy

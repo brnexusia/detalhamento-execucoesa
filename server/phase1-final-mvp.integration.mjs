@@ -69,6 +69,25 @@ try {
   assert.equal(mobile.status, 200)
   assert.match(mobile.headers.get('content-type') || '', /^image\//)
 
+  // Navegadores móveis podem enviar foto com MIME genérico.
+  const cameraForm = new FormData()
+  cameraForm.append('file', new Blob([png], { type: 'application/octet-stream' }), 'IMG_0001.HEIC')
+  const cameraUpload = await fetch(`${base}/api/admin/upload`, {
+    method: 'POST', headers: { cookie: account.cookie }, body: cameraForm,
+  })
+  assert.equal(cameraUpload.status, 201, 'Foto móvel sem MIME específico deve ser aceita pelo conteúdo')
+  const cameraMedia = await cameraUpload.json()
+  const cameraOriginal = await fetch(`${base}${cameraMedia.url}`)
+  assert.equal(cameraOriginal.status, 200)
+  assert.equal(cameraOriginal.headers.get('content-type'), 'image/png')
+
+  const fakeForm = new FormData()
+  fakeForm.append('file', new Blob(['<html>não é foto</html>'], { type: 'image/jpeg' }), 'fake.jpg')
+  const fake = await fetch(`${base}/api/admin/upload`, {
+    method: 'POST', headers: { cookie: account.cookie }, body: fakeForm,
+  })
+  assert.equal(fake.status, 415, 'Arquivo falsamente declarado imagem não deve ser publicado')
+
   const unauthForm = new FormData()
   unauthForm.append('file', new Blob([png], { type: 'image/png' }), 'sem-login.png')
   const unauthorizedUpload = await fetch(`${base}/api/admin/upload`, { method: 'POST', body: unauthForm })

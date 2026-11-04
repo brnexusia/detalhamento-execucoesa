@@ -51,3 +51,10 @@
 .product-select-control{position:absolute;z-index:3;right:9px;top:9px;display:flex;align-items:center;gap:6px;padding:6px 8px;background:rgba(255,255,255,.94);border:1px solid var(--line);font-size:8px;font-weight:700;cursor:pointer}
 .product-select-control span{position:static!important;background:transparent!important;color:var(--ink)!important;padding:0!important;font-size:8px!important;text-transform:none!important}
 @media(max-width:760px){.page-title{flex-wrap:wrap}.page-title-actions{width:100%;justify-content:flex-start}.page-title-actions button{flex:1 1 auto}.product-bulk-toolbar{align-items:flex-start;flex-direction:column}.product-bulk-toolbar>div{width:100%;justify-content:space-between}}
+
+/* Upload de fotos: campo sem labels aninhados e progresso legível no mobile. */
+.media-uploader-field{display:grid;gap:8px}
+.media-uploader-field>span{font-size:12px;font-weight:700}
+.catalog-upload-progress{font-size:12px;font-weight:600;color:var(--ink);margin:0}
+.media-uploader .upload-button{cursor:pointer}
+.media-uploader .upload-button:focus-within,.product-inline-section__head .secondary-action:focus-within{outline:2px solid var(--ink);outline-offset:3px}

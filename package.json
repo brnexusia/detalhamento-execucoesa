@@ -32,6 +32,7 @@
     "compression": "^1.8.1",
     "express": "^4.21.2",
     "google-auth-library": "^11.1.0",
+    "heic-convert": "^2.1.0",
     "lucide-react": "^0.575.0",
     "multer": "2.5.0",
     "pg": "^8.13.1",
@@ -53,6 +54,7 @@
     "vite": "^8.1.5"
   },
   "overrides": {
-    "qs": "6.16.1"
+    "qs": "6.16.1",
+    "libheif-js": "^1.23.5"
   }
 }
