@@ -154,6 +154,8 @@ jobs:
         run: node tests/product-picker-responsive.e2e.mjs
       - name: Catalog photo upload and gallery save (mobile)
         run: node tests/shopvax-catalog-photo-upload.e2e.mjs
+      - name: Existing product photo add and immediate persistence
+        run: node tests/shopvax-existing-product-photos.e2e.mjs
       - name: Product list browser regression
         run: node tests/shopvax-product-list.e2e.mjs
       - name: Storefront quantity selector and edge-to-edge conditions ribbon
