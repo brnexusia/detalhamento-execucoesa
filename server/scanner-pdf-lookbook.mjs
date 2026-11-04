@@ -1,6 +1,6 @@
 import { inferPdfProductCategory } from './scanner-pdf-category.mjs'
 
-const TYPES = 'BRINCO|COLAR|PULSEIRA|BRACELETE|BRACELE|BROCHE|BOLSA|ANEL|CINTO|CHOKER|GARGANTILHA|TIARA|LENCO|LENÇO|ECHARPE|CONJUNTO|PRESILHA|TORNOZELEIRA'
+const TYPES = 'BRINCO|COLAR|PULSEIRA|BRACELETE|BRACELE|BACELETE|BROCHE|BOLSA|ANEL|CINTO|CHOKER|GARGANTILHA|TIARA|LENCO|LENÇO|ECHARPE|CONJUNTO|PRESILHA|TORNOZELEIRA'
 const labelPattern = new RegExp('^(' + TYPES + ')\\s+0?([1-9][0-9]?)(?:\\s+(?:E|\\+|/|,)\\s*0?([1-9][0-9]?))?$', 'i')
 const labelScan = new RegExp('\\b(' + TYPES + ')\\s+0?([1-9][0-9]?)(?:\\s+(?:E|\\+|/|,)\\s*0?([1-9][0-9]?))?(?=\\s|$)', 'gi')
 const pricesPattern = /\b(0?[1-9]|[1-9][0-9])\s*R\$\s*(\d{1,6}(?:\.\d{3})*,\d{2})\b/g
@@ -12,7 +12,7 @@ const naturalName = (value) => value.charAt(0).toUpperCase() + value.slice(1).to
 function labelsFromText(value) {
   const labels = new Map()
   for (const match of clean(value).matchAll(labelScan)) {
-    const title = match[1].toUpperCase().replace(/^BRACELE$/, 'BRACELETE')
+    const title = match[1].toUpperCase().replace(/^(?:BRACELE|BACELETE)$/, 'BRACELETE')
     for (const raw of [match[2], match[3]]) {
       if (!raw) continue
       const item = number(raw)
