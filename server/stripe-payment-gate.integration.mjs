@@ -57,6 +57,16 @@ try{
  assert(legacy.rowCount===0 || legacy.rows[0].subscription_status!=='active')
  console.log('NEW_STORE_PAYMENT_REQUIRED_BACKEND_OK')
 }finally{
- if(userId)await pool.query('DELETE FROM users WHERE id=$1',[userId])
+ if(userId) {
+  // O backend ainda pode estar aplicando DDL durante o boot da suíte isolada.
+  // Tentar novamente apenas em deadlock transitório, sem mascarar outros erros.
+  for(let attempt=0; attempt<5; attempt++){
+   try { await pool.query('DELETE FROM users WHERE id=$1',[userId]); break }
+   catch(error) {
+    if(error?.code!=='40P01'||attempt===4) throw error
+    await new Promise(resolve=>setTimeout(resolve,150*(attempt+1)))
+   }
+  }
+ }
  await pool.end()
 }
