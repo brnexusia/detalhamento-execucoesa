@@ -1,6 +1,14 @@
 // Categorias inferidas apenas quando o título do PDF identifica a peça.
 // Não inventar um tipo específico para títulos ambíguos.
 const RULES = [
+  ['Brincos', /^(?:brinco|brincos)\b/],
+  ['Colares', /^(?:colar|colares|gargantilha|gargantilhas|choker|chokers)\b/],
+  ['Pulseiras', /^(?:pulseira|pulseiras|tornozeleira|tornozeleiras)\b/],
+  ['Braceletes', /^(?:bracelete|braceletes|bracele|bacelete)\b/],
+  ['Broches', /^(?:broche|broches)\b/],
+  ['Bolsas', /^(?:bolsa|bolsas)\b/],
+  ['Anéis', /^(?:anel|aneis)\b/],
+  ['Acessórios', /^(?:tiara|tiaras|presilha|presilhas|lenco|lencos|echarpe|echarpes|cinto|cintos)\b/],
   ['Conjuntos', /^(?:conjunto|conjuntos|kit\s+de\s+conjunto)\b/],
   ['Macacões', /^(?:macacao|macacoes)\b/],
   ['Macaquinhos', /^(?:macaquinho|macaquinhos)\b/],
