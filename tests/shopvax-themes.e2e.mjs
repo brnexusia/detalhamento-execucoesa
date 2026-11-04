@@ -4,6 +4,7 @@ import assert from 'node:assert/strict'
 const browser = await chromium.launch({ headless:true })
 try {
   const context = await browser.newContext({ viewport:{ width:1280,height:850 } })
+  await context.route('**/api/billing/status',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({enabled:false,required:false,accessGranted:true,status:'none',planCode:'bronze',prices:[]})}))
   let saved = {
     id:'s1', slug:'loja-teste', name:'Loja Teste', eyebrow:'Moda no atacado',
     tagline:'Loja pronta', minimum_order:100, whatsapp:'5511987700123', logo_url:'',

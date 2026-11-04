@@ -18,6 +18,7 @@ try {
     ['2026-10-31T21:00:00-03:00','Boa noite, Laura.'],
   ]) {
     const context = await browser.newContext({timezoneId:'America/Bahia',viewport:{width:390,height:844}})
+    await context.route('**/api/billing/status',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({enabled:false,required:false,accessGranted:true,status:'none',planCode:'bronze',prices:[]})}))
     await context.route('**/api/admin/bootstrap*',route=>route.fulfill({
       status:200,contentType:'application/json',body:JSON.stringify(bootstrap)
     }))
@@ -53,6 +54,7 @@ try {
 
   // Inter-front contract: compact bootstrap returns products:[] even for an existing store.
   const existing = await browser.newContext({viewport:{width:390,height:844}})
+  await existing.route('**/api/billing/status',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({enabled:false,required:false,accessGranted:true,status:'none',planCode:'bronze',prices:[]})}))
   await existing.route('**/api/admin/bootstrap*',route=>route.fulfill({
     status:200,contentType:'application/json',
     body:JSON.stringify({

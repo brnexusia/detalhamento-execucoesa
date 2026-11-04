@@ -40,14 +40,26 @@ try {
     assert.equal(await toggle.getAttribute('aria-expanded'),'true')
     const menuRect=await page.locator('.store-header-navigation').boundingBox()
     assert(menuRect && menuRect.x>=0 && menuRect.x+menuRect.width<=width+2,'Menu overflows mobile viewport')
+    // Menu aberto cobre o seletor Feed no celular; fechá-lo antes de testar a troca.
+    await toggle.click()
+    assert.equal(await toggle.getAttribute('aria-expanded'),'false')
   }else{
     assert(rects.nav.top>=rects.header.top-2 && rects.nav.bottom<=rects.header.bottom+2,JSON.stringify(rects))
     assert(rects.login.top>=rects.header.top-2 && rects.login.bottom<=rects.header.bottom+2,JSON.stringify(rects))
     await page.screenshot({path:'artifacts/shopvax-redesign/store-navigation-'+width+'.png'})
   }
   assert(rects.scrollWidth<=rects.viewport+2,'Horizontal overflow: '+JSON.stringify(rects))
-  await page.locator('.view-switch').getByRole('button',{name:'Feed',exact:true}).click()
+  // No celular, a navegação está recolhida: usar o CTA visível da vitrine.
+  // No desktop, o botão Feed permanece visível na barra superior.
+  if(width<=700) await page.getByRole('button',{name:/Passar uma por uma/i}).click()
+  else await page.locator('.view-switch').getByRole('button',{name:'Feed',exact:true}).click()
   await page.locator('.feed-card').first().waitFor()
+  // A navegação via CTA pode rolar a vitrine antes do clique; esperar o feed ocupar a tela.
+  await page.waitForFunction(() => {
+    const header=document.querySelector('.topbar')?.getBoundingClientRect()
+    const shell=document.querySelector('.feed-shell')?.getBoundingClientRect()
+    return Boolean(header && shell && Math.abs(header.bottom-shell.top)<3 && Math.abs(shell.bottom-innerHeight)<5)
+  },null,{timeout:5000})
   const feed=await page.evaluate(()=>{
     const header=document.querySelector('.topbar').getBoundingClientRect()
     const shell=document.querySelector('.feed-shell').getBoundingClientRect()

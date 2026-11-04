@@ -72,10 +72,16 @@ try {
    assert(m.card.bottom<=height+3 && m.card.height>=height-3,'Publicação não ocupa janela útil: '+JSON.stringify({width,height,m}))
    assert(m.cta.right<=m.card.right+2 && m.cta.bottom<=height+2,'CTA do produto cortado: '+JSON.stringify({width,height,m}))
    if(width>=800) {
-     assert(m.card.width>=Math.min(width*.94,1160),'Feed estreito em desktop: '+JSON.stringify({width,height,m}))
-     assert(m.media.right<=m.copy.left+3 && m.media.width>m.card.width*.55,'Mídia e dados não estão lado a lado: '+JSON.stringify({width,height,m}))
-     assert(m.copy.bottom<=m.actions.top+3,'Interações estão sobre o texto/preço: '+JSON.stringify({width,height,m}))
-     assert(m.actions.right<=m.card.right+3,'Interações vazaram para fora do cartão: '+JSON.stringify({width,height,m}))
+     // Feed editorial atual é vertical por publicação, inclusive no desktop.
+     // O teste antigo esperava imagem/dados lado a lado e largura quase total.
+     assert(m.card.width>=430 && m.card.width<=930,'A publicação vertical não cabe no desktop: '+JSON.stringify({width,height,m}))
+     assert(m.media.width>=m.card.width-2,'A mídia precisa ocupar a publicação vertical: '+JSON.stringify({width,height,m}))
+     assert(m.copy.left>=m.media.left-2 && m.copy.right<=m.media.right+2,
+       'Legenda deve permanecer dentro da mídia: '+JSON.stringify({width,height,m}))
+     assert(m.copy.bottom<=height+2 && m.copyScroll<=2,
+       'Texto/preço cortados em altura útil: '+JSON.stringify({width,height,m}))
+     assert(m.actions.right<=m.card.right+3 && m.actions.bottom<=height+2,
+       'Interações vazaram para fora do cartão: '+JSON.stringify({width,height,m}))
    } else if(width>700) {
      assert(m.card.width>=width-40,'Feed usa coluna estreita no notebook: '+JSON.stringify({width,height,m}))
    }
