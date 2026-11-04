@@ -19,10 +19,10 @@ function parseCookies(req) {
   }))
 }
 
-function sessionToken(req) {
+function sessionTokens(req) {
   const cookies = parseCookies(req)
-  for (const name of sessionCookies) if (cookies[name]) return cookies[name]
-  return ''
+  // A sessão atual do painel deve prevalecer sobre cookies legados.
+  return [...new Set(['atacado_session', 'shopvax_session'].map((name) => cookies[name]).filter(Boolean))]
 }
 
 let schemaPromise = null
@@ -39,16 +39,18 @@ async function ensureSchema() {
 
 async function currentStore(req) {
   await ensureSchema()
-  const token = sessionToken(req)
-  if (!token) return null
+  const tokens = sessionTokens(req)
+  if (!tokens.length) return null
+  const hashes = tokens.map(hashToken)
   const result = await pool.query(
     `SELECT s.id AS store_id,COALESCE(s.plan_tier,'bronze') AS plan_code
      FROM sessions se
      JOIN users u ON u.id=se.user_id
      JOIN stores s ON s.owner_id=u.id
-     WHERE se.token_hash=$1 AND se.expires_at>now()
+     WHERE se.token_hash=ANY($1::text[]) AND se.expires_at>now()
+     ORDER BY CASE WHEN se.token_hash=$2 THEN 0 ELSE 1 END
      LIMIT 1`,
-    [hashToken(token)],
+    [hashes, hashes[0]],
   )
   return result.rows[0] || null
 }
