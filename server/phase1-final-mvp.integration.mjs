@@ -152,9 +152,9 @@ try {
   assert.equal(result.payload.product.media_url, media.url)
   assert.equal(result.payload.added, true)
   result = await request(`/api/admin/products/${productId}/gallery/photos`, {
-    method: 'POST', cookie: account.cookie, body: { url: cameraMedia.url },
+    method: 'POST', cookie: `shopvax_session=cookie-antigo-invalidado; ${account.cookie}`, body: { url: cameraMedia.url },
   })
-  assert.equal(result.response.status, 200)
+  assert.equal(result.response.status, 200, 'Sessão atual deve funcionar com cookie antigo expirado')
   assert.deepEqual(result.payload.product.images, [media.url, cameraMedia.url])
   assert.equal(result.payload.product.media_url, media.url, 'Adicionar não pode substituir a capa existente')
   result = await request(`/api/admin/products/${productId}/gallery/photos`, {
