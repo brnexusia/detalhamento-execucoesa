@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import pg from 'pg'
+import { requiresPaymentForSignup } from './signup-billing-mode.mjs'
 
 const base = process.env.BASE_URL || 'http://127.0.0.1:3000'
 const dbUrl = process.env.DATABASE_URL
@@ -31,7 +32,7 @@ try {
     "WHERE table_schema='public' AND table_name='stores' AND column_name='billing_required'",
   ].join(' '))
   assert.equal(legacy.rowCount, 1)
-  assert.match(legacy.rows[0].column_default, /true/, 'Cadastros novos precisam exigir pagamento mesmo se a Stripe estiver indisponível')
+  assert.match(legacy.rows[0].column_default, requiresPaymentForSignup() ? /true/ : /false/, 'Default deve seguir a configuração do cadastro')
 
   // Provar que um plano escolhido no cadastro não é uma concessão gratuita.
   const seed = 'stripe-test-' + Math.random().toString(36).slice(2)

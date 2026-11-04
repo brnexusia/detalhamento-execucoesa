@@ -3,6 +3,7 @@ import express from 'express'
 import pg from 'pg'
 import { OAuth2Client } from 'google-auth-library'
 import { publicPlanCodes } from './system-plans.mjs'
+import { requiresPaymentForSignup } from './signup-billing-mode.mjs'
 
 const { Pool } = pg
 const databaseUrl = process.env.DATABASE_URL?.trim() || ''
@@ -136,8 +137,8 @@ async function createStoreForUser(userId, storeName, whatsapp, planCode) {
   const storeId = id()
   const storeSlug = await uniqueStoreSlug(storeName)
   await pool.query(
-    'INSERT INTO stores (id,owner_id,slug,name,whatsapp,plan_tier,billing_required,signup_plan_selected_at) VALUES ($1,$2,$3,$4,$5,$6,true,now())',
-    [storeId, userId, storeSlug, storeName, digits(whatsapp), planCode],
+    'INSERT INTO stores (id,owner_id,slug,name,whatsapp,plan_tier,billing_required,signup_plan_selected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,now())',
+    [storeId, userId, storeSlug, storeName, digits(whatsapp), planCode, requiresPaymentForSignup()],
   )
   return storeSlug
 }
@@ -201,8 +202,8 @@ async function googleAuth(req, res) {
       [userId, profile.email, profile.name, profile.sub, profile.picture],
     )
     await client.query(
-      'INSERT INTO stores (id,owner_id,slug,name,whatsapp,plan_tier,billing_required,signup_plan_selected_at) VALUES ($1,$2,$3,$4,$5,$6,true,now())',
-      [id(), userId, storeSlug, storeName, digits(req.body?.whatsapp), planCode],
+      'INSERT INTO stores (id,owner_id,slug,name,whatsapp,plan_tier,billing_required,signup_plan_selected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,now())',
+      [id(), userId, storeSlug, storeName, digits(req.body?.whatsapp), planCode, requiresPaymentForSignup()],
     )
     await client.query('COMMIT')
   } catch (error) {

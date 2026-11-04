@@ -3,6 +3,7 @@ import express from 'express'
 import pg from 'pg'
 import { cycles, planPrice, subscriptionAccess, verifyStripeSignature } from './stripe-billing-policy.mjs'
 import { systemPlans } from './system-plans.mjs'
+import { requiresPaymentForSignup } from './signup-billing-mode.mjs'
 import { ensureReferralSchema, captureReferral, qualifyReferralOnPaidInvoice, applyMerchantStripeCredits, reverseReferralForRefund } from './referral-program-core.mjs'
 
 const { Pool } = pg
@@ -19,6 +20,7 @@ const keyReady = /^sk_(test|live)_/.test(key)
 const webhookReady = /^whsec_/.test(webhookSecret)
 const originReady = Boolean(publicOrigin)
 const ready = Boolean(keyReady && webhookReady && originReady)
+const signupPaymentRequired = requiresPaymentForSignup()
 if (!ready) console.error('[stripe-billing] assinatura indisponível; valide as variáveis no SERVIÇO DE BACKEND do EasyPanel:', {
   SHOPVAX_STRIPE_SECRET_KEY_valid: keyReady,
   SHOPVAX_STRIPE_WEBHOOK_SECRET_valid: webhookReady,
@@ -58,18 +60,8 @@ async function ensureSchema() {
       "CREATE TRIGGER trg_shopvax_stripe_new_store BEFORE INSERT ON stores",
       "FOR EACH ROW EXECUTE FUNCTION shopvax_stripe_insert_store();",
     ].join(' '))
-    // Existing accounts remain grandfathered; only NEW stores start paywalled after full configuration.
-    // Todo novo cadastro comercial exige assinatura, mesmo se a configuração Stripe
-    // ficar temporariamente indisponível no deploy. Não existe fallback gratuito.
-    await pool.query('ALTER TABLE stores ALTER COLUMN billing_required SET DEFAULT true')
-    // Repare exclusivamente os cadastros recentes criados durante a janela do
-    // problema de configuração. Lojas legadas anteriores continuam preservadas.
-    await pool.query(`
-      UPDATE stores SET billing_required=true,updated_at=now()
-      WHERE billing_required=false
-        AND signup_plan_selected_at IS NOT NULL
-        AND created_at >= TIMESTAMPTZ '2026-11-02 00:00:00-03'
-    `)
+    // Novas lojas recebem o modo de cadastro vigente; lojas existentes não são alteradas.
+    await pool.query('ALTER TABLE stores ALTER COLUMN billing_required SET DEFAULT ' + (signupPaymentRequired ? 'true' : 'false'))
   })().catch((error) => { schemaPromise = null; throw error })
   return schemaPromise
 }
@@ -90,7 +82,7 @@ async function owner(req) {
   const token = sessionCookie(req)
   if (!token) return null
   const result = await pool.query([
-    'SELECT s.id,s.name,s.slug,s.billing_required,u.email,',
+    'SELECT s.id,s.name,s.slug,s.plan_tier,s.billing_required,u.email,',
     'b.customer_id,b.stripe_mode,b.subscription_id,b.subscription_status,b.active_plan_code,',
     'b.cycle,b.paid_until,b.cancel_at_period_end,b.checkout_session_id,b.checkout_plan,b.checkout_cycle,b.checkout_started_at',
     'FROM sessions se JOIN users u ON se.user_id=u.id JOIN stores s ON s.owner_id=u.id',
@@ -159,7 +151,7 @@ function billingShape(row) {
     required: Boolean(row?.billing_required),
     accessGranted: row ? subscriptionAccess(row) : false,
     status: row?.subscription_status || 'none',
-    planCode: row?.active_plan_code || null,
+    planCode: row?.active_plan_code || (!row?.billing_required ? row?.plan_tier || null : null),
     cycle: row?.cycle || null,
     paidUntil: row?.paid_until || null,
     cancelAtPeriodEnd: Boolean(row?.cancel_at_period_end),
@@ -412,7 +404,7 @@ async function gate(req, res, next) {
       const isGoogleSignup = req.path === '/api/auth/google' && req.body?.intent === 'register'
       const isNewStore = req.path === '/api/auth/register' || isGoogleSignup
       const localTestBypass = process.env.NODE_ENV === 'test' && process.env.SHOPVAX_TEST_BILLING_BYPASS === '1'
-      if (isNewStore && !ready && !localTestBypass)
+      if (isNewStore && signupPaymentRequired && !ready && !localTestBypass)
         return apiError(res, 503, 'Não é possível criar lojas enquanto a cobrança Stripe estiver indisponível. Tente novamente após a conexão ser restabelecida.', 'BILLING_NOT_CONFIGURED')
       return next()
     }
@@ -443,7 +435,7 @@ function install(app) {
   app.post('/api/billing/stripe/webhook', express.raw({ type: 'application/json', limit: '256kb' }), wrap(webhook))
   app.get('/api/billing/public-plans', (_req,res) => {
     res.set('Cache-Control','no-store')
-    res.json({ enabled:ready, plans: systemPlans.map(plan => ({
+    res.json({ enabled:ready, paymentRequired:signupPaymentRequired, plans: systemPlans.map(plan => ({
       code:plan.code,name:plan.name,monthlyPrice:planPrice(plan.code,'monthly').amountCents/100,
       sellerLimit:plan.sellerLimit,productLimit:plan.productLimit,catalogLimit:plan.catalogLimit,
       photoLimit:plan.photoLimit,franchiseeLimit:plan.franchiseeLimit,

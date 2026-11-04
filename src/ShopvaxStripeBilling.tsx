@@ -95,6 +95,11 @@ export default function ShopvaxStripeBilling() {
   }
 
   if (loading) return <div className="svx-billing"><p>Carregando cobrança segura…</p></div>
+  if (state && !state.required && !['active','past_due','unpaid'].includes(state.status)) return <section className="svx-billing">
+    <header className="svx-billing__header"><span className="svx-billing__eyebrow">SHOPVAX · ASSINATURA</span><h1>Plano e cobrança</h1></header>
+    <p role="status">Seu acesso está liberado sem pagamento por enquanto. Nenhuma assinatura automática foi criada.</p>
+    <p>Plano atual: <strong>{state.planCode?.toUpperCase() || 'BRONZE'}</strong>. Os limites do plano escolhido continuam valendo.</p>
+  </section>
   if (!state?.enabled) return <div className="svx-billing"><p role="alert" className="svx-billing__error">Pagamento Stripe indisponível nesta instância. Sua conta está registrada, mas a assinatura não pode ser iniciada até que a conexão seja restabelecida.</p></div>
 
   const activeSubscription = state.status === 'active' && state.accessGranted

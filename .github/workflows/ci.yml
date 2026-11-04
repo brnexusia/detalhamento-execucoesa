@@ -97,6 +97,7 @@ jobs:
       - name: Stripe billing policy and webhook verification
         run: |
           node --check server/stripe-billing-hooks.mjs
+          node --test server/signup-billing-mode.test.mjs
           npm run test:billing
       - name: Responsive media variants preserve originals
         run: node --test server/media-variants.test.mjs
@@ -169,6 +170,8 @@ jobs:
           NODE
       - name: Stripe billing schema and fail-closed smoke test
         run: node server/stripe-billing.integration.mjs
+      - name: Free merchant signup and panel access (without Stripe)
+        run: node server/free-signup.integration.mjs
       # Verify sitemap HTTP after Stripe schema setup, before bulk scanner fixtures.
       - name: SEO HTTP and PostgreSQL lifecycle integration
         run: node server/seo-http.integration.mjs
