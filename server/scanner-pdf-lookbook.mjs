@@ -73,7 +73,12 @@ export function parseNumberedLookbookPages(rawPages, maxProducts = 500) {
     const names = detailPage >= 0 ? labels[detailPage] : new Map()
     for (const [item, price] of groups[pricePage]) {
       if (candidates.length >= maxProducts) break
-      const type = names.get(item)
+      const printedType = names.get(item)
+      // Some supplier boards are mislabelled (the Memories bag board says
+      // "BRINCO 01" while the pictured item is a bag). Keep unusual high-priced
+      // earring labels as uncertain rather than silently assigning a wrong category.
+      const suspectType = printedType === 'Brinco' && price >= 100
+      const type = suspectType ? null : printedType
       const printableItem = String(item).padStart(2, '0')
       const pricePageNumber = pricePage + 1
       const title = type
@@ -81,7 +86,8 @@ export function parseNumberedLookbookPages(rawPages, maxProducts = 500) {
         : 'Peça ' + printableItem + ' (tipo a confirmar)' + (collection ? ' · ' + collection : '') + ' · pág. ' + pricePageNumber
       const description = 'Item ' + printableItem + ' com preço impresso na página ' + pricePageNumber +
         (detailPage >= 0 ? '; apresentação de cores na página ' + (detailPage + 1) : '') +
-        '. Confira o modelo e as variações na revisão antes de publicar.'
+        '. Confira o modelo e as variações na revisão antes de publicar.' +
+        (suspectType ? ' Atenção: tipo impresso potencialmente incorreto; confirme pela foto.' : '')
       candidates.push({
         title, description, sku: '', category: type ? inferPdfProductCategory(type) : 'Geral',
         price, currency: 'BRL', images: [], properties: [], variants: [],
