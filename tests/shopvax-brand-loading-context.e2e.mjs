@@ -161,6 +161,7 @@ try {
  await context.close()
 
  const reduced=await browser.newContext({viewport:{width:390,height:844},reducedMotion:'reduce'})
+ await reduced.route('**/api/billing/status',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({enabled:false,required:false,accessGranted:true,status:'none',planCode:'bronze',prices:[]})}))
  await reduced.route('**/api/admin/bootstrap*',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(fixture)}))
  const reducedPage=await reduced.newPage()
  await reducedPage.clock.install()
