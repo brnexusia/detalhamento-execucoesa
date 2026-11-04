@@ -37,11 +37,11 @@ test('links numbered prices to the next colors board by item number and preserve
 test('assigns accessory category and tolerates supplier typos without inventing missing SKUs', () => {
   const p = parsePdfCatalogText([
     'MEMORIES',
-    '01 R$ 17,50\\n02 R$ 42,00',
-    'CORES DISPONÍVEIS\\nBRINCO 01\\nBACELETE 02',
+    '01 R$ 17,50\n02 R$ 42,00',
+    'CORES DISPONÍVEIS\nBRINCO 01\nBACELETE 02',
     '01 R$ 140,00',
-    'CORES DISPONÍVEIS\\nBOLSA 01',
-  ].join('\\f'))
+    'CORES DISPONÍVEIS\nBOLSA 01',
+  ].join('\f'))
   assert.equal(p.lookbook, true)
   assert.deepEqual(p.candidates.map(x => x.category), ['Brincos', 'Braceletes', 'Bolsas'])
   assert.deepEqual(p.candidates.map(x => x.sku), ['', '', ''])
