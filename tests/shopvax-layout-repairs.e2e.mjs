@@ -40,6 +40,9 @@ try {
     assert.equal(await toggle.getAttribute('aria-expanded'),'true')
     const menuRect=await page.locator('.store-header-navigation').boundingBox()
     assert(menuRect && menuRect.x>=0 && menuRect.x+menuRect.width<=width+2,'Menu overflows mobile viewport')
+    // Menu aberto cobre o seletor Feed no celular; fechá-lo antes de testar a troca.
+    await toggle.click()
+    assert.equal(await toggle.getAttribute('aria-expanded'),'false')
   }else{
     assert(rects.nav.top>=rects.header.top-2 && rects.nav.bottom<=rects.header.bottom+2,JSON.stringify(rects))
     assert(rects.login.top>=rects.header.top-2 && rects.login.bottom<=rects.header.bottom+2,JSON.stringify(rects))
