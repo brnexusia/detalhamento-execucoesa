@@ -49,7 +49,7 @@ export function parseNumberedLookbookPages(rawPages, maxProducts = 500) {
   const pages = Array.isArray(rawPages) ? rawPages : String(rawPages || '').replace(/\r/g, '').split('\f')
   const groups = pages.map((page) => pricesFromText(page))
   const detail = pages.map((page) => /\bCORES\s+DISPON[IÍ]VEIS\b/i.test(clean(page)))
-  const labels = pages.map((page) => detail[pages.indexOf(page)] ? labelsFromText(page) : new Map())
+  const labels = pages.map((page, index) => detail[index] ? labelsFromText(page) : new Map())
   const pricedPages = groups.map((items, i) => items.size ? i : -1).filter((i) => i >= 0)
   let linked = 0
   const pageLinks = new Map()
