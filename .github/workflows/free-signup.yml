@@ -34,7 +34,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install --no-audit --no-fund
+      - run: npm install --include=dev --no-audit --no-fund
       - run: npm run build
       - name: Unit test free signup flag
         run: node --test server/signup-billing-mode.test.mjs
