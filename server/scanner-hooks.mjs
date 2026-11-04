@@ -509,11 +509,20 @@ function installScannerRoutes(app) {
     storage: multer.memoryStorage(),
     limits: { fileSize: MAX_PDF_BYTES, files: 1, fields: 0 },
   })
-  const acceptPdfUpload = (req, res, next) => pdfUpload.single('file')(req, res, (error) => {
-    if (error?.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: 'PDF maior que 50 MB. Envie um arquivo de até 50 MB.' })
-    if (error) return res.status(400).json({ error: 'Não foi possível receber o PDF. Envie apenas um arquivo de até 50 MB.' })
-    next()
-  })
+  let pdfUploadsInFlight = 0
+  const acceptPdfUpload = (req, res, next) => {
+    // Large PDFs are held in memory while Multer validates the upload.
+    // Bound concurrent allocations independently of the asynchronous worker.
+    if (pdfUploadsInFlight >= 2) return res.status(429).json({ error: 'Há muitas importações de PDF sendo enviadas. Tente novamente após concluir o envio atual.' })
+    pdfUploadsInFlight += 1
+    pdfUpload.single('file')(req, res, (error) => {
+      pdfUploadsInFlight -= 1
+      const limitMB = Math.round(MAX_PDF_BYTES / (1024 * 1024))
+      if (error?.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: 'PDF maior que ' + limitMB + ' MB. Envie um arquivo de até ' + limitMB + ' MB.' })
+      if (error) return res.status(400).json({ error: 'Não foi possível receber o PDF. Envie apenas um arquivo de até ' + limitMB + ' MB.' })
+      next()
+    })
+  }
 
   const requireStore = asyncRoute(async (req, res, next) => {
     await ensureScannerSchema()

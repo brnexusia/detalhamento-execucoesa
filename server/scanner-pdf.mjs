@@ -6,9 +6,10 @@ import os from 'node:os'
 import crypto from 'node:crypto'
 import sharp from 'sharp'
 import { inferPdfProductCategory } from './scanner-pdf-category.mjs'
+import { parseNumberedLookbookPages, parseLookbookPhotoBands } from './scanner-pdf-lookbook.mjs'
 
 const run = promisify(execFile)
-export const MAX_PDF_BYTES = 50 * 1024 * 1024
+export const MAX_PDF_BYTES = 100 * 1024 * 1024
 export const MAX_PDF_PAGES = 200
 const MAX_PRODUCTS = 500
 const MAX_IMAGES = 220
@@ -114,6 +115,8 @@ function pageCandidates(pageText, page) {
  */
 export function parsePdfCatalogText(pdfText, maxPages = MAX_PDF_PAGES) {
   const pages = String(pdfText || '').replace(/\r/g, '').split('\f').slice(0, maxPages)
+  const lookbook = parseNumberedLookbookPages(pages, MAX_PRODUCTS)
+  if (lookbook) return lookbook
   const candidates = []
   for (let index = 0; index < pages.length; index += 1) {
     const products = pageCandidates(pages[index], index + 1)
@@ -191,10 +194,77 @@ async function assertExtractedImageBudget(dir, filenames) {
   }
 }
 
+
+async function attachLookbookPhotos(pdf, dir, candidates, imageListByPage, onImage, deadline) {
+  // Read visual word positions from the existing PDF text layer; no OCR of pure
+  // editorial photograph pages and no guessing product image associations.
+  const layout = await command('pdftotext', ['-bbox-layout', pdf, '-'], 30000, deadline)
+  const regions = parseLookbookPhotoBands(layout)
+  const itemsByPage = new Map()
+  for (const candidate of candidates) {
+    if (!candidate.pdf_detail_page) continue
+    const region = regions.get(candidate.pdf_detail_page + ':' + candidate.pdf_item_number)
+    if (!region) continue
+    if (!itemsByPage.has(region.page)) itemsByPage.set(region.page, [])
+    itemsByPage.get(region.page).push({ candidate, region })
+  }
+  let processedPixels = 0
+  let savedPhotos = 0
+  for (const [page, items] of itemsByPage) {
+    if (savedPhotos >= MAX_EXTRACTED_PRODUCT_PHOTOS) break
+    const embedded = imageListByPage.get(page) || []
+    try { assertPdfImageBudget(embedded) } catch (error) {
+      if (error instanceof PdfSafetyError) continue
+      throw error
+    }
+    // The named board is the ground-truth product image, not the preceding
+    // model/editorial photo containing multiple unrelated numbered pieces.
+    const prefix = path.join(dir, 'lookbook-' + page)
+    const pngPath = prefix + '.png'
+    try {
+      await command('pdftoppm', [
+        '-f', String(page), '-l', String(page), '-scale-to', '1400',
+        '-singlefile', '-png', pdf, prefix,
+      ], 25000, deadline)
+      const source = await readFile(pngPath)
+      if (source.length > MAX_GENERATED_FILE_BYTES) throw new PdfSafetyError(UNSAFE_PDF_MESSAGE)
+      const image = sharp(source, { limitInputPixels: MAX_IMAGE_PIXELS })
+      const meta = await image.metadata()
+      const pixels = (meta.width || 0) * (meta.height || 0)
+      if (!meta.width || !meta.height || processedPixels + pixels > MAX_CUMULATIVE_EXTRACTED_PIXELS) break
+      processedPixels += pixels
+      for (const { candidate, region } of items) {
+        if (savedPhotos >= MAX_EXTRACTED_PRODUCT_PHOTOS) break
+        const y0 = Math.max(0, Math.floor(region.top / region.height * meta.height))
+        const y1 = Math.min(meta.height, Math.ceil(region.bottom / region.height * meta.height))
+        if (y1 - y0 < 70) continue
+        try {
+          const photo = await sharp(source, { limitInputPixels: MAX_IMAGE_PIXELS })
+            .extract({ left: 0, top: y0, width: meta.width, height: y1 - y0 })
+            .resize({ width: 1200, height: 1200, fit: 'inside', withoutEnlargement: true })
+            .webp({ quality: 83 }).toBuffer()
+          if (photo.length > 5 * 1024 * 1024) continue
+          const uri = await onImage(photo, 'image/webp',
+            'catalogo-p' + page + '-item-' + String(candidate.pdf_item_number).padStart(2, '0') + '.webp')
+          if (uri) { candidate.images.push(uri); savedPhotos += 1 }
+        } catch (error) {
+          if (error instanceof PdfSafetyError) throw error
+          console.warn('[pdf import] item photo skipped', page, candidate.pdf_item_number, error.message)
+        }
+      }
+    } catch (error) {
+      if (error instanceof PdfSafetyError) throw error
+      console.warn('[pdf import] lookbook board skipped on page', page, error.message)
+    } finally {
+      await rm(pngPath, { force: true })
+    }
+  }
+}
+
 export async function collectPdfCatalog(buffer, options = {}) {
   if (!Buffer.isBuffer(buffer) || buffer.length < 8 || buffer.length > MAX_PDF_BYTES ||
       !buffer.subarray(0, 1024).toString('latin1').includes('%PDF-')) {
-    throw new Error('Envie um PDF válido de até 50 MB.')
+    throw new Error('Envie um PDF válido de até 100 MB.')
   }
   const dir = await mkdtemp(path.join(os.tmpdir(), 'shopvax-pdf-'))
   const pdf = path.join(dir, 'catalogo.pdf')
@@ -218,8 +288,9 @@ export async function collectPdfCatalog(buffer, options = {}) {
     // image-only facing pages: running OCR on dozens of pure photo pages
     // wastes minutes and may hit the processing deadline. A full scan with
     // no detected text products STILL goes through OCR on every page.
-    const textLayerCandidates = parsePdfCatalogText(pages.join('\f'), totalPages).candidates.length
-    const mixedTextAndPhotoCatalog = textLayerCandidates >= 8 && totalPages >= 30
+    const textLayerParsed = parsePdfCatalogText(pages.join('\f'), totalPages)
+    const textLayerCandidates = textLayerParsed.candidates.length
+    const mixedTextAndPhotoCatalog = Boolean(textLayerParsed.lookbook) || (textLayerCandidates >= 8 && totalPages >= 30)
     for (let i = 0; i < totalPages; i += 1) {
       if (mixedTextAndPhotoCatalog && !(pages[i] || '').trim()) {
         await options.onProgress?.({ progress: Math.min(65, 12 + Math.round(50 * (i + 1) / totalPages)), pagesScanned: i + 1, platform: 'pdf' })
@@ -262,6 +333,9 @@ export async function collectPdfCatalog(buffer, options = {}) {
           if (!byPage.has(item.page)) byPage.set(item.page, [])
           byPage.get(item.page).push(item)
         }
+        if (parsed.lookbook) {
+          await attachLookbookPhotos(pdf, dir, candidates, byPage, options.onImage, deadline)
+        } else {
         let processedPixels = 0
         let savedPhotos = 0
         for (const candidate of candidates) {
@@ -326,6 +400,7 @@ export async function collectPdfCatalog(buffer, options = {}) {
               await Promise.all(found.map((name) => rm(path.join(dir, name), { force: true })))
             }
           }
+        }
         }
       } catch (error) {
         if (error instanceof PdfSafetyError) throw error

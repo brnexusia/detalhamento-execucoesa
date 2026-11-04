@@ -175,11 +175,11 @@ test('rejects non-PDF binary before launching converters', async () => {
   await assert.rejects(collectPdfCatalog(Buffer.from('NOT A PDF')), /PDF válido/)
 })
 
-test('PDF input limit is 50 MiB and rejects larger uploads before parsing', async () => {
-  assert.equal(MAX_PDF_BYTES, 50 * 1024 * 1024)
+test('PDF input limit is 100 MiB and rejects larger uploads before parsing', async () => {
+  assert.equal(MAX_PDF_BYTES, 100 * 1024 * 1024)
   const fake = Buffer.alloc(MAX_PDF_BYTES + 1)
   fake.write('%PDF-1.4', 0, 'ascii')
-  await assert.rejects(collectPdfCatalog(fake), /50 MB/)
+  await assert.rejects(collectPdfCatalog(fake), /100 MB/)
 })
 
 test('blocks image decompression bombs before photo extraction', () => {

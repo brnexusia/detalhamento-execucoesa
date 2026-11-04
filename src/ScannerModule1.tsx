@@ -213,8 +213,8 @@ export default function ScannerModule1() {
     setError('')
     setSuccess('')
     try {
-      if (sourceMode === 'pdf' && (!pdfFile || pdfFile.size > 50 * 1024 * 1024)) {
-        throw new Error('Selecione um PDF válido de até 50 MB.')
+      if (sourceMode === 'pdf' && (!pdfFile || pdfFile.size > 100 * 1024 * 1024)) {
+        throw new Error('Selecione um PDF válido de até 100 MB.')
       }
       const result = sourceMode === 'pdf'
         ? await api.uploadPdfCatalog(pdfFile!)
@@ -408,7 +408,7 @@ export default function ScannerModule1() {
               <p className="scanner-help">Aceita até 10.000 fotos por importação de álbuns públicos do Google Fotos, conforme as imagens disponibilizadas pelo link, e links públicos diretos para imagens. As fotos ficam em revisão: informe nome e preço antes de publicar. Álbuns privados ou que exijam login não são acessíveis.</p>
             </> : <>
               <label><span>Seu catálogo em PDF</span><input key={uploadVersion} type="file" accept=".pdf,application/pdf" required onChange={(event) => setPdfFile(event.target.files?.[0] || null)} /></label>
-              <p className="scanner-help">PDF de até 50 MB e 200 páginas. O Shopvax lê nomes, referências, preços e fotos quando possível. Catálogos digitalizados podem usar OCR. Confira cada produto antes de publicar: PDFs com várias peças por página podem precisar de ajustes manuais de imagem.</p>
+              <p className="scanner-help">PDF de até 100 MB e 200 páginas. O Shopvax lê nomes, referências, preços e fotos quando possível. Também reconhece catálogos editoriais com preços numerados em uma página e as fotos das peças em outra. Catálogos digitalizados podem usar OCR. Confira cada produto e as imagens antes de publicar.</p>
             </>}
             <p className="scanner-help">Produtos extraídos permanecem em revisão e só entram na loja após sua confirmação.</p>
             {error && <p className="scanner-message scanner-message--error">{error}</p>}
