@@ -25,11 +25,28 @@ A implantação requer HTTPS no domínio da aplicação, PostgreSQL, migração/
 
 ```dotenv
 SHOPVAX_PUBLIC_URL=https://shopvax.com.br
-SHOPVAX_STRIPE_SECRET_KEY=sk_test_...     # substituir por sk_live_... ao homologar produção
+SHOPVAX_STRIPE_SECRET_KEY=<chave-backend> # sk_test_/rk_test_ em testes; sk_live_/rk_live_ em produção
 SHOPVAX_STRIPE_WEBHOOK_SECRET=whsec_...    # segredo do endpoint da Stripe correspondente
 ```
 
-A conexão Stripe fica disponível quando as três variáveis estiverem válidas; exigir pagamento no cadastro também requer a flag explícita acima. O aplicativo **não precisa de publishable key**: Checkout e Billing Portal são hospedados pela Stripe. Não colocar `sk_` ou `whsec_` no frontend, Vite, GitHub, ticket ou mensagens públicas. Preferir variáveis secretas do EasyPanel. As variáveis não são enviadas por GET /health nem pelo frontend.
+**Chaves restritas:** o backend aceita chaves secretas `sk_` e restritas `rk_`, tanto em teste quanto em produção. Prefira uma `rk_live_` dedicada ao ShopVax, com as permissões necessárias. Uma chave com prefixo válido mas permissões insuficientes pode aparecer como configurada; o checkout e o Portal precisam ser homologados com a Stripe.
+
+### Permissões mínimas da chave restrita (Stripe API v1)
+
+As rotas reais do backend exigem acesso às seguintes categorias da Stripe (nomes podem variar no painel):
+
+| Recurso | Acesso | Operação no ShopVax |
+| --- | --- | --- |
+| **Customers / Clientes** | Escrita | Criar cliente e registrar crédito de indicação no saldo do cliente |
+| **Products / Produtos** | Escrita | Criar produtos dos planos |
+| **Prices / Preços** | Escrita | Criar os preços recorrentes |
+| **Checkout Sessions / Sessões do Checkout** | Escrita | Criar, consultar e expirar sessões |
+| **Subscriptions / Assinaturas** | Escrita | Consultar e alterar assinaturas; reconciliar webhooks |
+| **Customer Portal / Portal do cliente** | Escrita | Criar configuração e sessões do portal de cobrança |
+
+Para o Portal, se o painel listar uma permissão complementar para recursos de pagamento/Elements, confirme-a pela mensagem de erro ou pelos registros da Stripe. Não habilite acesso a payouts, transferências ou outras operações de dinheiro não utilizadas pelo código. **Webhooks são autenticados separadamente** pelo segredo `whsec_`; não precisam de permissão de consulta de eventos.
+
+A conexão Stripe fica disponível quando as três variáveis estiverem válidas; exigir pagamento no cadastro também requer a flag explícita acima. O aplicativo **não precisa de publishable key**: Checkout e Billing Portal são hospedados pela Stripe. Não colocar `sk_`, `rk_` ou `whsec_` no frontend, Vite, GitHub, ticket ou mensagens públicas. Preferir variáveis secretas do EasyPanel. As variáveis não são enviadas por GET /health nem pelo frontend.
 
 Na Stripe, configurar um webhook de produção em:
 
@@ -41,6 +58,8 @@ Eventos a selecionar:
 - `checkout.session.completed`
 - `invoice.paid`
 - `invoice.payment_failed`
+- `invoice.voided` (estorno/reversão de indicação)
+- `charge.refunded` (estorno/reversão de indicação)
 - `customer.subscription.created`
 - `customer.subscription.updated`
 - `customer.subscription.deleted`
@@ -68,7 +87,7 @@ POST /api/billing/stripe/webhook
 
 ## Regras de lançamento e limitações
 
-- Testar primeiro **com `sk_test_` e webhook de teste**, utilizando uma cópia restaurável do banco sem dados pessoais reais. Para live, usar `sk_live_`, endpoint live e **banco isolado**; nunca trocar chaves mantendo customers/prices de um ambiente. O código impede reaproveitar um customer de ambiente diferente.
+- Testar primeiro **com `sk_test_` ou `rk_test_` e webhook de teste**, utilizando uma cópia restaurável do banco sem dados pessoais reais. Para live, usar `sk_live_` ou `rk_live_`, endpoint live e **banco isolado**; nunca trocar chaves mantendo customers/prices de um ambiente. O código impede reaproveitar um customer de ambiente diferente.
 - Os recursos pagos das novas lojas são bloqueados até confirmação. Isso não apaga conteúdos antigos, produtos, fotos, catálogos ou pedidos. Alterações nos limites do plano continuam validadas pelas regras existentes do backend.
 - A migração para cobrança de lojas legadas deve ser decidida explicitamente, com aviso comercial e backup; **não** alterar `billing_required` em massa durante um primeiro deploy.
 - O painel da Stripe precisa estar com a conta verificada e pagamentos recorrentes habilitados. A Stripe pode solicitar dados cadastrais e documentos para liberar cobrança/pagamento.
