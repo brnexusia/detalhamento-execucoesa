@@ -54,6 +54,12 @@ try {
   if(width<=700) await page.getByRole('button',{name:/Passar uma por uma/i}).click()
   else await page.locator('.view-switch').getByRole('button',{name:'Feed',exact:true}).click()
   await page.locator('.feed-card').first().waitFor()
+  // A navegação via CTA pode rolar a vitrine antes do clique; esperar o feed ocupar a tela.
+  await page.waitForFunction(() => {
+    const header=document.querySelector('.topbar')?.getBoundingClientRect()
+    const shell=document.querySelector('.feed-shell')?.getBoundingClientRect()
+    return Boolean(header && shell && Math.abs(header.bottom-shell.top)<3 && Math.abs(shell.bottom-innerHeight)<5)
+  },null,{timeout:5000})
   const feed=await page.evaluate(()=>{
     const header=document.querySelector('.topbar').getBoundingClientRect()
     const shell=document.querySelector('.feed-shell').getBoundingClientRect()
