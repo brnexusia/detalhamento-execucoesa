@@ -49,7 +49,10 @@ try {
     await page.screenshot({path:'artifacts/shopvax-redesign/store-navigation-'+width+'.png'})
   }
   assert(rects.scrollWidth<=rects.viewport+2,'Horizontal overflow: '+JSON.stringify(rects))
-  await page.locator('.view-switch').getByRole('button',{name:'Feed',exact:true}).click()
+  // No celular, a navegação está recolhida: usar o CTA visível da vitrine.
+  // No desktop, o botão Feed permanece visível na barra superior.
+  if(width<=700) await page.getByRole('button',{name:/Passar uma por uma/i}).click()
+  else await page.locator('.view-switch').getByRole('button',{name:'Feed',exact:true}).click()
   await page.locator('.feed-card').first().waitFor()
   const feed=await page.evaluate(()=>{
     const header=document.querySelector('.topbar').getBoundingClientRect()
