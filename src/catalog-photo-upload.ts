@@ -1,7 +1,8 @@
 // Prepara fotos de câmera antes de atravessar proxies com limites de corpo HTTP.
 // Não toca em vídeos nem em imagens pequenas; o backend valida o conteúdo real.
-const LARGE_PHOTO = 2 * 1024 * 1024
-const NETWORK_PHOTO_LIMIT = 8 * 1024 * 1024
+const LARGE_PHOTO = 700 * 1024
+// Keep multipart payload below common 1 MB reverse-proxy limits.
+const NETWORK_PHOTO_LIMIT = 950 * 1024
 const MAX_UPLOAD = 30 * 1024 * 1024
 const IMAGE_EXT = /\.(jpe?g|png|webp|gif|avif|heic|heif)$/i
 const VIDEO_EXT = /\.(mp4|webm|mov)$/i
@@ -59,7 +60,8 @@ export async function prepareCatalogPhoto(file: File): Promise<File> {
     const image = await imageFromFile(file)
     const mime = /image\/(png|webp)/i.test(file.type) ? 'image/webp' : 'image/jpeg'
     let optimized = await renderPhoto(image, 2200, 0.82, mime)
-    if (optimized.size > NETWORK_PHOTO_LIMIT) optimized = await renderPhoto(image, 1600, 0.72, mime)
+    if (optimized.size > NETWORK_PHOTO_LIMIT) optimized = await renderPhoto(image, 1600, 0.74, mime)
+    if (optimized.size > NETWORK_PHOTO_LIMIT) optimized = await renderPhoto(image, 1200, 0.66, mime)
     if (optimized.size > NETWORK_PHOTO_LIMIT) throw Error('too large after encoding')
     if (!convert && file.size <= NETWORK_PHOTO_LIMIT && optimized.size >= file.size) return file
     const ext = optimized.type === 'image/webp' ? 'webp' : 'jpg'
