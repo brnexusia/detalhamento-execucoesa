@@ -19,10 +19,10 @@ function parseCookies(req) {
   }))
 }
 
-function sessionToken(req) {
+function sessionTokens(req) {
   const cookies = parseCookies(req)
-  for (const name of sessionCookies) if (cookies[name]) return cookies[name]
-  return ''
+  // A sessão atual do painel deve prevalecer sobre cookies legados.
+  return [...new Set(['atacado_session', 'shopvax_session'].map((name) => cookies[name]).filter(Boolean))]
 }
 
 let schemaPromise = null
@@ -39,16 +39,18 @@ async function ensureSchema() {
 
 async function currentStore(req) {
   await ensureSchema()
-  const token = sessionToken(req)
-  if (!token) return null
+  const tokens = sessionTokens(req)
+  if (!tokens.length) return null
+  const hashes = tokens.map(hashToken)
   const result = await pool.query(
     `SELECT s.id AS store_id,COALESCE(s.plan_tier,'bronze') AS plan_code
      FROM sessions se
      JOIN users u ON u.id=se.user_id
      JOIN stores s ON s.owner_id=u.id
-     WHERE se.token_hash=$1 AND se.expires_at>now()
+     WHERE se.token_hash=ANY($1::text[]) AND se.expires_at>now()
+     ORDER BY CASE WHEN se.token_hash=$2 THEN 0 ELSE 1 END
      LIMIT 1`,
-    [hashToken(token)],
+    [hashes, hashes[0]],
   )
   return result.rows[0] || null
 }
@@ -114,6 +116,67 @@ async function updateGallery(req, res) {
   return res.json({ product: updated.rows[0], limit: max })
 }
 
+// Acrescenta uma foto a um produto existente e a persiste imediatamente.
+// A transação impede perda de fotos quando há uploads em abas simultâneas.
+async function appendGalleryPhoto(req, res) {
+  const store = req.phase1Store
+  const photoUrl = String(req.body?.url || '').trim()
+  const match = /^\/media\/([A-Za-z0-9-]+)$/.exec(photoUrl)
+  if (!match) return res.status(400).json({ error: 'Envie primeiro uma foto válida pelo catálogo.' })
+
+  const max = await photoLimit(store.plan_code)
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    const existing = await client.query(
+      'SELECT id,media_url,media_type,images FROM products WHERE id=$1 AND store_id=$2 FOR UPDATE',
+      [req.params.productId, store.store_id],
+    )
+    if (!existing.rowCount) {
+      await client.query('ROLLBACK')
+      return res.status(404).json({ error: 'Produto não encontrado.' })
+    }
+    const media = await client.query(
+      'SELECT id FROM media_assets WHERE id=$1 AND store_id=$2 AND mime_type LIKE $3 LIMIT 1',
+      [match[1], store.store_id, 'image/%'],
+    )
+    if (!media.rowCount) {
+      await client.query('ROLLBACK')
+      return res.status(400).json({ error: 'Foto não encontrada nesta loja.' })
+    }
+
+    const current = existing.rows[0]
+    const gallery = normalizeImages(current.images)
+    const primary = String(current.media_url || '').trim()
+    if (current.media_type !== 'video' && primary && !gallery.includes(primary)) gallery.unshift(primary)
+    const uniqueGallery = [...new Set(gallery)]
+    if (!uniqueGallery.includes(photoUrl)) {
+      if (max != null && uniqueGallery.length >= max) {
+        await client.query('ROLLBACK')
+        return res.status(409).json({
+          error: `Seu plano permite até ${max} fotos por produto. Remova uma foto para adicionar outra.`,
+          code: 'PLAN_PHOTO_LIMIT', max, current: uniqueGallery.length,
+        })
+      }
+      uniqueGallery.push(photoUrl)
+    }
+
+    const cover = current.media_type === 'video' ? primary : (uniqueGallery[0] || '')
+    const updated = await client.query(
+      `UPDATE products SET images=$1,media_url=$2,updated_at=now()
+       WHERE id=$3 AND store_id=$4 RETURNING id,images,media_url,media_type`,
+      [JSON.stringify(uniqueGallery), cover, req.params.productId, store.store_id],
+    )
+    await client.query('COMMIT')
+    return res.json({ product: updated.rows[0], limit: max, added: !gallery.includes(photoUrl) })
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {})
+    throw error
+  } finally {
+    client.release()
+  }
+}
+
 async function galleryInfo(req, res) {
   const store = req.phase1Store
   const result = await pool.query(
@@ -140,6 +203,7 @@ function install(app) {
   app.__shopvaxPhase1MediaInstalled = true
   app.get('/api/admin/products/:productId/gallery', requireStore, (req, res, next) => Promise.resolve(galleryInfo(req, res)).catch(next))
   app.patch('/api/admin/products/:productId/gallery', express.json({ limit: '128kb' }), requireStore, (req, res, next) => Promise.resolve(updateGallery(req, res)).catch(next))
+  app.post('/api/admin/products/:productId/gallery/photos', express.json({ limit: '16kb' }), requireStore, (req, res, next) => Promise.resolve(appendGalleryPhoto(req, res)).catch(next))
   if (pool) void ensureSchema().catch((error) => console.error('[phase1-media] schema:', error.message))
 }
 

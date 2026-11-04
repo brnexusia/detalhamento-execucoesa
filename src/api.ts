@@ -219,6 +219,7 @@ export const api = {
   createProduct: (body: Record<string, unknown>) => request<{ product: AdminProduct }>('/api/admin/products', { method: 'POST', body: JSON.stringify(body) }),
   updateProduct: (id: string, body: Record<string, unknown>) => request<{ product: AdminProduct }>(`/api/admin/products/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   updateProductGallery: (id: string, images: string[]) => request<{ product: { id: string; images: string[] }; limit: number | null }>(`/api/admin/products/${encodeURIComponent(id)}/gallery`, { method: 'PATCH', body: JSON.stringify({ images }) }),
+  appendProductGalleryPhoto: (id: string, url: string) => request<{ product: { id: string; images: string[]; media_url: string }; limit: number | null; added: boolean }>(`/api/admin/products/${encodeURIComponent(id)}/gallery/photos`, { method: 'POST', body: JSON.stringify({ url }) }),
   setProductVisibility: (id: string, active: boolean) => request<{ product: { id: string; active: boolean } }>(`/api/admin/products/${encodeURIComponent(id)}/visibility`, { method: 'PATCH', body: JSON.stringify({ active }) }),
   deleteProduct: (id: string) => request(`/api/admin/products/${id}`, { method: 'DELETE' }),
   deleteProducts: (ids: string[]) => request<{ ok: true; deleted: number; ids: string[] }>('/api/admin/products/bulk-delete', { method: 'POST', body: JSON.stringify({ ids }) }),
