@@ -7,6 +7,7 @@ import express from 'express'
 import multer from 'multer'
 import pg from 'pg'
 import { generateMediaVariants, requestedMediaWidth } from './media-variants.mjs'
+import { acceptsCatalogMediaFile, prepareCatalogMedia } from './catalog-photo-upload.mjs'
 import { createMediaVariantQueue } from './media-upload-queue.mjs'
 import { createRedisMediaVariantQueue } from './redis-media-jobs.mjs'
 import { redisReady } from './redis-runtime.mjs'
@@ -652,7 +653,7 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 30 * 1024 * 1024 },
   fileFilter: (_req, file, cb) =>
-    cb(null, /^image\//.test(file.mimetype) || /^video\//.test(file.mimetype)),
+    cb(null, acceptsCatalogMediaFile(file)),
 })
 
 // A resposta do upload depende apenas da gravação do original; a otimização é
@@ -687,9 +688,16 @@ app.post(
   auth,
   upload.single('file'),
   asyncRoute(async (req, res) => {
-    if (!req.file) return res.status(400).json({ error: 'Envie uma imagem ou vídeo.' })
+    if (!req.file) return res.status(400).json({ error: 'Selecione uma imagem JPG, PNG, WEBP, AVIF ou HEIC, ou um vídeo MP4.' })
     const store = await pool.query('SELECT id FROM stores WHERE owner_id=$1 LIMIT 1', [req.user.id])
     if (!store.rowCount) return res.status(404).json({ error: 'Loja não encontrada.' })
+
+    let prepared
+    try {
+      prepared = await prepareCatalogMedia(req.file)
+    } catch (error) {
+      return res.status(error?.statusCode || 415).json({ error: error?.message || 'Não foi possível processar a foto.' })
+    }
 
     const assetId = id()
     await pool.query(
@@ -698,19 +706,19 @@ app.post(
       [
         assetId,
         store.rows[0].id,
-        req.file.mimetype,
+        prepared.mimeType,
         String(req.file.originalname || '').slice(0, 255),
-        req.file.size,
-        req.file.buffer,
+        prepared.buffer.length,
+        prepared.buffer,
       ],
     )
     // Retorna assim que o original está persistido; o proxy não espera o Sharp.
     res.status(201).json({
       url: `/media/${assetId}`,
-      type: req.file.mimetype.startsWith('video/') ? 'video' : 'image',
+      type: prepared.type,
     })
-    if (req.file.mimetype.startsWith('image/')) {
-      const job = mediaVariantQueue.enqueue(assetId, req.file.buffer, req.file.mimetype)
+    if (prepared.type === 'image') {
+      const job = mediaVariantQueue.enqueue(assetId, prepared.buffer, prepared.mimeType)
       if (!job.accepted) {
         console.warn('[shopvax-media] fila de variantes cheia; original preservado:', assetId)
       }
@@ -1101,7 +1109,7 @@ app.get('*', (_req, res) => res.sendFile(path.join(distDir, 'index.html')))
 app.use((error, _req, res, _next) => {
   console.error(error)
   if (error?.code === 'LIMIT_FILE_SIZE') {
-    return res.status(413).json({ error: 'Arquivo maior que 30 MB.' })
+    return res.status(413).json({ error: 'Arquivo maior que 30 MB. Tente uma foto menor.' })
   }
   if (error?.code === '23505') {
     return res.status(409).json({ error: 'Esse dado já está em uso.' })
