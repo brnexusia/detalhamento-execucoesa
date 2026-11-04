@@ -28,6 +28,7 @@ const browser=await chromium.launch({headless:true})
 try {
   for (const [width,height] of [[320,568],[390,844],[1366,768]]) {
     const context=await browser.newContext({viewport:{width,height},permissions:['clipboard-read','clipboard-write']})
+    await context.route('**/api/billing/status',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({enabled:false,required:false,accessGranted:true,status:'none',planCode:'bronze',prices:[]})}))
     const page=await context.newPage()
     const bootstrapRequests = []
     const failedApiResponses = []

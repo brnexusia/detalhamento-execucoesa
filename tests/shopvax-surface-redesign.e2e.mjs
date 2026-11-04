@@ -33,6 +33,8 @@ const bootstrap={
 try {
  for (const [width,height] of [[390,844],[1440,900]]) {
   const context=await browser.newContext({viewport:{width,height}})
+  // A auditoria visual precisa representar uma loja com acesso gratuito válido.
+  await context.route('**/api/billing/status',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({enabled:false,required:false,accessGranted:true,status:'none',planCode:'bronze',prices:[]})}))
   const page=await context.newPage()
   await page.route('**/api/public/auth/google-config',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({enabled:false,clientId:null})}))
   await page.goto('http://127.0.0.1:5173/entrar')

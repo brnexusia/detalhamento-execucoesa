@@ -35,6 +35,7 @@ try {
     const page=await browser.newPage({viewport:{width:390,height:844},reducedMotion:reduce})
     await page.route('**/api/public/auth/google-config',route=>route.fulfill({status:200,contentType:'application/json',body:'{"enabled":false}'}))
     await page.route('**/api/auth/login',route=>route.fulfill({status:200,contentType:'application/json',body:'{"ok":true}'}))
+    await page.route('**/api/billing/status',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({enabled:false,required:false,accessGranted:true,status:'none',planCode:'bronze',prices:[]})}))
     await page.goto('http://127.0.0.1:5173/entrar')
     await page.locator('.auth-form input[type="email"]').fill('teste@example.test')
     await page.locator('.auth-form input[type="password"]').fill('senha-local-de-teste')
