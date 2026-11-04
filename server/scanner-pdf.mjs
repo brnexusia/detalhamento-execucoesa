@@ -296,7 +296,10 @@ export async function collectPdfCatalog(buffer, options = {}) {
         await options.onProgress?.({ progress: Math.min(65, 12 + Math.round(50 * (i + 1) / totalPages)), pagesScanned: i + 1, platform: 'pdf' })
         continue
       }
-      if ((pages[i] || '').replace(/\W/g, '').length >= 20) continue
+      // Item numbers and prices are already machine-readable, even when a short
+      // lookbook page has fewer than 20 alphanumeric characters. OCR could
+      // misread R$ or change a verified price and must not overwrite it.
+      if ((pages[i] || '').replace(/\W/g, '').length >= 20 || /\bR\$\s*\d/.test(pages[i] || '')) continue
       const prefix = path.join(dir, 'ocr-' + i)
       try {
         await command('pdftoppm', ['-f', String(i + 1), '-l', String(i + 1), '-scale-to', '1600', '-singlefile', '-gray', '-png', pdf, prefix], 25000, deadline)
