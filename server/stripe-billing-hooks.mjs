@@ -4,19 +4,21 @@ import pg from 'pg'
 import { cycles, planPrice, subscriptionAccess, verifyStripeSignature } from './stripe-billing-policy.mjs'
 import { systemPlans } from './system-plans.mjs'
 import { requiresPaymentForSignup } from './signup-billing-mode.mjs'
+import { parseStripeServerKey } from './stripe-key-config.mjs'
 import { ensureReferralSchema, captureReferral, qualifyReferralOnPaidInvoice, applyMerchantStripeCredits, reverseReferralForRefund } from './referral-program-core.mjs'
 
 const { Pool } = pg
 const key = String(process.env.SHOPVAX_STRIPE_SECRET_KEY || '').trim()
 const webhookSecret = String(process.env.SHOPVAX_STRIPE_WEBHOOK_SECRET || '').trim()
-const stripeMode = key.startsWith('sk_live_') ? 'live' : 'test'
+const stripeKey = parseStripeServerKey(key)
+const stripeMode = stripeKey.mode || 'test'
 const originValue = String(process.env.SHOPVAX_PUBLIC_URL || '').trim()
 let publicOrigin = ''
 try {
   const url = new URL(originValue)
   if (url.protocol === 'https:' || (process.env.NODE_ENV !== 'production' && url.hostname === 'localhost')) publicOrigin = url.origin
 } catch {}
-const keyReady = /^sk_(test|live)_/.test(key)
+const keyReady = stripeKey.valid
 const webhookReady = /^whsec_/.test(webhookSecret)
 const originReady = Boolean(publicOrigin)
 const ready = Boolean(keyReady && webhookReady && originReady)
