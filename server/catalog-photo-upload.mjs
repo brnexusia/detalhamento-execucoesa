@@ -1,4 +1,5 @@
 import sharp from 'sharp'
+import convertHeic from 'heic-convert'
 
 // Preserve small camera photos byte-for-byte; normalize large files and formats
 // that are not consistently rendered by browsers (especially HEIC/HEIF).
@@ -63,7 +64,26 @@ export async function prepareCatalogMedia(file) {
 
   // Do not serve data declared as a video from a valid image signature.
   if (!IMAGE_MIMES.has(detected)) throw uploadError('Formato de foto não suportado.')
-  const mustConvert = ['image/heic', 'image/heif', 'image/avif'].includes(detected)
+
+  // Prebuilt Sharp/libvips decodes AVIF but often lacks patented HEVC for iPhone HEIC.
+  // Decode HEIC using libheif WASM, then shrink the JPEG with Sharp. Bound the
+  // input size to avoid very large allocations in the synchronous WASM decoder.
+  if (detected === 'image/heic' || detected === 'image/heif') {
+    if (bytes.length > 12 * 1024 * 1024) {
+      throw uploadError('Foto HEIC acima de 12 MB. Exporte como JPG ou reduza o arquivo.', 413)
+    }
+    try {
+      const decoded = Buffer.from(await convertHeic({ buffer: bytes, format: 'JPEG', quality: 0.82 }))
+      const normalized = await sharp(decoded, { limitInputPixels: MAX_PHOTO_PIXELS, failOn: 'error' })
+        .rotate().resize({ width: 2200, height: 2200, fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 82, mozjpeg: true }).toBuffer()
+      return { buffer: normalized, mimeType: 'image/jpeg', type: 'image' }
+    } catch {
+      throw uploadError('Não foi possível converter a foto HEIC. Exporte como JPG e tente novamente.')
+    }
+  }
+
+  const mustConvert = detected === 'image/avif'
   const shouldOptimize = mustConvert || (bytes.length > PHOTO_OPTIMIZE_THRESHOLD_BYTES && detected !== 'image/gif')
   if (!shouldOptimize) return { buffer: bytes, mimeType: detected, type: 'image' }
 
