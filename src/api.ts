@@ -93,7 +93,14 @@ export async function apiRequest<T>(url: string, options: RequestInit = {}): Pro
   }
   const payload = response.status === 204 ? null : await response.json().catch(() => null)
   if (!response.ok) {
-    const error = new Error(payload?.error || 'Não foi possível concluir a operação.') as Error & { status?: number; code?: string }
+    const uploadIssue = options.body instanceof FormData
+      ? response.status === 413
+        ? 'O servidor recusou o tamanho da foto. Tente uma imagem menor.'
+        : [502, 503, 504].includes(response.status)
+          ? 'O servidor de imagens está temporariamente indisponível. Tente novamente.'
+          : ''
+      : ''
+    const error = new Error(payload?.error || uploadIssue || 'Não foi possível concluir a operação.') as Error & { status?: number; code?: string }
     error.status = response.status
     if (payload?.code) error.code = String(payload.code)
     throw error
@@ -256,6 +263,10 @@ export const api = {
     if (prepared.size > 30 * 1024 * 1024) throw new Error('O limite é de 30 MB por arquivo.')
     const form = new FormData()
     form.append('file', prepared, prepared.name)
-    return request<{ url: string; type: 'image' | 'video' }>('/api/admin/upload', { method: 'POST', body: form })
+    const uploaded = await request<{ url: string; type: 'image' | 'video' }>('/api/admin/upload', { method: 'POST', body: form })
+    if (!uploaded?.url || !['image', 'video'].includes(uploaded.type)) {
+      throw new Error('O servidor não confirmou o envio da foto. Tente novamente.')
+    }
+    return uploaded
   },
 }
