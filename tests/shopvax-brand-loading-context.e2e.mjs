@@ -51,6 +51,7 @@ try {
  for (const width of [390,1440]) {
   const context=await browser.newContext({viewport:{width,height:900}})
   await context.route('**/api/public/auth/google-config',route=>route.fulfill({status:200,contentType:'application/json',body:'{"enabled":false}'}))
+  await context.route('**/api/billing/status', route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({enabled:false,required:false,accessGranted:true,status:'none',planCode:'bronze',prices:[]})}))
   await context.route('**/api/admin/bootstrap*',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(fixture)}))
   const page=await context.newPage()
   // Fixar o teste no login editorial mesmo quando há sessão do lojista em CI.
@@ -75,7 +76,8 @@ try {
  }
 
  const context=await browser.newContext({viewport:{width:390,height:844},reducedMotion:'no-preference'})
- await context.route('**/api/admin/bootstrap*',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(fixture)}))
+ await context.route('**/api/billing/status', route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({enabled:false,required:false,accessGranted:true,status:'none',planCode:'bronze',prices:[]})}))
+  await context.route('**/api/admin/bootstrap*',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(fixture)}))
  const page=await context.newPage()
  await page.clock.install()
  await page.goto('http://127.0.0.1:5173/painel')
