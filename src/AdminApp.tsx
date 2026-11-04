@@ -80,6 +80,8 @@ export default function AdminApp() {
   const [visitedProducts, setVisitedProducts] = useState(section === 'produtos')
   const [storeDirty, setStoreDirty] = useState(false)
   const loadVersion = useRef(0)
+  const editorOpenRef = useRef(false)
+  editorOpenRef.current = Boolean(productModal || sellerModal)
 
   const load = async (silent = false) => {
     const version = ++loadVersion.current
@@ -114,7 +116,9 @@ export default function AdminApp() {
     // quick switch between browser tabs; auth broadcast remains immediate.
     let lastFocusRefresh = Date.now()
     const onFocus = () => {
-      if (document.visibilityState !== 'visible' || Date.now() - lastFocusRefresh < 15_000) return
+      // Retornar do seletor de fotos no iPhone/iPad/desktop dispara foco.
+      // Nunca fechar o editor nessa situação: o usuário perderia as fotos.
+      if (editorOpenRef.current || document.visibilityState !== 'visible' || Date.now() - lastFocusRefresh < 15_000) return
       lastFocusRefresh = Date.now()
       refreshIdentity()
     }
