@@ -22,7 +22,7 @@ try {
   const registration = await register.json()
   assert.equal(register.status, 201, JSON.stringify(registration))
   const cookie = register.headers.get('set-cookie')?.split(';')[0]
-  assert.match(cookie || '', /atacado_session=/)
+  assert.match(cookie || '', /(?:shopvax|atacado)_session=/)
   const store = await pool.query(
     'SELECT s.id,s.plan_tier,s.billing_required FROM stores s JOIN users u ON s.owner_id=u.id WHERE u.email=$1',
     [email],
