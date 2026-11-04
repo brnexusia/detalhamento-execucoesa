@@ -121,7 +121,7 @@ async function updateGallery(req, res) {
 async function appendGalleryPhoto(req, res) {
   const store = req.phase1Store
   const photoUrl = String(req.body?.url || '').trim()
-  const match = new RegExp('^/media/([A-Za-z0-9-]+)
+  const match = /^\/media\/([A-Za-z0-9-]+)$/.exec(photoUrl)
   if (!match) return res.status(400).json({ error: 'Envie primeiro uma foto válida pelo catálogo.' })
 
   const max = await photoLimit(store.plan_code)
