@@ -1,4 +1,5 @@
 import { notifyAuthChange } from './auth-session-sync'
+import { prepareCatalogPhoto } from './catalog-photo-upload'
 import type { AdminBootstrap, AdminProduct, Catalog, PublicPayload } from './types'
 
 export type ImportJob = {
@@ -250,12 +251,11 @@ export const api = {
   updateImportReviewProduct: (jobId: string, productId: string, body: { data?: Partial<ImportReviewData>; selected?: boolean }) => request<{ product: ImportReviewProduct; summary: ImportReviewSummary; job: ImportJob }>(`/api/admin/imports/${encodeURIComponent(jobId)}/review/${encodeURIComponent(productId)}`, { method: 'PATCH', body: JSON.stringify(body) }),
   updateImportReviewSelection: (jobId: string, action: 'ready' | 'none') => request<{ summary: ImportReviewSummary; job: ImportJob }>(`/api/admin/imports/${encodeURIComponent(jobId)}/review-selection`, { method: 'PATCH', body: JSON.stringify({ action }) }),
   upload: async (file: File) => {
-    if (file.size > 30 * 1024 * 1024) throw new Error('O limite é de 30 MB por arquivo. Reduza o arquivo e tente novamente.')
-    if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
-      throw new Error('Escolha uma imagem ou vídeo válido.')
-    }
+    // Reduz fotos de câmera antes do proxy, evitando HTTP 413 e timeout.
+    const prepared = await prepareCatalogPhoto(file)
+    if (prepared.size > 30 * 1024 * 1024) throw new Error('O limite é de 30 MB por arquivo.')
     const form = new FormData()
-    form.append('file', file)
+    form.append('file', prepared, prepared.name)
     return request<{ url: string; type: 'image' | 'video' }>('/api/admin/upload', { method: 'POST', body: form })
   },
 }
