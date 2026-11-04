@@ -252,6 +252,8 @@ export default function PublicStoreV2() {
   useEffect(() => { setLocalFeedIndex(0) }, [route.storeSlug, category, query, sort])
   useEffect(() => {
     if (view !== 'feed') return
+    // A vitrine pode ter rolado até o CTA; o feed precisa começar no topo real da tela.
+    window.scrollTo(0, 0)
     const frame = requestAnimationFrame(() => { if (localFeedRef.current) localFeedRef.current.scrollTop = localFeedActive * localFeedRef.current.clientHeight })
     return () => cancelAnimationFrame(frame)
   }, [view])
