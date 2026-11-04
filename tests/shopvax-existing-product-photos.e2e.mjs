@@ -50,6 +50,15 @@ try {
   await page.goto('http://127.0.0.1:5173/painel/produtos')
   await page.locator('.svx-products__edit').first().click()
   await page.locator('.editor-modal').waitFor()
+  // Simula retorno do seletor de imagens depois de mais de 15 s:
+  // o refresher de sessão não pode fechar o formulário com a galeria aberta.
+  await page.evaluate(() => {
+    const now = Date.now
+    Date.now = () => now() + 30000
+    window.dispatchEvent(new Event('focus'))
+    Date.now = now
+  })
+  assert.equal(await page.locator('.editor-modal').count(),1,'Retornar ao painel não pode fechar a edição')
   assert.equal(await page.locator('.product-inline-gallery > div').count(),1)
   await page.locator('.product-inline-section input[type=file]').first().setInputFiles({name:'nova-foto.png',mimeType:'image/png',buffer:png})
   await page.getByText('1 foto(s) adicionada(s) e salva(s) neste produto.').waitFor({timeout:15000})
