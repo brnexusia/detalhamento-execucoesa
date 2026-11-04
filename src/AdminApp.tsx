@@ -436,10 +436,11 @@ function ProductEditor({ draft, setDraft, onClose, onSaved }: { draft: ProductDr
     if (draft.mediaType === 'image' && draft.mediaUrl && !values.includes(draft.mediaUrl)) values.unshift(draft.mediaUrl)
     return Array.from(new Set(values.filter(Boolean)))
   })
-  const [galleryInitial] = useState(() => JSON.stringify(gallery))
+  const gallerySavedRef = useRef<string[]>([...gallery])
   const [photoLimit, setPhotoLimit] = useState<number | null>(null)
   const [stockAllowed, setStockAllowed] = useState(false)
   const [error, setError] = useState('')
+  const [uploadNotice, setUploadNotice] = useState('')
   const update = <K extends keyof ProductDraft>(key: K, value: ProductDraft[K]) => setDraft({ ...draft, [key]: value })
 
   useEffect(() => {
@@ -449,7 +450,7 @@ function ProductEditor({ draft, setDraft, onClose, onSaved }: { draft: ProductDr
     }).catch(() => undefined)
   }, [])
 
-  const dirty = JSON.stringify(draft) !== initialSnapshot || JSON.stringify(gallery) !== galleryInitial
+  const dirty = JSON.stringify(draft) !== initialSnapshot || JSON.stringify(gallery) !== JSON.stringify(gallerySavedRef.current)
   useEffect(() => {
     const beforeUnload = (event: BeforeUnloadEvent) => { if (!dirty) return; event.preventDefault(); event.returnValue = '' }
     window.addEventListener('beforeunload', beforeUnload)
@@ -478,9 +479,9 @@ function ProductEditor({ draft, setDraft, onClose, onSaved }: { draft: ProductDr
     const images = Array.from(files).filter(isCatalogPhoto)
     if (!images.length) { setError('Escolha fotos JPG, PNG, WEBP, AVIF ou HEIC.'); return }
     const available = photoLimit == null ? images.length : Math.max(0, photoLimit - gallery.length)
-    if (available <= 0) { setError(`Limite de ${photoLimit} fotos atingido neste produto.`); return }
+    if (available <= 0) { setError(`Limite de ${photoLimit} fotos atingido. Remova uma foto e clique em Salvar produto para liberar espaço.`); return }
     const selected = images.slice(0, available)
-    setUploading(true); setError('')
+    setUploading(true); setError(''); setUploadNotice('')
     let added = 0
     const failures: string[] = []
     try {
@@ -489,6 +490,11 @@ function ProductEditor({ draft, setDraft, onClose, onSaved }: { draft: ProductDr
         try {
           const result = await api.upload(file)
           if (result.type !== 'image') throw new Error('O arquivo não foi reconhecido como imagem.')
+          if (draft.id) {
+            // Produto existente: persistir foto a foto, sem exigir Salvar produto.
+            const saved = await api.appendProductGalleryPhoto(draft.id, result.url)
+            gallerySavedRef.current = Array.from(new Set(saved.product.images || []))
+          }
           setGallery((current) => Array.from(new Set([...current, result.url])))
           added++
         } catch (err) {
@@ -496,6 +502,10 @@ function ProductEditor({ draft, setDraft, onClose, onSaved }: { draft: ProductDr
         }
       }
       if (images.length > selected.length) failures.push(`Limite de ${photoLimit} fotos por produto atingido.`)
+      if (added && draft.id) {
+        setUploadNotice(`${added} foto(s) adicionada(s) e salva(s) neste produto.`)
+        window.dispatchEvent(new Event('shopvax:catalog-changed'))
+      }
       if (failures.length) setError(`${added} foto(s) adicionada(s). ${failures.join(' ')}`)
     } finally { setUploading(false); setUploadProgress('') }
   }
@@ -529,10 +539,10 @@ function ProductEditor({ draft, setDraft, onClose, onSaved }: { draft: ProductDr
 
   return <div className="modal-layer"><button className="modal-backdrop" onClick={() => void requestClose()} aria-label="Fechar editor" /><form className="editor-modal" onSubmit={save}><header><div><span>{draft.id ? 'Editar produto' : 'Novo produto'}</span><h2>{draft.id ? draft.name : 'Cadastrar produto'}</h2></div><button type="button" onClick={() => void requestClose()} aria-label="Fechar"><X size={20} /></button></header><div className="editor-scroll">
     <div className="media-uploader-field"><span>Vídeo ou imagem principal</span><div className="media-uploader">{draft.mediaType === 'video' && draft.mediaUrl ? <video src={draft.mediaUrl} controls /> : gallery[0] ? <img src={gallery[0]} alt="Prévia da capa do produto" /> : <ImagePlus size={30} />}<label className="upload-button"><Upload size={16} /> {uploading ? 'Preparando ou enviando…' : draft.mediaUrl ? 'Trocar arquivo' : 'Enviar arquivo'}<input type="file" accept="image/jpeg,image/png,image/webp,image/avif,image/heic,image/heif,video/mp4,video/webm,video/quicktime,.heic,.heif,.mov" onChange={(e) => { void upload(e.target.files?.[0]); e.currentTarget.value = '' }} disabled={uploading} /></label></div></div>
-    <section className="product-inline-section"><div className="product-inline-section__head"><div><strong>Fotos do produto</strong><span>A primeira foto é a capa. {photoLimit == null ? 'Sem limite adicional informado.' : `Até ${photoLimit} fotos no seu plano.`}</span></div><label className="secondary-action"><Upload size={15}/> Adicionar fotos<input type="file" accept="image/jpeg,image/png,image/webp,image/avif,image/heic,image/heif,.heic,.heif" multiple hidden disabled={uploading || (photoLimit != null && gallery.length >= photoLimit)} onChange={(e) => { void uploadGallery(e.target.files); e.currentTarget.value = '' }}/></label></div>{gallery.length ? <div className="product-inline-gallery">{gallery.map((image, index) => <div key={`${image}-${index}`}><img src={image} alt={`${draft.name || 'Produto'} ${index + 1}`}/>{index === 0 && <span>Capa</span>}<div><button type="button" disabled={index === 0} onClick={() => moveGallery(index, -1)} aria-label="Mover foto para esquerda"><ChevronLeft size={14}/></button><button type="button" disabled={index === gallery.length - 1} onClick={() => moveGallery(index, 1)} aria-label="Mover foto para direita"><ChevronRight size={14}/></button><button type="button" className="danger" onClick={() => setGallery((current) => current.filter((_, itemIndex) => itemIndex !== index))} aria-label="Remover foto"><Trash2 size={14}/></button></div></div>)}</div> : <p className="product-inline-empty">Nenhuma foto adicional. Você pode adicionar várias imagens aqui.</p>}</section>
+    <section className="product-inline-section"><div className="product-inline-section__head"><div><strong>Fotos do produto</strong><span>A primeira foto é a capa. {photoLimit == null ? 'Sem limite adicional informado.' : `Até ${photoLimit} fotos no seu plano.`}</span></div><label className="secondary-action"><Upload size={15}/> Adicionar fotos<input type="file" accept="image/jpeg,image/png,image/webp,image/avif,image/heic,image/heif,.heic,.heif" multiple hidden disabled={uploading} onChange={(e) => { void uploadGallery(e.target.files); e.currentTarget.value = '' }}/></label></div>{gallery.length ? <div className="product-inline-gallery">{gallery.map((image, index) => <div key={`${image}-${index}`}><img src={image} alt={`${draft.name || 'Produto'} ${index + 1}`}/>{index === 0 && <span>Capa</span>}<div><button type="button" disabled={index === 0} onClick={() => moveGallery(index, -1)} aria-label="Mover foto para esquerda"><ChevronLeft size={14}/></button><button type="button" disabled={index === gallery.length - 1} onClick={() => moveGallery(index, 1)} aria-label="Mover foto para direita"><ChevronRight size={14}/></button><button type="button" className="danger" onClick={() => setGallery((current) => current.filter((_, itemIndex) => itemIndex !== index))} aria-label="Remover foto"><Trash2 size={14}/></button></div></div>)}</div> : <p className="product-inline-empty">Nenhuma foto adicional. Você pode adicionar várias imagens aqui.</p>}</section>
     <div className="form-grid"><label className="span-2"><span>Nome</span><input value={draft.name} onChange={(e) => update('name', e.target.value)} required /></label><label><span>Preço unitário</span><input type="number" min="0.01" step="0.01" value={draft.price} onChange={(e) => update('price', e.target.value)} required /></label><label><span>Categoria</span><input value={draft.category} onChange={(e) => update('category', e.target.value)} placeholder="Bolsas" /></label><label><span>SKU / referência</span><input value={draft.sku} onChange={(e) => update('sku', e.target.value)} /></label><label><span>Grade / embalagem</span><input value={draft.pack} onChange={(e) => update('pack', e.target.value)} placeholder="Kit 6 un. / Grade P-M-G" /></label><label className="span-2"><span>Descrição curta</span><textarea rows={3} value={draft.description} onChange={(e) => update('description', e.target.value)} /></label><label className="span-2"><span>Variações</span><textarea rows={4} value={draft.variationsText} onChange={(e) => update('variationsText', e.target.value)} placeholder={'Cor: Preto, Caramelo, Off white\nTamanho: P, M, G'} /><small>Uma linha por variação. O cliente precisará escolher antes de adicionar ao carrinho.</small></label></div>
     {stockAllowed && <section className="product-inline-section"><div className="product-inline-section__head"><div><strong>Estoque</strong><span>Controle básico deste produto. Estoque por grade continua disponível em recursos avançados.</span></div><label className="inline-switch"><input type="checkbox" checked={draft.stockEnabled} onChange={(e) => update('stockEnabled', e.target.checked)}/><span>Controlar estoque</span></label></div>{draft.stockEnabled && <label><span>Quantidade disponível</span><input type="number" min="0" step="1" value={draft.stockQuantity} onChange={(e) => update('stockQuantity', Math.max(0, Number(e.target.value) || 0))}/></label>}</section>}
-    <div className="toggle-row"><label><input type="checkbox" checked={draft.featured} onChange={(e) => update('featured', e.target.checked)} /><span>Destaque / mais pedido</span></label><label><input type="checkbox" checked={draft.active} onChange={(e) => update('active', e.target.checked)} /><span>Produto visível</span></label></div>{uploadProgress && <p className="catalog-upload-progress" role="status">{uploadProgress}</p>}{error && <p className="form-error">{error}</p>}
+    <div className="toggle-row"><label><input type="checkbox" checked={draft.featured} onChange={(e) => update('featured', e.target.checked)} /><span>Destaque / mais pedido</span></label><label><input type="checkbox" checked={draft.active} onChange={(e) => update('active', e.target.checked)} /><span>Produto visível</span></label></div>{uploadProgress && <p className="catalog-upload-progress" role="status">{uploadProgress}</p>}{uploadNotice && <p className="catalog-upload-progress" role="status">{uploadNotice}</p>}{error && <p className="form-error">{error}</p>}
   </div><footer><button type="button" className="secondary-action" onClick={() => void requestClose()}>Cancelar</button><button className="primary-action" disabled={busy || uploading}>{busy ? 'Salvando…' : 'Salvar produto'}<ArrowRight size={17} /></button></footer></form></div>
 }
 
