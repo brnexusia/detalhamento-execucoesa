@@ -34,6 +34,19 @@ test('links numbered prices to the next colors board by item number and preserve
   assert.notEqual(parsed.candidates[0].external_id, parsed.candidates[3].external_id)
 })
 
+test('assigns accessory category and tolerates supplier typos without inventing missing SKUs', () => {
+  const p = parsePdfCatalogText([
+    'MEMORIES',
+    '01 R$ 17,50\\n02 R$ 42,00',
+    'CORES DISPONÍVEIS\\nBRINCO 01\\nBACELETE 02',
+    '01 R$ 140,00',
+    'CORES DISPONÍVEIS\\nBOLSA 01',
+  ].join('\\f'))
+  assert.equal(p.lookbook, true)
+  assert.deepEqual(p.candidates.map(x => x.category), ['Brincos', 'Braceletes', 'Bolsas'])
+  assert.deepEqual(p.candidates.map(x => x.sku), ['', '', ''])
+})
+
 test('does not misclassify ordinary numbered price lists as a lookbook', () => {
   assert.equal(parseNumberedLookbookPages([
     'Vestido Aurora\n01 R$ 49,90', 'Saia Midi\n02 R$ 35,50',
