@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import PDFDocument from 'pdfkit'
 import sharp from 'sharp'
-import { collectPdfCatalog, parsePdfCatalogText, assertPdfImageBudget, PdfSafetyError, MAX_PDF_BYTES } from './scanner-pdf.mjs'
+import { collectPdfCatalog, parsePdfCatalogText, preparePdfEmbeddedPhoto, assertPdfImageBudget, PdfSafetyError, MAX_PDF_BYTES } from './scanner-pdf.mjs'
 import { normalizeCandidate } from './scanner-normalizer.mjs'
 import { prepareReview } from './scanner-review.mjs'
 
@@ -249,4 +249,19 @@ test('Spetacolo Broches: extracts name and listed price from each standalone pro
   assert.equal(parsed.candidates[0].title,'Broche Cereja')
   assert.equal(parsed.candidates[0].category,'Broches')
   assert.equal(parsed.candidates[2].category,'Broches')
+})
+
+test('reconstructs a transparent Canva brooch instead of keeping a black background', async () => {
+  const red = await sharp({ create: { width: 160, height: 160, channels: 3, background: { r: 220, g: 25, b: 35 } } }).png().toBuffer()
+  const white = await sharp({ create: { width: 160, height: 160, channels: 1, background: { r: 255, g: 255, b: 255 } } }).png().toBuffer()
+  const rgb = await sharp({ create: { width: 420, height: 420, channels: 3, background: { r: 0, g: 0, b: 0 } } })
+    .composite([{ input: red, left: 130, top: 130 }]).png().toBuffer()
+  const alpha = await sharp({ create: { width: 420, height: 420, channels: 1, background: { r: 0, g: 0, b: 0 } } })
+    .composite([{ input: white, left: 130, top: 130 }]).png().toBuffer()
+  const result = await preparePdfEmbeddedPhoto(rgb, alpha)
+  const meta = await sharp(result).metadata()
+  assert.equal(meta.format, 'webp')
+  assert(meta.width <= 200 && meta.height <= 200, 'transparent margins should be removed')
+  const rgbResult = await sharp(result).raw().toBuffer()
+  assert(rgbResult[0] > 170 && rgbResult[1] < 100, 'the recovered image must show product color, not black pixels')
 })
