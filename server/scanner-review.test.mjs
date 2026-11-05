@@ -83,5 +83,8 @@ test('PDF placeholders are review-required and cannot be published until renamed
   const prepared = prepareReview(unresolved)
   assert.equal(prepared.publishable,false)
   assert.ok(prepared.warnings.includes('missing_name'))
-  assert.equal(prepareReview({...unresolved,name:'Brinco floral · Memories Look 05'}).publishable,true)
+  assert.equal(prepareReview({...unresolved,name:'Brinco floral · Memories Look 05',images:['/media/11111111-2222-3333-4444-555555555555']}).publishable,true)
 })
+
+// A trustworthy PDF import cannot publish a product without an associated photo.
+assert.equal(prepareReview({name:'Brinco 01 · Memories Look 02',source:'pdf',price:18,images:[]}).publishable,false)
