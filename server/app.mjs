@@ -25,6 +25,14 @@ try {
 } catch {
   // Desenvolvimento pode iniciar sem dist; produção precisa fornecer o build.
 }
+let builtReleaseSha = null
+try {
+  const compiled = readFileSync(path.join(distDir, 'shopvax-release-sha.txt'), 'utf8').trim()
+  if (/^[a-f0-9]{40}$/i.test(compiled)) builtReleaseSha = compiled.toLowerCase()
+} catch {
+  // Local non-Docker runs may have no deployment metadata.
+}
+
 const port = Number(process.env.PORT || 80)
 const sessionCookie = 'atacado_session'
 const sessionDays = 30
@@ -355,7 +363,8 @@ app.get('/health', (_req, res) =>
     databaseError: dbReady ? null : 'unavailable',
     storage: dbReady ? 'postgres' : 'unavailable',
     redis: redisReady() ? 'ready' : (process.env.REDIS_URL ? 'degraded' : 'disabled'),
-    releaseSha: process.env.SHOPVAX_RELEASE_SHA?.trim() || null,
+    releaseSha: builtReleaseSha || (/^[a-f0-9]{40}$/i.test(String(process.env.SHOPVAX_RELEASE_SHA || '').trim())
+      ? String(process.env.SHOPVAX_RELEASE_SHA).trim().toLowerCase() : null),
     uiRevision: packagedUiVersion?.revision || null,
     uiFingerprint: packagedUiVersion?.sourceFingerprint || null,
   }),
