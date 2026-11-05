@@ -239,10 +239,16 @@ async function attachLookbookPhotos(pdf, dir, candidates, imageListByPage, onIma
         const y1 = Math.min(meta.height, Math.ceil(region.bottom / region.height * meta.height))
         if (y1 - y0 < 70) continue
         try {
-          const photo = await sharp(source, { limitInputPixels: MAX_IMAGE_PIXELS })
+          // Keep only the photographed object/variant board, without the
+          // label row, huge Canva whitespace or adjacent products.
+          const cropped = await sharp(source, { limitInputPixels: MAX_IMAGE_PIXELS })
             .extract({ left: 0, top: y0, width: meta.width, height: y1 - y0 })
+            .trim({ background: '#ffffff', threshold: 17 }).toBuffer()
+          const trimmed = await sharp(cropped, { limitInputPixels: MAX_IMAGE_PIXELS }).metadata()
+          if (!trimmed.width || !trimmed.height || trimmed.width < 60 || trimmed.height < 60) continue
+          const photo = await sharp(cropped, { limitInputPixels: MAX_IMAGE_PIXELS })
             .resize({ width: 1200, height: 1200, fit: 'inside', withoutEnlargement: true })
-            .webp({ quality: 83 }).toBuffer()
+            .webp({ quality: 86 }).toBuffer()
           if (photo.length > 5 * 1024 * 1024) continue
           const uri = await onImage(photo, 'image/webp',
             'catalogo-p' + page + '-item-' + String(candidate.pdf_item_number).padStart(2, '0') + '.webp')
