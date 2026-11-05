@@ -124,6 +124,24 @@ test('does not misclassify ordinary numbered price lists as a lookbook', () => {
   ]), null)
 })
 
+test('single standalone supplier bag is a real product, not a missing-category placeholder', () => {
+  const parsed = parsePdfCatalogText([
+    'MEMORIES',
+    '01 R$ 140,00',
+    'CORES DISPONÍVEIS\nBOLSA',
+    '01 R$ 18,00',
+    'CORES DISPONÍVEIS\nBRINCO 01',
+  ].map(x => x.replaceAll('\\n','\n')).join('\f'))
+  assert.equal(parsed.lookbook, true)
+  assert.equal(parsed.candidates[0].category, 'Bolsas')
+  assert.equal(parsed.candidates[0].pdf_detail_page, 3)
+  const xml = '<page width="810" height="1440">' +
+    '<line xMin="60" yMin="300"><word>BOLSA</word></line></page>'
+  const regions = parseLookbookPhotoBands(xml)
+  assert.equal(regions.get('1:1').page, 1)
+  assert.ok(regions.get('1:1').bottom > 1000)
+})
+
 test('extracts unique item-specific photo bands from positioned board labels', () => {
   const html = `<page width="810" height="1440">
     <line xMin="30" yMin="220"><word>BRINCO</word><word>01</word></line>
