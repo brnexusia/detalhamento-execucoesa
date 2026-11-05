@@ -98,6 +98,7 @@ export default function ScannerModule1() {
   const [reviewError, setReviewError] = useState('')
   const [selectionBusy, setSelectionBusy] = useState(false)
   const [recoveringId, setRecoveringId] = useState<string | null>(null)
+  const [visibilityJobId, setVisibilityJobId] = useState<string | null>(null)
 
   const [editing, setEditing] = useState<ImportReviewProduct | null>(null)
   const [draft, setDraft] = useState<ImportReviewData | null>(null)
@@ -278,6 +279,27 @@ export default function ScannerModule1() {
     }
   }
 
+  const togglePublishedPdf = async (job: ImportJob) => {
+    const restoring = Boolean(job.hidden_published_count)
+    const message = restoring
+      ? 'Restaurar os produtos que esta importação ocultou? Eles ficarão visíveis novamente.'
+      : 'Ocultar os produtos criados por esta importação PDF? Eles não serão excluídos. Produtos de outras importações serão preservados. A ação é reversível.'
+    if (!await confirmAction(message)) return
+    setVisibilityJobId(job.id); setError(''); setSuccess('')
+    try {
+      if (restoring) {
+        const result = await api.restorePublishedPdfImport(job.id)
+        setSuccess(result.restored + ' produto(s) desta importação restaurado(s).')
+      } else {
+        const result = await api.hidePublishedPdfImport(job.id)
+        setSuccess(result.hidden + ' produto(s) desta importação ocultado(s), sem exclusão.')
+      }
+      window.dispatchEvent(new Event('shopvax:catalog-changed'))
+      await loadJobs()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível atualizar os produtos.')
+    } finally { setVisibilityJobId(null) }
+  }
   const openReview = async (job: ImportJob) => {
     setMode('review')
     setReviewJob(job)
@@ -425,7 +447,11 @@ export default function ScannerModule1() {
                   <button type="button" className="scanner-review-open" disabled={recoveringId === job.id} onClick={() => void recoverLegacyPdf(job)}>
                     {recoveringId === job.id ? 'Recuperando…' : 'Recuperar peças agrupadas'}
                   </button>}
-                <button type="button" className="scanner-discard" disabled={discardingId === job.id} onClick={() => void discardImport(job)} title="Apagar esta importação"><Trash2 size={14} /> {discardingId === job.id ? 'Descartando…' : 'Descartar'}</button>
+                {job.status === 'completed' && job.platform === 'pdf' &&
+                  <button type="button" className="scanner-review-open" disabled={visibilityJobId === job.id} onClick={() => void togglePublishedPdf(job)}>
+                    {visibilityJobId === job.id ? 'Atualizando…' : job.hidden_published_count ? 'Restaurar produtos' : 'Ocultar produtos importados'}
+                  </button>}
+                <button type="button" className="scanner-discard" disabled={discardingId === job.id || Boolean(job.hidden_published_count)} onClick={() => void discardImport(job)} title="Apagar esta importação"><Trash2 size={14} /> {discardingId === job.id ? 'Descartando…' : 'Descartar'}</button>
                 <span data-status={job.status}>{job.status === 'scanning' || job.status === 'processing' ? `${statusLabel(job.status)} ${job.progress}%` : statusLabel(job.status)}</span>
               </div>
             </article>)}
