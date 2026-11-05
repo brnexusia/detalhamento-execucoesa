@@ -195,6 +195,40 @@ async function assertExtractedImageBudget(dir, filenames) {
 }
 
 
+/**
+ * Embedded PNGs from Canva can have a separate soft-mask (smask).
+ * pdfimages exports the RGB pixels and alpha image independently: ignoring
+ * that alpha makes fashion items appear on black backgrounds.
+ */
+export async function preparePdfEmbeddedPhoto(mainBytes, maskBytes = null) {
+  let source = sharp(mainBytes, { limitInputPixels: MAX_IMAGE_PIXELS })
+  if (maskBytes) {
+    const [imageInfo, maskInfo] = await Promise.all([
+      source.metadata(),
+      sharp(maskBytes, { limitInputPixels: MAX_IMAGE_PIXELS }).metadata(),
+    ])
+    if (!imageInfo.width || !imageInfo.height ||
+        imageInfo.width !== maskInfo.width || imageInfo.height !== maskInfo.height) {
+      throw new Error('A máscara de transparência do produto é inválida.')
+    }
+    // Sharp may reorder removeAlpha/joinChannel/flatten within one pipeline;
+    // materialize each stage to guarantee an actual RGBA image.
+    const opaqueRgb = await source.removeAlpha().png().toBuffer()
+    const alpha = await sharp(maskBytes, { limitInputPixels: MAX_IMAGE_PIXELS })
+      .extractChannel(0).png().toBuffer()
+    const withAlpha = await sharp(opaqueRgb, { limitInputPixels: MAX_IMAGE_PIXELS })
+      .joinChannel(alpha).png().toBuffer()
+    const flattened = await sharp(withAlpha, { limitInputPixels: MAX_IMAGE_PIXELS })
+      .flatten({ background: '#ffffff' }).png().toBuffer()
+    const trimmed = await sharp(flattened, { limitInputPixels: MAX_IMAGE_PIXELS })
+      .trim({ background: '#ffffff', threshold: 15 }).toBuffer()
+    source = sharp(trimmed, { limitInputPixels: MAX_IMAGE_PIXELS })
+  }
+  return source.rotate()
+    .resize({ width: 1200, height: 1200, fit: 'inside', withoutEnlargement: true })
+    .webp({ quality: 86 }).toBuffer()
+}
+
 async function attachLookbookPhotos(pdf, dir, candidates, imageListByPage, onImage, deadline) {
   // Read visual word positions from the existing PDF text layer; no OCR of pure
   // editorial photograph pages and no guessing product image associations.
@@ -239,10 +273,19 @@ async function attachLookbookPhotos(pdf, dir, candidates, imageListByPage, onIma
         const y1 = Math.min(meta.height, Math.ceil(region.bottom / region.height * meta.height))
         if (y1 - y0 < 70) continue
         try {
-          const photo = await sharp(source, { limitInputPixels: MAX_IMAGE_PIXELS })
-            .extract({ left: 0, top: y0, width: meta.width, height: y1 - y0 })
+          // Keep only the photographed object/variant board, without the
+          // label row, huge Canva whitespace or adjacent products.
+          const band = await sharp(source, { limitInputPixels: MAX_IMAGE_PIXELS })
+            .extract({ left: 0, top: y0, width: meta.width, height: y1 - y0 }).toBuffer()
+          // Sharp can reorder trim/extract in one pipeline. Apply them in
+          // separate stages so crop coordinates always refer to the full page.
+          const cropped = await sharp(band, { limitInputPixels: MAX_IMAGE_PIXELS })
+            .trim({ background: '#ffffff', threshold: 17 }).toBuffer()
+          const trimmed = await sharp(cropped, { limitInputPixels: MAX_IMAGE_PIXELS }).metadata()
+          if (!trimmed.width || !trimmed.height || trimmed.width < 60 || trimmed.height < 60) continue
+          const photo = await sharp(cropped, { limitInputPixels: MAX_IMAGE_PIXELS })
             .resize({ width: 1200, height: 1200, fit: 'inside', withoutEnlargement: true })
-            .webp({ quality: 83 }).toBuffer()
+            .webp({ quality: 86 }).toBuffer()
           if (photo.length > 5 * 1024 * 1024) continue
           const uri = await onImage(photo, 'image/webp',
             'catalogo-p' + page + '-item-' + String(candidate.pdf_item_number).padStart(2, '0') + '.webp')
@@ -317,6 +360,16 @@ export async function collectPdfCatalog(buffer, options = {}) {
 
     const parsed = parsePdfCatalogText(pages.join('\f'), totalPages)
     const candidates = parsed.candidates
+    // The supplier rarely prints a SKU. Generate a deterministic ShopVax-only
+    // import reference so re-uploading exactly the same PDF is idempotent.
+    // Never represent it as a manufacturer-provided reference.
+    const documentId = crypto.createHash('sha256').update(buffer).digest('hex').slice(0, 12).toUpperCase()
+    for (const candidate of candidates) {
+      if (candidate.sku) continue
+      const itemId = crypto.createHash('sha256').update(String(candidate.external_id)).digest('hex').slice(0, 8).toUpperCase()
+      candidate.sku = 'PDF-' + documentId + '-' + itemId
+      candidate.description = (candidate.description || '') + ' Referência interna ShopVax; não é código do fabricante.'
+    }
     if (!candidates.length) {
       throw new Error('Nenhum produto com nome e preço reconhecíveis foi encontrado. Use um PDF com preços legíveis ou cadastre os produtos manualmente.')
     }
@@ -384,9 +437,16 @@ export async function collectPdfCatalog(buffer, options = {}) {
               if (!photoFile) continue
               const buffer = await readFile(path.join(dir, photoFile))
               if (buffer.length > MAX_GENERATED_FILE_BYTES) throw new PdfSafetyError(UNSAFE_PDF_MESSAGE)
-              const image = await sharp(buffer, { limitInputPixels: MAX_IMAGE_PIXELS })
-                .rotate().resize({ width: 1200, height: 1200, fit: 'inside', withoutEnlargement: true })
-                .webp({ quality: 82 }).toBuffer()
+              const smask = pageImages.find((item) => item.kind === 'smask' &&
+                item.index === photo.index + 1 && item.width === photo.width && item.height === photo.height)
+              const maskIndex = smask ? smask.index - (pageImages[0]?.index ?? 0) : -1
+              const maskFile = smask ? files.find((file) =>
+                Number(/-([0-9]+)[.](?:jpg|jpeg|png)$/i.exec(file)?.[1]) === maskIndex) : null
+              // Never publish an RGB preview with black pixels in a place where
+              // the original photo is transparent.
+              if (smask && !maskFile) continue
+              const maskBytes = maskFile ? await readFile(path.join(dir, maskFile)) : null
+              const image = await preparePdfEmbeddedPhoto(buffer, maskBytes)
               if (image.length > 5 * 1024 * 1024) throw new PdfSafetyError(UNSAFE_PDF_MESSAGE)
               const url = await options.onImage(image, 'image/webp', 'catalogo-p' + page + '.webp')
               if (url) {

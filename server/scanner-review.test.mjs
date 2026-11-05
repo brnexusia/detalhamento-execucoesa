@@ -1,3 +1,4 @@
+import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { prepareReview, sanitizeReviewData, sanitizeReviewVariations } from './scanner-review.mjs'
 
@@ -74,3 +75,17 @@ assert.deepEqual(accepted.warnings, [])
 assert.equal(accepted.confidence, 1)
 
 console.log('[scanner module 4] review validation: ok')
+
+test('PDF placeholders are review-required and cannot be published until renamed', () => {
+  const unresolved = {
+    name:'Peça 03 (tipo a confirmar) · Memories · Look 05',
+    source:'pdf',price:27,category:'Geral',currency:'BRL',images:[],
+  }
+  const prepared = prepareReview(unresolved)
+  assert.equal(prepared.publishable,false)
+  assert.ok(prepared.warnings.includes('missing_name'))
+  assert.equal(prepareReview({...unresolved,name:'Brinco floral · Memories Look 05',images:['/media/11111111-2222-3333-4444-555555555555']}).publishable,true)
+})
+
+// A trustworthy PDF import cannot publish a product without an associated photo.
+assert.equal(prepareReview({name:'Brinco 01 · Memories Look 02',source:'pdf',price:18,images:[]}).publishable,false)

@@ -95,6 +95,33 @@ try {
   const products = (await response.json()).products
   assert.equal(products.some((product) => product.name === 'Blusa Concha'), true)
 
+  const statusFromDb = async () => {
+    const item = await db.query(
+      'SELECT p.active FROM import_normalized_products n JOIN products p ON p.id=n.published_product_id ' +
+      'WHERE n.job_id=$1 AND n.publish_result=$2',
+      [jobId, 'created'],
+    )
+    return item.rows.map((row) => row.active)
+  }
+  assert.deepEqual(await statusFromDb(), [true])
+  response = await fetch(base + '/api/admin/imports/' + jobId + '/hide-published-pdf', {
+    method: 'POST', headers: { Cookie: second, 'Content-Type': 'application/json' }, body: '{}',
+  })
+  assert.equal(response.status, 404, 'outra loja não pode ocultar produtos desta importação')
+  assert.deepEqual(await statusFromDb(), [true])
+  response = await fetch(base + '/api/admin/imports/' + jobId + '/hide-published-pdf', {
+    method: 'POST', headers: { Cookie: first, 'Content-Type': 'application/json' }, body: '{}',
+  })
+  assert.equal(response.status, 200)
+  assert.equal((await response.json()).hidden, 1)
+  assert.deepEqual(await statusFromDb(), [false], 'ocultar só afeta os produtos publicados pelo job')
+  response = await fetch(base + '/api/admin/imports/' + jobId + '/restore-published-pdf', {
+    method: 'POST', headers: { Cookie: first, 'Content-Type': 'application/json' }, body: '{}',
+  })
+  assert.equal(response.status, 200)
+  assert.equal((await response.json()).restored, 1)
+  assert.deepEqual(await statusFromDb(), [true], 'restaurar é reversível sem apagar o produto')
+
   response = await fetch(base + '/api/admin/imports/' + jobId, {
     method: 'DELETE',
     headers: { Cookie: first },

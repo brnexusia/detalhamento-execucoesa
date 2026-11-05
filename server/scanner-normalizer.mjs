@@ -229,7 +229,8 @@ function productFingerprint(candidate, normalized) {
 
 function blockingWarnings(normalized) {
   const warnings = []
-  if (!normalized.name) warnings.push('missing_name')
+  if (!normalized.name || (normalized.source === 'pdf' && /^Peça \d+ \(tipo a confirmar\)/i.test(normalized.name))) warnings.push('missing_name')
+  if (normalized.source === 'pdf' && !normalized.images.length) warnings.push('missing_image')
   if (normalized.price == null) warnings.push('missing_price')
   return warnings
 }

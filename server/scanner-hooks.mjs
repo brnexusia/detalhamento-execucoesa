@@ -206,6 +206,7 @@ function publicJob(row) {
     published_count: Number(row.published_count || 0),
     skipped_existing_count: Number(row.skipped_existing_count || 0),
     publish_mode: row.publish_mode || null,
+    hidden_published_count: Array.isArray(row.hidden_published_product_ids) ? row.hidden_published_product_ids.length : 0,
     platform: row.platform || '',
     pages_scanned: Number(row.pages_scanned || 0),
     error: row.error || '',
@@ -682,7 +683,7 @@ function installScannerRoutes(app) {
     const prepared = prepareReview({ ...baseData, ...(req.body?.data && typeof req.body.data === 'object' ? req.body.data : {}) })
     const selected = typeof req.body?.selected === 'boolean' ? req.body.selected : Boolean(row.selected)
     if (selected && !prepared.publishable) {
-      return res.status(400).json({ error: 'Para selecionar este produto, informe pelo menos nome e preço válido.' })
+      return res.status(400).json({ error: 'Para selecionar o produto, confirme nome e preço e, no caso de PDF, inclua uma foto.' })
     }
 
     const client = await pool.connect()

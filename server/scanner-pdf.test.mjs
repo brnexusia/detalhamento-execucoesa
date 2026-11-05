@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import PDFDocument from 'pdfkit'
 import sharp from 'sharp'
-import { collectPdfCatalog, parsePdfCatalogText, assertPdfImageBudget, PdfSafetyError, MAX_PDF_BYTES } from './scanner-pdf.mjs'
+import { collectPdfCatalog, parsePdfCatalogText, preparePdfEmbeddedPhoto, assertPdfImageBudget, PdfSafetyError, MAX_PDF_BYTES } from './scanner-pdf.mjs'
 import { normalizeCandidate } from './scanner-normalizer.mjs'
 import { prepareReview } from './scanner-review.mjs'
 
@@ -234,4 +234,52 @@ test('global listing image indices are not the extracted page-local indexes', ()
   )
   assert.equal(entries.length, 2)
   assert.deepEqual(entries.map((entry) => entry.index), [17, 26])
+})
+
+test('Spetacolo Broches: extracts name and listed price from each standalone product page', () => {
+  const parsed = parsePdfCatalogText([
+    'LANÇAMENTO BROCHES',
+    'Lançamento SPETACOLO\n@spetacolo.acessorios\nBroche Cereja R$ 10,00',
+    'Lançamento SPETACOLO\nBroche Alfinete Amuleto R$ 7,50',
+    'Lançamento SPETACOLO\nKit Broche com 3 R$ 17,50',
+    'Lançamento SPETACOLO\nBroche Nº5 R$ 10,00',
+  ].join('\f'))
+  assert.equal(parsed.candidates.length,4)
+  assert.deepEqual(parsed.candidates.map(x=>x.price),[10,7.5,17.5,10])
+  assert.equal(parsed.candidates[0].title,'Broche Cereja')
+  assert.equal(parsed.candidates[0].category,'Broches')
+  assert.equal(parsed.candidates[2].category,'Broches')
+})
+
+test('reconstructs a transparent Canva brooch instead of keeping a black background', async () => {
+  const red = await sharp({ create: { width: 160, height: 160, channels: 3, background: { r: 220, g: 25, b: 35 } } }).png().toBuffer()
+  const white = await sharp({ create: { width: 160, height: 160, channels: 3, background: { r: 255, g: 255, b: 255 } } }).greyscale().png().toBuffer()
+  const rgb = await sharp({ create: { width: 420, height: 420, channels: 3, background: { r: 0, g: 0, b: 0 } } })
+    .composite([{ input: red, left: 130, top: 130 }]).png().toBuffer()
+  const alpha = await sharp({ create: { width: 420, height: 420, channels: 3, background: { r: 0, g: 0, b: 0 } } })
+    .composite([{ input: white, left: 130, top: 130 }]).greyscale().png().toBuffer()
+  const result = await preparePdfEmbeddedPhoto(rgb, alpha)
+  const meta = await sharp(result).metadata()
+  assert.equal(meta.format, 'webp')
+  assert(meta.width <= 200 && meta.height <= 200, 'transparent margins should be removed')
+  const rgbResult = await sharp(result).raw().toBuffer()
+  assert(rgbResult[0] > 170 && rgbResult[1] < 100, 'the recovered image must show product color, not black pixels')
+})
+
+test('assigns stable internal reference when supplier PDF has no SKU', async () => {
+  const pdf = await new Promise((resolve, reject) => {
+    const doc = new PDFDocument()
+    const parts = []
+    doc.on('data', (chunk) => parts.push(chunk))
+    doc.on('end', () => resolve(Buffer.concat(parts)))
+    doc.on('error', reject)
+    doc.fontSize(20).text('Broche Cereja R$ 10,00')
+    doc.end()
+  })
+  const first = await collectPdfCatalog(pdf)
+  const second = await collectPdfCatalog(pdf)
+  assert.equal(first.candidates.length, 1)
+  assert.match(first.candidates[0].sku, /^PDF-[A-F0-9]{12}-[A-F0-9]{8}$/)
+  assert.equal(first.candidates[0].sku, second.candidates[0].sku)
+  assert.match(first.candidates[0].description, /não é código do fabricante/)
 })

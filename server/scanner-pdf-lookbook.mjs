@@ -1,7 +1,7 @@
 import { inferPdfProductCategory } from './scanner-pdf-category.mjs'
 
-const TYPES = 'BRINCO|COLAR|PULSEIRA|BRACELETE|BRACELE|BACELETE|BROCHE|BOLSA|ANEL|CINTO|CHOKER|GARGANTILHA|TIARA|LENCO|LENÇO|ECHARPE|CONJUNTO|PRESILHA|TORNOZELEIRA'
-const labelPattern = new RegExp('^(' + TYPES + ')\\s+0?([1-9][0-9]?)(?:\\s+(?:E|\\+|/|,)\\s*0?([1-9][0-9]?))?$', 'i')
+const TYPES = 'BRINCO|COLAR|PULSEIRA|BRACELETE|BRACELE|BACELETE|BROCHE|BOLSA|ANEL|CINTO|CHOKER|GARGANTILHA|TIARA|LENCO|LENÇO|ECHARPE|CONJUNTO|PRESILHA|TORNOZELEIRA|GOLA'
+const labelPattern = new RegExp('^(' + TYPES + ')\\s+0?([1-9][0-9]?)(?:\\s+(?:E|\\+|/|,)\\s*0?([1-9][0-9]?))?(?:\\s*[-–]\\s*KIT)?$', 'i')
 const labelScan = new RegExp('\\b(' + TYPES + ')\\s+0?([1-9][0-9]?)(?:\\s+(?:E|\\+|/|,)\\s*0?([1-9][0-9]?))?(?=\\s|$)', 'gi')
 const pricesPattern = /\b(0?[1-9]|[1-9][0-9])\s*R\$\s*(\d{1,6}(?:\.\d{3})*,\d{2})\b/g
 
@@ -11,7 +11,7 @@ const naturalName = (value) => value.charAt(0).toUpperCase() + value.slice(1).to
 
 function labelsFromText(value) {
   const labels = new Map()
-  for (const match of clean(value).matchAll(labelScan)) {
+  for (const match of clean(value).replace(/PULSEIRA\s*\/\s*BRACELETE/gi, 'BRACELETE').replace(/BRACELETE\s+QUARADO/gi, 'BRACELETE').matchAll(labelScan)) {
     const title = match[1].toUpperCase().replace(/^(?:BRACELE|BACELETE)$/, 'BRACELETE')
     for (const raw of [match[2], match[3]]) {
       if (!raw) continue
@@ -47,58 +47,103 @@ function collectionFromIntro(pages) {
  */
 export function parseNumberedLookbookPages(rawPages, maxProducts = 500) {
   const pages = Array.isArray(rawPages) ? rawPages : String(rawPages || '').replace(/\r/g, '').split('\f')
-  const groups = pages.map((page) => pricesFromText(page))
-  const detail = pages.map((page) => /\bCORES\s+DISPON[IÍ]VEIS\b/i.test(clean(page)))
-  const labels = pages.map((page, index) => detail[index] ? labelsFromText(page) : new Map())
-  const pricedPages = groups.map((items, i) => items.size ? i : -1).filter((i) => i >= 0)
-  let linked = 0
-  const pageLinks = new Map()
-  for (let index = 0; index < pricedPages.length; index += 1) {
-    const pricePage = pricedPages[index]
-    const nextPrice = pricedPages[index + 1] ?? pages.length
-    let detailPage = -1
-    // A full-page editorial photo may sit between the price and product board.
-    for (let p = pricePage + 1; p < Math.min(nextPrice, pricePage + 5); p += 1) {
-      if (detail[p] && labels[p].size) { detailPage = p; break }
+  const prices = pages.map(pricesFromText)
+  const boards = pages.map((page) => /\bCORES\s+DISPON[IÍ]VEIS\b/i.test(clean(page)))
+  const labels = pages.map((page, index) => boards[index] ? labelsFromText(page) : new Map())
+  const looks = []
+  for (let page = 0; page < pages.length; page += 1) {
+    const entries = prices[page]
+    if (entries.size) {
+      const previous = looks.at(-1)
+      const sameLook = previous && !previous.detailPages.length &&
+        page - previous.pricePages.at(-1) <= 2 &&
+        [...entries.keys()].every((id) => !previous.itemIds.has(id))
+      // A price board can be split over successive editorial/model pages:
+      // Costa has items 01-04 on p5 and item 05 on p6, with one shared p7 board.
+      // A repeated item 01 starts a NEW look (Memories bag p60 versus p61).
+      if (sameLook) {
+        previous.pricePages.push(page)
+        for (const [id, amount] of entries) {
+          previous.itemIds.add(id)
+          previous.items.push({ id, amount, pricePage: page })
+        }
+      } else {
+        looks.push({
+          pricePages: [page], detailPages: [],
+          itemIds: new Set(entries.keys()),
+          items: [...entries].map(([id, amount]) => ({ id, amount, pricePage: page })),
+        })
+      }
+    } else if (boards[page] && looks.length) {
+      const look = looks.at(-1)
+      const last = look.detailPages.at(-1) ?? look.pricePages.at(-1)
+      // Up to 4 intervening image-only pages between a priced look and board.
+      if (page - last <= 5) look.detailPages.push(page)
     }
-    pageLinks.set(pricePage, detailPage)
-    if (detailPage >= 0) for (const item of groups[pricePage].keys()) if (labels[detailPage].has(item)) linked += 1
   }
-  // Prevent hijacking ordinary catalogs that happen to enumerate prices.
-  if (pricedPages.length < 2 || linked < 2 || !detail.some(Boolean)) return null
+  let paired = 0
+  for (const look of looks) {
+    const resolved = new Map()
+    const labelPages = new Map()
+    for (const page of look.detailPages) {
+      for (const [id, type] of labels[page]) {
+        if (!look.itemIds.has(id)) continue
+        if (resolved.has(id) && resolved.get(id) !== type) {
+          resolved.set(id, null) // contradicting printed labels, review required
+          labelPages.delete(id)
+        } else if (!resolved.has(id)) {
+          resolved.set(id, type)
+          labelPages.set(id, page)
+        }
+      }
+    }
+    look.labels = resolved
+    look.labelPages = labelPages
+    paired += [...resolved.values()].filter(Boolean).length
+  }
+  // A false positive in an ordinary numbered price list must never replace
+  // the normal catalog parser. Require multiple price blocks AND visual boards.
+  if (paired < 2 || !boards.some(Boolean) || (looks.length < 2 && looks[0]?.items.length < 2)) return null
+
   const collection = collectionFromIntro(pages)
   const candidates = []
-  for (const pricePage of pricedPages) {
-    const detailPage = pageLinks.get(pricePage)
-    const names = detailPage >= 0 ? labels[detailPage] : new Map()
-    for (const [item, price] of groups[pricePage]) {
+  for (let lookNumber = 0; lookNumber < looks.length && candidates.length < maxProducts; lookNumber += 1) {
+    const look = looks[lookNumber]
+    for (const { id, amount, pricePage } of look.items) {
       if (candidates.length >= maxProducts) break
-      const printedType = names.get(item)
-      // Some supplier boards are mislabelled (the Memories bag board says
-      // "BRINCO 01" while the pictured item is a bag). Keep unusual high-priced
-      // earring labels as uncertain rather than silently assigning a wrong category.
-      const suspectType = printedType === 'Brinco' && price >= 100
-      const type = suspectType ? null : printedType
-      const printableItem = String(item).padStart(2, '0')
-      const pricePageNumber = pricePage + 1
-      const title = type
-        ? type + ' ' + printableItem + (collection ? ' · ' + collection : '') + ' · pág. ' + pricePageNumber
-        : 'Peça ' + printableItem + ' (tipo a confirmar)' + (collection ? ' · ' + collection : '') + ' · pág. ' + pricePageNumber
-      const description = 'Item ' + printableItem + ' com preço impresso na página ' + pricePageNumber +
-        (detailPage >= 0 ? '; apresentação de cores na página ' + (detailPage + 1) : '') +
-        '. Confira o modelo e as variações na revisão antes de publicar.' +
-        (suspectType ? ' Atenção: tipo impresso potencialmente incorreto; confirme pela foto.' : '')
+      const printedType = look.labels.get(id) || ''
+      // Some supplier pages mislabel expensive bags as "BRINCO". The source
+      // itself is inconsistent: do not silently publish a fabricated category.
+      const suspicious = printedType === 'Brinco' && amount >= 100
+      const type = suspicious ? '' : printedType
+      const no = String(id).padStart(2, '0')
+      const pageNo = pricePage + 1
+      const lookNo = String(lookNumber + 1).padStart(2, '0')
+      const typePage = look.labelPages.get(id)
+      const friendlyName = type
+        ? type + ' ' + no + (collection ? ' · ' + collection : '') + ' · Look ' + lookNo
+        : 'Peça ' + no + ' (tipo a confirmar)' + (collection ? ' · ' + collection : '') + ' · Look ' + lookNo
+      const description = 'Referência visual do catálogo: look ' + lookNo + ', item ' + no +
+        ', preço impresso na página ' + pageNo +
+        (typePage !== undefined ? ', fotos na página ' + (typePage + 1) : ', sem foto individual identificada') +
+        '. Confira nome, foto e variações antes de publicar.' +
+        (suspicious ? ' A legenda do fornecedor pode estar incorreta.' : '')
       candidates.push({
-        title, description, sku: '', category: type ? inferPdfProductCategory(type) : 'Geral',
-        price, currency: 'BRL', images: [], properties: [], variants: [],
-        source: 'pdf', source_url: 'pdf://page/' + pricePageNumber + '/item/' + printableItem,
-        external_id: 'pdf-lookbook-p' + pricePageNumber + '-i' + printableItem,
-        pdf_page: pricePageNumber, pdf_detail_page: detailPage >= 0 ? detailPage + 1 : null,
-        pdf_item_number: item, pdf_lookbook: true,
+        title: friendlyName, description, sku: '', category: type ? inferPdfProductCategory(type) : 'Geral',
+        price: amount, currency: 'BRL', images: [], properties: [], variants: [],
+        source: 'pdf', source_url: 'pdf://look/' + lookNo + '/page/' + pageNo + '/item/' + no,
+        external_id: 'pdf-look-' + lookNo + '-p' + pageNo + '-item' + no,
+        pdf_page: pageNo, pdf_detail_page: typePage === undefined ? null : typePage + 1,
+        pdf_item_number: id, pdf_lookbook: true,
+        pdf_needs_review: !type,
       })
     }
   }
-  return { candidates, pagesScanned: pages.filter((page) => clean(page)).length, lookbook: true }
+  return {
+    candidates, pagesScanned: pages.filter((page) => clean(page)).length,
+    lookbook: true, lookCount: looks.length,
+    unlabelled: candidates.filter((candidate) => candidate.pdf_needs_review).length,
+  }
 }
 
 const decodeXml = (value) => String(value || '').replace(/&amp;/g, '&').replace(/&lt;/g, '<')
@@ -124,17 +169,18 @@ export function parseLookbookPhotoBands(bbox) {
     let lineMatch
     while ((lineMatch = linePattern.exec(pageMatch[2]))) {
       const top = Number(/\byMin="([\d.]+)"/.exec(lineMatch[1])?.[1])
+      const bottom = Number(/\byMax="([\d.]+)"/.exec(lineMatch[1])?.[1])
       const words = [...lineMatch[2].matchAll(/<word\b[^>]*>([\s\S]*?)<\/word>/gi)].map((match) => decodeXml(match[1]))
-      const label = labelPattern.exec(clean(words.join(' ')))
-      if (!label || !Number.isFinite(top)) continue
-      const items = [number(label[2]), ...(label[3] ? [number(label[3])] : [])]
-      lines.push({ top, items })
+      const lineLabels = labelsFromText(words.join(' '))
+      if (!lineLabels.size || !Number.isFinite(top) || !Number.isFinite(bottom)) continue
+      const items = [...lineLabels.keys()]
+      lines.push({ top, bottom, items })
     }
     lines.sort((a, b) => a.top - b.top)
     for (let i = 0; i < lines.length; i += 1) {
-      const start = Math.max(0, lines[i].top - 10)
+      const start = Math.max(0, lines[i].bottom + 8)
       const end = Math.min(height, i + 1 < lines.length ? lines[i + 1].top - 10 : height - 4)
-      if (end - start < 60) continue
+      if (end - start < 35) continue
       for (const item of lines[i].items) regions.set(pageNo + ':' + item, { page: pageNo, top: start, bottom: end, width, height })
     }
   }
