@@ -171,9 +171,9 @@ export function parseLookbookPhotoBands(bbox) {
       const top = Number(/\byMin="([\d.]+)"/.exec(lineMatch[1])?.[1])
       const bottom = Number(/\byMax="([\d.]+)"/.exec(lineMatch[1])?.[1])
       const words = [...lineMatch[2].matchAll(/<word\b[^>]*>([\s\S]*?)<\/word>/gi)].map((match) => decodeXml(match[1]))
-      const label = labelPattern.exec(clean(words.join(' ')))
-      if (!label || !Number.isFinite(top) || !Number.isFinite(bottom)) continue
-      const items = [number(label[2]), ...(label[3] ? [number(label[3])] : [])]
+      const lineLabels = labelsFromText(words.join(' '))
+      if (!lineLabels.size || !Number.isFinite(top) || !Number.isFinite(bottom)) continue
+      const items = [...lineLabels.keys()]
       lines.push({ top, bottom, items })
     }
     lines.sort((a, b) => a.top - b.top)
