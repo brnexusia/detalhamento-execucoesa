@@ -75,7 +75,10 @@ express.application.init = function performancePatchedInit(...args) {
   this.use(compression({ threshold: 1024 }))
   this.use((req, res, next) => {
     res.setHeader('X-DNS-Prefetch-Control', 'on')
-    res.setHeader('Permissions-Policy', 'interest-cohort=()')
+    // Never replace security-hooks' camera/microphone/geolocation restrictions.
+    const currentPolicy = String(res.getHeader('Permissions-Policy') || '').trim()
+    res.setHeader('Permissions-Policy',
+      currentPolicy ? currentPolicy + ', interest-cohort=()' : 'interest-cohort=()')
 
     const isPublicStore = req.method === 'GET' && req.url.startsWith('/api/public/store/')
     if (isPublicStore) {
