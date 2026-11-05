@@ -11,7 +11,7 @@ const naturalName = (value) => value.charAt(0).toUpperCase() + value.slice(1).to
 
 function labelsFromText(value) {
   const labels = new Map()
-  for (const match of clean(value).matchAll(labelScan)) {
+  for (const match of clean(value).replace(/PULSEIRA\s*\/\s*BRACELETE/gi, 'BRACELETE').replace(/BRACELETE\s+QUARADO/gi, 'BRACELETE').matchAll(labelScan)) {
     const title = match[1].toUpperCase().replace(/^(?:BRACELE|BACELETE)$/, 'BRACELETE')
     for (const raw of [match[2], match[3]]) {
       if (!raw) continue
