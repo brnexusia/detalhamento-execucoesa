@@ -62,8 +62,8 @@ const publicImage = (value) => {
   } catch { return '' }
 }
 const base = (status = 200) => ({
-  title: 'Shopvax — Lojas digitais, catálogos e produtos',
-  description: 'Explore lojas digitais e catálogos de produtos no Shopvax. Conheça as vitrines das marcas e prepare pedidos com atendimento pelo WhatsApp.',
+  title: 'Shopvax | Catálogos, lojas e compras pelo WhatsApp',
+  description: 'Descubra lojas, explore produtos e organize pedidos diretamente pelo WhatsApp no Shopvax.',
   url: SITE + '/', status, index: status === 200, image: '', schema: null, headline: '', excerpt: '',
 })
 async function metadataFor(req) {
@@ -107,10 +107,11 @@ async function metadataFor(req) {
     meta.url = documentUrl(canonicalPath)
     const storeName = plain(store.name)
     const storeTagline = plain(store.tagline)
-    meta.title = storeName.slice(0, 100) + (profile ? ' — Perfil da loja | Shopvax' : ' — Catálogo digital | Shopvax')
-    meta.description = seoSummary(profile
-      ? 'Conheça ' + storeName + ' no Shopvax: perfil público e produtos da loja. ' + storeTagline
-      : 'Explore a loja digital ' + storeName + ': catálogo de produtos e atendimento pelo WhatsApp. ' + storeTagline)
+    meta.title = profile ? storeName + ' | Shopvax' : storeName.slice(0, 100) + ' — Catálogo digital | Shopvax'
+    meta.description = profile
+      ? plain(store.tagline, 'Explore o catálogo de ' + store.name + ' no Shopvax.')
+      : seoSummary('Explore a loja digital ' + storeName +
+        ': catálogo de produtos e atendimento pelo WhatsApp. ' + storeTagline)
     meta.image = publicImage(store.logo_url)
     meta.headline = plain(store.name)
     meta.excerpt = meta.description

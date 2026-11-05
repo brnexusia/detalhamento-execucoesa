@@ -63,7 +63,7 @@ try {
   includes(marketing.text, 'Crie uma loja digital com catálogo de produtos')
   const discovery = await get('/')
   assert.equal(discovery.status, 200)
-  includes(discovery.text, 'Lojas digitais, catálogos e produtos')
+  includes(discovery.text, 'Shopvax | Catálogos, lojas e compras pelo WhatsApp')
 
   const pages = await botGet('/sitemap-pages.xml')
   assert.equal(pages.status, 200)
