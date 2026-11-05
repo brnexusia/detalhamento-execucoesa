@@ -1,6 +1,9 @@
 import crypto from 'node:crypto'
 import express from 'express'
 import pg from 'pg'
+import { safeRequest } from './scanner-collector.mjs'
+import { normalizeOutboundWebhookUrl } from './network-egress-policy.mjs'
+import { customerOwnsOrder, quoteMatchesOrder } from './order-access-policy.mjs'
 
 const { Pool } = pg
 const databaseUrl = process.env.DATABASE_URL?.trim() || ''
@@ -85,15 +88,6 @@ function normalizePrefixes(value) {
 
 function normalizeStates(value) {
   return [...new Set((Array.isArray(value) ? value : []).map(normalizeState).filter((item) => item.length === 2))].slice(0, 27)
-}
-
-function normalizeUrl(value, { allowHttpLocal = false } = {}) {
-  try {
-    const url = new URL(String(value || '').trim())
-    if (url.protocol === 'https:') return url.toString()
-    if (allowHttpLocal && url.protocol === 'http:' && ['127.0.0.1', 'localhost', '::1'].includes(url.hostname)) return url.toString()
-  } catch {}
-  return ''
 }
 
 async function waitForBaseSchema() {
@@ -587,14 +581,17 @@ async function attachShipping(req, res) {
   const customer = await currentCustomer(req, store.id)
   const order = await pool.query('SELECT id,store_id,customer_id,total,status FROM orders WHERE id=$1 AND store_id=$2 LIMIT 1', [req.params.orderId, store.id])
   if (!order.rowCount) return res.status(404).json({ error: 'Pedido não encontrado.' })
-  if (order.rows[0].customer_id && (!customer || order.rows[0].customer_id !== customer.id)) return res.status(403).json({ error: 'Este pedido pertence a outro cliente.' })
+  if (!customerOwnsOrder(order.rows[0], customer)) return res.status(403).json({ error: 'É necessário entrar na conta que criou este pedido.' })
   const quote = await pool.query(`SELECT * FROM shipping_quotes WHERE id=$1 AND store_id=$2 AND expires_at>now() LIMIT 1`, [req.body?.quoteId, store.id])
   if (!quote.rowCount) return res.status(409).json({ error: 'Cotação de frete expirada ou inválida.' })
   const row = quote.rows[0]
+  if (!quoteMatchesOrder(row, order.rows[0])) return res.status(409).json({ error: 'Cotação de frete não corresponde ao valor deste pedido. Faça uma nova cotação.' })
   const updated = await pool.query(`
-    UPDATE orders SET shipping_method=$1,shipping_amount=$2 WHERE id=$3
+    UPDATE orders SET shipping_method=$1,shipping_amount=$2
+    WHERE id=$3 AND store_id=$4 AND customer_id=$5
     RETURNING id,code,total,shipping_method,shipping_amount,payment_status
-  `, [row.method_name, row.amount, order.rows[0].id])
+  `, [row.method_name, row.amount, order.rows[0].id, store.id, customer.id])
+  if (!updated.rowCount) return res.status(403).json({ error: 'Pedido não autorizado.' })
   const shaped = updated.rows[0]
   return res.json({ order: { ...shaped, total: Number(shaped.total || 0), shippingAmount: Number(shaped.shipping_amount || 0), grandTotal: money(Number(shaped.total || 0) + Number(shaped.shipping_amount || 0)) } })
 }
@@ -612,7 +609,7 @@ async function createPayment(req, res) {
   `, [req.body?.orderId, store.id])
   if (!orderResult.rowCount) return res.status(404).json({ error: 'Pedido não encontrado.' })
   const order = orderResult.rows[0]
-  if (order.customer_id && order.customer_id !== customer.id) return res.status(403).json({ error: 'Este pedido pertence a outro cliente.' })
+  if (!customerOwnsOrder(order, customer)) return res.status(403).json({ error: 'É necessário entrar na conta que criou este pedido.' })
   if (order.status === 'cancelled') return res.status(409).json({ error: 'Pedido cancelado não pode receber pagamento.' })
   if (order.payment_status === 'paid') return res.status(409).json({ error: 'Este pedido já está pago.' })
   const billingType = String(req.body?.billingType || 'PIX').toUpperCase()
@@ -852,7 +849,7 @@ async function createErpWebhook(req, res) {
   const integration = await integrationRow(store.id)
   if (!integration.erp_api_enabled) return res.status(409).json({ error: 'Ative a API/ERP antes de criar webhooks.' })
   const allowLocal = process.env.NODE_ENV !== 'production'
-  const url = normalizeUrl(req.body?.url, { allowHttpLocal: allowLocal })
+  const url = normalizeOutboundWebhookUrl(req.body?.url, { allowHttpLocal: allowLocal })
   if (!url) return res.status(400).json({ error: allowLocal ? 'Informe uma URL HTTPS válida ou localhost HTTP para desenvolvimento.' : 'Webhooks ERP exigem URL HTTPS válida.' })
   const name = String(req.body?.name || 'ERP').trim().slice(0, 100)
   const allowedEvents = new Set(['order.created', 'payment.updated', 'stock.updated'])
@@ -888,14 +885,18 @@ async function dispatchErpEvent(storeId, eventType, payload) {
     try {
       const secret = decryptSecret(target.secret_encrypted)
       const signature = crypto.createHmac('sha256', secret).update(body).digest('hex')
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 5000)
-      try {
-        const response = await fetch(target.url, { method: 'POST', signal: controller.signal, headers: { 'content-type': 'application/json', 'x-shopvax-event': eventType, 'x-shopvax-signature': `sha256=${signature}` }, body })
-        responseStatus = response.status
-        status = response.ok ? 'delivered' : 'failed'
-        if (!response.ok) errorText = `HTTP ${response.status}`
-      } finally { clearTimeout(timeout) }
+      const validatedUrl = normalizeOutboundWebhookUrl(target.url)
+      if (!validatedUrl) throw new Error('Destino do webhook não permitido pela política de segurança.')
+      // Resolve/pin the public IP on every delivery; never forward signed
+      // payloads through redirects or to private-network destinations.
+      const response = await safeRequest(validatedUrl, {
+        method: 'POST', body, timeout: 5000, maxBytes: 64 * 1024,
+        responseType: 'buffer', followRedirects: false,
+        headers: { 'content-type': 'application/json', 'x-shopvax-event': eventType, 'x-shopvax-signature': `sha256=${signature}` },
+      })
+      responseStatus = response.status
+      status = response.ok ? 'delivered' : 'failed'
+      if (!response.ok) errorText = `HTTP ${response.status}`
     } catch (error) { errorText = error instanceof Error ? error.message : String(error) }
     await pool.query(`INSERT INTO erp_webhook_deliveries(id,store_id,webhook_id,event_type,status,response_status,error) VALUES ($1,$2,$3,$4,$5,$6,$7)`, [id(), storeId, target.id, eventType, status, responseStatus, errorText.slice(0, 500)])
   }
