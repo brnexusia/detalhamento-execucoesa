@@ -169,17 +169,18 @@ export function parseLookbookPhotoBands(bbox) {
     let lineMatch
     while ((lineMatch = linePattern.exec(pageMatch[2]))) {
       const top = Number(/\byMin="([\d.]+)"/.exec(lineMatch[1])?.[1])
+      const bottom = Number(/\byMax="([\d.]+)"/.exec(lineMatch[1])?.[1])
       const words = [...lineMatch[2].matchAll(/<word\b[^>]*>([\s\S]*?)<\/word>/gi)].map((match) => decodeXml(match[1]))
       const label = labelPattern.exec(clean(words.join(' ')))
-      if (!label || !Number.isFinite(top)) continue
+      if (!label || !Number.isFinite(top) || !Number.isFinite(bottom)) continue
       const items = [number(label[2]), ...(label[3] ? [number(label[3])] : [])]
-      lines.push({ top, items })
+      lines.push({ top, bottom, items })
     }
     lines.sort((a, b) => a.top - b.top)
     for (let i = 0; i < lines.length; i += 1) {
-      const start = Math.max(0, lines[i].top - 10)
+      const start = Math.max(0, lines[i].bottom + 8)
       const end = Math.min(height, i + 1 < lines.length ? lines[i + 1].top - 10 : height - 4)
-      if (end - start < 60) continue
+      if (end - start < 35) continue
       for (const item of lines[i].items) regions.set(pageNo + ':' + item, { page: pageNo, top: start, bottom: end, width, height })
     }
   }
