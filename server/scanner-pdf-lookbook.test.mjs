@@ -78,7 +78,7 @@ test('Costa: continued price pages 05 and 06 belong to the SAME look, followed b
   assert.equal(parsed.candidates[4].title.startsWith('Presilha · Costa · 01-05'), true)
   assert.equal(parsed.candidates[4].price, 10.50)
   assert.equal(parsed.candidates[4].pdf_page, 3)
-  assert.equal(parsed.candidates[7].category, 'Outros')
+  assert.equal(parsed.candidates[7].category, 'Geral')
   assert.equal(parsed.candidates[8].category, 'Braceletes')
   assert.equal(parsed.candidates[8].pdf_detail_page, 7)
 })
