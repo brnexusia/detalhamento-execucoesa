@@ -1,7 +1,7 @@
 import { inferPdfProductCategory } from './scanner-pdf-category.mjs'
 
 const TYPES = 'BRINCO|COLAR|PULSEIRA|BRACELETE|BRACELE|BACELETE|BROCHE|BOLSA|ANEL|CINTO|CHOKER|GARGANTILHA|TIARA|LENCO|LENÇO|ECHARPE|CONJUNTO|PRESILHA|TORNOZELEIRA|GOLA'
-const labelPattern = new RegExp('^(' + TYPES + ')\\s+0?([1-9][0-9]?)(?:\\s+(?:E|\\+|/|,)\\s*0?([1-9][0-9]?))?(?:\\s*[-–]\\s*KIT)?
+const labelPattern = new RegExp('^(' + TYPES + ')\\s+0?([1-9][0-9]?)(?:\\s+(?:E|\\+|/|,)\\s*0?([1-9][0-9]?))?(?:\\s*[-–]\\s*KIT)?$', 'i')
 const labelScan = new RegExp('\\b(' + TYPES + ')\\s+0?([1-9][0-9]?)(?:\\s+(?:E|\\+|/|,)\\s*0?([1-9][0-9]?))?(?=\\s|$)', 'gi')
 const pricesPattern = /\b(0?[1-9]|[1-9][0-9])\s*R\$\s*(\d{1,6}(?:\.\d{3})*,\d{2})\b/g
 
