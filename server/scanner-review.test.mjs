@@ -1,3 +1,4 @@
+import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { prepareReview, sanitizeReviewData, sanitizeReviewVariations } from './scanner-review.mjs'
 
