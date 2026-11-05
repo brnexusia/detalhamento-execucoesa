@@ -33,6 +33,7 @@ async function ensurePublisherSchema() {
     ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS skipped_existing_count integer NOT NULL DEFAULT 0;
     ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS published_at timestamptz;
     ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS publish_mode text;
+    ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS hidden_published_product_ids text[] NOT NULL DEFAULT ARRAY[]::text[];
     ALTER TABLE import_normalized_products ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
     ALTER TABLE import_normalized_products ADD COLUMN IF NOT EXISTS published_product_id text;
     ALTER TABLE import_normalized_products ADD COLUMN IF NOT EXISTS publish_result text NOT NULL DEFAULT '';
@@ -615,9 +616,76 @@ async function recoverLegacyPdfJob(req, res) {
   }
 }
 
+
+async function togglePublishedPdfVisibility(req, res, restore = false) {
+  await ensurePublisherSchema()
+  const store = await currentStore(req)
+  if (!store) return res.status(401).json({ error: 'Sessão necessária.' })
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1)::bigint)", ['scanner-publish-store:' + store.store_id])
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1)::bigint)", ['scanner-publish-job:' + req.params.jobId])
+    const found = await client.query(
+      'SELECT id,platform,status,hidden_published_product_ids FROM import_jobs WHERE id=$1 AND store_id=$2 FOR UPDATE',
+      [req.params.jobId, store.store_id],
+    )
+    const job = found.rows[0]
+    if (!job) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Importação não encontrada.' }) }
+    if (job.platform !== 'pdf' || job.status !== 'completed') {
+      await client.query('ROLLBACK')
+      return res.status(409).json({ error: 'Somente PDFs publicados podem ser ocultados ou restaurados.' })
+    }
+    const savedIds = Array.isArray(job.hidden_published_product_ids) ? job.hidden_published_product_ids : []
+    if (restore) {
+      const restored = savedIds.length ? await client.query(
+        'UPDATE products SET active=true,updated_at=now() WHERE store_id=$1 AND id=ANY($2::text[]) AND active=false',
+        [store.store_id, savedIds],
+      ) : { rowCount: 0 }
+      await client.query(
+        'UPDATE import_jobs SET hidden_published_product_ids=ARRAY[]::text[] WHERE id=$1 AND store_id=$2',
+        [job.id, store.store_id],
+      )
+      await client.query('COMMIT')
+      return res.json({ ok: true, restored: restored.rowCount })
+    }
+    const products = await client.query(
+      'SELECT p.id FROM products p WHERE p.store_id=$1 AND p.active=true AND p.id IN ' +
+      "(SELECT n.published_product_id FROM import_normalized_products n WHERE n.job_id=$2 AND n.store_id=$1 AND n.publish_result='created')" +
+      ' FOR UPDATE OF p',
+      [store.store_id, job.id],
+    )
+    const newlyHiddenIds = products.rows.map((row) => row.id)
+    if (newlyHiddenIds.length) {
+      await client.query(
+        'UPDATE products SET active=false,updated_at=now() WHERE store_id=$1 AND id=ANY($2::text[])',
+        [store.store_id, newlyHiddenIds],
+      )
+    }
+    const allIds = [...new Set([...savedIds, ...newlyHiddenIds])]
+    await client.query(
+      'UPDATE import_jobs SET hidden_published_product_ids=$1::text[] WHERE id=$2 AND store_id=$3',
+      [allIds, job.id, store.store_id],
+    )
+    await client.query('COMMIT')
+    return res.json({ ok: true, hidden: newlyHiddenIds.length, total_hidden: allIds.length })
+  } catch (error) {
+    try { await client.query('ROLLBACK') } catch {}
+    throw error
+  } finally {
+    client.release()
+  }
+}
+
 function installPublisherRoute(app) {
   if (app.__atacadoScannerPublisherInstalled) return
   app.__atacadoScannerPublisherInstalled = true
+  app.post('/api/admin/imports/:jobId/hide-published-pdf', express.json({ limit: '4kb' }), (req, res, next) => {
+    Promise.resolve(togglePublishedPdfVisibility(req, res, false)).catch(next)
+  })
+  app.post('/api/admin/imports/:jobId/restore-published-pdf', express.json({ limit: '4kb' }), (req, res, next) => {
+    Promise.resolve(togglePublishedPdfVisibility(req, res, true)).catch(next)
+  })
   app.get('/api/admin/imports/:jobId/publish-preview', (req, res, next) => {
     Promise.resolve(previewJob(req, res)).catch(next)
   })
