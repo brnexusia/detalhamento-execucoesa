@@ -1,7 +1,8 @@
 import dns from 'node:dns/promises'
 import net from 'node:net'
 import tls from 'node:tls'
-import { execFileSync } from 'node:child_process'
+import { spawnSync } from 'node:child_process'
+import http from 'node:http'
 
 const host = 'shopvax.com.br'
 const budgetMs = 6000
@@ -46,15 +47,56 @@ async function inspectTls() {
 }
 
 function protocolProbe(flag) {
-  try {
-    const result = execFileSync('openssl', ['s_client', '-brief', '-connect', host + ':443', '-servername', host, flag, '-cipher', 'DEFAULT:@SECLEVEL=0'], {
-      input: '', encoding: 'utf8', timeout: budgetMs, stdio: ['pipe', 'pipe', 'pipe'],
-    })
-    return { accepted: /Protocol version:\s*TLSv|Protocol\s*:\s*TLSv/i.test(result), evidence: 'openssl handshake' }
-  } catch (error) {
-    const log = String(error.stdout || '') + String(error.stderr || '')
-    return { accepted: false, evidence: /alert protocol version|unsupported protocol/i.test(log) ? 'protocol_rejected_or_disabled' : 'handshake_not_completed' }
+  const result = spawnSync('openssl', ['s_client', '-brief', '-connect', host + ':443',
+    '-servername', host, flag, '-cipher', 'DEFAULT:@SECLEVEL=0'], {
+    input: '', encoding: 'utf8', timeout: budgetMs,
+  })
+  const text = String(result.stdout || '') + String(result.stderr || '')
+  const negotiated = /Protocol version:\s*(TLSv[\d.]+)/i.exec(text)?.[1] || null
+  return {
+    accepted: Boolean(result.status === 0 && negotiated),
+    negotiated,
+    result: result.status === 0 ? 'completed' : 'no_handshake',
+    warning: result.status !== 0 ? 'May be rejected by server OR client OpenSSL configuration' : null,
   }
+}
+
+async function readPublicDns() {
+  try {
+    const response = await fetch('https://dns.google/resolve?name=shopvax.com.br&type=A', {signal: timeout(5000)})
+    const data = await response.json()
+    return { addresses: (data.Answer || []).filter(x => x.type === 1).map(x => x.data).slice(0, 8), status: data.Status }
+  } catch(error) {return {error: error.cause?.code || error.name}}
+}
+
+async function probeService(ip, port) {
+  return new Promise(resolve => {
+    if (port === 22) {
+      const socket = net.connect({ host: ip, port, timeout: 2300 })
+      let done = false
+      const finish = value => {if(done)return;done=true;socket.destroy();resolve(value)}
+      socket.on('data', chunk => finish({ port, banner: chunk.toString('ascii').slice(0, 90).replace(/[^\x20-\x7e]/g, '') }))
+      socket.on('timeout', () => finish({ port, banner: null }))
+      socket.on('error', e => finish({ port, error: e.code }))
+      socket.on('close', () => finish({ port, banner: null }))
+      return
+    }
+    let finished = false
+    const request = http.get({ host: ip, port, path: '/health', timeout: 3000, headers: { Host: host, 'User-Agent': 'ShopVax-readonly-audit' } }, response => {
+      let body = ''
+      response.on('data', x => { if(body.length < 1024) body += x.toString('utf8').slice(0, 1024); })
+      response.on('end', () => {
+        if(finished)return;finished=true
+        let parsed = null
+        try {parsed = JSON.parse(body)} catch{}
+        resolve({ port, status: response.statusCode,
+          contentType: response.headers['content-type'] || null,
+          healthShape: parsed ? {ok: typeof parsed.ok === 'boolean', database: typeof parsed.database === 'boolean'} : null })
+      })
+    })
+    request.on('timeout', () => request.destroy())
+    request.on('error', e => { if(finished)return;finished=true;resolve({port,error:e.code || e.name})})
+  })
 }
 
 function safeCookieFlags(headers) {
@@ -103,10 +145,15 @@ output('scope', { host, testType: 'read-only', note: 'Public edge may differ fro
 try {
   const addresses = [...new Set((await dns.lookup(host, { all: true })).map(r => r.address))].slice(0, 2)
   output('dns', { addresses })
+  output('dnsPublicResolver', await readPublicDns())
   for (const ip of addresses) {
     for (const port of [22, 80, 443, 3000, 5432, 6379, 8080]) {
       output('tcp', { ip, port, state: await tcpConnect(ip, port) })
     }
+  }
+  if (addresses[0]) {
+    output('service', await probeService(addresses[0], 22))
+    output('service', await probeService(addresses[0], 3000))
   }
 } catch (error) { output('dns', { error: error.code || error.name }) }
 output('tls', await inspectTls())
