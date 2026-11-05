@@ -370,7 +370,7 @@ async function publishJob(req, res) {
       if (invalid.length) {
         await client.query('ROLLBACK')
         return res.status(409).json({
-          error: `${invalid.length} produto(s) agrupado(s) ainda precisam de nome e preço válido. Corrija apenas essas exceções antes de importar.`,
+          error: `${invalid.length} produto(s) agrupado(s) ainda precisam de nome, preço e, para PDFs, foto válida. Corrija essas exceções antes de importar.`,
         })
       }
 
