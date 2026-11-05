@@ -1,8 +1,10 @@
 import express from 'express'
 import { takeSharedRate } from './redis-runtime.mjs'
+import { publicMutationLimit } from './public-mutation-limits.mjs'
 
 const authBuckets = new Map()
 const platformBuckets = new Map()
+const publicMutationBuckets = new Map()
 const windowMs = 15 * 60 * 1000
 const rateLimitDisabled = process.env.SHOPVAX_SECURITY_RATE_LIMIT_DISABLED === '1'
 
@@ -32,6 +34,7 @@ function sameOrigin(req) {
   const fetchSite = String(req.get('sec-fetch-site') || '').toLowerCase()
   if (fetchSite === 'cross-site') return false
   const origin = requestOrigin(req)
+  if (req.get('origin') && !origin) return false
   if (!origin) return true
   const proto = req.secure || req.get('x-forwarded-proto') === 'https' ? 'https:' : 'http:'
   const host = String(req.get('host') || '').toLowerCase()
@@ -63,7 +66,7 @@ function setSecurityHeaders(req, res) {
   if (req.secure || req.get('x-forwarded-proto') === 'https') {
     res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
   }
-  if (/^\/api\/(auth|admin|platform)(\/|$)/.test(req.path)) {
+  if (/^\/api\/(auth|admin|platform)(\/|$)/.test(req.path) || /^\/api\/(business\/orders|public\/phase4\/(payments|orders))(\/|$)/.test(req.path)) {
     res.setHeader('Cache-Control', 'no-store, private')
     res.setHeader('Pragma', 'no-cache')
   }
@@ -95,6 +98,17 @@ function installSecurity(app) {
       }
     }
 
+    const mutationPolicy = publicMutationLimit(req.method, req.path)
+    if (!rateLimitDisabled && mutationPolicy) {
+      const key = `${mutationPolicy.bucket}:${clientIp(req)}`
+      const result = await takeSharedRate(`public-write:${key}`, mutationPolicy.windowMs, mutationPolicy.max,
+        () => take(publicMutationBuckets, key, mutationPolicy.max, mutationPolicy.windowMs))
+      if (!result.ok) {
+        res.setHeader('Retry-After', String(result.retryAfter))
+        return res.status(429).json({ error: 'Muitas solicitações. Aguarde alguns minutos antes de tentar novamente.' })
+      }
+    }
+
     if (!rateLimitDisabled && unsafe && req.path.startsWith('/api/platform/')) {
       const ip = clientIp(req)
       const result = await takeSharedRate('platform:' + ip, 10 * 60 * 1000, 120, () => take(platformBuckets, ip, 120, 10 * 60 * 1000))
@@ -116,7 +130,7 @@ function installSecurity(app) {
 
 const cleanup = setInterval(() => {
   const now = Date.now()
-  for (const map of [authBuckets, platformBuckets]) {
+  for (const map of [authBuckets, platformBuckets, publicMutationBuckets]) {
     for (const [key, bucket] of map.entries()) if (bucket.resetAt <= now) map.delete(key)
   }
 }, 60_000)
