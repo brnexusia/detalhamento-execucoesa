@@ -360,6 +360,16 @@ export async function collectPdfCatalog(buffer, options = {}) {
 
     const parsed = parsePdfCatalogText(pages.join('\f'), totalPages)
     const candidates = parsed.candidates
+    // The supplier rarely prints a SKU. Generate a deterministic ShopVax-only
+    // import reference so re-uploading exactly the same PDF is idempotent.
+    // Never represent it as a manufacturer-provided reference.
+    const documentId = crypto.createHash('sha256').update(buffer).digest('hex').slice(0, 12).toUpperCase()
+    for (const candidate of candidates) {
+      if (candidate.sku) continue
+      const itemId = crypto.createHash('sha256').update(String(candidate.external_id)).digest('hex').slice(0, 8).toUpperCase()
+      candidate.sku = 'PDF-' + documentId + '-' + itemId
+      candidate.description = (candidate.description || '') + ' Referência interna ShopVax; não é código do fabricante.'
+    }
     if (!candidates.length) {
       throw new Error('Nenhum produto com nome e preço reconhecíveis foi encontrado. Use um PDF com preços legíveis ou cadastre os produtos manualmente.')
     }
