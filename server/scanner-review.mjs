@@ -129,7 +129,7 @@ export function sanitizeReviewData(value) {
 
 export function reviewWarnings(data) {
   const warnings = []
-  if (!data.name) warnings.push('missing_name')
+  if (!data.name || (data.source === 'pdf' && /^Peça \d+ \(tipo a confirmar\)/i.test(data.name))) warnings.push('missing_name')
   if (data.price == null) warnings.push('missing_price')
   return warnings
 }
@@ -157,7 +157,7 @@ export function reviewConfidence(issues) {
 }
 
 export function reviewIsPublishable(data) {
-  return Boolean(data?.name && Number(data?.price) > 0)
+  return Boolean(data?.name && Number(data?.price) > 0 && !\n    (data.source === 'pdf' && /^Peça \d+ \(tipo a confirmar\)/i.test(data.name)))
 }
 
 export function prepareReview(value) {
