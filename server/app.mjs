@@ -253,14 +253,14 @@ function clearSessionCookie(req, res) {
 async function requireDb(req, res, next) {
   if (!dbReady) await initDb()
   if (!dbReady || !pool) {
-    return res.status(503).json({ error: 'Banco ainda não está disponível.', detail: dbError })
+    return res.status(503).json({ error: 'Banco ainda não está disponível.', code: 'DB_UNAVAILABLE' })
   }
   next()
 }
 async function auth(req, res, next) {
   if (!dbReady) await initDb()
   if (!dbReady || !pool) {
-    return res.status(503).json({ error: 'Banco ainda não está disponível.', detail: dbError })
+    return res.status(503).json({ error: 'Banco ainda não está disponível.', code: 'DB_UNAVAILABLE' })
   }
   const token = parseCookies(req)[sessionCookie]
   if (!token) return res.status(401).json({ error: 'Sessão necessária.' })
@@ -352,7 +352,7 @@ app.get('/health', (_req, res) =>
   res.json({
     ok: true,
     database: dbReady,
-    databaseError: dbReady ? null : dbError,
+    databaseError: dbReady ? null : 'unavailable',
     storage: dbReady ? 'postgres' : 'unavailable',
     redis: redisReady() ? 'ready' : (process.env.REDIS_URL ? 'degraded' : 'disabled'),
     releaseSha: process.env.SHOPVAX_RELEASE_SHA?.trim() || null,
