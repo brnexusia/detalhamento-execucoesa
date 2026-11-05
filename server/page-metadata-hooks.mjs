@@ -42,6 +42,14 @@ const NON_PUBLIC = new Set([
   'perfil','favicon.svg'
 ])
 const plain = (value, fallback = '') => String(value || fallback).replace(/\s+/g, ' ').trim().slice(0, 220)
+// Human-readable summaries based on real public page data; never stuff synonyms or
+// infer an address, discounts, availability, reviews or store category.
+function seoSummary(value) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim()
+  if (text.length <= 170) return text
+  const words = text.slice(0, 167)
+  return words.slice(0, Math.max(100, words.lastIndexOf(' '))) + '…'
+}
 const safeJson = (value) => JSON.stringify(value).replace(/</g, '\\u003c')
 const documentUrl = (path, query = '') => SITE + path + query
 const publicImage = (value) => {
@@ -73,8 +81,8 @@ async function metadataFor(req) {
     return meta
   }
   if (pathname === '/para-lojas') {
-    meta.title = 'Catálogo digital para atacado e varejo | Shopvax'
-    meta.description = 'Organize produtos, catálogos e vendedoras; seus clientes escolhem os itens e enviam o pedido pelo WhatsApp.'
+    meta.title = 'Catálogo digital para lojas e atacado | Shopvax'
+    meta.description = 'Crie uma loja digital com catálogo de produtos, variações, links de vendedoras e pedidos preparados para o WhatsApp. Conheça o Shopvax para atacado e varejo.'
     meta.headline = 'Seu catálogo digital com pedidos pelo WhatsApp'
     meta.excerpt = meta.description
     return meta
@@ -97,17 +105,31 @@ async function metadataFor(req) {
     const store = stores.rows[0]
     const canonicalPath = (profile ? '/perfil/' : '/') + encodeURIComponent(store.slug)
     meta.url = documentUrl(canonicalPath)
-    meta.title = plain(store.name) + (profile ? ' | Shopvax' : ' — Catálogo | Shopvax')
-    meta.description = plain(store.tagline, 'Explore o catálogo de ' + store.name + ' no Shopvax.')
+    const storeName = plain(store.name)
+    const storeTagline = plain(store.tagline)
+    meta.title = profile ? storeName + ' | Shopvax' : storeName.slice(0, 100) + ' — Catálogo digital | Shopvax'
+    meta.description = profile
+      ? plain(store.tagline, 'Explore o catálogo de ' + store.name + ' no Shopvax.')
+      : seoSummary('Explore a loja digital ' + storeName +
+        ': catálogo de produtos e atendimento pelo WhatsApp. ' + storeTagline)
     meta.image = publicImage(store.logo_url)
     meta.headline = plain(store.name)
     meta.excerpt = meta.description
     meta.index = cleanQuery && (profile || parts.length === 1)
-    meta.schema = {
+    const storeSchema = {
       '@context': 'https://schema.org', '@type': 'Store',
-      name: plain(store.name), url: meta.url,
+      name: storeName, url: meta.url,
+      ...(storeTagline ? { description: storeTagline } : {}),
       ...(meta.image ? { image: meta.image } : {}),
     }
+    const storeBreadcrumbs = {
+      '@context': 'https://schema.org', '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Shopvax', item: SITE + '/' },
+        { '@type': 'ListItem', position: 2, name: storeName, item: meta.url },
+      ],
+    }
+    meta.schema = [storeSchema, storeBreadcrumbs]
     // Real, server-rendered public catalog teaser. Identical for humans and crawlers.
     // Never include unpublished, hidden or non-default-catalog items in initial HTML.
     if (!profile && !productId && meta.index) {
@@ -120,6 +142,22 @@ async function metadataFor(req) {
         'ORDER BY p.featured DESC,p.created_at DESC,p.id DESC LIMIT 12',
       ].join(' '), [store.id])
       meta.publicProducts = preview.rows.map((row) => ({ id: String(row.id), name: plain(row.name) }))
+      if (meta.publicProducts.length) {
+        meta.schema.push({
+          '@context': 'https://schema.org', '@type': 'CollectionPage',
+          name: 'Catálogo digital de ' + storeName,
+          url: meta.url,
+          mainEntity: {
+            '@type': 'ItemList',
+            itemListElement: meta.publicProducts.map((product, index) => ({
+              '@type': 'ListItem',
+              position: index + 1,
+              name: product.name,
+              url: documentUrl('/' + encodeURIComponent(store.slug), '?produto=' + encodeURIComponent(product.id)),
+            })),
+          },
+        })
+      }
     }
     if (productId) {
       if (!cleanQuery || parts.length !== (profile ? 2 : 1)) return { ...meta, index: false }
@@ -155,7 +193,8 @@ async function metadataFor(req) {
       )
       meta.url = canonicalProduct
       meta.title = plain(product.name) + ' · ' + plain(store.name) + ' | Shopvax'
-      meta.description = plain(product.description, 'Conheça ' + product.name + ' no catálogo da loja ' + store.name + '.')
+      meta.description = seoSummary('Veja ' + plain(product.name) + ' no catálogo digital da ' + storeName +
+        '. ' + plain(product.description, 'Confira os detalhes do produto e prepare seu pedido pelo WhatsApp.'))
       meta.image = product.media_type === 'image' ? (publicImage(product.media_url) || meta.image) : meta.image
       meta.headline = plain(product.name)
       meta.excerpt = meta.description

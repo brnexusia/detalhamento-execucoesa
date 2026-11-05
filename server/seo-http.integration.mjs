@@ -56,6 +56,15 @@ try {
     } })
     return {status: response.status, contentType: response.headers.get('content-type')||'', body:await response.text()}
   }
+  // Marketing targets generic queries while keeping the existing visible homepage unchanged.
+  const marketing = await get('/para-lojas')
+  assert.equal(marketing.status, 200)
+  includes(marketing.text, 'Catálogo digital para lojas e atacado')
+  includes(marketing.text, 'Crie uma loja digital com catálogo de produtos')
+  const discovery = await get('/')
+  assert.equal(discovery.status, 200)
+  includes(discovery.text, 'Shopvax | Catálogos, lojas e compras pelo WhatsApp')
+
   const pages = await botGet('/sitemap-pages.xml')
   assert.equal(pages.status, 200)
   assert.match(pages.contentType, /xml/)
@@ -92,10 +101,16 @@ try {
   includes(product.text, '"price":10')
   includes(product.text, '"@type":"BreadcrumbList"')
   includes(product.text, 'Produto SEO visivel')
+  includes(product.text, 'catálogo digital da Loja de teste SEO')
   assert.equal(product.text.includes(email), false)
   const listing = await get('/' + slug)
   assert.equal(listing.status, 200)
   includes(listing.text, '"@type":"Store"')
+  includes(listing.text, 'Loja de teste SEO — Catálogo digital | Shopvax')
+  includes(listing.text, 'Explore a loja digital Loja de teste SEO')
+  includes(listing.text, '"@type":"BreadcrumbList"')
+  includes(listing.text, '"@type":"CollectionPage"')
+  includes(listing.text, '"@type":"ItemList"')
   includes(listing.text, 'Produto SEO visivel')
   assert.equal(listing.text.includes('Produto nao publicado'), false)
   assert.equal(listing.text.includes('Produto oculto no catalogo'), false)
