@@ -69,7 +69,7 @@ async function readPublicDns() {
   } catch(error) {return {error: error.cause?.code || error.name}}
 }
 
-async function probeService(ip, port) {
+async function probeService(ip, port, path = '/health') {
   return new Promise(resolve => {
     if (port === 22) {
       const socket = net.connect({ host: ip, port, timeout: 2300 })
@@ -82,15 +82,18 @@ async function probeService(ip, port) {
       return
     }
     let finished = false
-    const request = http.get({ host: ip, port, path: '/health', timeout: 3000, headers: { Host: host, 'User-Agent': 'ShopVax-readonly-audit' } }, response => {
+    const request = http.get({ host: ip, port, path, timeout: 3000, headers: { Host: host, 'User-Agent': 'ShopVax-readonly-audit' } }, response => {
       let body = ''
       response.on('data', x => { if(body.length < 1024) body += x.toString('utf8').slice(0, 1024); })
       response.on('end', () => {
         if(finished)return;finished=true
         let parsed = null
         try {parsed = JSON.parse(body)} catch{}
-        resolve({ port, status: response.statusCode,
+        resolve({ port, path, status: response.statusCode,
           contentType: response.headers['content-type'] || null,
+          title: /<title[^>]*>([^<]{1,100})<\\/title>/i.exec(body)?.[1] || null,
+          poweredBy: response.headers['x-powered-by'] || null,
+          server: response.headers.server || null,
           healthShape: parsed ? {ok: typeof parsed.ok === 'boolean', database: typeof parsed.database === 'boolean'} : null })
       })
     })
@@ -153,7 +156,9 @@ try {
   }
   if (addresses[0]) {
     output('service', await probeService(addresses[0], 22))
-    output('service', await probeService(addresses[0], 3000))
+    output('service', await probeService(addresses[0], 3000, '/health'))
+    output('service', await probeService(addresses[0], 3000, '/'))
+    output('service', await probeService(addresses[0], 3000, '/api/platform/bootstrap'))
   }
 } catch (error) { output('dns', { error: error.code || error.name }) }
 output('tls', await inspectTls())
