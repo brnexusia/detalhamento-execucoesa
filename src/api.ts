@@ -14,6 +14,7 @@ export type ImportJob = {
   duplicate_count: number
   selected_count: number
   review_changed_count: number
+  hidden_published_count?: number
   published_count?: number
   skipped_existing_count?: number
   publish_mode?: 'separate' | 'grouped' | null
@@ -243,6 +244,12 @@ export const api = {
     return request<{ job: ImportJob; duplicated: boolean }>('/api/admin/imports/pdf', { method: 'POST', body })
   },
   discardImportJob: (jobId: string) => request<{ ok: true }>(`/api/admin/imports/${encodeURIComponent(jobId)}`, { method: 'DELETE' }),
+  hidePublishedPdfImport: (jobId: string) => request<{ ok: true; hidden: number; total_hidden: number }>(
+    `/api/admin/imports/${encodeURIComponent(jobId)}/hide-published-pdf`, { method: 'POST', body: '{}' },
+  ),
+  restorePublishedPdfImport: (jobId: string) => request<{ ok: true; restored: number }>(
+    `/api/admin/imports/${encodeURIComponent(jobId)}/restore-published-pdf`, { method: 'POST', body: '{}' },
+  ),
   recoverLegacyPdfImport: (jobId: string) => request<{ recovered: number; recategorized: number; preserved_originals: number; total_published: number; not_split_with_sku: number }>(
     `/api/admin/imports/${encodeURIComponent(jobId)}/recover-pdf`, { method: 'POST', body: '{}' },
   ),
