@@ -429,7 +429,11 @@ export async function processNormalizationJob(jobId, normalizer = normalizeCandi
           normalized_data: product.normalized,
           warnings,
           confidence: Number.isFinite(Number(product.confidence)) ? Number(product.confidence) : 0,
-          selected: warnings.length === 0,
+          // Editorial PDF lookbooks require an explicit review/selection
+          // before publication, even when prices and images appear complete.
+          // Simple named product PDFs keep the previous selection behavior.
+          selected: warnings.length === 0 && !(job.platform === 'pdf' &&
+            String(sourceById.get(product.source_candidate_id)?.external_id || '').startsWith('pdf-lookbook-')),
         }
       })
       if (rows.length) {
