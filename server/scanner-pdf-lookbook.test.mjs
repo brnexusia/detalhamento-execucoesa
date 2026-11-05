@@ -72,13 +72,13 @@ test('does not misclassify ordinary numbered price lists as a lookbook', () => {
 
 test('extracts unique item-specific photo bands from positioned board labels', () => {
   const html = `<page width="810" height="1440">
-    <line xMin="30" yMin="220"><word>BRINCO</word><word>01</word></line>
-    <line xMin="30" yMin="720"><word>PULSEIRA</word><word>02</word></line>
-    <line xMin="30" yMin="1070"><word>BRACELETE</word><word>04</word><word>E</word><word>05</word></line>
+    <line xMin="30" yMin="220" yMax="252"><word>BRINCO</word><word>01</word></line>
+    <line xMin="30" yMin="720" yMax="752"><word>PULSEIRA</word><word>02</word></line>
+    <line xMin="30" yMin="1070" yMax="1102"><word>BRACELETE</word><word>04</word><word>E</word><word>05</word></line>
   </page>`
   const bands = parseLookbookPhotoBands(html)
   assert.deepEqual([1, 2, 4, 5].map(id => bands.has('1:' + id)), [true,true,true,true])
-  assert.equal(bands.get('1:1').top, 210)
+  assert.equal(bands.get('1:1').top, 260)
   assert.equal(bands.get('1:1').bottom, 710)
   assert.equal(bands.get('1:2').bottom, 1060)
   assert.deepEqual(bands.get('1:4'),bands.get('1:5'))
@@ -123,4 +123,69 @@ test('collects a separated-page lookbook and assigns cropped images to individua
   assert.equal(uploads.length,3)
   assert.equal(parsed.candidates[0].pdf_page,2)
   assert.equal(parsed.candidates[1].pdf_detail_page,4)
+})
+
+test('Costa: continues split model price pages before the same colors board', () => {
+  const text = [
+    'COSTA',
+    '01 R$ 18,00 02 R$ 32,50 03 R$ 34,50 04 R$ 28,50',
+    '05 R$ 10,50',
+    'CORES DISPONÍVEIS\nPRESILHA 05',
+    '01 R$ 18,50 02 R$ 24,50',
+    'CORES DISPONÍVEIS\nBRINCO 01\nCOLAR 02',
+  ].join('\f')
+  const parsed = parsePdfCatalogText(text)
+  assert.equal(parsed.lookbook, true)
+  assert.equal(parsed.lookCount, 2)
+  assert.equal(parsed.candidates.length, 7)
+  assert.equal(parsed.candidates[4].price, 10.50)
+  assert.equal(parsed.candidates[4].category, 'Acessórios')
+  assert.equal(parsed.candidates[4].pdf_page, 3)
+  assert.equal(parsed.candidates[4].pdf_detail_page, 4)
+  assert.equal(parsed.candidates[0].pdf_detail_page, null)
+})
+
+test('Lume and Memories: join all successive variant boards for the same look', () => {
+  const parsed = parsePdfCatalogText([
+    'LUME',
+    '01 R$ 15,00 02 R$ 44,00 03 R$ 23,50 04 R$ 25,00 05 R$ 23,50',
+    'CORES DISPONÍVEIS\nBRINCO 01\nCOLAR 02\nBRACELETE 03 E 05',
+    'CORES DISPONÍVEIS\nBRACELETE 04',
+    '01 R$ 16,00 02 R$ 18,00',
+    'CORES DISPONÍVEIS\nBRINCO 01\nANEL 02',
+  ].join('\f'))
+  assert.equal(parsed.lookbook, true)
+  assert.deepEqual(parsed.candidates.slice(0,5).map(x=>x.category),
+    ['Brincos','Colares','Braceletes','Braceletes','Braceletes'])
+  assert.equal(parsed.candidates[3].pdf_detail_page, 4)
+  assert.equal(parsed.candidates[4].pdf_detail_page, 3)
+})
+
+test('Memories Drop II: never merge repeated 01 item from two adjacent looks', () => {
+  const parsed = parsePdfCatalogText([
+    'MEMORIES',
+    '01 R$ 140,00',
+    'CORES DISPONÍVEIS\nBRINCO 01',
+    '01 R$ 25,00 02 R$ 30,00',
+    'CORES DISPONÍVEIS\nBRACELETE 01\nBRACELETE 02',
+  ].join('\f'))
+  assert.equal(parsed.lookCount, 2)
+  assert.equal(parsed.candidates.length, 3)
+  assert.notEqual(parsed.candidates[0].external_id, parsed.candidates[1].external_id)
+  assert.equal(parsed.candidates[0].category, 'Geral')
+  assert.equal(parsed.candidates[1].category, 'Braceletes')
+})
+
+test('Origem: prints genuine prices but requires review for unnamed model products', () => {
+  const parsed = parsePdfCatalogText([
+    'ORIGEM',
+    '01 R$ 17,50 02 R$ 37,50 03 R$ 27,00',
+    'CORES DISPONÍVEIS\nBRINCO 01\nCOLAR 02',
+    '01 R$ 14,50 02 R$ 32,50',
+    'CORES DISPONÍVEIS\nBRINCO 01\nCOLAR 02',
+  ].join('\f'))
+  assert.equal(parsed.candidates.length, 5)
+  assert.equal(parsed.candidates[2].price, 27)
+  assert.equal(parsed.candidates[2].pdf_needs_review, true)
+  assert.equal(parsed.candidates[2].images.length, 0)
 })
