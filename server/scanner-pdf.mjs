@@ -266,8 +266,11 @@ async function attachLookbookPhotos(pdf, dir, candidates, imageListByPage, onIma
         try {
           // Keep only the photographed object/variant board, without the
           // label row, huge Canva whitespace or adjacent products.
-          const cropped = await sharp(source, { limitInputPixels: MAX_IMAGE_PIXELS })
-            .extract({ left: 0, top: y0, width: meta.width, height: y1 - y0 })
+          const band = await sharp(source, { limitInputPixels: MAX_IMAGE_PIXELS })
+            .extract({ left: 0, top: y0, width: meta.width, height: y1 - y0 }).toBuffer()
+          // Sharp can reorder trim/extract in one pipeline. Apply them in
+          // separate stages so crop coordinates always refer to the full page.
+          const cropped = await sharp(band, { limitInputPixels: MAX_IMAGE_PIXELS })
             .trim({ background: '#ffffff', threshold: 17 }).toBuffer()
           const trimmed = await sharp(cropped, { limitInputPixels: MAX_IMAGE_PIXELS }).metadata()
           if (!trimmed.width || !trimmed.height || trimmed.width < 60 || trimmed.height < 60) continue
