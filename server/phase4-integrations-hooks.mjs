@@ -194,6 +194,20 @@ async function ensureSchema() {
         );
         CREATE INDEX IF NOT EXISTS idx_order_payments_store_order ON order_payments(store_id,order_id,created_at DESC);
 
+        -- A claim is reserved BEFORE calling the external payment provider.
+        -- It prevents duplicate charges from concurrent requests and retries,
+        -- including when the previous provider response is inconclusive.
+        CREATE TABLE IF NOT EXISTS shopvax_payment_claims (
+          store_id text NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+          order_id text NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+          customer_id text NOT NULL REFERENCES store_customers(id) ON DELETE CASCADE,
+          state text NOT NULL DEFAULT 'processing',
+          payment_id text,
+          created_at timestamptz NOT NULL DEFAULT now(),
+          updated_at timestamptz NOT NULL DEFAULT now(),
+          PRIMARY KEY (store_id,order_id)
+        );
+
         CREATE TABLE IF NOT EXISTS phase4_webhook_events (
           id text PRIMARY KEY,
           store_id text NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
@@ -596,6 +610,19 @@ async function attachShipping(req, res) {
   return res.json({ order: { ...shaped, total: Number(shaped.total || 0), shippingAmount: Number(shaped.shipping_amount || 0), grandTotal: money(Number(shaped.total || 0) + Number(shaped.shipping_amount || 0)) } })
 }
 
+function respondWithExistingPayment(res, payment, order) {
+  const grandTotal = money(Number(order.total || 0) + Number(order.shipping_amount || 0))
+  return res.status(200).json({
+    payment: {
+      id: payment.id, externalId: payment.external_id,
+      billingType: payment.billing_type, status: payment.status,
+      value: Number(payment.value), invoiceUrl: payment.invoice_url,
+    },
+    order: { id: order.id, code: order.code, grandTotal },
+    reused: true,
+  })
+}
+
 async function createPayment(req, res) {
   const store = await storeBySlug(req.body?.storeSlug)
   if (!store || !phase4Eligible(store)) return res.status(404).json({ error: 'Loja não encontrada.' })
@@ -618,6 +645,16 @@ async function createPayment(req, res) {
   const cpfCnpj = digits(req.body?.cpfCnpj || customer.cpf_cnpj)
   if (![11, 14].includes(cpfCnpj.length)) return res.status(400).json({ error: 'Informe CPF ou CNPJ para gerar a cobrança.' })
   const phone = digits(req.body?.phone || customer.phone)
+  // Existing payments also cover orders created before the claim table existed.
+  // Never create a second payment merely because the user refreshed checkout.
+  const previousPayment = await pool.query(`
+    SELECT id,external_id,billing_type,status,value,invoice_url
+    FROM order_payments
+    WHERE store_id=$1 AND order_id=$2 AND provider='asaas'
+    ORDER BY created_at DESC LIMIT 1
+  `, [store.id, order.id])
+  if (previousPayment.rowCount) return respondWithExistingPayment(res, previousPayment.rows[0], order)
+
   let asaasCustomerId = String(customer.asaas_customer_id || '')
   if (!asaasCustomerId) {
     const createdCustomer = await asaasRequest(integration, '/v3/customers', {
@@ -641,6 +678,27 @@ async function createPayment(req, res) {
   const grandTotal = money(Number(order.total || 0) + Number(order.shipping_amount || 0))
   if (grandTotal <= 0) return res.status(409).json({ error: 'Pedido sem valor para cobrança.' })
   const due = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  // Reserve the order before the remote side effect. A conflict means another
+  // worker already started a charge, so this request must never call Asaas.
+  const reserved = await pool.query(`
+    INSERT INTO shopvax_payment_claims (store_id,order_id,customer_id,state)
+    VALUES ($1,$2,$3,'processing')
+    ON CONFLICT (store_id,order_id) DO NOTHING RETURNING order_id
+  `, [store.id, order.id, customer.id])
+  if (!reserved.rowCount) {
+    const existing = await pool.query(`
+      SELECT id,external_id,billing_type,status,value,invoice_url
+      FROM order_payments WHERE store_id=$1 AND order_id=$2 AND provider='asaas'
+      ORDER BY created_at DESC LIMIT 1
+    `, [store.id, order.id])
+    if (existing.rowCount) return respondWithExistingPayment(res, existing.rows[0], order)
+    return res.status(409).json({
+      error: 'Uma tentativa de pagamento já está em processamento ou aguardando conciliação.',
+      code: 'PAYMENT_RECONCILIATION_REQUIRED',
+    })
+  }
+
+  try {
   const createdPayment = await asaasRequest(integration, '/v3/payments', {
     method: 'POST',
     body: {
@@ -656,14 +714,38 @@ async function createPayment(req, res) {
   if (!externalId) return res.status(502).json({ error: 'Asaas não retornou o identificador da cobrança.' })
   const paymentId = id()
   const invoiceUrl = String(createdPayment.invoiceUrl || createdPayment.bankSlipUrl || '')
-  await pool.query(`
-    INSERT INTO order_payments(id,store_id,order_id,customer_id,provider,external_id,external_customer_id,billing_type,status,value,invoice_url,raw_response)
-    VALUES ($1,$2,$3,$4,'asaas',$5,$6,$7,$8,$9,$10,$11::jsonb)
-    ON CONFLICT (provider,external_id) DO NOTHING
-  `, [paymentId, store.id, order.id, customer.id, externalId, asaasCustomerId, billingType, String(createdPayment.status || 'PENDING').toLowerCase(), grandTotal, invoiceUrl, JSON.stringify(createdPayment)])
-  await pool.query("UPDATE orders SET payment_status='pending' WHERE id=$1 AND payment_status<>'paid'", [order.id])
+  const connection = await pool.connect()
+  try {
+    await connection.query('BEGIN')
+    const saved = await connection.query(`
+      INSERT INTO order_payments(id,store_id,order_id,customer_id,provider,external_id,external_customer_id,billing_type,status,value,invoice_url,raw_response)
+      VALUES ($1,$2,$3,$4,'asaas',$5,$6,$7,$8,$9,$10,$11::jsonb)
+      ON CONFLICT (provider,external_id) DO NOTHING RETURNING id
+    `, [paymentId, store.id, order.id, customer.id, externalId, asaasCustomerId, billingType, String(createdPayment.status || 'PENDING').toLowerCase(), grandTotal, invoiceUrl, JSON.stringify(createdPayment)])
+    if (!saved.rowCount) throw Error('A cobrança retornada pelo provedor já está registrada.')
+    await connection.query(`
+      UPDATE shopvax_payment_claims SET state='created',payment_id=$1,updated_at=now()
+      WHERE store_id=$2 AND order_id=$3 AND state='processing'
+    `, [paymentId, store.id, order.id])
+    await connection.query("UPDATE orders SET payment_status='pending' WHERE id=$1 AND payment_status<>'paid'", [order.id])
+    await connection.query('COMMIT')
+  } catch (error) {
+    await connection.query('ROLLBACK')
+    throw error
+  } finally {
+    connection.release()
+  }
   void dispatchErpEvent(store.id, 'payment.updated', { orderId: order.id, paymentId: externalId, status: 'pending', value: grandTotal }).catch(() => undefined)
   return res.status(201).json({ payment: { id: paymentId, externalId, billingType, status: String(createdPayment.status || 'PENDING').toLowerCase(), value: grandTotal, invoiceUrl }, order: { id: order.id, code: order.code, grandTotal } })
+  } catch (error) {
+    // Timeout is NOT proof the remote request failed. Keep the claim locked
+    // until a trusted reconciliation explicitly decides how to proceed.
+    await pool.query(`
+      UPDATE shopvax_payment_claims SET state='uncertain',updated_at=now()
+      WHERE store_id=$1 AND order_id=$2 AND state='processing'
+    `, [store.id, order.id]).catch(() => undefined)
+    throw error
+  }
 }
 
 function paymentEventStatus(eventName, payment) {

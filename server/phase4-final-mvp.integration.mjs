@@ -209,6 +209,35 @@ try {
   assert.equal(result.payload.payment.billingType, 'PIX')
   assert.match(result.payload.payment.invoiceUrl, /^https:\/\/sandbox\.asaas\.test\/invoice\//)
   const externalPaymentId = result.payload.payment.externalId
+  result = await request('/api/public/phase4/payments', {
+    method: 'POST', cookie: customerCookie,
+    body: { storeSlug: owner.slug, orderId, billingType: 'PIX', cpfCnpj: '12345678901' },
+  })
+  assert.equal(result.response.status, 200)
+  assert.equal(result.payload.reused, true)
+  assert.equal(result.payload.payment.externalId, externalPaymentId)
+  const paymentRows = await pool.query(
+    'SELECT id FROM order_payments WHERE store_id=$1 AND order_id=$2',
+    [storeId, orderId],
+  )
+  assert.equal(paymentRows.rowCount, 1)
+  const parallelOrder = await request('/api/business/orders', {
+    method: 'POST', cookie: customerCookie,
+    body: { storeSlug: owner.slug, sellerSlug: seller.slug,
+      catalogSlug: catalog.slug, items: [{ productId: product.id, quantity: 4, selections: {} }] },
+  })
+  assert.equal(parallelOrder.response.status, 201)
+  const parallelOrderId = parallelOrder.payload.orderId
+  const parallel = await Promise.all(Array.from({ length: 4 }, () =>
+    request('/api/public/phase4/payments', {
+      method: 'POST', cookie: customerCookie,
+      body: { storeSlug: owner.slug, orderId: parallelOrderId, billingType: 'PIX', cpfCnpj: '12345678901' },
+    })
+  ))
+  assert.equal(parallel.filter(x => x.response.status === 201).length, 1)
+  assert.ok(parallel.every(x => [200, 201, 409].includes(x.response.status)))
+  const parallelRows = await pool.query('SELECT id FROM order_payments WHERE store_id=$1 AND order_id=$2', [storeId, parallelOrderId])
+  assert.equal(parallelRows.rowCount, 1)
 
   result = await request(webhookUrl.pathname, {
     method: 'POST',

@@ -43,6 +43,25 @@ export function detectCatalogImageType(buffer) {
   return null
 }
 
+// Identify media by its container signature, never by client-controlled MIME alone.
+// This header check is not a full codec or malware scan.
+export function detectCatalogVideoType(buffer) {
+  if (!Buffer.isBuffer(buffer) || buffer.length < 16) return null
+  if (buffer.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]))) {
+    const header = buffer.subarray(4, Math.min(buffer.length, 2048))
+    if (header.includes(Buffer.from([0x42, 0x82, 0x84, 0x77, 0x65, 0x62, 0x6d]))) return 'video/webm'
+  }
+  if (buffer.subarray(4, 8).toString('ascii') === 'ftyp') {
+    const size = buffer.readUInt32BE(0)
+    if (size < 16 || size > buffer.length) return null
+    const brand = buffer.subarray(8, 12).toString('ascii').toLowerCase()
+    if (brand === 'qt  ') return 'video/quicktime'
+    if (['isom', 'iso2', 'iso4', 'iso5', 'iso6', 'mp41', 'mp42',
+      'avc1', 'dash', 'm4v ', 'm4vh', '3gp4', '3gp5'].includes(brand)) return 'video/mp4'
+  }
+  return null
+}
+
 export async function prepareCatalogMedia(file) {
   const bytes = file?.buffer
   if (!Buffer.isBuffer(bytes) || bytes.length === 0)
@@ -53,11 +72,12 @@ export async function prepareCatalogMedia(file) {
   const detected = detectCatalogImageType(bytes)
   const declared = mimeOf(file)
   if (!detected) {
-    if (VIDEO_MIMES.has(declared) ||
-        (declared === 'application/octet-stream' && VIDEO_EXT.test(nameOf(file)))) {
-      return { buffer: bytes, mimeType: VIDEO_MIMES.has(declared) ? declared :
-        /\.mov$/i.test(nameOf(file)) ? 'video/quicktime' :
-          /\.webm$/i.test(nameOf(file)) ? 'video/webm' : 'video/mp4', type: 'video' }
+    const generic = ['', 'application/octet-stream', 'binary/octet-stream'].includes(declared)
+    const videoRequested = VIDEO_MIMES.has(declared) || (generic && VIDEO_EXT.test(nameOf(file)))
+    if (videoRequested) {
+      const actual = detectCatalogVideoType(bytes)
+      if (!actual) throw uploadError('Vídeo inválido ou não suportado. Envie MP4, MOV ou WEBM válido.')
+      return { buffer: bytes, mimeType: actual, type: 'video' }
     }
     throw uploadError('Formato de foto não reconhecido. Use JPG, PNG, WEBP, AVIF ou HEIC.')
   }

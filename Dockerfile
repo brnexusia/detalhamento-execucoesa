@@ -1,6 +1,8 @@
 # syntax=docker/dockerfile:1.7
 
 FROM node:22-bookworm-slim AS builder
+# Easypanel passes GIT_SHA as a build argument for Git-backed services.
+ARG GIT_SHA
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY package.json ./
@@ -8,6 +10,8 @@ RUN npm install --no-audit --no-fund
 COPY . .
 RUN node scripts/generate-shopvax-tour.mjs
 RUN npm run build
+# Persist the actual source revision in the image; never trust a hand-entered runtime value.
+RUN if [ -n "$GIT_SHA" ]; then printf '%s' "$GIT_SHA" > /app/dist/shopvax-release-sha.txt; fi
 
 FROM node:22-bookworm-slim AS runner
 # PDF text/images and OCR fallback for scanned wholesale catalogs.
