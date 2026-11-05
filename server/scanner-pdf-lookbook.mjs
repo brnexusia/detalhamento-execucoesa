@@ -177,6 +177,18 @@ export function parseLookbookPhotoBands(bbox) {
       const items = labelsFromPage(words).labels
       if (items.size && Number.isFinite(top)) matches.push({ top, left, ids: [...items.keys()] })
     }
+    // A few single-item catalog boards label only BOLSA, without "01".
+    // If and only if the board has one standalone type and no numbered
+    // labels, its entire board can safely serve as the only product image.
+    if (!matches.length) {
+      const standalone = [...page[2].matchAll(/<line\s+[^>]+>([\s\S]*?)<\/line>/gi)]
+        .map((line) => [...line[1].matchAll(/<word\b[^>]*>([\s\S]*?)<\/word>/gi)].map((word) => xml(word[1])).join(' '))
+        .filter((line) => SINGLE_TYPE.test(clean(line)))
+      if (standalone.length === 1) {
+        regions.set((pageIndex+1) + ':1', { page:pageIndex+1,
+          top:Math.round(h*0.14), bottom:h-10, left:0, right:w, width:w, height:h })
+      }
+    }
     matches.sort((a, b) => a.top - b.top || a.left - b.left)
     const rows = []
     for (const match of matches) {
