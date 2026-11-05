@@ -42,6 +42,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Security policy tests and changed backend syntax
+        run: |
+          node --check server/scanner-collector.mjs
+          node --check server/phase4-integrations-hooks.mjs
+          node --check server/security-hooks.mjs
+          node --test server/network-egress-policy.test.mjs server/order-access-policy.test.mjs server/public-mutation-limits.test.mjs
       - name: Install
         run: npm install
       - name: Install PDF tooling for import regression tests
@@ -266,6 +272,11 @@ jobs:
           SHOPVAX_PLAN_LIMITS_DISABLED: '0'
           SHOPVAX_SECURITY_RATE_LIMIT_DISABLED: '0'
         run: node server/platform-admin.integration.mjs
+      - name: Security rate limit integration - local only
+        env:
+          BASE_URL: http://127.0.0.1:3001
+          SHOPVAX_SECURITY_RATE_LIMIT_DISABLED: '0'
+        run: node server/public-mutation-rate-limit.integration.mjs
       - name: Print server log on failure
         if: failure()
         run: |

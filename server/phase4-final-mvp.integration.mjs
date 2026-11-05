@@ -154,6 +154,45 @@ try {
   assert.equal(result.payload.total, 400)
   const orderId = result.payload.orderId
 
+  // Pentest regression: anonymous / unrelated buyers cannot mutate or pay for
+  // an order, even when they know its UUID.
+  result = await request(`/api/public/phase4/orders/${orderId}/shipping`, {
+    method: 'POST', body: { storeSlug: owner.slug, quoteId },
+  })
+  assert.equal(result.response.status, 403)
+
+  result = await request(`/api/public/store/${owner.slug}/customers/register`, {
+    method: 'POST', body: {
+      name: 'Outro cliente', email: `outro-f4-${unique}@example.test`,
+      phone: '5511977700088', password: 'outro-cliente-123',
+    },
+  })
+  assert.equal(result.response.status, 201)
+  const anotherCustomerCookie = result.cookies.find((value) => value.startsWith('shopvax_customer_session=')) || ''
+  assert.ok(anotherCustomerCookie)
+  result = await request(`/api/public/phase4/orders/${orderId}/shipping`, {
+    method: 'POST', cookie: anotherCustomerCookie, body: { storeSlug: owner.slug, quoteId },
+  })
+  assert.equal(result.response.status, 403)
+  result = await request('/api/public/phase4/payments', {
+    method: 'POST', cookie: anotherCustomerCookie,
+    body: { storeSlug: owner.slug, orderId, billingType: 'PIX', cpfCnpj: '12345678901' },
+  })
+  assert.equal(result.response.status, 403)
+
+  // A client can ask for a quote with a forged higher subtotal. It cannot
+  // attach that free-shipping quote to a lower-value persisted order.
+  result = await request('/api/public/phase4/shipping/quote', {
+    method: 'POST', body: { storeSlug: owner.slug, postalCode: '44470-000', state: 'BA', subtotal: 1000 },
+  })
+  assert.equal(result.response.status, 200)
+  const forgedQuoteId = result.payload.quotes[0].id
+  assert.equal(result.payload.quotes[0].amount, 0)
+  result = await request(`/api/public/phase4/orders/${orderId}/shipping`, {
+    method: 'POST', cookie: customerCookie, body: { storeSlug: owner.slug, quoteId: forgedQuoteId },
+  })
+  assert.equal(result.response.status, 409)
+
   result = await request(`/api/public/phase4/orders/${orderId}/shipping`, {
     method: 'POST', cookie: customerCookie, body: { storeSlug: owner.slug, quoteId },
   })
@@ -235,6 +274,12 @@ try {
   })
   assert.equal(result.response.status, 200)
   assert.equal(result.payload.product.stockQuantity, 12)
+
+  result = await request('/api/admin/phase4/erp-webhooks', {
+    method: 'POST', cookie: owner.cookie,
+    body: { name: 'Destino proibido', url: 'https://169.254.169.254/latest/meta-data/' },
+  })
+  assert.equal(result.response.status, 400)
 
   result = await request('/api/admin/phase4/erp-webhooks', {
     method: 'POST', cookie: owner.cookie,

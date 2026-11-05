@@ -1,7 +1,8 @@
 import dns from 'node:dns/promises'
 import http from 'node:http'
 import https from 'node:https'
-import { isIP } from 'node:net'
+import { isPublicAddress } from './network-egress-policy.mjs'
+export { isPublicAddress } from './network-egress-policy.mjs'
 import { gunzipSync } from 'node:zlib'
 import { load } from 'cheerio'
 import { detectStorefrontPlatform, extractFacilZapRuntime, facilZapProducts, parseVestiContext, vestiProducts, isZapFacilCatalogPage } from './scanner-platforms.mjs'
@@ -15,32 +16,6 @@ const SITEMAP_MAX_RESPONSE_BYTES = 64 * 1024 * 1024
 const REQUEST_TIMEOUT_MS = 12000
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0 Safari/537.36'
 const MAX_PRODUCT_IMAGES = 40
-
-function blockedIpv4(address) {
-  const parts = address.split('.').map(Number)
-  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) return true
-  const [a, b] = parts
-  return a === 0 || a === 10 || a === 127 ||
-    (a === 100 && b >= 64 && b <= 127) ||
-    (a === 169 && b === 254) ||
-    (a === 172 && b >= 16 && b <= 31) ||
-    (a === 192 && b === 168) ||
-    (a === 192 && b === 0) ||
-    (a === 198 && (b === 18 || b === 19)) ||
-    a >= 224
-}
-
-function blockedIpv6(address) {
-  const value = address.toLowerCase().replace(/^\[|\]$/g, '')
-  return value === '::' || value === '::1' || value.startsWith('fc') || value.startsWith('fd') || /^fe[89ab]/.test(value)
-}
-
-export function isPublicAddress(address) {
-  const version = isIP(String(address || '').replace(/^\[|\]$/g, ''))
-  if (version === 4) return !blockedIpv4(address)
-  if (version === 6) return !blockedIpv6(address)
-  return false
-}
 
 async function resolvePublicAddress(hostname) {
   const records = await dns.lookup(hostname, { all: true, verbatim: true })
@@ -88,7 +63,7 @@ export async function safeRequest(input, options = {}) {
       timeout: Number(options.timeout || REQUEST_TIMEOUT_MS),
     }, async (response) => {
       const status = Number(response.statusCode || 0)
-      if ([301, 302, 303, 307, 308].includes(status) && response.headers.location) {
+      if (options.followRedirects !== false && [301, 302, 303, 307, 308].includes(status) && response.headers.location) {
         response.resume()
         try {
           const target = new URL(response.headers.location, url)
