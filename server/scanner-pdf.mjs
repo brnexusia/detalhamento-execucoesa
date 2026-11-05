@@ -237,10 +237,12 @@ async function attachLookbookPhotos(pdf, dir, candidates, imageListByPage, onIma
         if (savedPhotos >= MAX_EXTRACTED_PRODUCT_PHOTOS) break
         const y0 = Math.max(0, Math.floor(region.top / region.height * meta.height))
         const y1 = Math.min(meta.height, Math.ceil(region.bottom / region.height * meta.height))
-        if (y1 - y0 < 70) continue
+        const x0 = Math.max(0, Math.floor((region.left || 0) / region.width * meta.width))
+        const x1 = Math.min(meta.width, Math.ceil((region.right || region.width) / region.width * meta.width))
+        if (y1 - y0 < 70 || x1 - x0 < 70) continue
         try {
           const photo = await sharp(source, { limitInputPixels: MAX_IMAGE_PIXELS })
-            .extract({ left: 0, top: y0, width: meta.width, height: y1 - y0 })
+            .extract({ left: x0, top: y0, width: x1 - x0, height: y1 - y0 })
             .resize({ width: 1200, height: 1200, fit: 'inside', withoutEnlargement: true })
             .webp({ quality: 83 }).toBuffer()
           if (photo.length > 5 * 1024 * 1024) continue
@@ -327,7 +329,10 @@ export async function collectPdfCatalog(buffer, options = {}) {
     // One candidate per page is required to avoid assigning a wrong photo.
     if (options.onImage) {
       try {
-        const listing = parseImageListing(await command('pdfimages', ['-list', pdf], 16000, deadline))
+        // Lookbooks are rendered from page-specific product boards. They may
+        // contain thousands of embedded decorative masks, which make an entire
+        // document pdfimages listing both slow and unnecessary.
+        const listing = parsed.lookbook ? [] : parseImageListing(await command('pdfimages', ['-list', pdf], 16000, deadline))
         if (listing.length > MAX_IMAGE_LIST_ENTRIES) throw new PdfSafetyError(UNSAFE_PDF_MESSAGE)
         const pageCounts = new Map()
         for (const item of candidates) pageCounts.set(item.pdf_page, (pageCounts.get(item.pdf_page) || 0) + 1)
