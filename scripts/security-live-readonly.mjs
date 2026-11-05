@@ -91,7 +91,7 @@ async function probeService(ip, port, path = '/health') {
         try {parsed = JSON.parse(body)} catch{}
         resolve({ port, path, status: response.statusCode,
           contentType: response.headers['content-type'] || null,
-          title: /<title[^>]*>([^<]{1,100})<\\/title>/i.exec(body)?.[1] || null,
+          title: new RegExp('<title[^>]*>([^<]{1,100})</title>', 'i').exec(body)?.[1] || null,
           poweredBy: response.headers['x-powered-by'] || null,
           server: response.headers.server || null,
           healthShape: parsed ? {ok: typeof parsed.ok === 'boolean', database: typeof parsed.database === 'boolean'} : null })
