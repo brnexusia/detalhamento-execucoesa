@@ -112,7 +112,8 @@ export function parseNumberedLookbookPages(rawPages, maxProducts = 500) {
     return { ...group, labels, unnumbered }
   })
   const matched = joined.reduce((n, group) => n +
-    [...group.prices.keys()].filter((id) => group.labels.has(id)).length, 0)
+    [...group.prices.keys()].filter((id) => group.labels.has(id) ||
+      (group.prices.size === 1 && group.unnumbered.length === 1)).length, 0)
   if (joined.length < 2 || matched < 2 || !joined.some((group) => group.boards.length)) return null
 
   const collection = collectionFrom(pages)
