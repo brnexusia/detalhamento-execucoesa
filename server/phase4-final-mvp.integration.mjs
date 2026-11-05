@@ -224,7 +224,7 @@ try {
   const parallelOrder = await request('/api/business/orders', {
     method: 'POST', cookie: customerCookie,
     body: { storeSlug: owner.slug, sellerSlug: seller.slug,
-      catalogSlug: catalog.slug, items: [{ productId: product.id, quantity: 2, selections: {} }] },
+      catalogSlug: catalog.slug, items: [{ productId: product.id, quantity: 4, selections: {} }] },
   })
   assert.equal(parallelOrder.response.status, 201)
   const parallelOrderId = parallelOrder.payload.orderId
