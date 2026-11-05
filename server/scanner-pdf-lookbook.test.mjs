@@ -189,3 +189,25 @@ test('Origem: prints genuine prices but requires review for unnamed model produc
   assert.equal(parsed.candidates[2].pdf_needs_review, true)
   assert.equal(parsed.candidates[2].images.length, 0)
 })
+
+
+test('recognizes compound bracelet and mixed jewelry labels found in Memories and Lume', () => {
+  const parsed = parsePdfCatalogText([
+    'MEMORIES',
+    '01 R$ 17,00 02 R$ 36,00 03 R$ 27,00',
+    'CORES DISPONÍVEIS\nBRINCO 01\nCOLAR 02\nPULSEIRA/BRACELETE 03',
+    '01 R$ 21,00 02 R$ 35,00',
+    'CORES DISPONÍVEIS\nBRINCO 01 E ANEL 02',
+  ].join('\f'))
+  assert.equal(parsed.lookbook,true)
+  assert.equal(parsed.candidates.length,5)
+  assert.deepEqual(parsed.candidates.map(x=>x.category),['Brincos','Colares','Braceletes','Brincos','Anéis'])
+  const bbox = '<page width="810" height="1400">' +
+    '<line xMin="30" yMin="100" yMax="124"><word>PULSEIRA/BRACELETE</word><word>03</word></line>' +
+    '<line xMin="30" yMin="730" yMax="754"><word>BRINCO</word><word>01</word><word>E</word><word>ANEL</word><word>02</word></line>' +
+    '</page>'
+  const regions = parseLookbookPhotoBands(bbox)
+  assert.equal(regions.has('1:3'),true)
+  assert.equal(regions.has('1:1'),true)
+  assert.equal(regions.has('1:2'),true)
+})
