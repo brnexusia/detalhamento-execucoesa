@@ -682,7 +682,7 @@ function installScannerRoutes(app) {
     const prepared = prepareReview({ ...baseData, ...(req.body?.data && typeof req.body.data === 'object' ? req.body.data : {}) })
     const selected = typeof req.body?.selected === 'boolean' ? req.body.selected : Boolean(row.selected)
     if (selected && !prepared.publishable) {
-      return res.status(400).json({ error: 'Para selecionar este produto, informe pelo menos nome e preço válido.' })
+      return res.status(400).json({ error: 'Para selecionar o produto, confirme nome e preço e, no caso de PDF, inclua uma foto.' })
     }
 
     const client = await pool.connect()
