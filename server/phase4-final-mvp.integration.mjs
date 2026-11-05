@@ -210,6 +210,22 @@ try {
   assert.match(result.payload.payment.invoiceUrl, /^https:\/\/sandbox\.asaas\.test\/invoice\//)
   const externalPaymentId = result.payload.payment.externalId
 
+  // AUDITORIA EM MOCK: reproduz um segundo clique/retry em um pedido pendente.
+  // Nunca chama a API de pagamento real neste workflow (SHOPVAX_ASAAS_MOCK=1).
+  const retryPayment = await request('/api/public/phase4/payments', {
+    method: 'POST', cookie: customerCookie,
+    body: { storeSlug: owner.slug, orderId, billingType: 'PIX', cpfCnpj: '12345678901' },
+  })
+  assert.equal(retryPayment.response.status, 201)
+  assert.notEqual(retryPayment.payload.payment.externalId, externalPaymentId)
+  const repeatedPayments = await pool.query(
+    "SELECT count(*)::int AS count FROM order_payments WHERE store_id=$1 AND order_id=$2 AND provider='asaas'",
+    [storeId, orderId],
+  )
+  assert.equal(repeatedPayments.rows[0].count, 2)
+  console.log('[AUDITORIA MOCK] Segundo pagamento pendente criado para o mesmo pedido: SIM')
+
+
   result = await request(webhookUrl.pathname, {
     method: 'POST',
     headers: { 'asaas-access-token': 'token-incorreto-que-nao-deve-passar' },
