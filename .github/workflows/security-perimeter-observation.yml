@@ -1,0 +1,21 @@
+name: Security public perimeter observation
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/security-live-readonly.mjs'
+      - '.github/workflows/security-perimeter-observation.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  observe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Read-only DNS ports TLS HTTP headers CORS and public route checks
+        run: node scripts/security-live-readonly.mjs
