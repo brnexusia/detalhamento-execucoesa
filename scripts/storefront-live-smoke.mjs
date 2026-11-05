@@ -2,7 +2,17 @@ import assert from 'node:assert/strict'
 import { chromium } from 'playwright'
 
 const origin = 'https://shopvax.com.br'
-const slugs = ['lookpremium', 'laura-bijoux', 'debora-joias']
+// Discover currently active public stores rather than pinning removed or suspended slugs.
+const sitemapResponse = await fetch(origin + '/sitemap-stores-1.xml', {
+  headers: { 'User-Agent': 'Googlebot/2.1 (+http://www.google.com/bot.html)' },
+})
+assert.equal(sitemapResponse.status, 200, 'Public store sitemap must be available')
+const sitemap = await sitemapResponse.text()
+const activeSlugs = [...sitemap.matchAll(/<loc>https:\/\/shopvax\.com\.br\/([a-z0-9-]+)<\/loc>/g)].map((match) => match[1])
+assert.ok(activeSlugs.includes('lookpremium'), 'Look Premium must be in the active public sitemap')
+const slugs = ['lookpremium', ...activeSlugs.filter(slug => slug !== 'lookpremium').slice(0, 2)]
+assert.equal(slugs.length, 3, 'Need at least 3 active public storefronts for live smoke')
+
 const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] })
 let errors = 0
 try {
@@ -34,7 +44,8 @@ try {
         errorText: document.body.innerText.includes('Não foi possível abrir a loja agora'),
       }))
       const ok = response?.status() === 200 && Boolean(result.name) &&
-        !result.errorText && publicRequests.some(x => x.code === 200)
+        !result.errorText && publicRequests.some(x => x.code === 200) &&
+        (slug !== 'lookpremium' || result.productCards > 0)
       console.log(JSON.stringify({ slug, pageStatus: response?.status(), jsErrors: jsErrors.slice(0, 4), publicRequests, productCards: result.productCards, loadedStoreName: Boolean(result.name), failureMessage: result.errorText, ok }))
       if (!ok) errors++
     } catch (error) {

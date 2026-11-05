@@ -1,12 +1,13 @@
 name: ShopVax storefront live diagnosis
 on:
   push:
-    branches: [main, fix/shopvax-storefront-googlebot-20261102]
+    branches: [main, fix/live-smoke-sitemap-sampling]
     paths:
       - '.github/workflows/storefront-live-diagnosis.yml'
       - 'server/public-protection-hooks.mjs'
       - 'server/seo-routes-hooks.mjs'
       - 'server/page-metadata-hooks.mjs'
+      - 'scripts/storefront-live-smoke.mjs'
       - 'src/api.ts'
   workflow_dispatch:
 permissions:
