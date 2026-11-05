@@ -157,7 +157,8 @@ export function reviewConfidence(issues) {
 }
 
 export function reviewIsPublishable(data) {
-  return Boolean(data?.name && Number(data?.price) > 0 && !\n    (data.source === 'pdf' && /^Peça \d+ \(tipo a confirmar\)/i.test(data.name)))
+  return Boolean(data?.name && Number(data?.price) > 0 && !
+    (data.source === 'pdf' && /^Peça \d+ \(tipo a confirmar\)/i.test(data.name)))
 }
 
 export function prepareReview(value) {
