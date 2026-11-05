@@ -48,6 +48,11 @@ try {
   const health = await fetch(`${base}/health`)
   if (health.headers.get('x-frame-options') !== 'DENY') throw new Error('Security headers não bloquearam framing.')
   if (!health.headers.get('content-security-policy')?.includes("frame-ancestors 'none'")) throw new Error('CSP de produção ausente.')
+  const permissions = health.headers.get('permissions-policy') || ''
+  if (!permissions.includes('camera=()') || !permissions.includes('microphone=()') ||
+      !permissions.includes('geolocation=()') || !permissions.includes('interest-cohort=()')) {
+    throw new Error('Permissions-Policy foi sobrescrita e perdeu restrições de segurança.')
+  }
 
   const bootstrap = await api('/api/platform/bootstrap', { cookie: admin.cookie })
   if (!bootstrap.response.ok) throw new Error(`Bootstrap admin: ${bootstrap.response.status} ${JSON.stringify(bootstrap.payload)}`)
