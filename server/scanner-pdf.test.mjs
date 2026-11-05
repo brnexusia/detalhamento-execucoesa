@@ -235,3 +235,18 @@ test('global listing image indices are not the extracted page-local indexes', ()
   assert.equal(entries.length, 2)
   assert.deepEqual(entries.map((entry) => entry.index), [17, 26])
 })
+
+test('Spetacolo Broches: extracts name and listed price from each standalone product page', () => {
+  const parsed = parsePdfCatalogText([
+    'LANÇAMENTO BROCHES',
+    'Lançamento SPETACOLO\n@spetacolo.acessorios\nBroche Cereja R$ 10,00',
+    'Lançamento SPETACOLO\nBroche Alfinete Amuleto R$ 7,50',
+    'Lançamento SPETACOLO\nKit Broche com 3 R$ 17,50',
+    'Lançamento SPETACOLO\nBroche Nº5 R$ 10,00',
+  ].join('\f'))
+  assert.equal(parsed.candidates.length,4)
+  assert.deepEqual(parsed.candidates.map(x=>x.price),[10,7.5,17.5,10])
+  assert.equal(parsed.candidates[0].title,'Broche Cereja')
+  assert.equal(parsed.candidates[0].category,'Broches')
+  assert.equal(parsed.candidates[2].category,'Broches')
+})
