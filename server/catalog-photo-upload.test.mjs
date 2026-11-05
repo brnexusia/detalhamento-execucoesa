@@ -44,3 +44,15 @@ test('converte AVIF de câmera para JPEG exibível no catálogo', async () => {
   assert.equal(output.mimeType,'image/jpeg')
   assert((await sharp(output.buffer).metadata()).format === 'jpeg')
 })
+
+test('AUDITORIA: upload de bytes arbitrários declarados como vídeo é aceito pelo código atual', async () => {
+  const fakeVideo = Buffer.from('<html>nao e um video</html>')
+  const result = await prepareCatalogMedia({
+    buffer: fakeVideo, mimetype: 'video/mp4', originalname: 'falso.mp4',
+  })
+  // Documenta o comportamento vulnerável observado, sem executar upload de rede.
+  assert.equal(result.type, 'video')
+  assert.equal(result.mimeType, 'video/mp4')
+  assert.deepEqual(result.buffer, fakeVideo)
+  console.log('[AUDITORIA] upload MP4 falso aceito localmente:', result.type)
+})
