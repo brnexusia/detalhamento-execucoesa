@@ -253,11 +253,11 @@ test('Spetacolo Broches: extracts name and listed price from each standalone pro
 
 test('reconstructs a transparent Canva brooch instead of keeping a black background', async () => {
   const red = await sharp({ create: { width: 160, height: 160, channels: 3, background: { r: 220, g: 25, b: 35 } } }).png().toBuffer()
-  const white = await sharp({ create: { width: 160, height: 160, channels: 1, background: { r: 255, g: 255, b: 255 } } }).png().toBuffer()
+  const white = await sharp({ create: { width: 160, height: 160, channels: 3, background: { r: 255, g: 255, b: 255 } } }).greyscale().png().toBuffer()
   const rgb = await sharp({ create: { width: 420, height: 420, channels: 3, background: { r: 0, g: 0, b: 0 } } })
     .composite([{ input: red, left: 130, top: 130 }]).png().toBuffer()
-  const alpha = await sharp({ create: { width: 420, height: 420, channels: 1, background: { r: 0, g: 0, b: 0 } } })
-    .composite([{ input: white, left: 130, top: 130 }]).png().toBuffer()
+  const alpha = await sharp({ create: { width: 420, height: 420, channels: 3, background: { r: 0, g: 0, b: 0 } } })
+    .composite([{ input: white, left: 130, top: 130 }]).greyscale().png().toBuffer()
   const result = await preparePdfEmbeddedPhoto(rgb, alpha)
   const meta = await sharp(result).metadata()
   assert.equal(meta.format, 'webp')
