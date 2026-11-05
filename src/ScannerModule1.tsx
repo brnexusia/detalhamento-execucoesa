@@ -58,6 +58,8 @@ const warningLabels: Record<string, string> = {
   missing_name: 'Sem nome',
   missing_price: 'Sem preço',
   missing_image: 'Sem imagem',
+  uncertain_category: 'Tipo da peça precisa ser confirmado',
+  manual_review: 'Conferir no PDF original',
   missing_sku: 'Sem SKU',
   missing_category: 'Sem categoria',
   missing_description: 'Sem descrição',
