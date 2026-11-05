@@ -29,7 +29,7 @@
 1. Fazer backup verificável do PostgreSQL e das mídias; testar restauração em instância isolada. Esta alteração cria a tabela `shopvax_payment_claims`; não requer apagar dados.
 2. Publicar somente o SHA aprovado, a partir da fonte GitHub do EasyPanel e usando Dockerfile; verificar no log de build que `GIT_SHA` foi recebido sem divulgar segredos.
 3. Fazer GET de `https://shopvax.com.br/health` e confirmar `ok=true`, `database=true` e `releaseSha` exatamente igual ao SHA compilado.
-4. Rodar workflow `production-readiness` com URL e SHA publicado e conferir `Permissions-Policy` no domínio externo. O backend já define uma política de câmera/microfone/localização; a produção anterior retornou outra política, possivelmente por proxy/versão desatualizada.
+4. Rodar workflow `production-readiness` com URL e SHA publicado e conferir `Permissions-Policy` no domínio externo. O middleware de performance sobrescrevia a política definida pelo módulo de segurança; isso foi corrigido no código e passou a ter teste de regressão. A configuração real só será confirmada após o deploy.
 5. Em staging, com o mock do Asaas ou credenciais sandbox: testar toque duplo, pedidos paralelos, cobrança anterior ao deploy, desconexão do provedor e eventos duplicados. Não criar cobranças reais de teste.
 6. Verificar que a porta 3000 não responde fora da VPN/allowlist, e que a porta 22 fica acessível apenas à rede administrativa.
 
