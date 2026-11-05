@@ -265,3 +265,21 @@ test('reconstructs a transparent Canva brooch instead of keeping a black backgro
   const rgbResult = await sharp(result).raw().toBuffer()
   assert(rgbResult[0] > 170 && rgbResult[1] < 100, 'the recovered image must show product color, not black pixels')
 })
+
+test('assigns stable internal reference when supplier PDF has no SKU', async () => {
+  const pdf = await new Promise((resolve, reject) => {
+    const doc = new PDFDocument()
+    const parts = []
+    doc.on('data', (chunk) => parts.push(chunk))
+    doc.on('end', () => resolve(Buffer.concat(parts)))
+    doc.on('error', reject)
+    doc.fontSize(20).text('Broche Cereja R$ 10,00')
+    doc.end()
+  })
+  const first = await collectPdfCatalog(pdf)
+  const second = await collectPdfCatalog(pdf)
+  assert.equal(first.candidates.length, 1)
+  assert.match(first.candidates[0].sku, /^PDF-[A-F0-9]{12}-[A-F0-9]{8}$/)
+  assert.equal(first.candidates[0].sku, second.candidates[0].sku)
+  assert.match(first.candidates[0].description, /não é código do fabricante/)
+})
