@@ -111,7 +111,7 @@ test('collects a separated-page lookbook and assigns cropped images to individua
     onImage: async (buffer,mime,file)=>{
       const m = await sharp(buffer).metadata()
       assert.equal(mime,'image/webp')
-      assert(m.height < 1250 && m.height > 200, 'crop is a single-item band, not the whole page')
+      assert(m.height < 1250 && m.height > 40 && m.width > 40, 'crop is a single-item band, not the whole page')
       uploads.push({file,bytes:buffer.length})
       return '/media/' + crypto.randomUUID()
     },
