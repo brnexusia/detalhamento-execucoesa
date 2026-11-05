@@ -8,7 +8,7 @@
 
 ## Mudanças nesta rodada
 
-- Metadados descritivos e específicos por intenção de busca (home, marketing, loja e produto).
+- Metadados descritivos específicos para marketing, vitrine e produto; metadados existentes do feed e perfil social preservados.
 - `Store`, `BreadcrumbList` e `CollectionPage` com `ItemList` apenas quando houver produtos elegíveis, usando os mesmos IDs e nomes da consulta pública do catálogo padrão.
 - Nenhum arquivo em `src/`, CSS, rota de checkout, autenticação ou banco foi alterado.
 - Preservadas URLs canônicas, sitemaps, regras de segurança e renderização existente.
