@@ -211,7 +211,14 @@ export async function preparePdfEmbeddedPhoto(mainBytes, maskBytes = null) {
         imageInfo.width !== maskInfo.width || imageInfo.height !== maskInfo.height) {
       throw new Error('A máscara de transparência do produto é inválida.')
     }
-    const flattened = await source.removeAlpha().joinChannel(maskBytes)
+    // Sharp may reorder removeAlpha/joinChannel/flatten within one pipeline;
+    // materialize each stage to guarantee an actual RGBA image.
+    const opaqueRgb = await source.removeAlpha().png().toBuffer()
+    const alpha = await sharp(maskBytes, { limitInputPixels: MAX_IMAGE_PIXELS })
+      .extractChannel(0).png().toBuffer()
+    const withAlpha = await sharp(opaqueRgb, { limitInputPixels: MAX_IMAGE_PIXELS })
+      .joinChannel(alpha).png().toBuffer()
+    const flattened = await sharp(withAlpha, { limitInputPixels: MAX_IMAGE_PIXELS })
       .flatten({ background: '#ffffff' }).png().toBuffer()
     const trimmed = await sharp(flattened, { limitInputPixels: MAX_IMAGE_PIXELS })
       .trim({ background: '#ffffff', threshold: 15 }).toBuffer()
