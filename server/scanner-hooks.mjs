@@ -410,8 +410,16 @@ export async function processNormalizationJob(jobId, normalizer = normalizeCandi
       const candidates = candidatesResult.rows.map((row) => ({ ...row.raw_data, __candidate_id: row.id }))
       const result = await normalizer(candidates)
       const products = Array.isArray(result?.products) ? result.products : []
+      const sourceById = new Map(candidates.map((candidate) => [candidate.__candidate_id, candidate]))
       const rows = products.map((product) => {
-        const warnings = Array.isArray(product.warnings) ? product.warnings : []
+        const warnings = Array.isArray(product.warnings) ? [...product.warnings] : []
+        if (job.platform === 'pdf') {
+          const original = sourceById.get(product.source_candidate_id)
+          const normalized = product.normalized || {}
+          if (!normalized.images?.length && !warnings.includes('missing_image')) warnings.push('missing_image')
+          if (/^(?:Geral|Outros)$/i.test(String(normalized.category || original?.category || '')) && !warnings.includes('uncertain_category')) warnings.push('uncertain_category')
+          if (/REVISÃO OBRIGATÓRIA/i.test(String(original?.description || '')) && !warnings.includes('manual_review')) warnings.push('manual_review')
+        }
         return {
           id: id(),
           job_id: job.id,
@@ -421,7 +429,11 @@ export async function processNormalizationJob(jobId, normalizer = normalizeCandi
           normalized_data: product.normalized,
           warnings,
           confidence: Number.isFinite(Number(product.confidence)) ? Number(product.confidence) : 0,
-          selected: warnings.length === 0,
+          // Editorial PDF lookbooks require an explicit review/selection
+          // before publication, even when prices and images appear complete.
+          // Simple named product PDFs keep the previous selection behavior.
+          selected: warnings.length === 0 && !(job.platform === 'pdf' &&
+            String(sourceById.get(product.source_candidate_id)?.external_id || '').startsWith('pdf-lookbook-')),
         }
       })
       if (rows.length) {

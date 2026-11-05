@@ -22,13 +22,13 @@ test('links numbered prices to the next colors board by item number and preserve
   assert.equal(parsed.lookbook, true)
   assert.equal(parsed.candidates.length, 6)
   assert.deepEqual(parsed.candidates.slice(0, 3).map(x => x.price), [23, 24, 45])
-  assert.equal(parsed.candidates[0].title.startsWith('Brinco 01'), true)
+  assert.equal(parsed.candidates[0].title.startsWith('Brinco · Memories · 01-01'), true)
   assert.equal(parsed.candidates[0].pdf_page, 4)
   assert.equal(parsed.candidates[0].pdf_detail_page, 6)
-  assert.equal(parsed.candidates[1].title.startsWith('Pulseira 03'), true)
-  assert.equal(parsed.candidates[2].title.startsWith('Pulseira 02'), true)
-  assert.equal(parsed.candidates[3].title.startsWith('Brinco 01'), true)
-  assert.match(parsed.candidates[4].title, /tipo a confirmar/)
+  assert.equal(parsed.candidates[1].title.startsWith('Pulseira · Memories · 01-03'), true)
+  assert.equal(parsed.candidates[2].title.startsWith('Pulseira · Memories · 01-02'), true)
+  assert.equal(parsed.candidates[3].title.startsWith('Brinco · Memories · 02-01'), true)
+  assert.match(parsed.candidates[4].title, /Acessório para identificar/)
   assert.equal(parsed.candidates[4].category, 'Geral')
   assert.equal(parsed.candidates[4].sku, '')
   assert.notEqual(parsed.candidates[0].external_id, parsed.candidates[3].external_id)
@@ -56,9 +56,63 @@ test('flags a high-priced item with a suspect earring label rather than inventin
   ].join('\f'))
   assert.equal(parsed.lookbook, true)
   assert.equal(parsed.candidates[0].category, 'Geral')
-  assert.match(parsed.candidates[0].title, /tipo a confirmar/)
-  assert.match(parsed.candidates[0].description, /potencialmente incorreto/)
+  assert.match(parsed.candidates[0].title, /Acessório para identificar/)
+  assert.match(parsed.candidates[0].description, /REVISÃO OBRIGATÓRIA/)
   assert.equal(parsed.candidates[1].category, 'Brincos')
+})
+
+
+test('Costa: continued price pages 05 and 06 belong to the SAME look, followed by multiple boards', () => {
+  const pages = [
+    'COSTA nova coleção',
+    '01 R$ 18,00\n02 R$ 32,50\n03 R$ 34,50\n04 R$ 28,50',
+    '05 R$ 10,50',
+    'CORES DISPONÍVEIS\nPRESILHA 05',
+    '01 R$ 18,50\n02 R$ 24,50\n03 R$ 17,50\n04 R$ 37,50',
+    'CORES DISPONÍVEIS\nBRINCO 01\nCOLAR 02',
+    'CORES DISPONÍVEIS\nBRACELETE 04',
+  ].map(x => x.replaceAll('\\n', '\n'))
+  const parsed = parsePdfCatalogText(pages.join('\f'))
+  assert.equal(parsed.lookbook, true)
+  assert.equal(parsed.candidates.length, 9)
+  assert.equal(parsed.candidates[4].title.startsWith('Presilha · Costa · 01-05'), true)
+  assert.equal(parsed.candidates[4].price, 10.50)
+  assert.equal(parsed.candidates[4].pdf_page, 3)
+  assert.equal(parsed.candidates[7].category, 'Geral')
+  assert.equal(parsed.candidates[8].category, 'Braceletes')
+  assert.equal(parsed.candidates[8].pdf_detail_page, 7)
+})
+
+test('Memories: multiple boards complement one price page; shared bracelet numbers are preserved', () => {
+  const doc = [
+    'MEMORIES',
+    '01 R$ 17,00\n02 R$ 36,00\n03 R$ 27,00\n04 R$ 24,00\n05 R$ 51,00',
+    'CORES DISPONÍVEIS\nBRINCO 01\nCOLAR 02\nPULSEIRA/BRACELETE 03',
+    'CORES DISPONÍVEIS\nPULSEIRA/BRACELETE 04\nPULSEIRA/BRACELETE 05',
+    '01 R$ 14,50\n02 R$ 24,00',
+    'CORES DISPONÍVEIS\nBRINCO 01\nCOLAR 02',
+  ].map(x => x.replaceAll('\\n', '\n'))
+  const parsed = parsePdfCatalogText(doc.join('\f'))
+  assert.equal(parsed.lookbook, true)
+  assert.equal(parsed.candidates.length, 7)
+  assert.deepEqual(parsed.candidates.slice(0, 5).map(x => x.pdf_detail_page), [3,3,3,4,4])
+  assert.equal(parsed.candidates[4].title.startsWith('Pulseira/Bracelete'), true)
+})
+
+test('Lume: prices with incomplete centavos must be reviewed instead of guessed', () => {
+  const text = [
+    'LUME coleção',
+    '01 R$ 1300\n02 R$ 12,0',
+    'CORES DISPONÍVEIS\nGOLA 01\nBROCHE 02',
+    '01 R$ 15,00\n02 R$ 10,00',
+    'CORES DISPONÍVEIS\nBRINCO 01\nBROCHE 02',
+  ].map(x => x.replaceAll('\\n', '\n'))
+  const parsed = parsePdfCatalogText(text.join('\f'))
+  assert.equal(parsed.lookbook, true)
+  assert.equal(parsed.candidates[0].price, null)
+  assert.equal(parsed.candidates[1].price, null)
+  assert.equal(parsed.candidates[0].pdf_review_required, true)
+  assert.equal(parsed.candidates[2].price, 15)
 })
 
 test('does not misclassify ordinary numbered price lists as a lookbook', () => {
@@ -70,6 +124,24 @@ test('does not misclassify ordinary numbered price lists as a lookbook', () => {
   ]), null)
 })
 
+test('single standalone supplier bag is a real product, not a missing-category placeholder', () => {
+  const parsed = parsePdfCatalogText([
+    'MEMORIES',
+    '01 R$ 140,00',
+    'CORES DISPONÍVEIS\nBOLSA',
+    '01 R$ 18,00',
+    'CORES DISPONÍVEIS\nBRINCO 01',
+  ].map(x => x.replaceAll('\\n','\n')).join('\f'))
+  assert.equal(parsed.lookbook, true)
+  assert.equal(parsed.candidates[0].category, 'Bolsas')
+  assert.equal(parsed.candidates[0].pdf_detail_page, 3)
+  const xml = '<page width="810" height="1440">' +
+    '<line xMin="60" yMin="300"><word>BOLSA</word></line></page>'
+  const regions = parseLookbookPhotoBands(xml)
+  assert.equal(regions.get('1:1').page, 1)
+  assert.ok(regions.get('1:1').bottom > 1000)
+})
+
 test('extracts unique item-specific photo bands from positioned board labels', () => {
   const html = `<page width="810" height="1440">
     <line xMin="30" yMin="220"><word>BRINCO</word><word>01</word></line>
@@ -78,9 +150,9 @@ test('extracts unique item-specific photo bands from positioned board labels', (
   </page>`
   const bands = parseLookbookPhotoBands(html)
   assert.deepEqual([1, 2, 4, 5].map(id => bands.has('1:' + id)), [true,true,true,true])
-  assert.equal(bands.get('1:1').top, 210)
-  assert.equal(bands.get('1:1').bottom, 710)
-  assert.equal(bands.get('1:2').bottom, 1060)
+  assert.equal(bands.get('1:1').top, 208)
+  assert.equal(bands.get('1:1').bottom, 708)
+  assert.equal(bands.get('1:2').bottom, 1058)
   assert.deepEqual(bands.get('1:4'),bands.get('1:5'))
 })
 

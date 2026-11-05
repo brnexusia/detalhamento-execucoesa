@@ -157,6 +157,8 @@ export function reviewConfidence(issues) {
 }
 
 export function reviewIsPublishable(data) {
+  if (String(data?.source || '').toLowerCase() === 'pdf' &&
+      /^Acessório para identificar\b/i.test(String(data?.name || '').trim())) return false
   return Boolean(data?.name && Number(data?.price) > 0)
 }
 
