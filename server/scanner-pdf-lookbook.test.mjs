@@ -57,7 +57,7 @@ test('flags a high-priced item with a suspect earring label rather than inventin
   assert.equal(parsed.lookbook, true)
   assert.equal(parsed.candidates[0].category, 'Geral')
   assert.match(parsed.candidates[0].title, /tipo a confirmar/)
-  assert.match(parsed.candidates[0].description, /potencialmente incorreto/)
+  assert.match(parsed.candidates[0].description, /pode estar incorreta/)
   assert.equal(parsed.candidates[1].category, 'Brincos')
 })
 
