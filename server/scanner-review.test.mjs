@@ -73,4 +73,15 @@ assert.equal(accepted.publishable, true)
 assert.deepEqual(accepted.warnings, [])
 assert.equal(accepted.confidence, 1)
 
+const unidentifiedPdfItem = prepareReview({
+  source: 'pdf', name: 'Acessório para identificar · Memories · 01-03',
+  category: 'Geral', price: 27.0,
+})
+assert.equal(unidentifiedPdfItem.publishable, false, 'não publicar título provisório em PDF')
+const correctedPdfItem = prepareReview({
+  source: 'pdf', name: 'Pulseira · Memories · 01-03',
+  category: 'Pulseiras', price: 27, images: ['https://cdn.example.com/pulseira.webp'],
+})
+assert.equal(correctedPdfItem.publishable, true, 'produto corrigido manualmente pode ser publicado')
+
 console.log('[scanner module 4] review validation: ok')
