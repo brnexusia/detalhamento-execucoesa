@@ -1,52 +1,116 @@
-.svx-billing { color:#161514; max-width:1180px; margin:auto; padding:24px 20px 72px; font-family:Archivo,system-ui,sans-serif; }
-.svx-billing__eyebrow,.svx-billing__summary span,.svx-billing__plans article>span { color:#9c4c21; font:600 11px/1.4 'Fragment Mono',monospace; letter-spacing:.12em; }
-.svx-billing__header { border-bottom:1px solid #d9d3c6; padding:18px 0 28px; }
-.svx-billing h1,.svx-billing h2 { font-family:'Archivo Narrow',sans-serif; }
-.svx-billing__header h1 { font-size:clamp(32px,5vw,50px); line-height:1.05; margin:10px 0; }
-.svx-billing__header p { color:#565149; max-width:600px; }
-.svx-billing__summary { display:grid; grid-template-columns:1fr 1fr auto; gap:18px; padding:25px 0; border-bottom:1px solid #d9d3c6; }
-.svx-billing__summary>div { display:flex; flex-direction:column; gap:6px; }
-.svx-billing__summary strong { font-size:20px; }
-.svx-billing__summary small { color:#625d55; max-width:290px; }
-.svx-billing__actions { align-items:flex-start; }
-.svx-billing button { display:inline-flex; align-items:center; justify-content:center; gap:8px; border:1px solid #161514; cursor:pointer; padding:11px 13px; background:transparent; color:#161514; font-weight:600; border-radius:2px; }
-.svx-billing button:focus-visible { outline:3px solid #f25c05; outline-offset:3px; }
-.svx-billing button:disabled { opacity:.55; cursor:not-allowed; }
-.svx-billing__term { display:flex; gap:8px; flex-wrap:wrap; padding:26px 0 20px; }
-.svx-billing__term button { display:flex; flex-direction:column; align-items:flex-start; min-width:128px; gap:2px; border-color:#d9d3c6; }
-.svx-billing__term button.is-selected { color:#f25c05; border-color:#f25c05; }
-.svx-billing__term small { font-size:11px; opacity:.72; }
-.svx-billing__plans { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
-.svx-billing__plans article { display:flex; flex-direction:column; gap:10px; min-height:245px; padding:22px; background:#f3f0e8; border:1px solid #d9d3c6; }
-.svx-billing__plans article.is-featured { border-color:#f25c05; }
-.svx-billing__plans h2 { font-size:26px; margin:0; }
-.svx-billing__plans article>strong { font-size:27px; }
-.svx-billing__plans p { color:#60594e; font-size:13px; flex:1; }
-.svx-billing__plans button { background:#161514; color:#fff; width:100%; }
-.svx-billing__plans .is-featured button { background:#f25c05; border-color:#f25c05; }
-.svx-billing__fineprint { font-size:12px; color:#645e54; margin:20px 0; line-height:1.7; }
-.svx-billing__notice,.svx-billing__error { display:flex; align-items:flex-start; gap:8px; padding:12px 0; }
-.svx-billing__error { color:#a02b1c; }
-.svx-billing__notice { color:#266447; }
-@media(max-width:800px) { .svx-billing__summary { grid-template-columns:1fr 1fr; } .svx-billing__actions { grid-column:1/-1; flex-direction:row !important; flex-wrap:wrap; } .svx-billing__plans { grid-template-columns:1fr; } .svx-billing__plans article { min-height:200px; } }
-@media(max-width:480px) { .svx-billing { padding:14px 12px 48px; } .svx-billing__summary { grid-template-columns:1fr; } .svx-billing__term { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); } .svx-billing__term button { min-width:0; width:100%; padding:9px 7px; } .svx-billing__summary strong { font-size:18px; } }
-
-/* Identificação explícita da oferta na cobrança Stripe. */
-.svx-billing__promo-banner{display:inline-block;max-width:720px;margin:12px 0 0!important;padding:10px 13px;background:#fbe1c8;border:1px solid #dc8d52;color:#46230c!important;font-weight:700;font-size:13px}
-.svx-billing__plans .svx-billing__previous-price{font-size:15px;font-weight:600;color:#716659;text-decoration:line-through;text-decoration-thickness:1px}
-
-/* Cobrança / iPhone: campo de indicação em coluna, sem descrição encostada no input. */
-.svx-billing__referral{display:grid;grid-template-columns:minmax(0,1fr);gap:7px;margin:22px 0 4px;max-width:570px}
-.svx-billing__referral label{font-size:14px;font-weight:600;line-height:1.4}
-.svx-billing__referral input{display:block;width:100%;max-width:100%;min-width:0;min-height:46px;box-sizing:border-box;border:1px solid #a8a195;border-radius:3px;padding:11px 13px;background:#fcfaf5;color:#161514;font:inherit}
-.svx-billing__referral small{display:block;line-height:1.55;font-size:12px;color:#625d55;overflow-wrap:anywhere}
-.svx-billing__error{line-height:1.5;overflow-wrap:anywhere}
-.svx-billing__promo-banner{box-sizing:border-box;max-width:100%;overflow-wrap:anywhere}
-@media(max-width:760px){
-  .svx-billing{padding-bottom:130px}
-  .svx-billing__referral{margin-top:16px}
-  /* Ajuda continua acessível mas não encobre inputs e ações. */
-  body:has(.svx-billing) .svx-support__trigger{width:45px;min-width:45px;height:45px;min-height:45px;display:flex;justify-content:center;gap:0;padding:0;font-size:0;overflow:hidden;border-radius:50%}
-  body:has(.svx-billing) .svx-support__trigger svg{width:21px;height:21px;flex-shrink:0}
-  body:has(.svx-billing) .svx-support{right:10px;bottom:max(14px,env(safe-area-inset-bottom))}
+/* Shopvax Billing — responsive checkout + account state, November 2026 */
+.svx-billing {
+  --bill-ink:#171613;
+  --bill-muted:#635e54;
+  --bill-line:#d9d3c6;
+  --bill-paper:#f3f0e8;
+  --bill-accent:#f25c05;
+  width:100%;
+  max-width:1040px;
+  box-sizing:border-box;
+  padding:clamp(20px,3.4vw,42px) clamp(16px,3vw,34px) 80px;
+  margin:0 auto;
+  color:var(--bill-ink);
+  font-family:var(--svx-font-body,Archivo,system-ui,sans-serif);
 }
+.svx-billing *, .svx-billing *::before, .svx-billing *::after {box-sizing:border-box}
+.svx-billing h1,.svx-billing h2,.svx-billing h3{font-family:var(--svx-font-display,'Archivo Narrow',sans-serif);letter-spacing:-.02em}
+.svx-billing__eyebrow,.svx-billing__status-label {
+  font:600 11px/1.45 var(--svx-font-mono,'Fragment Mono',monospace);
+  text-transform:uppercase;letter-spacing:.11em;color:#a14a20;
+}
+.svx-billing__header {margin:0 0 20px}
+.svx-billing__header h1{font-size:clamp(32px,5vw,46px);line-height:1.04;font-weight:800;margin:10px 0 9px}
+.svx-billing__header p {margin:0;max-width:590px;font-size:clamp(14px,1.6vw,16px);line-height:1.55;color:var(--bill-muted)}
+.svx-billing button{appearance:none;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;border:1px solid var(--bill-ink);border-radius:2px;padding:10px 14px;background:transparent;color:var(--bill-ink);font:700 13px/1.3 var(--svx-font-body,Archivo,system-ui,sans-serif);cursor:pointer;transition:background-color .15s,border-color .15s}
+.svx-billing button:focus-visible,.svx-billing input:focus-visible{outline:3px solid #f25c05;outline-offset:3px}
+.svx-billing button:disabled{opacity:.57;cursor:not-allowed}
+.svx-billing__status{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px;align-items:center;padding:22px;border:1px solid var(--bill-line);background:#fcfaf5}
+.svx-billing__status.needs-action{border-color:#cfa37e;background:#fff8f0}
+.svx-billing__status.is-active{border-color:#a4b5a1;background:#f5faf5}
+.svx-billing__status-main{display:flex;align-items:flex-start;gap:13px;min-width:0}
+.svx-billing__status-icon{display:grid;place-items:center;flex:0 0 44px;width:44px;height:44px;background:#e7e1d7;border-radius:50%;color:var(--bill-ink)}
+.svx-billing__status.is-active .svx-billing__status-icon{background:#deeddf;color:#287248}
+.svx-billing__status.needs-action .svx-billing__status-icon{background:#ffe6d2;color:#9c4621}
+.svx-billing__status-main>div{min-width:0}
+.svx-billing__status h2{font-size:clamp(23px,2.4vw,29px);line-height:1.1;margin:4px 0 8px}
+.svx-billing__status p{margin:0;max-width:540px;line-height:1.5;color:var(--bill-muted);font-size:13px}
+.svx-billing__status-actions{display:flex;flex-direction:column;align-items:stretch;gap:8px;min-width:185px}
+.svx-billing__status-actions button{width:100%;max-width:100%;white-space:normal;text-align:center}
+.svx-billing__status-actions .svx-billing__primary{background:var(--bill-accent);border-color:var(--bill-accent);color:#171613}
+.svx-billing__status-actions .svx-billing__secondary{background:transparent}
+.svx-billing__guidance{margin:14px 0 0;padding:15px 18px;border-left:3px solid #a14a20;background:#f5ede4}
+.svx-billing__guidance strong{display:block;font-size:14px;margin-bottom:4px}
+.svx-billing__guidance p{font-size:13px;line-height:1.55;margin:0;color:var(--bill-muted)}
+.svx-billing__notice,.svx-billing__error{display:flex;align-items:flex-start;gap:10px;margin:13px 0;padding:12px 14px;font-size:13px;line-height:1.5;overflow-wrap:anywhere}
+.svx-billing__notice{color:#266447;background:#ecf5ef}
+.svx-billing__error{color:#a02b1c;background:#fff2ee}
+.svx-billing__notice svg,.svx-billing__error svg{flex:none}
+.svx-billing__section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:34px 0 3px}
+.svx-billing__section-head h2{font-size:clamp(25px,3.2vw,32px);line-height:1.15;margin:5px 0 2px}
+.svx-billing__promo-tag,.svx-billing__plan-top span{display:inline-flex;align-items:center;width:max-content;max-width:100%;padding:6px 9px;color:#fff;background:#191714;font:800 10px/1.2 var(--svx-font-mono,monospace);letter-spacing:.05em}
+.svx-billing__section-subtitle{color:var(--bill-muted);font-size:13px;line-height:1.5;margin:0 0 13px}
+.svx-billing__term{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:16px 0}
+.svx-billing__term button{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;min-height:63px;gap:4px;padding:12px 14px;border-color:var(--bill-line);background:#fcfaf5}
+.svx-billing__term button.is-selected{border-color:var(--bill-accent);box-shadow:inset 0 0 0 1px var(--bill-accent);color:#b84e17}
+.svx-billing__term strong{font-size:16px}
+.svx-billing__term small{font-size:11px;color:var(--bill-muted);font-weight:500}
+.svx-billing__plans{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.svx-billing__plans article{display:flex;flex-direction:column;min-width:0;gap:8px;padding:20px;background:#fcfaf5;border:1px solid var(--bill-line)}
+.svx-billing__plans article.is-featured{border-color:#d46b37}
+.svx-billing__plan-top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:7px}
+.svx-billing__plan-top h3{font-size:25px;line-height:1.1;margin:0}
+.svx-billing__price{display:flex;flex-direction:column;gap:2px;margin:5px 0}
+.svx-billing__price del{font-size:13px;line-height:1.4;color:#7b7267}
+.svx-billing__price strong{font-size:clamp(28px,3.1vw,36px);line-height:1.12;letter-spacing:-.025em}
+.svx-billing__price small{font-size:12px;color:var(--bill-muted)}
+.svx-billing__plan-note{margin:3px 0 auto;color:var(--bill-muted);font-size:12px;line-height:1.5}
+.svx-billing__plans button{width:100%;min-height:45px;background:#171613;border-color:#171613;color:#fff;margin-top:10px}
+.svx-billing__plans article.is-featured button:not(:disabled){background:var(--bill-accent);border-color:var(--bill-accent);color:#171613}
+.svx-billing__referral{display:grid;grid-template-columns:minmax(0,1fr);gap:7px;margin:23px 0 0;padding:18px;border:1px solid var(--bill-line);background:#fcfaf5}
+.svx-billing__referral label{font-size:13px;font-weight:700;line-height:1.5}
+.svx-billing__referral label small{font-size:12px;font-weight:500;color:var(--bill-muted)}
+.svx-billing__referral input{display:block;width:100%;max-width:100%;min-height:44px;padding:10px 12px;border:1px solid #a8a195;border-radius:2px;background:#fff;color:var(--bill-ink);font:inherit}
+.svx-billing__referral>small{display:block;font-size:12px;line-height:1.5;color:var(--bill-muted)}
+.svx-billing__fineprint{margin:24px 0 0;padding-top:15px;border-top:1px solid var(--bill-line);color:var(--bill-muted);font-size:11px;line-height:1.6}
+@media(max-width:830px){
+ .svx-billing__status{grid-template-columns:1fr}
+ .svx-billing__status-actions{flex-direction:row;min-width:0}
+ .svx-billing__status-actions button{flex:1;min-width:0}
+ .svx-billing__plans{grid-template-columns:1fr}
+ .svx-billing__plans article{padding:19px;gap:7px}
+ .svx-billing__plans article .svx-billing__plan-note{margin-bottom:5px}
+ .svx-billing__referral{margin-top:16px}
+}
+@media(max-width:560px){
+ .svx-billing{padding:18px 16px 40px}
+ .svx-billing__header{margin-bottom:17px}
+ .svx-billing__header h1{font-size:35px}
+ .svx-billing__status{padding:17px;gap:15px}
+ .svx-billing__status-icon{flex-basis:38px;width:38px;height:38px}
+ .svx-billing__status h2{font-size:24px}
+ .svx-billing__status-actions{flex-direction:column}
+ .svx-billing__status-actions button{flex:unset;width:100%}
+ .svx-billing__section-head{margin-top:27px;align-items:flex-end}
+ .svx-billing__promo-tag{font-size:9px;padding:5px 7px;white-space:nowrap}
+ .svx-billing__term{gap:6px;margin:13px 0}
+ .svx-billing__term button{min-height:59px;padding:10px 8px}
+ .svx-billing__term strong{font-size:14px}
+ .svx-billing__term small{font-size:10px;line-height:1.3}
+ .svx-billing__plans{gap:10px}
+ .svx-billing__plans article{padding:17px}
+ .svx-billing__plan-top h3{font-size:24px}
+ .svx-billing__price strong{font-size:32px}
+ .svx-billing__referral{padding:15px}
+ .svx-billing__fineprint{margin-top:18px}
+ /* Keep the help control after the payment page instead of obscuring actions. */
+ body:has(.svx-billing) .svx-support{
+   position:relative;inset:auto;width:max-content;max-width:calc(100% - 32px);
+   display:flex;flex-direction:column;align-items:flex-end;margin:0 16px 24px auto;
+ }
+ body:has(.svx-billing) .svx-support__panel{
+   position:static;width:min(410px,calc(100vw - 32px));margin-top:10px;
+   max-height:70dvh;
+ }
+}
+@media(prefers-reduced-motion:reduce){.svx-billing button{transition:none}}
