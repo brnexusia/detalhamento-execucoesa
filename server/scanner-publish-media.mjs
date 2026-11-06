@@ -20,7 +20,7 @@ function sourceImages(product) {
 
 export async function stageSelectedImportMedia({
   query, storeId, jobId, localize = localizeImportedProductMedia,
-  maxSelected = 2000,
+  maxSelected = 100000,
 }) {
   if (typeof query !== 'function') throw new Error('Consulta ao banco indisponível.')
   // First verify that the job is still in review. This is also checked again
@@ -35,7 +35,7 @@ export async function stageSelectedImportMedia({
   let examined = 0
   while (true) {
     const result = await query(
-      `SELECT id,updated_at,COALESCE(review_data,normalized_data) AS data
+      `SELECT id,updated_at::text AS media_revision,COALESCE(review_data,normalized_data) AS data
        FROM import_normalized_products
        WHERE job_id=$1 AND store_id=$2 AND selected=true AND id>$3
        ORDER BY id ASC LIMIT 25`,
@@ -85,11 +85,11 @@ export async function stageSelectedImportMedia({
          SET review_data=$1::jsonb, warnings=$2::jsonb,
            confidence=$3,updated_at=now(),review_updated_at=now()
          WHERE n.id=$4 AND n.job_id=$5 AND n.store_id=$6 AND n.selected=true
-           AND n.updated_at=$7
+           AND n.updated_at::text=$7
            AND EXISTS (SELECT 1 FROM import_jobs j
              WHERE j.id=n.job_id AND j.store_id=n.store_id AND j.status='review')`,
         [JSON.stringify(updated.data), JSON.stringify(updated.warnings),
-          updated.confidence,row.id,jobId,storeId,row.updated_at],
+          updated.confidence,row.id,jobId,storeId,row.media_revision],
       )
       if (written.rowCount !== 1) throw new Error(
         'A revisão do catálogo mudou durante a preparação das fotos. Atualize a lista e tente novamente.'
