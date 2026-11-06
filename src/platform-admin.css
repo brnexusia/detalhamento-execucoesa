@@ -24,3 +24,7 @@
 @media(max-width:680px){.platform-feature-editor>div{grid-template-columns:1fr}}
 
 .platform-google-reauth{display:grid;gap:8px;padding-top:2px}.platform-google-reauth>span{color:var(--muted);font-size:9px;font-weight:600}.platform-google-reauth .google-auth-button{width:100%}
+
+/* Selo comercial: campanha configurada no backend, não um preço fixo no frontend. */
+.platform-plan-black-friday{display:block;width:max-content;font:800 10px/1.3 monospace;letter-spacing:.04em;padding:3px 6px;margin-bottom:4px;color:#fff;background:#191716;font-style:normal}
+.platform-plan-previous{display:block;color:#777;font-size:13px;font-weight:500;line-height:1.4;text-decoration:line-through}
