@@ -121,6 +121,8 @@ jobs:
         run: npm run test:scanner:albums
       - name: Scanner collector tests
         run: npm run test:scanner:collector
+      - name: Distinct storefront architecture fingerprints
+        run: npm run test:scanner:architectures
       - name: Scanner normalizer tests
         run: npm run test:scanner:normalizer
       - name: Scanner review tests
