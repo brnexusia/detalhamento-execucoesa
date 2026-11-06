@@ -540,6 +540,7 @@ function installPlatformRoutes(app) {
     if (!(await requireReauth(req,res))) return
     const action = String(req.body?.action || '')
     if (action !== 'grant' && action !== 'revoke') return res.status(400).json({ error:'Ação inválida.' })
+    if (req.body?.confirmation !== (action === 'grant' ? 'LIBERAR' : 'REVOGAR')) return res.status(400).json({ error:'Confirme a ação digitando a palavra indicada.' })
     const policy = action === 'grant' ? parseComplimentaryGrant(req.body) : null
     if (policy?.error) return res.status(400).json({ error:policy.error })
     await shopvaxStripeAdminRuntime.ensureSchema()
