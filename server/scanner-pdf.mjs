@@ -322,7 +322,15 @@ export async function collectPdfCatalog(buffer, options = {}) {
       try {
         await command('pdftoppm', ['-f', String(i + 1), '-l', String(i + 1), '-scale-to', '1600', '-singlefile', '-gray', '-png', pdf, prefix], 25000, deadline)
         const fallback = await command('tesseract', [prefix + '.png', 'stdout', '-l', 'por+eng'], 18000, deadline)
-        if (fallback.trim()) pages[i] = fallback
+        if (fallback.trim()) {
+          const existingText = pages[i] || ''
+          const originalMatches = parsePdfCatalogText(existingText).candidates.length
+          const ocrMatches = parsePdfCatalogText(fallback).candidates.length
+          // Never replace a reliable PDF text layer by noisier OCR output.
+          // Favor OCR only when it discovers more priced products, or when
+          // the PDF page truly lacked any extractable text.
+          if (!existingText.trim() || ocrMatches > originalMatches) pages[i] = fallback
+        }
       } catch (error) {
         if (error instanceof PdfSafetyError) throw error
         console.warn('[pdf import] OCR page skipped:', i + 1, error.message)
