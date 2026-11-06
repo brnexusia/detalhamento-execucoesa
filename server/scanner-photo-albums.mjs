@@ -180,6 +180,9 @@ export async function collectSharedPhotos(sourceUrl, { request, onImage, onBatch
         'Este álbum contém mais de 1.000 páginas individuais de foto e não expõe todas as imagens no HTML. Faça um arquivo de fotos/exportação do álbum para importar com segurança.'
       )
       const detailImages = await resolvePhotoDetails(details,request,onProgress)
+      if (detailImages.length !== details.length) {
+        throw new Error('O álbum possui '+details.length+' fotos públicas, mas só foi possível acessar '+detailImages.length+'. Não é seguro importar um catálogo incompleto; verifique o compartilhamento ou exporte as imagens.')
+      }
       imageUrls = [...new Set(detailImages)].slice(0,safeMax)
     }
     if (!imageUrls.length) throw new Error('Nenhuma foto pública foi encontrada no álbum. Confirme a opção Compartilhar por link. Alguns álbuns exigem acesso autenticado e não podem ser importados por URL.')
