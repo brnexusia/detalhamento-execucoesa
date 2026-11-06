@@ -1223,5 +1223,12 @@ export async function collectCatalog(sourceUrl, options = {}) {
   }
 
   const result = await collectGeneric(rootResponse, request, maxProducts, maxPages, onProgress, sink)
+  if (!sink.count) {
+    throw new Error(
+      'O scanner conseguiu acessar o site, mas não encontrou produtos com dados públicos reconhecíveis. ' +
+      'Confira se o link abre uma vitrine com produtos, se exige login ou se carrega o catálogo exclusivamente via JavaScript. ' +
+      'Você também pode importar um PDF ou imagens do catálogo.'
+    )
+  }
   return { platform, pagesScanned: result.pagesScanned, candidateCount: sink.count, candidates: sink.candidates }
 }
