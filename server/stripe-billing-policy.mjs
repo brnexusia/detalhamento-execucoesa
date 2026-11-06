@@ -1,4 +1,5 @@
 import crypto from 'node:crypto'
+import { isComplimentaryAccessActive } from './admin-access-policy.mjs'
 import { systemPlans } from './system-plans.mjs'
 
 export const cycles = {
@@ -47,6 +48,7 @@ export function verifyStripeSignature(payload, header, secret, now = Date.now())
 
 export function subscriptionAccess(row, now = Date.now()) {
   if (!row?.billing_required) return true // Lojas legadas preservadas até migração expressa.
+  if (isComplimentaryAccessActive(row, now)) return true // Autorização administrativa, independente da Stripe.
   return row.subscription_status === 'active' &&
     Boolean(row.active_plan_code) &&
     Boolean(row.paid_until) &&
