@@ -160,25 +160,26 @@ function amountOptions(rows) {
 async function currentPlanPrice(code, cycle) {
   const rows = await activeSystemPlans()
   const row = rows.find((plan) => plan.code === code)
-  return row ? planPrice(code, cycle, row) : null
+  const price = row ? planPrice(code, cycle, row) : null
+  return price ? { ...price, promotion: blackFridayPromotion(row.code, row.monthly_price) } : null
 }
 
 async function ensureStripePrice(plan) {
   const existing = await pool.query('SELECT price_id FROM shopvax_stripe_prices WHERE stripe_mode=$1 AND plan_code=$2 AND cycle=$3 AND amount_cents=$4', [stripeMode, plan.code, plan.cycle, plan.amountCents])
   if (existing.rowCount) return existing.rows[0].price_id
   const product = await stripe('POST', 'products', {
-    name: 'Shopvax ' + plan.name,
+    name: 'Shopvax ' + plan.name + (plan.promotion ? ' · Black Friday' : ''),
     description: 'Assinatura de acesso ao Shopvax; não processa pedidos de compradores.',
     'metadata[product]': 'shopvax_subscription',
     'metadata[plan_code]': plan.code,
-  }, 'shopvax-product-' + plan.code + '-v1')
+  }, 'shopvax-product-' + plan.code + (plan.promotion ? '-black-friday-2026' : '-v1'))
   const price = await stripe('POST', 'prices', {
     product: product.id,
     currency: 'brl',
     unit_amount: String(plan.amountCents),
     'recurring[interval]': plan.interval,
     'recurring[interval_count]': String(plan.intervalCount),
-    nickname: plan.name + ' ' + cycles[plan.cycle].label,
+    nickname: plan.name + ' ' + cycles[plan.cycle].label + (plan.promotion ? ' - Black Friday' : ''),
     'metadata[plan_code]': plan.code,
     'metadata[cycle]': plan.cycle,
   }, 'shopvax-price-' + plan.code + '-' + plan.cycle + '-' + plan.amountCents + '-v1')
