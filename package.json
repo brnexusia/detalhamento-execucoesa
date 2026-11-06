@@ -26,7 +26,7 @@
     "worker:media": "node server/media-worker.mjs",
     "test:redis": "node --test server/redis-runtime.test.mjs",
     "test:seo": "node --test server/seo-routes-hooks.test.mjs",
-    "test:scanner:whatsapp": "node --test server/scanner-whatsapp-catalog.test.mjs"
+    "test:scanner:whatsapp": "node --test server/scanner-uazapi-catalog.test.mjs"
   },
   "dependencies": {
     "cheerio": "^1.1.2",
