@@ -68,9 +68,17 @@ export async function stageSelectedImportMedia({
           '". O item continua em revisão; confira a URL ou substitua a imagem antes de publicar.'
         )
       }
+      // Product records must never retain expired third-party image URLs.
+      const safeImages = (localized.images || []).filter(isLocalShopvaxMedia)
+      const safeVariants = (localized.variantImages || []).map(group => ({
+        ...group, images:(group.images || []).filter(isLocalShopvaxMedia),
+      })).filter(group => group.images.length)
+      const safeCover = isLocalShopvaxMedia(localized.mediaUrl) ? localized.mediaUrl :
+        safeImages[0] || safeVariants[0]?.images[0] || ''
       const updated = prepareReview({
-        ...product,media_url:localized.mediaUrl,
-        images:localized.images,variant_images:localized.variantImages,
+        ...product,media_url:safeCover,
+        images:safeImages.length ? safeImages : safeCover ? [safeCover] : [],
+        variant_images:safeVariants,
       })
       const written = await query(
         `UPDATE import_normalized_products n
