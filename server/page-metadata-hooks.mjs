@@ -71,10 +71,15 @@ async function metadataFor(req) {
   const pathname = url.pathname.replace(/\/+$/, '') || '/'
   const parts = pathname.split('/').filter(Boolean)
   const params = [...url.searchParams.keys()]
-  const productId = String(url.searchParams.get('produto') || '').trim().slice(0, 100)
+  const rawProductId = String(url.searchParams.get('produto') || '').trim()
+  const productId = rawProductId.slice(0, 100)
   const cleanQuery = params.length === 0 || (params.length === 1 && params[0] === 'produto' && productId)
   const meta = base()
   meta.url = documentUrl(pathname)
+  // Product IDs are opaque identifiers, never HTML/URL markup. Enforce a
+  // conservative character set before constructing any metadata or querying.
+  if (url.searchParams.has('produto') && (!productId || rawProductId.length > 100 ||
+    !/^[a-z0-9_-]+$/i.test(productId))) return { ...meta, status: 404, index: false }
   if (pathname === '/') {
     meta.url = SITE + '/'
     meta.headline = 'Descubra lojas e produtos no Shopvax'
@@ -274,7 +279,7 @@ function injectMetadata(html, meta) {
           '<li><a href="' + esc(meta.url + '?produto=' + encodeURIComponent(product.id)) + '">' +
           esc(product.name) + '</a></li>').join('') + '</ul></section>'
       : ''
-    const fallback = '<main class="shopvax-seo-boot" style="max-width:64rem;margin:auto;padding:3rem 1.5rem">' +
+    const fallback = '<main class="shopvax-seo-boot">' +
       '<h1>' + esc(meta.headline) + '</h1>' +
       (meta.excerpt ? '<p>' + esc(meta.excerpt) + '</p>' : '') +
       productList + '</main>'
