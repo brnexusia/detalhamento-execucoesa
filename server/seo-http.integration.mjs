@@ -4,7 +4,7 @@ import pg from 'pg'
 
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL })
 const base = process.env.BASE_URL || 'http://127.0.0.1:3000'
-const prefix = 'seo-' + crypto.randomUUID().slice(0, 9)
+const prefix = 'seo-' + crypto.randomUUID().replaceAll('-', '').slice(0, 9)
 const userId = crypto.randomUUID()
 const storeId = crypto.randomUUID()
 const activeId = crypto.randomUUID()
@@ -44,6 +44,30 @@ try {
       [id, storeId, id, name, active])
   }
   await pool.query('INSERT INTO catalog_products(catalog_id,product_id,visible) VALUES($1,$2,false)', [catalogId, hiddenId])
+
+  // ZAP 2026-11-05: an anonymous events POST appeared to accept boolean-SQL
+  // payloads. Both requests must remain inert; a normal event must still work.
+  const countEvents = async () => Number((await pool.query(
+    'SELECT count(*)::int AS total FROM events WHERE store_id=$1', [storeId],
+  )).rows[0].total)
+  const beforeEvents = await countEvents()
+  for (const sellerSlug of ['central AND 1=1 -- ', 'central AND 1=2 -- ', '<script>alert(1)</script>']) {
+    const response = await fetch(url('/api/public/events'), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ storeSlug: slug, sellerSlug, kind: 'view' }),
+    })
+    assert.equal(response.status, 204, 'invalid analytics seller slug should not reveal data')
+    assert.equal(await response.text(), '')
+  }
+  assert.equal(await countEvents(), beforeEvents, 'injection-like analytics input must not create events')
+  const validEvent = await fetch(url('/api/public/events'), {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ storeSlug: slug, kind: 'view' }),
+  })
+  assert.equal(validEvent.status, 204)
+  assert.equal(await countEvents(), beforeEvents + 1, 'valid analytics must continue working')
   const robots = await get('/robots.txt')
   assert.equal(robots.status, 200)
   includes(robots.text, 'Sitemap: https://shopvax.com.br/sitemap.xml')
@@ -102,6 +126,18 @@ try {
   includes(product.text, '"@type":"BreadcrumbList"')
   includes(product.text, 'Produto SEO visivel')
   includes(product.text, 'catálogo digital da Loja de teste SEO')
+
+  // ZAP highlighted a product query reflected in HTML metadata. Ensure
+  // actual product data is escaped in attributes and server-rendered HTML.
+  const maliciousProductName = 'Produto <img src=x onerror=alert(1)> & teste'
+  await pool.query('UPDATE products SET name=$1 WHERE id=$2', [maliciousProductName, activeId])
+  const escapedProduct = await get('/' + slug + '?produto=' + activeId)
+  assert.equal(escapedProduct.status, 200)
+  assert.ok(escapedProduct.text.includes('&lt;img src=x onerror=alert(1)&gt;'), 'HTML metadata must escape product markup')
+  assert.equal(escapedProduct.text.includes('<img src=x onerror=alert(1)>'), false, 'HTML must not contain executable product markup')
+  await pool.query('UPDATE products SET name=$1 WHERE id=$2', ['Produto SEO visivel', activeId])
+  const unusualQuery = await get('/' + slug + '?produto=' + encodeURIComponent('"><svg onload=alert(1)>'))
+  assert.equal(unusualQuery.text.includes('<svg onload=alert(1)>'), false, 'query parameters must never inject raw markup')
   assert.equal(product.text.includes(email), false)
   const listing = await get('/' + slug)
   assert.equal(listing.status, 200)

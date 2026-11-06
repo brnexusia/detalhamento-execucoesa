@@ -331,3 +331,7 @@ main:not(.feed-shell):not(.social-feed-list) { max-width: 1460px; margin: 0 auto
 /* Keyboard accessibility */
 button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{outline:2px solid #161514!important;outline-offset:2px!important}
 .social-feed-page button:focus-visible,.social-feed-page a:focus-visible{outline-color:#fff!important}
+
+/* SEO crawler fallback uses a stylesheet rather than inline style attributes.
+   The layout remains readable while JavaScript mounts the interactive app. */
+.shopvax-seo-boot { max-width: 64rem; margin: auto; padding: 3rem 1.5rem; }

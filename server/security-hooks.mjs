@@ -41,6 +41,45 @@ function sameOrigin(req) {
   return origin.protocol === proto && origin.host.toLowerCase() === host
 }
 
+// Storefront images should be hosted on /media whenever possible. A fixed,
+// reviewable allowlist replaces the blanket https: source previously applied
+// to every image and video on every page. Extra trusted media origins must be
+// explicitly configured by the operator, never derived from visitor input.
+const defaultImageOrigins = [
+  'https://images.unsplash.com',
+  'https://images.pexels.com',
+  'https://thumb.braavo.me',
+  'https://cdn.shopify.com',
+  'https://res.cloudinary.com',
+  'https://static.wixstatic.com',
+  'https://i.pinimg.com',
+  'https://storage.googleapis.com',
+  'https://firebasestorage.googleapis.com',
+  'https://lh3.googleusercontent.com',
+]
+const defaultVideoOrigins = [
+  'https://cdn.shopify.com',
+  'https://video.shopifycdn.com',
+  'https://res.cloudinary.com',
+  'https://storage.googleapis.com',
+]
+function trustedMediaOrigins(value) {
+  return String(value || '').split(/[\s,]+/).map((item) => {
+    if (!item) return ''
+    try {
+      const url = new URL(item.includes('://') ? item : 'https://' + item)
+      if (url.protocol !== 'https:' || url.username || url.password ||
+        url.pathname !== '/' || url.search || url.hash || (url.port && url.port !== '443') ||
+        !/^[a-z0-9.-]+$/i.test(url.hostname) || !url.hostname.includes('.') ||
+        url.hostname.includes('..')) return ''
+      return url.origin
+    } catch { return '' }
+  }).filter(Boolean).slice(0, 32)
+}
+const extraMediaOrigins = trustedMediaOrigins(process.env.SHOPVAX_CSP_MEDIA_ORIGINS)
+const imageOrigins = [...new Set([...defaultImageOrigins, ...extraMediaOrigins])].join(' ')
+const videoOrigins = [...new Set([...defaultVideoOrigins, ...extraMediaOrigins])].join(' ')
+
 function setSecurityHeaders(req, res) {
   res.removeHeader('X-Powered-By')
   res.setHeader('X-Content-Type-Options', 'nosniff')
@@ -56,10 +95,14 @@ function setSecurityHeaders(req, res) {
     "form-action 'self'",
     "object-src 'none'",
     "script-src 'self' https://accounts.google.com/gsi/client",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com/gsi/style",
+    // Allow external CSS files only. DOM CSSOM property changes from React
+    // remain possible without allowing arbitrary inline <style> or style=.
+    "style-src 'self' https://fonts.googleapis.com https://accounts.google.com/gsi/style",
+    "style-src-elem 'self' https://fonts.googleapis.com https://accounts.google.com/gsi/style",
+    "style-src-attr 'none'",
     "font-src 'self' https://fonts.gstatic.com data:",
-    "img-src 'self' data: blob: https:",
-    "media-src 'self' blob: https:",
+    `img-src 'self' data: blob: ${imageOrigins}`,
+    `media-src 'self' blob: ${videoOrigins}`,
     "connect-src 'self' https://accounts.google.com/gsi/",
     "frame-src https://accounts.google.com/gsi/",
   ].join('; '))
