@@ -8,7 +8,7 @@ import { load } from 'cheerio'
 import { detectStorefrontPlatform, extractFacilZapRuntime, facilZapProducts, parseVestiContext, vestiProducts, isZapFacilCatalogPage } from './scanner-platforms.mjs'
 import { collectDirectedSitemap, collectTrayPublic, parseVestiCompanyId, enrichVestiCandidate } from './scanner-platform-collectors.mjs'
 import { collectSharedPhotos, sharedPhotoSourceKind } from './scanner-photo-albums.mjs'
-import { collectWhatsAppCatalog, whatsappCatalogPhone } from './scanner-whatsapp-catalog.mjs'
+import { collectWhatsAppCatalog, whatsappCatalogPhone } from './scanner-uazapi-catalog.mjs'
 
 // Produção não possui teto artificial de produtos/páginas. Limites só são usados quando
 // explicitamente informados (testes, diagnóstico ou operação controlada).
