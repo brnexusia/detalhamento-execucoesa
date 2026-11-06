@@ -4,7 +4,7 @@ import pg from 'pg'
 
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL })
 const base = process.env.BASE_URL || 'http://127.0.0.1:3000'
-const prefix = 'seo-' + crypto.randomUUID().slice(0, 9)
+const prefix = 'seo-' + crypto.randomUUID().replaceAll('-', '').slice(0, 9)
 const userId = crypto.randomUUID()
 const storeId = crypto.randomUUID()
 const activeId = crypto.randomUUID()
