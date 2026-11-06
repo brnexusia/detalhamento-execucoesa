@@ -61,6 +61,7 @@ async function ensureSchema() {
       "product_id text NOT NULL, price_id text NOT NULL UNIQUE,",
       "PRIMARY KEY(stripe_mode,plan_code,cycle,amount_cents));",
       "CREATE TABLE IF NOT EXISTS shopvax_stripe_settings (stripe_mode text PRIMARY KEY, portal_config_id text);",
+      "CREATE TABLE IF NOT EXISTS shopvax_stripe_products (stripe_mode text NOT NULL, plan_code text NOT NULL, product_id text NOT NULL, PRIMARY KEY (stripe_mode,plan_code));",
       "CREATE OR REPLACE FUNCTION shopvax_stripe_insert_store() RETURNS trigger LANGUAGE plpgsql AS $$",
       "BEGIN IF NEW.billing_required THEN NEW.plan_tier := 'bronze'; END IF; RETURN NEW; END $$;",
       "DROP TRIGGER IF EXISTS trg_shopvax_stripe_new_store ON stores;",
@@ -165,17 +166,42 @@ async function currentPlanPrice(code, cycle) {
   return price ? { ...price, promotion: blackFridayPromotion(row.code, row.monthly_price) } : null
 }
 
+// Produtos são permanentes por plano; os Prices são versionados por valor/ciclo.
+// Em bancos antigos, selecionamos um produto já cadastrado para evitar criar novos.
+async function canonicalStripeProduct(plan) {
+  await ensureSchema()
+  const mapped = await pool.query('SELECT product_id FROM shopvax_stripe_products WHERE stripe_mode=$1 AND plan_code=$2', [stripeMode, plan.code])
+  if (mapped.rowCount) return mapped.rows[0].product_id
+  const legacy = await pool.query(`
+    SELECT product_id FROM shopvax_stripe_prices WHERE stripe_mode=$1 AND plan_code=$2
+    ORDER BY CASE WHEN cycle='monthly' THEN 0 ELSE 1 END, product_id
+    LIMIT 1
+  `, [stripeMode, plan.code])
+  let productId = legacy.rows[0]?.product_id
+  if (!productId) {
+    const product = await stripe('POST', 'products', {
+      name: 'Shopvax ' + plan.name,
+      description: 'Assinatura de acesso ao Shopvax; não processa pedidos de compradores.',
+      'metadata[product]': 'shopvax_subscription',
+      'metadata[plan_code]': plan.code,
+    }, 'shopvax-canonical-product-' + stripeMode + '-' + plan.code + '-v1')
+    productId = product.id
+  }
+  await pool.query(`
+    INSERT INTO shopvax_stripe_products (stripe_mode,plan_code,product_id)
+    VALUES ($1,$2,$3) ON CONFLICT (stripe_mode,plan_code) DO NOTHING
+  `, [stripeMode, plan.code, productId])
+  const actual = await pool.query('SELECT product_id FROM shopvax_stripe_products WHERE stripe_mode=$1 AND plan_code=$2', [stripeMode, plan.code])
+  return actual.rows[0].product_id
+}
+
 async function ensureStripePrice(plan) {
+  await ensureSchema()
   const existing = await pool.query('SELECT price_id FROM shopvax_stripe_prices WHERE stripe_mode=$1 AND plan_code=$2 AND cycle=$3 AND amount_cents=$4', [stripeMode, plan.code, plan.cycle, plan.amountCents])
   if (existing.rowCount) return existing.rows[0].price_id
-  const product = await stripe('POST', 'products', {
-    name: 'Shopvax ' + plan.name + (plan.promotion ? ' · Black Friday' : ''),
-    description: 'Assinatura de acesso ao Shopvax; não processa pedidos de compradores.',
-    'metadata[product]': 'shopvax_subscription',
-    'metadata[plan_code]': plan.code,
-  }, 'shopvax-product-' + plan.code + (plan.promotion ? '-black-friday-2026' : '-v1'))
+  const productId = await canonicalStripeProduct(plan)
   const price = await stripe('POST', 'prices', {
-    product: product.id,
+    product: productId,
     currency: 'brl',
     unit_amount: String(plan.amountCents),
     'recurring[interval]': plan.interval,
@@ -183,10 +209,17 @@ async function ensureStripePrice(plan) {
     nickname: plan.name + ' ' + cycles[plan.cycle].label + (plan.promotion ? ' - Black Friday' : ''),
     'metadata[plan_code]': plan.code,
     'metadata[cycle]': plan.cycle,
-  }, 'shopvax-price-' + plan.code + '-' + plan.cycle + '-' + plan.amountCents + '-v1')
-  await pool.query('INSERT INTO shopvax_stripe_prices (stripe_mode,plan_code,cycle,amount_cents,product_id,price_id) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING', [stripeMode, plan.code, plan.cycle, plan.amountCents, product.id, price.id])
-  return price.id
+  }, 'shopvax-price-' + stripeMode + '-' + plan.code + '-' + plan.cycle + '-' + plan.amountCents + '-v2')
+  await pool.query('INSERT INTO shopvax_stripe_prices (stripe_mode,plan_code,cycle,amount_cents,product_id,price_id) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING', [stripeMode, plan.code, plan.cycle, plan.amountCents, productId, price.id])
+  const stored = await pool.query('SELECT price_id FROM shopvax_stripe_prices WHERE stripe_mode=$1 AND plan_code=$2 AND cycle=$3 AND amount_cents=$4', [stripeMode, plan.code, plan.cycle, plan.amountCents])
+  return stored.rows[0].price_id
 }
+
+export const shopvaxStripeAdminRuntime = Object.freeze({
+  get ready() { return ready },
+  get stripeMode() { return stripeMode },
+  stripe, ensureStripePrice, ensureSchema,
+})
 
 function billingShape(row, prices) {
   return {
