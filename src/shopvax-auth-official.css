@@ -248,3 +248,82 @@
   .auth-shell--register .auth-register-brand .svx-brand-symbol {height:36px;max-width:36px;}
   .auth-shell--register .auth-register-brand .svx-brand-wordmark {height:24px;}
 }
+
+
+/* GIS: isolar o iframe oficial contra distorção em Safari/iOS.
+   O token Google continua sendo emitido EXCLUSIVAMENTE pelo SDK oficial. */
+.auth-shell .google-auth-button {
+  position:relative;
+  box-sizing:border-box;
+  width:100%;
+  min-width:0;
+  max-width:100%;
+  min-height:44px;
+  overflow:hidden;
+}
+.auth-shell .google-auth-button__mount {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  box-sizing:border-box;
+  width:100%;
+  max-width:100%;
+  min-height:44px;
+  height:44px;
+  max-height:44px;
+  overflow:hidden;
+}
+.auth-shell .google-auth-button__mount iframe {
+  display:block;
+  flex-shrink:0;
+  max-width:100% !important;
+  height:44px !important;
+  max-height:44px !important;
+  border:0;
+}
+.auth-shell .google-auth-button__status {
+  position:absolute;
+  z-index:1;
+  inset:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  min-height:44px;
+  padding:6px 10px;
+  box-sizing:border-box;
+  background:var(--auth-paper);
+  color:var(--auth-ink);
+  text-align:center;
+  pointer-events:none;
+}
+.auth-shell .google-auth-button.is-error .google-auth-button__mount {display:none;}
+.auth-shell .google-auth-button__error {
+  margin:0;
+  padding:10px 0;
+  color:#862515;
+  font-size:12px;
+  line-height:1.45;
+}
+/* Aviso de cadastro gratuito não deve usar a cor clara do pôster escuro. */
+.auth-shell .auth-form > .poster-note {
+  display:block;
+  margin:0;
+  padding:10px 0 2px;
+  border-top:1px solid var(--auth-line);
+  color:#4D4943;
+  font-size:12px;
+  line-height:1.5;
+}
+/* O cadastro deve respeitar o viewport e permitir rolagem natural no iPhone. */
+@media(max-width:700px) {
+  .auth-shell, .auth-shell .auth-panel, .auth-shell .auth-form {
+    min-width:0;
+    max-width:100%;
+  }
+  .auth-shell .auth-panel {
+    padding-left:max(18px,env(safe-area-inset-left));
+    padding-right:max(18px,env(safe-area-inset-right));
+    overflow-x:clip;
+  }
+  .auth-shell .auth-form {overflow-wrap:anywhere;}
+}
