@@ -188,12 +188,18 @@ async function persistRemoteImage(query, { storeId, url, referer, request }) {
   const inserted = await query(
     `INSERT INTO media_assets (id,store_id,mime_type,original_name,byte_size,data,source_url)
      VALUES ($1,$2,$3,$4,$5,$6,$7)
-     ON CONFLICT (store_id,source_url) WHERE source_url IS NOT NULL
-     DO UPDATE SET source_url=EXCLUDED.source_url
+     ON CONFLICT (store_id,source_url) WHERE source_url IS NOT NULL DO NOTHING
      RETURNING id`,
     [assetId, storeId, fetched.mimeType, originalName(source), fetched.buffer.length, fetched.buffer, source],
   )
-  return `/media/${inserted.rows[0]?.id || assetId}`
+  if (inserted.rows[0]?.id) return `/media/${inserted.rows[0].id}`
+  // Reuse the asset stored by another concurrent job without an UPDATE lock.
+  const existing = await query(
+    'SELECT id FROM media_assets WHERE store_id=$1 AND source_url=$2 LIMIT 1',
+    [storeId, source],
+  )
+  if (!existing.rows[0]?.id) throw new Error('Não foi possível confirmar a imagem armazenada.')
+  return `/media/${existing.rows[0].id}`
 }
 
 function unique(values) {
