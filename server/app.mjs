@@ -968,9 +968,14 @@ app.post(
     // Ignore malformed traffic without creating bogus store-level events.
     const validSlug = (value) => typeof value === 'string' && value.length <= 60 &&
       /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value)
-    const storeSlug = req.body?.storeSlug
-    const sellerSlug = req.body?.sellerSlug
-    if (!validSlug(storeSlug) || (sellerSlug != null && sellerSlug !== '' && !validSlug(sellerSlug))) {
+    const body = req.body
+    if (!body || typeof body !== 'object' || Array.isArray(body) ||
+      Object.keys(body).some((key) => !['storeSlug', 'sellerSlug', 'kind'].includes(key))) {
+      return res.status(204).end()
+    }
+    const { storeSlug, sellerSlug, kind } = body
+    if (!validSlug(storeSlug) || (sellerSlug != null && sellerSlug !== '' && !validSlug(sellerSlug)) ||
+      !['view', 'cart', 'whatsapp'].includes(kind)) {
       return res.status(204).end()
     }
     const storeResult = await pool.query(
@@ -988,7 +993,6 @@ app.post(
       sellerId = seller.rows[0]?.id || null
     }
 
-    const kind = ['view', 'cart', 'whatsapp'].includes(req.body?.kind) ? req.body.kind : 'view'
     await pool.query('INSERT INTO events (id,store_id,seller_id,kind) VALUES ($1,$2,$3,$4)', [
       id(),
       storeResult.rows[0].id,
