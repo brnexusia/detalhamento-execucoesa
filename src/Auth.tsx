@@ -275,7 +275,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
             <p>{registrationMode ? 'Criar conta' : 'Entrar'}</p>
             <h2>{googleSignup ? 'Complete os dados da sua loja.' : registrationMode ? 'Comece com a sua loja.' : 'Acesse seu painel.'}</h2>
           </div>
-          {registrationMode && !signupPaymentRequired && <div className="poster-note" role="status">Cadastro liberado sem pagamento por enquanto. O plano escolhido ficará disponível sem cobrança nesta etapa.</div>}
+          {registrationMode && signupPaymentRequired && <div className="poster-note" role="status">Assinatura obrigatória. Depois de preencher o cadastro, você seguirá para o pagamento seguro da Stripe. A loja só será liberada após a confirmação do pagamento.</div>}
           {registrationMode && form.referralCode && <div className="poster-note"><Gift size={15}/> Indicação {form.referralCode} · benefícios dependem de pagamento confirmado.</div>}
           {!googleSignup && <>
             <GoogleSignInButton mode={mode} disabled={googleBusy || busy} onCredential={googleCredential} />
@@ -307,7 +307,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
                     <button type="button" key={option.code} className={cycle===option.code?'signup-plan is-selected':'signup-plan'} aria-pressed={cycle===option.code} onClick={()=>setCycle(option.code)}>{option.label}</button>
                   )}
                 </div>}
-                {selectedPlan && <small className="signup-plan-choice">{signupPaymentRequired ? `Selecionado: ${selectedPlan.name} · ${cycle==='monthly'?'Mensal':cycle==='semiannual'?'Semestral':'Anual'} · ${selectedCyclePrice==null?'Valor indisponível':planMoney.format(selectedCyclePrice/100)} por período. Após criar a conta, você será encaminhado automaticamente à Stripe.` : `Plano ${selectedPlan.name} selecionado. Nenhum pagamento será solicitado no cadastro.`}</small>}
+                {selectedPlan && <small className="signup-plan-choice">{signupPaymentRequired ? `Selecionado: ${selectedPlan.name} · ${cycle==='monthly'?'Mensal':cycle==='semiannual'?'Semestral':'Anual'} · ${selectedCyclePrice==null?'Valor indisponível':planMoney.format(selectedCyclePrice/100)} por período. Após criar a conta, você será encaminhado automaticamente à Stripe.` : `Plano ${selectedPlan.name} selecionado. Seu plano será liberado apenas após o pagamento.`}</small>}
               </fieldset>}
             </>
           )}
@@ -316,7 +316,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
             <label><span>Senha</span><div className="password-input"><input type={showPassword ? 'text' : 'password'} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength={8} value={form.password} onChange={(e) => update('password', e.target.value)} placeholder="Mínimo 8 caracteres" required /><button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}>{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button></div></label>
           </>}
           {error && <p className="form-error">{error}</p>}
-          <button className="primary-action" disabled={busy || googleBusy || (SHOW_SIGNUP_PLANS && registrationMode && (plansLoading || Boolean(plansError)))}>{busy || googleBusy ? 'Aguarde…' : googleSignup ? 'Criar minha loja com Google' : mode === 'register' ? 'Criar minha loja' : 'Entrar'}<ArrowRight size={18} /></button>
+          <button className="primary-action" disabled={busy || googleBusy || (SHOW_SIGNUP_PLANS && registrationMode && (plansLoading || Boolean(plansError)))}>{busy || googleBusy ? 'Aguarde…' : googleSignup ? 'Prosseguir com Google e pagar' : mode === 'register' ? 'Continuar para pagamento' : 'Entrar'}<ArrowRight size={18} /></button>
           <p className="auth-switch">{registrationMode ? 'Já tem uma conta?' : 'Ainda não tem conta?'} <button type="button" onClick={() => { setGoogleSignup(null); go(registrationMode ? '/entrar' : '/criar-conta') }}>{registrationMode ? 'Entrar' : 'Criar conta'}</button></p>
           <p className="auth-switch">Não tem loja e quer apenas indicar? <a href="/parceiros/cadastro">Conheça o Portal de Parceiros</a>.</p>
         </form>
