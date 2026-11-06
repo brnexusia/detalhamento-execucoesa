@@ -5,7 +5,7 @@ import { cycles, planPrice, subscriptionAccess, verifyStripeSignature } from './
 import { blackFridayPromotion } from './black-friday-pricing.mjs'
 import { requiresPaymentForSignup } from './signup-billing-mode.mjs'
 import { parseStripeServerKey, resolveStripeServerKey } from './stripe-key-config.mjs'
-import { trustedStripeCheckoutDestination } from './stripe-checkout-url.mjs'
+import { trustedStripeCheckoutDestination, checkoutDestinationForClient } from './stripe-checkout-url.mjs'
 import { ensureReferralSchema, captureReferral, qualifyReferralOnPaidInvoice, applyMerchantStripeCredits, reverseReferralForRefund } from './referral-program-core.mjs'
 
 const { Pool } = pg
@@ -348,9 +348,21 @@ async function checkout(req, res) {
     }
     if (current?.checkout_session_id) {
       const old = await stripe('GET', 'checkout/sessions/' + encodeURIComponent(current.checkout_session_id))
-      if (old.status === 'open' && Number(old.amount_subtotal ?? old.amount_total) === plan.amountCents && current.checkout_plan === plan.code && current.checkout_cycle === plan.cycle) {
+      // Só reutilizar uma sessão que ainda pertence à loja e ao cliente.
+      const oldCustomer = typeof old.customer === 'string' ? old.customer : old.customer?.id
+      if (old.status === 'open' && old.mode === 'subscription' &&
+          old.client_reference_id === account.id &&
+          oldCustomer === (current.customer_id || account.customer_id) &&
+          Number(old.amount_subtotal ?? old.amount_total) === plan.amountCents &&
+          current.checkout_plan === plan.code && current.checkout_cycle === plan.cycle) {
+        const destination = checkoutDestinationForClient(old.url, process.env.SHOPVAX_STRIPE_CHECKOUT_HOST)
+        if (!destination) {
+          console.warn('[stripe-billing] sessão existente tem URL não confiável')
+          await client.query('ROLLBACK')
+          return apiError(res, 502, 'Não foi possível validar o endereço de pagamento seguro.', 'CHECKOUT_URL_INVALID')
+        }
         await client.query('COMMIT')
-        return res.json({ url: checkoutRedirectPath })
+        return res.json({ url: destination })
       }
       if (old.status === 'open') await stripe('POST', 'checkout/sessions/' + encodeURIComponent(old.id) + '/expire', {})
       if (old.status === 'complete' && old.subscription) {
@@ -379,8 +391,13 @@ async function checkout(req, res) {
       "subscription_id=NULL,subscription_status='none',active_plan_code=NULL,cycle=NULL,paid_until=NULL,",
       'checkout_plan=EXCLUDED.checkout_plan,checkout_cycle=EXCLUDED.checkout_cycle,updated_at=now()',
     ].join(' '), [account.id, customer, stripeMode, session.id, plan.code, plan.cycle])
+    const destination = checkoutDestinationForClient(session.url, process.env.SHOPVAX_STRIPE_CHECKOUT_HOST)
+    if (!destination) {
+      await client.query('ROLLBACK')
+      return apiError(res, 502, 'A Stripe não forneceu um endereço de pagamento confiável.', 'CHECKOUT_URL_INVALID')
+    }
     await client.query('COMMIT')
-    res.json({ url: checkoutRedirectPath })
+    res.json({ url: destination })
   } catch (error) {
     await client.query('ROLLBACK').catch(() => undefined)
     throw error
