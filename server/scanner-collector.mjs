@@ -9,6 +9,7 @@ import { detectStorefrontPlatform, extractFacilZapRuntime, facilZapProducts, par
 import { collectDirectedSitemap, collectTrayPublic, parseVestiCompanyId, enrichVestiCandidate } from './scanner-platform-collectors.mjs'
 import { collectSharedPhotos, sharedPhotoSourceKind } from './scanner-photo-albums.mjs'
 import { collectWhatsAppCatalog, whatsappCatalogPhone } from './scanner-uazapi-catalog.mjs'
+import { collectVtexPublic } from './scanner-vtex-public.mjs'
 
 // Produção não possui teto artificial de produtos/páginas. Limites só são usados quando
 // explicitamente informados (testes, diagnóstico ou operação controlada).
@@ -1185,6 +1186,20 @@ export async function collectCatalog(sourceUrl, options = {}) {
     } catch (error) {
       if (options.strictPlatformAdapters) throw error
       // Sites legados sem sitemap de produto continuam pelo crawler genérico.
+    }
+  }
+
+  if (platform === 'vtex') {
+    try {
+      const result = await collectVtexPublic({
+        rootResponse,request,maxProducts,sink,onProgress,
+      })
+      if (result.candidateCount) return {
+        platform,pagesScanned:result.pagesScanned,candidateCount:sink.count,candidates:sink.candidates,
+      }
+    } catch(error) {
+      if(options.strictPlatformAdapters) throw error
+      // Some stores disable legacy search; still inspect publicly visible HTML.
     }
   }
 
