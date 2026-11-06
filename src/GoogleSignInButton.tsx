@@ -65,11 +65,15 @@ function loadGoogleScript() {
 export default function GoogleSignInButton({
   mode,
   disabled = false,
+  processing = false,
+  disabledMessage = 'Conclua os campos obrigatórios para continuar.',
   onCredential,
   onUnavailable,
 }: {
   mode: 'login' | 'register'
   disabled?: boolean
+  processing?: boolean
+  disabledMessage?: string
   onCredential: (credential: string) => void | Promise<void>
   onUnavailable?: (message: string) => void
 }) {
@@ -176,7 +180,7 @@ export default function GoogleSignInButton({
 
   return <div ref={hostRef} className={['google-auth-button', disabled && 'is-disabled', status === 'error' && 'is-error'].filter(Boolean).join(' ')} aria-disabled={disabled}>
     <div ref={mountRef} className="google-auth-button__mount" />
-    {(status === 'loading' || disabled) && <span role="status" className="google-auth-button__status">{disabled ? 'Autenticando com Google…' : 'Preparando entrada com Google…'}</span>}
+    {(status === 'loading' || disabled) && <span role={processing ? 'status' : undefined} className="google-auth-button__status">{disabled ? (processing ? 'Confirmando autorização…' : disabledMessage) : 'Preparando entrada com Google…'}</span>}
     {status === 'error' && <p role="alert" className="google-auth-button__error">{error}</p>}
     {disabled && <span className="google-auth-button__blocker" aria-hidden="true" />}
   </div>
