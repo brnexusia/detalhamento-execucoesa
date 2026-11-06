@@ -1,13 +1,15 @@
 # Shopvax — integração de assinatura com Stripe
 
 ## Escopo (SaaS, não pagamentos dos compradores)
-Esta integração cobra **apenas o acesso dos lojistas ao Shopvax**. Pedidos que os compradores enviam ao WhatsApp continuam fora do gateway. Os planos existentes no backend permanecem a fonte dos limites: Bronze (R$ 49,90/mês), Prata (R$ 94,90/mês), Ouro (R$ 144,90/mês), com 5% de desconto no semestral e 15% no anual. A integração cria automaticamente Produtos e Prices da Stripe ao primeiro checkout; não é preciso cadastrar nove preços manualmente.
+Esta integração cobra **apenas o acesso dos lojistas ao Shopvax**. Pedidos que os compradores enviam ao WhatsApp continuam fora do gateway. Durante a oferta **Black Friday 2026**, as mensalidades para novas contratações são Bronze (R$ 29,99), Prata (R$ 49,99) e Ouro (R$ 69,99), com descontos adicionais de 5% no semestral e 15% no anual, conforme configuração atual dos planos. Os valores vigentes são lidos da tabela `platform_plans` (editável no admin) em todas as APIs, incluindo o checkout Stripe. A integração cria Produtos e Prices na Stripe para o valor vigente; não é necessário cadastrar manualmente os nove preços. Assinaturas existentes preservam os preços contratados até alteração explícita.
 
 | Plano | Mensal | Semestral (-5%) | Anual (-15%) |
 | --- | ---: | ---: | ---: |
-| Bronze | R$ 49,90 | R$ 284,43 | R$ 508,98 |
-| Prata | R$ 94,90 | R$ 540,93 | R$ 967,98 |
-| Ouro | R$ 144,90 | R$ 825,93 | R$ 1.478,98 |
+| Bronze | R$ 29,99 | R$ 170,94 | R$ 305,90 |
+| Prata | R$ 49,99 | R$ 284,94 | R$ 509,90 |
+| Ouro | R$ 69,99 | R$ 398,94 | R$ 713,90 |
+
+Os preços normais anteriores para comparação comercial são Bronze R$ 49,90, Prata R$ 94,90 e Ouro R$ 144,90 mensais. A indicação «Black Friday» só é exibida enquanto o valor salvo no admin corresponder ao preço promocional; não há data de expiração automática definida. A primeira implantação migra apenas valores antigos de fábrica (não sobrescreve preços personalizados), registrando a execução única em `shopvax_pricing_rollouts`. Depois, alterações do admin são respeitadas sem exigir novo deploy.
 
 Ciclos: assinatura mensal, assinatura a cada **6 meses** e assinatura **anual**. Valores são cobrados pelo período inteiro, não mensalidades fracionadas.
 
