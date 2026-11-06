@@ -8,6 +8,7 @@ import { load } from 'cheerio'
 import { detectStorefrontPlatform, extractFacilZapRuntime, facilZapProducts, parseVestiContext, vestiProducts, isZapFacilCatalogPage } from './scanner-platforms.mjs'
 import { collectDirectedSitemap, collectTrayPublic, parseVestiCompanyId, enrichVestiCandidate } from './scanner-platform-collectors.mjs'
 import { collectSharedPhotos, sharedPhotoSourceKind } from './scanner-photo-albums.mjs'
+import { collectWhatsAppCatalog, whatsappCatalogPhone } from './scanner-whatsapp-catalog.mjs'
 
 // Produção não possui teto artificial de produtos/páginas. Limites só são usados quando
 // explicitamente informados (testes, diagnóstico ou operação controlada).
@@ -1108,6 +1109,13 @@ export async function collectCatalog(sourceUrl, options = {}) {
   const sink = createCandidateSink(options, maxProducts)
 
   await onProgress({ progress: 5, pagesScanned: 0, candidates: 0 })
+  if (whatsappCatalogPhone(sourceUrl)) {
+    return collectWhatsAppCatalog(sourceUrl, { ...options, request, onProgress })
+  }
+  // WhatsApp links cannot be crawled as storefront HTML.
+  if (new URL(sourceUrl).hostname.toLowerCase() === 'wa.me') {
+    throw new Error('Use o link do catálogo https://wa.me/c/55DDDNUMERO; links de conversa não contêm produtos.')
+  }
   if (sharedPhotoSourceKind(sourceUrl)) {
     return collectSharedPhotos(sourceUrl, {
       request,
