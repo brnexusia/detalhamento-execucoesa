@@ -38,7 +38,12 @@ export async function stageSelectedImportMedia({
       `SELECT id,updated_at::text AS media_revision,COALESCE(review_data,normalized_data) AS data
        FROM import_normalized_products
        WHERE job_id=$1 AND store_id=$2 AND selected=true AND id>$3
-       ORDER BY id ASC LIMIT 25`,
+         AND (
+           COALESCE(review_data,normalized_data)->>'media_url' ~* '^https?://'
+           OR (COALESCE(review_data,normalized_data)->'images')::text ~* 'https?://'
+           OR (COALESCE(review_data,normalized_data)->'variant_images')::text ~* 'https?://'
+         )
+       ORDER BY id ASC LIMIT 100`,
       [jobId, storeId, cursor],
     )
     if (!result.rowCount) break
@@ -51,13 +56,7 @@ export async function stageSelectedImportMedia({
       const product = prepareReview(row.data).data
       const originalImages = sourceImages(product)
       const remoteImages = originalImages.filter(remote)
-      // Some storefront pages expose product images only on the detail page.
-      // Recover such images for the exact product, but never guess a picture.
-      const source = String(product.source_url || '')
-      const sourceMayContainProduct = !originalImages.length &&
-        remote(source) && !/https?:\/\/(?:www\.)?wa\.me\//i.test(source) &&
-        /\/(?:produto|product|products|p|item)\//i.test(source)
-      if (!remoteImages.length && !sourceMayContainProduct) continue
+      if (!remoteImages.length) continue // No external asset to persist.
       const localized = await localize({
         query, storeId, product, sourceUrl: product.source_url || '',
       })
@@ -67,9 +66,6 @@ export async function stageSelectedImportMedia({
       })
       const anyLocal = replacements.some(isLocalShopvaxMedia)
       if (!anyLocal) {
-        // A source page with no declared image is not a broken external image.
-        // Keep the user-reviewed no-image product unchanged if recovery fails.
-        if (!remoteImages.length) continue
         failed += 1
         throw new Error(
           'Não foi possível salvar nenhuma foto do produto "' +
