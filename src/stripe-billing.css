@@ -30,3 +30,7 @@
 .svx-billing__notice { color:#266447; }
 @media(max-width:800px) { .svx-billing__summary { grid-template-columns:1fr 1fr; } .svx-billing__actions { grid-column:1/-1; flex-direction:row !important; flex-wrap:wrap; } .svx-billing__plans { grid-template-columns:1fr; } .svx-billing__plans article { min-height:200px; } }
 @media(max-width:480px) { .svx-billing { padding:14px 12px 48px; } .svx-billing__summary { grid-template-columns:1fr; } .svx-billing__term { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); } .svx-billing__term button { min-width:0; width:100%; padding:9px 7px; } .svx-billing__summary strong { font-size:18px; } }
+
+/* Identificação explícita da oferta na cobrança Stripe. */
+.svx-billing__promo-banner{display:inline-block;max-width:720px;margin:12px 0 0!important;padding:10px 13px;background:#fbe1c8;border:1px solid #dc8d52;color:#46230c!important;font-weight:700;font-size:13px}
+.svx-billing__plans .svx-billing__previous-price{font-size:15px;font-weight:600;color:#716659;text-decoration:line-through;text-decoration-thickness:1px}
