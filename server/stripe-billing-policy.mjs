@@ -7,17 +7,25 @@ export const cycles = {
   annual: { months: 12, interval: 'year', count: 1, discount: 15, label: 'Anual' },
 }
 
-export function planPrice(code, cycle) {
-  const plan = systemPlans.find((entry) => entry.code === code)
+export function planPrice(code, cycle, override = null) {
+  // Stripe e vitrine usam os valores editados no admin (platform_plans), nunca um preço fixo do deploy.
+  const plan = override || systemPlans.find((entry) => entry.code === code)
   const term = cycles[cycle]
-  if (!plan || !term) return null
+  if (!plan || !term || plan.code !== code) return null
+  const monthly = Number(plan.monthly_price ?? plan.monthlyPrice)
+  const discount = Number(cycle === 'semiannual'
+    ? (plan.semester_discount ?? plan.semesterDiscount ?? term.discount)
+    : cycle === 'annual'
+      ? (plan.annual_discount ?? plan.annualDiscount ?? term.discount)
+      : 0)
+  if (!Number.isFinite(monthly) || monthly <= 0 || !Number.isFinite(discount) || discount < 0 || discount > 95) return null
   return {
     code: plan.code,
     name: plan.name,
     cycle,
     interval: term.interval,
     intervalCount: term.count,
-    amountCents: Math.round(plan.monthlyPrice * 100 * term.months * (100 - term.discount) / 100),
+    amountCents: Math.round(Math.round(monthly * 100) * term.months * (100 - discount) / 100),
   }
 }
 
