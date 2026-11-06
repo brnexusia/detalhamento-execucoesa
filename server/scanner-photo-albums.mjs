@@ -69,6 +69,66 @@ export function googlePhotosImageUrls(html, limit = MAX_ALBUM_ITEMS) {
   return [...images.values()].slice(0, Math.max(1, Math.min(MAX_ALBUM_ITEMS, Number(limit) || MAX_ALBUM_ITEMS)))
 }
 
+// Some public albums expose only the cover's image URL but have hyperlinks
+// to each photo. Enumerate ONLY detail pages for the very same public album.
+export function googlePhotosDetailUrls(html, albumUrl, limit = MAX_ALBUM_ITEMS) {
+  let base
+  try { base = new URL(albumUrl) } catch { return [] }
+  const album = /^\/share\/([A-Za-z0-9_-]{3,})\/?/.exec(base.pathname)
+  if (base.protocol !== 'https:' || base.hostname !== 'photos.google.com' || !album) return []
+  const found = new Set()
+  const raw = decodeAlbumHtml(html)
+  const rx = /\/share\/[A-Za-z0-9_-]{3,}\/photo\/[A-Za-z0-9_-]{3,}(?:\?[^\"'<>\s\\]+)?/g
+  for(const match of raw.matchAll(rx)) {
+    let item
+    try { item = new URL(match[0].replace(/&amp;/g,'&'),base) } catch { continue }
+    if(item.hostname !== 'photos.google.com' || item.protocol !== 'https:')continue
+    if(!item.pathname.startsWith('/share/'+album[1]+'/photo/'))continue
+    if(!item.searchParams.has('key') && base.searchParams.has('key')) {
+      item.searchParams.set('key',base.searchParams.get('key'))
+    }
+    found.add(item.toString())
+    if(found.size >= MAX_ALBUM_ITEMS)break
+  }
+  return [...found].slice(0,Math.max(1,Math.min(MAX_ALBUM_ITEMS, Number(limit)||MAX_ALBUM_ITEMS)))
+}
+
+function preferredPhotoFromDetail(html) {
+  const raw=decodeAlbumHtml(html)
+  const meta = /<meta\s+[^>]*?(?:property|name)=["']og:image["'][^>]*?content=["']([^"']+)["']/i.exec(raw)
+    || /<meta\s+[^>]*?content=["']([^"']+)["'][^>]*?(?:property|name)=["']og:image["']/i.exec(raw)
+  if(meta){
+    const candidates=googlePhotosImageUrls(meta[1],1)
+    if(candidates.length)return candidates[0]
+  }
+  return googlePhotosImageUrls(raw,1)[0] || ''
+}
+
+async function resolvePhotoDetails(detailUrls,request,onProgress) {
+  const results=new Array(detailUrls.length).fill('')
+  let cursor=0
+  let completed=0
+  const workers=Array.from({length:Math.min(4,detailUrls.length)},async()=>{
+    while(cursor<detailUrls.length){
+      const index=cursor++
+      try {
+        const response=await request(detailUrls[index],{
+          accept:'text/html,application/xhtml+xml',maxBytes:3*1024*1024,timeout:12000,
+        })
+        const redirected=new URL(response.url||detailUrls[index])
+        if(response.ok&&redirected.hostname==='photos.google.com'&&String(response.contentType||'').includes('html')) {
+          results[index]=preferredPhotoFromDetail(response.body)
+        }
+      }catch{/* A single unavailable image is reported as skipped. */}
+      completed++
+      if(completed%50===0)await onProgress?.({progress:Math.min(35,10+Math.round(completed/detailUrls.length*25)),
+        pagesScanned:1,candidates:0,platform:'google-photos'})
+    }
+  })
+  await Promise.all(workers)
+  return results.filter(Boolean)
+}
+
 async function savePhoto(url, request, onImage, filename) {
   const response = await request(url, {
     accept: 'image/avif,image/webp,image/png,image/jpeg,image/gif,*/*;q=0.2',
@@ -111,6 +171,17 @@ export async function collectSharedPhotos(sourceUrl, { request, onImage, onBatch
     albumUrl = finalUrl.toString()
     if (!String(response.contentType || '').includes('html')) throw new Error('O link não retornou um álbum legível.')
     imageUrls = googlePhotosImageUrls(response.body, safeMax)
+    const details = googlePhotosDetailUrls(response.body, albumUrl, safeMax)
+    if (details.length > imageUrls.length) {
+      // Do not mistake a cover image for a complete catalog. The detail-page
+      // fallback has a fixed request ceiling; oversized albums should be
+      // exported or expose image URLs directly rather than silently truncated.
+      if (details.length > 1000) throw new Error(
+        'Este álbum contém mais de 1.000 páginas individuais de foto e não expõe todas as imagens no HTML. Faça um arquivo de fotos/exportação do álbum para importar com segurança.'
+      )
+      const detailImages = await resolvePhotoDetails(details,request,onProgress)
+      imageUrls = [...new Set(detailImages)].slice(0,safeMax)
+    }
     if (!imageUrls.length) throw new Error('Nenhuma foto pública foi encontrada no álbum. Confirme a opção Compartilhar por link. Alguns álbuns exigem acesso autenticado e não podem ser importados por URL.')
   } else {
     imageUrls = [sourceUrl]
