@@ -1,4 +1,5 @@
 import { systemPlans } from './system-plans.mjs'
+import { blackFridayPromotion } from './black-friday-pricing.mjs'
 import { registerPlatformBuyerDirectory } from './platform-buyer-directory.mjs'
 import crypto from 'node:crypto'
 import express from 'express'
@@ -79,6 +80,7 @@ function planShape(row) {
     code: row.code,
     name: row.name,
     monthlyPrice: Number(row.monthly_price || 0),
+    promotion: blackFridayPromotion(row.code, row.monthly_price),
     semesterDiscount: Number(row.semester_discount || 0),
     annualDiscount: Number(row.annual_discount || 0),
     sellerLimit: row.seller_limit == null ? null : Number(row.seller_limit),
@@ -181,6 +183,34 @@ async function ensurePlatformSchema() {
         ],
       )
     }
+
+    // Primeira publicação da campanha: corrigir SOMENTE os preços antigos de fábrica.
+    // A marcação persistida impede sobrescrever edições futuras feitas pelo admin.
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS shopvax_pricing_rollouts (
+        rollout_key text PRIMARY KEY,
+        applied_at timestamptz NOT NULL DEFAULT now()
+      )
+    `)
+    await pool.query(`
+      WITH first_run AS (
+        INSERT INTO shopvax_pricing_rollouts (rollout_key)
+        VALUES ('black-friday-2026')
+        ON CONFLICT DO NOTHING RETURNING rollout_key
+      )
+      UPDATE platform_plans SET
+        monthly_price=CASE code
+          WHEN 'bronze' THEN 29.99
+          WHEN 'prata' THEN 49.99
+          WHEN 'ouro' THEN 69.99
+          ELSE monthly_price END,
+        updated_at=now()
+      WHERE EXISTS (SELECT 1 FROM first_run)
+        AND is_system=true
+        AND ((code='bronze' AND monthly_price=49.90)
+          OR (code='prata' AND monthly_price=94.90)
+          OR (code='ouro' AND monthly_price=144.90))
+    `)
 
     // Ouro é o plano sem limite de fotos. A correção abaixo atualiza bancos já
     // inicializados, sem depender de recriar o plano ou alterar a loja do cliente.
