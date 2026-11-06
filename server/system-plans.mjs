@@ -1,9 +1,11 @@
+import { blackFridayPrices } from './black-friday-pricing.mjs'
+
 export const systemPlans = [
   {
     id: 'plan-bronze',
     code: 'bronze',
     name: 'Bronze',
-    monthlyPrice: 49.90,
+    monthlyPrice: blackFridayPrices.bronze.monthlyPrice,
     semesterDiscount: 5,
     annualDiscount: 15,
     sellerLimit: 5,
@@ -39,7 +41,7 @@ export const systemPlans = [
     id: 'plan-prata',
     code: 'prata',
     name: 'Prata',
-    monthlyPrice: 94.90,
+    monthlyPrice: blackFridayPrices.prata.monthlyPrice,
     semesterDiscount: 5,
     annualDiscount: 15,
     sellerLimit: 15,
@@ -75,7 +77,7 @@ export const systemPlans = [
     id: 'plan-ouro',
     code: 'ouro',
     name: 'Ouro',
-    monthlyPrice: 144.90,
+    monthlyPrice: blackFridayPrices.ouro.monthlyPrice,
     semesterDiscount: 5,
     annualDiscount: 15,
     sellerLimit: null,
