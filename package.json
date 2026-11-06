@@ -22,7 +22,7 @@
     "test:polish": "node server/product-polish.integration.mjs",
     "test:google-auth": "node server/google-auth.integration.mjs",
     "test:buyer-whatsapp": "node --test server/buyer-whatsapp-auth.test.mjs",
-    "test:billing": "node --test server/stripe-billing-policy.test.mjs server/stripe-key-config.test.mjs server/black-friday-pricing.test.mjs",
+    "test:billing": "node --test server/stripe-billing-policy.test.mjs server/stripe-key-config.test.mjs server/black-friday-pricing.test.mjs server/signup-billing-mode.test.mjs",
     "worker:media": "node server/media-worker.mjs",
     "test:redis": "node --test server/redis-runtime.test.mjs",
     "test:seo": "node --test server/seo-routes-hooks.test.mjs"
