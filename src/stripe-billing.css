@@ -34,3 +34,19 @@
 /* Identificação explícita da oferta na cobrança Stripe. */
 .svx-billing__promo-banner{display:inline-block;max-width:720px;margin:12px 0 0!important;padding:10px 13px;background:#fbe1c8;border:1px solid #dc8d52;color:#46230c!important;font-weight:700;font-size:13px}
 .svx-billing__plans .svx-billing__previous-price{font-size:15px;font-weight:600;color:#716659;text-decoration:line-through;text-decoration-thickness:1px}
+
+/* Cobrança / iPhone: campo de indicação em coluna, sem descrição encostada no input. */
+.svx-billing__referral{display:grid;grid-template-columns:minmax(0,1fr);gap:7px;margin:22px 0 4px;max-width:570px}
+.svx-billing__referral label{font-size:14px;font-weight:600;line-height:1.4}
+.svx-billing__referral input{display:block;width:100%;max-width:100%;min-width:0;min-height:46px;box-sizing:border-box;border:1px solid #a8a195;border-radius:3px;padding:11px 13px;background:#fcfaf5;color:#161514;font:inherit}
+.svx-billing__referral small{display:block;line-height:1.55;font-size:12px;color:#625d55;overflow-wrap:anywhere}
+.svx-billing__error{line-height:1.5;overflow-wrap:anywhere}
+.svx-billing__promo-banner{box-sizing:border-box;max-width:100%;overflow-wrap:anywhere}
+@media(max-width:760px){
+  .svx-billing{padding-bottom:130px}
+  .svx-billing__referral{margin-top:16px}
+  /* Ajuda continua acessível mas não encobre inputs e ações. */
+  body:has(.svx-billing) .svx-support__trigger{width:45px;min-width:45px;height:45px;min-height:45px;display:flex;justify-content:center;gap:0;padding:0;font-size:0;overflow:hidden;border-radius:50%}
+  body:has(.svx-billing) .svx-support__trigger svg{width:21px;height:21px;flex-shrink:0}
+  body:has(.svx-billing) .svx-support{right:10px;bottom:max(14px,env(safe-area-inset-bottom))}
+}
