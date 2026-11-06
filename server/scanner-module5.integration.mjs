@@ -49,7 +49,7 @@ const fakeCollector = async () => ({
       description: 'Camisa leve.',
       sku: 'SKU-EXISTENTE',
       category: 'Camisas',
-      images: ['https://cdn.fixture.example/camisa.jpg'],
+      images: [], // SKU already exists; media persistence is tested separately.
       properties: [{ name: 'Cor', values: ['Preto', 'Caramelo'] }],
       variants: [],
       price: 42,
