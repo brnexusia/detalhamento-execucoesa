@@ -178,6 +178,23 @@ async function canonicalStripeProduct(plan) {
     LIMIT 1
   `, [stripeMode, plan.code])
   let productId = legacy.rows[0]?.product_id
+  if (productId) {
+    // Remove a campanha do NOME canônico quando reutilizamos um produto
+    // de Black Friday; o texto da promoção continua no Price correspondente.
+    try {
+      const legacyProduct = await stripe('GET','products/'+encodeURIComponent(productId))
+      if (legacyProduct.active === false) productId = null
+      else if (legacyProduct.name !== 'Shopvax ' + plan.name) {
+        await stripe('POST','products/'+encodeURIComponent(productId),{
+          name:'Shopvax ' + plan.name,
+        }, 'shopvax-product-normalize-' + stripeMode + '-' + plan.code + '-v1')
+      }
+    } catch (error) {
+      // Se a chave restrita não permitir ler/renomear produtos, preserve a
+      // referência existente: falhar aqui não pode bloquear uma cobrança.
+      console.warn('[stripe-billing] produto legado não normalizado:',plan.code,error?.status||'api')
+    }
+  }
   if (!productId) {
     const product = await stripe('POST', 'products', {
       name: 'Shopvax ' + plan.name,
