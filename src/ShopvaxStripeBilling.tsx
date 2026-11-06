@@ -178,7 +178,7 @@ export default function ShopvaxStripeBilling() {
               onClick={() => void act(activeSubscription ? '/api/billing/change' : '/api/billing/checkout', {
                 planCode: plan.code, cycle, referralCode: !activeSubscription ? referralCode.trim() : undefined, requestId: crypto.randomUUID(),
               })}>
-              {busy ? 'Processando…' : current ? 'Seu plano atual' : activeSubscription ? 'Alterar para ' + plan.name : 'Assinar ' + plan.name}
+              {busy ? (activeSubscription ? 'Atualizando plano…' : 'Abrindo pagamento seguro…') : current ? 'Seu plano atual' : activeSubscription ? 'Alterar para ' + plan.name : 'Assinar ' + plan.name}
             </button>
           </article>
         })}
