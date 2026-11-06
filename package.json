@@ -28,7 +28,8 @@
     "test:seo": "node --test server/seo-routes-hooks.test.mjs",
     "test:scanner:whatsapp": "node --test server/scanner-uazapi-catalog.test.mjs",
     "test:scanner:media": "node --test server/scanner-publish-media.test.mjs",
-    "test:scanner:architectures": "node --test server/scanner-architecture-fingerprint.test.mjs"
+    "test:scanner:architectures": "node --test server/scanner-architecture-fingerprint.test.mjs",
+    "test:scanner:vtex": "node --test server/scanner-vtex-public.test.mjs"
   },
   "dependencies": {
     "cheerio": "^1.1.2",
