@@ -4,13 +4,23 @@ import crypto from 'node:crypto'
 import { cycles, planPrice, subscriptionAccess, verifyStripeSignature } from './stripe-billing-policy.mjs'
 
 test('preços oficiais em BRL, incluindo desconto semestral/anual com arredondamento', () => {
-  assert.deepEqual(['bronze','prata','ouro'].map((p) => planPrice(p, 'monthly').amountCents), [4990,9490,14490])
-  assert.deepEqual(['bronze','prata','ouro'].map((p) => planPrice(p, 'semiannual').amountCents), [28443,54093,82593])
-  assert.deepEqual(['bronze','prata','ouro'].map((p) => planPrice(p, 'annual').amountCents), [50898,96798,147798])
+  assert.deepEqual(['bronze','prata','ouro'].map((p) => planPrice(p, 'monthly').amountCents), [2999,4999,6999])
+  assert.deepEqual(['bronze','prata','ouro'].map((p) => planPrice(p, 'semiannual').amountCents), [17094,28494,39894])
+  assert.deepEqual(['bronze','prata','ouro'].map((p) => planPrice(p, 'annual').amountCents), [30590,50990,71390])
   assert.equal(planPrice('platinum','monthly'), null)
   assert.equal(planPrice('bronze','weekly'), null)
   assert.equal(cycles.semiannual.count, 6)
 })
+test('preços alterados no admin prevalecem nos ciclos e na Stripe', () => {
+  const configured = { code: 'bronze', name: 'Bronze', monthly_price: '29.99', semester_discount: '7', annual_discount: '20' }
+  assert.equal(planPrice('bronze', 'monthly', configured).amountCents, 2999)
+  assert.equal(planPrice('bronze', 'semiannual', configured).amountCents, 16734)
+  assert.equal(planPrice('bronze', 'annual', configured).amountCents, 28790)
+  assert.equal(planPrice('bronze', 'monthly', { ...configured, monthly_price: 31.50 }).amountCents, 3150)
+  assert.equal(planPrice('prata', 'monthly', configured), null)
+  assert.equal(planPrice('bronze', 'annual', { ...configured, monthly_price: -1 }), null)
+})
+
 test('rejeita webhooks sem assinatura, adulterados, com timestamp expirado', () => {
   const body = Buffer.from(JSON.stringify({ id: 'evt_123' }))
   const now = Date.now()
