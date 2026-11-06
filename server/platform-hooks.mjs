@@ -1,5 +1,7 @@
 import { systemPlans } from './system-plans.mjs'
 import { blackFridayPromotion } from './black-friday-pricing.mjs'
+import { parseComplimentaryGrant, isComplimentaryAccessActive } from './admin-access-policy.mjs'
+import { shopvaxStripeAdminRuntime } from './stripe-billing-hooks.mjs'
 import { registerPlatformBillingRepricing } from './platform-billing-repricing.mjs'
 import { registerPlatformBuyerDirectory } from './platform-buyer-directory.mjs'
 import crypto from 'node:crypto'
@@ -145,6 +147,11 @@ async function ensurePlatformSchema() {
       CREATE INDEX IF NOT EXISTS idx_platform_admins_created ON platform_admins(created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_platform_audit_created ON platform_audit_log(created_at DESC);
       ALTER TABLE stores ADD COLUMN IF NOT EXISTS plan_tier text NOT NULL DEFAULT 'bronze';
+      ALTER TABLE stores ADD COLUMN IF NOT EXISTS admin_grant_active boolean NOT NULL DEFAULT false;
+      ALTER TABLE stores ADD COLUMN IF NOT EXISTS admin_grant_expires_at timestamptz;
+      ALTER TABLE stores ADD COLUMN IF NOT EXISTS admin_grant_reason text;
+      ALTER TABLE stores ADD COLUMN IF NOT EXISTS admin_granted_by text;
+      ALTER TABLE stores ADD COLUMN IF NOT EXISTS admin_granted_at timestamptz;
     `)
     await pool.query(`
       ALTER TABLE platform_plans ADD COLUMN IF NOT EXISTS photo_limit integer;
@@ -470,6 +477,7 @@ function installPlatformRoutes(app) {
         (SELECT count(*)::int FROM orders) AS orders,
         (SELECT coalesce(sum(total),0)::numeric FROM orders) AS order_value`),
       pool.query(`SELECT s.id,s.slug,s.name,s.is_active,s.created_at,s.updated_at,s.plan_tier,
+         s.admin_grant_active,s.admin_grant_expires_at,s.admin_grant_reason,s.admin_granted_at,
         u.id AS owner_id,u.name AS owner_name,u.email AS owner_email,
         (SELECT count(*)::int FROM products p WHERE p.store_id=s.id) AS products,
         (SELECT count(*)::int FROM sellers se WHERE se.store_id=s.id) AS sellers,
@@ -492,6 +500,8 @@ function installPlatformRoutes(app) {
       stores: stores.rows.map((store) => ({
         id: store.id, slug: store.slug, name: store.name, isActive: Boolean(store.is_active), createdAt: store.created_at,
         ownerId: store.owner_id, ownerName: store.owner_name, ownerEmail: store.owner_email, planCode: store.plan_tier || 'bronze',
+         adminAccessActive: isComplimentaryAccessActive(store), adminAccessExpiresAt:store.admin_grant_expires_at,
+         adminAccessReason:store.admin_grant_active ? store.admin_grant_reason : null,
         products: Number(store.products || 0), sellers: Number(store.sellers || 0), orders: Number(store.orders || 0), orderValue: Number(store.order_value || 0),
       })),
       admins: admins.rows.map((row) => ({ id: row.id, name: row.name, email: row.email, createdAt: row.created_at, hasStore: Boolean(row.has_store) })),
@@ -513,13 +523,87 @@ function installPlatformRoutes(app) {
     const oi = params.length
     const result = await pool.query(`SELECT u.id,u.name,u.email,u.created_at,
       EXISTS(SELECT 1 FROM platform_admins pa WHERE pa.user_id=u.id) AS is_admin,
-      s.id AS store_id,s.name AS store_name,s.slug AS store_slug,s.is_active,s.plan_tier
+      s.id AS store_id,s.name AS store_name,s.slug AS store_slug,s.is_active,s.plan_tier,
+       s.admin_grant_active,s.admin_grant_expires_at
       FROM users u LEFT JOIN stores s ON s.owner_id=u.id ${where}
       ORDER BY u.created_at DESC LIMIT $${li} OFFSET $${oi}`, params)
     res.json({ accounts: result.rows.map((row) => ({
       id: row.id, name: row.name, email: row.email, createdAt: row.created_at, isAdmin: Boolean(row.is_admin),
-      store: row.store_id ? { id: row.store_id, name: row.store_name, slug: row.store_slug, isActive: Boolean(row.is_active), planCode: row.plan_tier || 'bronze' } : null,
+      store: row.store_id ? { id: row.store_id, name: row.store_name, slug: row.store_slug, isActive: Boolean(row.is_active), planCode: row.plan_tier || 'bronze', adminAccessActive: isComplimentaryAccessActive(row), adminAccessExpiresAt: row.admin_grant_expires_at } : null,
     })) })
+  }))
+
+
+  // Concessão excepcional por loja; nunca transforma a instalação inteira em grátis.
+  router.patch('/stores/:storeId/complimentary-access', requirePlatformAdmin, asyncRoute(async (req,res) => {
+    res.set('Cache-Control','private, no-store')
+    if (!(await requireReauth(req,res))) return
+    const action = String(req.body?.action || '')
+    if (action !== 'grant' && action !== 'revoke') return res.status(400).json({ error:'Ação inválida.' })
+    const policy = action === 'grant' ? parseComplimentaryGrant(req.body) : null
+    if (policy?.error) return res.status(400).json({ error:policy.error })
+    await shopvaxStripeAdminRuntime.ensureSchema()
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      const found = await client.query(`
+        SELECT s.id,s.name,s.is_active,s.admin_grant_active,s.admin_grant_expires_at,s.plan_tier,
+          b.subscription_status,b.paid_until
+        FROM stores s LEFT JOIN shopvax_stripe_billing b ON b.store_id=s.id
+        WHERE s.id=$1 FOR UPDATE OF s
+      `,[req.params.storeId])
+      const target=found.rows[0]
+      if (!target) {
+        await client.query('ROLLBACK')
+        return res.status(404).json({ error:'Loja não encontrada.' })
+      }
+      if (action === 'grant' && !target.is_active) {
+        await client.query('ROLLBACK')
+        return res.status(409).json({ error:'A loja está suspensa. Reative-a antes de conceder acesso.' })
+      }
+      if (action === 'grant' && target.subscription_status === 'active' && target.paid_until && new Date(target.paid_until).getTime() > Date.now()) {
+        await client.query('ROLLBACK')
+        return res.status(409).json({ error:'Esta loja já possui uma assinatura paga ativa. Não foi criada uma isenção.' })
+      }
+      if (action === 'grant') {
+        const plan = (await client.query('SELECT * FROM platform_plans WHERE code=$1 AND active=true AND is_system=true LIMIT 1',[policy.planCode])).rows[0]
+        if (!plan) {
+          await client.query('ROLLBACK')
+          return res.status(409).json({ error:'Plano indisponível para cortesia.' })
+        }
+        const usage=await storeUsage(target.id)
+        const conflict=capacityError(plan,usage)
+        if (conflict) {
+          await client.query('ROLLBACK')
+          return res.status(409).json({ error:conflict })
+        }
+        await client.query(`
+          UPDATE stores SET plan_tier=$2,admin_grant_active=true,admin_grant_expires_at=$3,
+            admin_grant_reason=$4,admin_granted_by=$5,admin_granted_at=now(),updated_at=now()
+          WHERE id=$1
+        `,[target.id,policy.planCode,policy.expiresAt,policy.reason,req.platformUser.id])
+      } else {
+        await client.query(`
+          UPDATE stores SET admin_grant_active=false,admin_grant_expires_at=NULL,
+            admin_grant_reason=NULL,admin_granted_by=NULL,admin_granted_at=NULL,updated_at=now()
+          WHERE id=$1
+        `,[target.id])
+      }
+      await client.query(`
+        INSERT INTO platform_audit_log (id,actor_user_id,action,target_type,target_id,meta)
+        VALUES ($1,$2,$3,'store',$4,$5)
+      `,[id(),req.platformUser.id,action==='grant'?'store.complimentary.grant':'store.complimentary.revoke',target.id,
+         JSON.stringify(action==='grant'
+           ? { planCode:policy.planCode,expiresAt:policy.expiresAt,reason:policy.reason,previousPlan:target.plan_tier }
+           : { previousExpiresAt:target.admin_grant_expires_at,previousPlan:target.plan_tier })])
+      await client.query('COMMIT')
+      return res.json({ ok:true,action,storeId:target.id,
+        planCode:action==='grant'?policy.planCode:target.plan_tier,
+        adminAccessActive:action==='grant',adminAccessExpiresAt:action==='grant'?policy.expiresAt:null })
+    } catch (error) {
+      await client.query('ROLLBACK').catch(()=>undefined)
+      throw error
+    } finally { client.release() }
   }))
 
   router.patch('/stores/:storeId/status', requirePlatformAdmin, asyncRoute(async (req, res) => {
