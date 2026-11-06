@@ -264,3 +264,10 @@ test('PDF scanner accepts a standalone explicit BRL decimal without a currency l
   assert.equal(result.candidates.length, 2)
   assert.deepEqual(result.candidates.map(item => item.price), [49.90,35.00])
 })
+
+test('PDF parser preserves cents when prices use dot decimals', () => {
+  const pdf = ['Camisa Premium','REF: CP-17','R$ 49.90'].join('\n')
+  const result = parsePdfCatalogText(pdf)
+  assert.equal(result.candidates.length, 1)
+  assert.equal(result.candidates[0].price, 49.9)
+})
