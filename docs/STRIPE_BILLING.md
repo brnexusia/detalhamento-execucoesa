@@ -29,6 +29,8 @@ SHOPVAX_STRIPE_SECRET_KEY=<chave-backend> # sk_test_/rk_test_ em testes; sk_live
 SHOPVAX_STRIPE_WEBHOOK_SECRET=whsec_...    # segredo do endpoint da Stripe correspondente
 ```
 
+**Compatibilidade de implantação:** se o EasyPanel já tiver salvo a chave Stripe sob o nome antigo `SHOPVAX_STRIPE_SECRET_KEY_URL`, o backend também a reconhece como credencial (desde que contenha `sk_test_`, `rk_test_`, `sk_live_` ou `rk_live_` e não uma URL). Esta compatibilidade é temporária: migre para `SHOPVAX_STRIPE_SECRET_KEY`. A variável canônica sempre tem prioridade quando ambas estiverem definidas. O deploy precisa usar a versão atualizada do backend.
+
 **Chaves restritas:** o backend aceita chaves secretas `sk_` e restritas `rk_`, tanto em teste quanto em produção. Prefira uma `rk_live_` dedicada ao ShopVax, com as permissões necessárias. Uma chave com prefixo válido mas permissões insuficientes pode aparecer como configurada; o checkout e o Portal precisam ser homologados com a Stripe.
 
 ### Permissões mínimas da chave restrita (Stripe API v1)
