@@ -409,7 +409,7 @@ export default function ScannerModule1() {
             </div>
             {sourceMode === 'whatsapp' ? <>
               <label><span>Link do catálogo WhatsApp Business</span><input value={url} onChange={event=>setUrl(event.target.value)} inputMode="url" autoComplete="url" placeholder="https://wa.me/c/5511961860913" required autoFocus/></label>
-              <p className="scanner-help">Cole o link compartilhado do catálogo (wa.me/c/...). A consulta precisa de uma instância Evolution API autorizada e conectada no servidor. Os produtos retornados vão para revisão, com fotos e preços quando disponibilizados; nada será publicado automaticamente.</p>
+              <p className="scanner-help">Cole o link compartilhado do catálogo (wa.me/c/...). A consulta usa uma instância UAZAPI conectada e autorizada, configurada no servidor. Os produtos retornados vão para revisão, com fotos e preços quando disponibilizados; nada será publicado automaticamente.</p>
             </> : sourceMode === 'site' ? <>
               <label><span>URL da sua loja atual</span><input value={url} onChange={(event) => setUrl(event.target.value)} inputMode="url" autoComplete="url" placeholder="https://minhaloja.com.br" required autoFocus /></label>
               <p className="scanner-help">Cole o endereço público da loja que pertence à sua empresa. O sistema identificará os produtos disponíveis.</p>
