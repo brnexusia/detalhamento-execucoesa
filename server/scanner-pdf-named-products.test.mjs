@@ -16,8 +16,7 @@ test('captures explicitly named cosmetic products in price-free supplier brochur
 })
 
 test('ignores promotional prose, repeated titles and vague unnamed products',()=>{
-  const pages=['CATÁLOGO\nShampoo
-Óleo natural e ingredientes de qualidade.\nCom 450ml e uma ótima fragrância\nPreço especial\nProduto de destaque\nShampoo Suave 300ml']
+  const pages=['CATÁLOGO\nShampoo\nÓleo natural e ingredientes de qualidade.\nCom 450ml e uma ótima fragrância\nPreço especial\nProduto de destaque\nShampoo Suave 300ml']
   const products=parseNamedUnpricedPdfProducts(pages)
   assert.equal(products.length,1)
   assert.equal(products[0].title,'Shampoo Suave 300ml')
