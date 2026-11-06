@@ -44,6 +44,11 @@ function text(value) {
 }
 
 function priceFromLine(line) {
+  // Some exported catalogs use a dot for decimal cents (R$ 49.90).
+  // Check these BEFORE the integer pattern, which would read them as R$ 49.
+  const dotPrices = [...String(line).matchAll(/(?:R\$|BRL|pre[cç]o|atacado|varejo|valor)\s*[:=-]?\s*(\d{1,6}\.\d{2})(?![\d,])/gi)]
+    .map(match => Number(match[1])).filter(value => value > 0 && value <= 1000000)
+  if (dotPrices.length) return Math.min(...dotPrices)
   const matches = [...String(line).matchAll(/(?:R\$\s*|(?:pre[cç]o|atacado|varejo|valor)\s*(?:de|:|-)?\s*)(\d{1,6}(?:\.\d{3})*,\d{2}|\d{1,6}(?:\.\d{3})*)/gi)]
   const prices = matches.map((match) => {
     const value = match[1].replace(/\./g, '').replace(',', '.')
