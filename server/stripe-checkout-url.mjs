@@ -12,3 +12,17 @@ export function trustedStripeCheckoutDestination(raw, customHostname = '') {
       (Boolean(custom) && url.hostname === custom && !officialHosts.has(custom))
   } catch { return false }
 }
+
+
+/**
+ * Reuse Stripe's authenticated Checkout URL directly instead of forcing a
+ * second HTTP round-trip through the Shopvax redirect endpoint. Only official
+ * Checkout hosts use the fast path; explicitly configured custom domains keep
+ * the existing server-side verification/redirect flow.
+ */
+export function checkoutDestinationForClient(raw, customHostname = '') {
+  if (!trustedStripeCheckoutDestination(raw, customHostname)) return null
+  const host = new URL(raw).hostname
+  if (host === 'checkout.stripe.com' || host === 'pay.stripe.com' || host === 'buy.stripe.com') return raw
+  return '/api/billing/checkout/redirect'
+}
