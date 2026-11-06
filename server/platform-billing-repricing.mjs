@@ -37,7 +37,7 @@ export function registerPlatformBillingRepricing(router, requirePlatformAdmin, a
   function requestedRows(body, found) {
     const scope = body?.scope === 'all' ? 'all' : body?.scope === 'selected' ? 'selected' : null
     if (!scope) return { error: 'Escolha somente lojas selecionadas ou todas as elegíveis.' }
-    if (found.length > MAX_BATCH) return { error: 'Há mais de 50 assinaturas elegíveis. Faça a operação em lotes menores, sem aplicar em massa automaticamente.' }
+    if (scope === 'all' && found.length > MAX_BATCH) return { error: 'Há mais de 50 assinaturas elegíveis. Selecione um lote de até 50 lojas por operação.' }
     if (scope === 'all') return { rows: found }
     const ids = body?.storeIds
     if (!Array.isArray(ids) || !ids.length || ids.length > MAX_BATCH ||
