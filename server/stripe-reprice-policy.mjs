@@ -15,6 +15,7 @@ export function validateStripeRepricingTarget(subscription, row, target) {
       subscription.cancel_at_period_end || subscription.pending_update ||
       !Array.isArray(items) || items.length !== 1 ||
       typeof currentPrice !== 'object' || currentPrice?.currency !== 'brl' ||
+      !Number.isSafeInteger(currentPrice.unit_amount) || currentPrice.unit_amount < 0 ||
       currentPrice.recurring?.interval !== expectedInterval ||
       Number(currentPrice.recurring?.interval_count) !== Number(expectedCount) ||
       !Number.isSafeInteger(target.amountCents) || target.amountCents <= 0) {
