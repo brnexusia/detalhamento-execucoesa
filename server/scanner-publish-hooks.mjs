@@ -5,6 +5,7 @@ import { prepareReview } from './scanner-review.mjs'
 import { importPublishGroupHash, previewPdfPublishGroups, mergeImportParentProducts } from './scanner-import-grouping.mjs'
 import { inferPdfProductCategory } from './scanner-pdf-category.mjs'
 import { fetchBestImportImage, isBraavoImageUrl, localizeImportedProductMedia } from './import-media-localizer.mjs'
+import { stageSelectedImportMedia } from './scanner-publish-media.mjs'
 
 const { Pool } = pg
 const databaseUrl = process.env.DATABASE_URL?.trim() || ''
@@ -287,6 +288,19 @@ async function publishJob(req, res) {
   const store = await currentStore(req)
   if (!store) return res.status(401).json({ error: 'Sessão necessária.' })
 
+  // Remote downloads must finish BEFORE a publishing transaction. Previously
+  // products were committed with external URLs and fixed in the background.
+  try {
+    await stageSelectedImportMedia({
+      query:pool.query.bind(pool),
+      storeId:store.store_id,
+      jobId:req.params.jobId,
+    })
+  } catch (error) {
+    return res.status(409).json({ error:error instanceof Error ? error.message :
+      'Não foi possível salvar as imagens antes da publicação.' })
+  }
+
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
@@ -469,13 +483,9 @@ async function publishJob(req, res) {
       [created, skippedExisting, mode, job.id, store.store_id],
     )
     await client.query('COMMIT')
-    if (process.env.SHOPVAX_IMPORT_MEDIA_REPAIR_DISABLED !== '1') {
-      setImmediate(() => {
-        void materializeJobMedia(pool.query.bind(pool), job.id, store.store_id)
-          .catch((error) => console.warn('[scanner publish] media localization:', error?.message || error))
-      })
-    }
-    return res.json({ ...publicResult(updated.rows[0], false), media: { queued: true } })
+    // Images were localized before publication. PDF images have always been
+    // embedded at scan time; no asynchronous media repair is needed here.
+    return res.json({ ...publicResult(updated.rows[0], false), media: { queued: false, localizedBeforePublish: true } })
   } catch (error) {
     try { await client.query('ROLLBACK') } catch {}
     throw error
@@ -628,18 +638,30 @@ function installPublisherRoute(app) {
     Promise.resolve(recoverLegacyPdfJob(req, res)).catch(next)
   })
 
-  if (pool && process.env.SHOPVAX_IMPORT_MEDIA_REPAIR_DISABLED !== '1') {
-    for (const delay of [15_000, 120_000, 600_000]) {
-      const timer = setTimeout(() => {
-        void repairExistingImportedMedia().catch((error) => console.warn('[scanner publish] imported media repair:', error?.message || error))
-        void upgradeExistingBraavoMediaAssets()
-          .then((stats) => {
-            if (stats?.checked) console.info(`[scanner publish] braavo media quality: checked=${stats.checked} upgraded=${stats.upgraded} failed=${stats.failed}`)
-          })
-          .catch((error) => console.warn('[scanner publish] braavo media quality:', error?.message || error))
-      }, delay)
-      timer.unref()
-    }
+  // Legacy repair is explicit opt-in. Avoid parallel repair transactions on
+  // every application restart and the deadlocks they caused in production.
+  if (pool && process.env.SHOPVAX_IMPORT_MEDIA_REPAIR_ON_STARTUP === '1' &&
+      process.env.SHOPVAX_IMPORT_MEDIA_REPAIR_DISABLED !== '1') {
+    const timer = setTimeout(() => {
+      void (async () => {
+        const lock = await pool.connect()
+        try {
+          const acquired = await lock.query(
+            "SELECT pg_try_advisory_lock(hashtext('shopvax-legacy-media-repair')::bigint) AS ok"
+          )
+          if (!acquired.rows[0]?.ok) return
+          try {
+            await repairExistingImportedMedia()
+            await upgradeExistingBraavoMediaAssets()
+          } finally {
+            await lock.query(
+              "SELECT pg_advisory_unlock(hashtext('shopvax-legacy-media-repair')::bigint)"
+            )
+          }
+        } finally {lock.release()}
+      })().catch(error => console.warn('[scanner publish] opt-in legacy repair:',error?.message || error))
+    },30_000)
+    timer.unref()
   }
 }
 
