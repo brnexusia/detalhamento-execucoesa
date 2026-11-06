@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { trustedStripeCheckoutDestination } from './stripe-checkout-url.mjs'
+import { trustedStripeCheckoutDestination, checkoutDestinationForClient } from './stripe-checkout-url.mjs'
 
 test('allows Stripe-hosted Checkout URLs with multiple official paths', () => {
   for (const url of [
@@ -31,4 +31,29 @@ test('custom domains are never implicitly permitted', () => {
   assert.equal(trustedStripeCheckoutDestination(url), false)
   assert.equal(trustedStripeCheckoutDestination(url, 'pay.shopvax.com.br'), true)
   assert.equal(trustedStripeCheckoutDestination('https://evil.test/path','pay.shopvax.com.br'),false)
+})
+
+
+test('official Stripe Checkout destinations skip the extra internal redirect', () => {
+  const urls = [
+    'https://checkout.stripe.com/c/pay/cs_test_example#session',
+    'https://pay.stripe.com/c/pay/cs_live_example',
+    'https://buy.stripe.com/test_example',
+  ]
+  for (const url of urls) assert.equal(checkoutDestinationForClient(url), url)
+})
+
+test('custom Checkout hosts retain the secure same-origin fallback', () => {
+  const url = 'https://pay.shopvax.com.br/session/cs_live_example'
+  assert.equal(checkoutDestinationForClient(url), null)
+  assert.equal(checkoutDestinationForClient(url, 'pay.shopvax.com.br'), '/api/billing/checkout/redirect')
+})
+
+test('malicious redirects are not returned to the client', () => {
+  for (const url of [
+    'https://checkout.stripe.com.evil.test/pay/a',
+    'http://checkout.stripe.com/c/pay/a',
+    'javascript:alert(1)',
+    'https://user:pass@checkout.stripe.com/c/pay/a',
+  ]) assert.equal(checkoutDestinationForClient(url), null)
 })
