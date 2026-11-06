@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import sharp from 'sharp'
-import { collectSharedPhotos, googlePhotosImageUrls, sharedPhotoSourceKind, MAX_ALBUM_ITEMS } from './scanner-photo-albums.mjs'
+import { collectSharedPhotos, googlePhotosImageUrls, googlePhotosDetailUrls, sharedPhotoSourceKind, MAX_ALBUM_ITEMS } from './scanner-photo-albums.mjs'
 
 const photoA = 'https://lh3.googleusercontent.com/pw/' + 'A'.repeat(90)
 const photoB = 'https://lh3.googleusercontent.com/pw/' + 'B'.repeat(90)
@@ -126,3 +126,40 @@ assert.equal(bulkResult.skipped, 0)
 
 console.log('[scanner albums] limits: 10,000 items, bounded batches, mocked large album: ok')
 console.log('[scanner albums] URL, Google Photos public album, tenant media callback, missing price, privacy: ok')
+
+
+// Regression: public album HTML can expose just a cover image; each photo
+// detail is then publicly readable at its own /share/.../photo/... path.
+const detailAlbum='https://photos.google.com/share/albumSafe123?key=publicKey'
+const detailA=detailAlbum.replace('?key=publicKey','/photo/photoA123?key=publicKey')
+const detailB=detailAlbum.replace('?key=publicKey','/photo/photoB456?key=publicKey')
+const detailHtml='<html><head><meta property="og:image" content="'+photoA+'=w120-h120"/></head><body>'+
+  '<a href="/share/albumSafe123/photo/photoA123?key=publicKey">A</a>'+
+  '<a href="/share/albumSafe123/photo/photoB456?key=publicKey">B</a>'+
+  '<a href="/share/otherAlbum/photo/privatePhoto123?key=secret">Foreign</a></body></html>'
+assert.deepEqual(googlePhotosDetailUrls(detailHtml, detailAlbum),[detailA,detailB])
+const photoPages={
+  [detailA]:'<meta property="og:image" content="'+photoA+'=w1200-h900">',
+  [detailB]:'<meta property="og:image" content="'+photoB+'=w1200-h900">',
+}
+const detailedStored=[]
+const detailed=await collectSharedPhotos(detailAlbum,{
+  onImage:options.onImage,
+  photoSaver:async url=>{
+    detailedStored.push(url)
+    return {url:'/media/detail-'+detailedStored.length,bytes:1024}
+  },
+  collectInMemory:true,
+  onProgress:async()=>{},
+  request:async url=>{
+    if(url===detailAlbum)return {ok:true,url:detailAlbum,contentType:'text/html',body:detailHtml}
+    assert.ok([detailA,detailB].includes(url),'fetch only same-album public photo detail')
+    return {ok:true,url,contentType:'text/html',body:photoPages[url]}
+  },
+})
+assert.equal(detailed.candidateCount,2,'must import all public photo links, not only cover')
+assert.equal(new Set(detailedStored).size,2)
+assert.ok(detailedStored.every(src=>src.includes('=w1200-h900')))
+assert.ok(detailed.candidates.every(item=>item.price===null && item.images[0].startsWith('/media/')))
+assert.deepEqual(googlePhotosDetailUrls(detailHtml,'https://photos.google.com/share/anotherAlbum?key=k'),[])
+console.log('[scanner albums] public photo-detail discovery and album boundary: ok')
