@@ -141,6 +141,8 @@ jobs:
         run: npm run test:scanner:media
       - name: UAZAPI WhatsApp catalog adapter
         run: npm run test:scanner:whatsapp
+      - name: VTEX public catalog adapter
+        run: npm run test:scanner:vtex
       - name: Google authentication regression checks
         run: npm run test:google-auth
       - name: Global logout security and failure regression tests
