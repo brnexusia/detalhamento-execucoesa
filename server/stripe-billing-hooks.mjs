@@ -5,6 +5,7 @@ import { cycles, planPrice, subscriptionAccess, verifyStripeSignature } from './
 import { blackFridayPromotion } from './black-friday-pricing.mjs'
 import { requiresPaymentForSignup } from './signup-billing-mode.mjs'
 import { parseStripeServerKey, resolveStripeServerKey } from './stripe-key-config.mjs'
+import { trustedStripeCheckoutDestination } from './stripe-checkout-url.mjs'
 import { ensureReferralSchema, captureReferral, qualifyReferralOnPaidInvoice, applyMerchantStripeCredits, reverseReferralForRefund } from './referral-program-core.mjs'
 
 const { Pool } = pg
@@ -232,6 +233,40 @@ async function customerFor(account, client) {
   return customer.id
 }
 
+const checkoutRedirectPath = '/api/billing/checkout/redirect'
+
+// A navegação usa uma rota no próprio Shopvax. O servidor consulta novamente a
+// sessão Stripe e valida vínculo com a loja antes de emitir o redirecionamento.
+async function redirectToCheckout(req, res) {
+  const fallback = '/painel/assinatura?checkout=error'
+  const account = await owner(req)
+  if (!account) return res.redirect(303, '/entrar')
+  if (!account.checkout_session_id || !account.customer_id || !ready) return res.redirect(303, fallback)
+  try {
+    const session = await stripe('GET', 'checkout/sessions/' + encodeURIComponent(account.checkout_session_id))
+    const customerId = typeof session.customer === 'string' ? session.customer : session.customer?.id
+    if (session.id !== account.checkout_session_id ||
+        session.status !== 'open' || session.mode !== 'subscription' ||
+        session.client_reference_id !== account.id || customerId !== account.customer_id) {
+      console.warn('[stripe-billing] sessão de checkout não corresponde à conta autenticada')
+      return res.redirect(303, fallback)
+    }
+    if (!trustedStripeCheckoutDestination(session.url, process.env.SHOPVAX_STRIPE_CHECKOUT_HOST)) {
+      // Exibir somente o host para diagnóstico: a URL completa da sessão é sensível.
+      let host = 'ausente'
+      try { host = new URL(session.url).hostname } catch {}
+      console.error('[stripe-billing] domínio de checkout não autorizado:', host)
+      return res.redirect(303, fallback)
+    }
+    res.set('Cache-Control', 'private, no-store')
+    res.set('Referrer-Policy', 'no-referrer')
+    return res.redirect(303, session.url)
+  } catch (error) {
+    console.error('[stripe-billing] falha ao recuperar sessão para redirecionamento:', error?.status || 'network')
+    return res.redirect(303, fallback)
+  }
+}
+
 async function checkout(req, res) {
   const account = await requireOwner(req, res)
   if (!account) return
@@ -265,7 +300,7 @@ async function checkout(req, res) {
       const old = await stripe('GET', 'checkout/sessions/' + encodeURIComponent(current.checkout_session_id))
       if (old.status === 'open' && Number(old.amount_subtotal ?? old.amount_total) === plan.amountCents && current.checkout_plan === plan.code && current.checkout_cycle === plan.cycle) {
         await client.query('COMMIT')
-        return res.json({ url: old.url })
+        return res.json({ url: checkoutRedirectPath })
       }
       if (old.status === 'open') await stripe('POST', 'checkout/sessions/' + encodeURIComponent(old.id) + '/expire', {})
       if (old.status === 'complete' && old.subscription) {
@@ -295,7 +330,7 @@ async function checkout(req, res) {
       'checkout_plan=EXCLUDED.checkout_plan,checkout_cycle=EXCLUDED.checkout_cycle,updated_at=now()',
     ].join(' '), [account.id, customer, stripeMode, session.id, plan.code, plan.cycle])
     await client.query('COMMIT')
-    res.json({ url: session.url })
+    res.json({ url: checkoutRedirectPath })
   } catch (error) {
     await client.query('ROLLBACK').catch(() => undefined)
     throw error
@@ -495,6 +530,7 @@ function install(app) {
   }))
   app.get('/api/billing/status', headersNoCache, wrap(status))
   app.post('/api/billing/checkout', express.json({ limit: '8kb' }), headersNoCache, wrap(checkout))
+  app.get(checkoutRedirectPath, headersNoCache, wrap(redirectToCheckout))
   app.post('/api/billing/portal', express.json({ limit: '8kb' }), headersNoCache, wrap(portal))
   app.post('/api/billing/change', express.json({ limit: '8kb' }), headersNoCache, wrap(change))
   // O gate de cadastro Google precisa ler intent=register, mesmo antes do
