@@ -47,6 +47,11 @@ async function ensureSchema() {
   if (!schemaPromise) schemaPromise = (async () => {
     await pool.query([
       "ALTER TABLE stores ADD COLUMN IF NOT EXISTS billing_required boolean NOT NULL DEFAULT false;",
+      "ALTER TABLE stores ADD COLUMN IF NOT EXISTS admin_grant_active boolean NOT NULL DEFAULT false;",
+      "ALTER TABLE stores ADD COLUMN IF NOT EXISTS admin_grant_expires_at timestamptz;",
+      "ALTER TABLE stores ADD COLUMN IF NOT EXISTS admin_grant_reason text;",
+      "ALTER TABLE stores ADD COLUMN IF NOT EXISTS admin_granted_by text;",
+      "ALTER TABLE stores ADD COLUMN IF NOT EXISTS admin_granted_at timestamptz;",
       "CREATE TABLE IF NOT EXISTS shopvax_stripe_billing (",
       "store_id text PRIMARY KEY REFERENCES stores(id) ON DELETE CASCADE,",
       "stripe_mode text,",
@@ -90,7 +95,7 @@ async function owner(req) {
   const token = sessionCookie(req)
   if (!token) return null
   const result = await pool.query([
-    'SELECT s.id,s.name,s.slug,s.plan_tier,s.billing_required,u.email,',
+    'SELECT s.id,s.name,s.slug,s.plan_tier,s.billing_required,s.admin_grant_active,s.admin_grant_expires_at,u.email,',
     'b.customer_id,b.stripe_mode,b.subscription_id,b.subscription_status,b.active_plan_code,',
     'b.cycle,b.paid_until,b.cancel_at_period_end,b.checkout_session_id,b.checkout_plan,b.checkout_cycle,b.checkout_started_at',
     'FROM sessions se JOIN users u ON se.user_id=u.id JOIN stores s ON s.owner_id=u.id',
@@ -250,7 +255,9 @@ function billingShape(row, prices) {
     required: Boolean(row?.billing_required),
     accessGranted: row ? subscriptionAccess(row) : false,
     status: row?.subscription_status || 'none',
-    planCode: row?.active_plan_code || (!row?.billing_required ? row?.plan_tier || null : null),
+    adminAccessActive: Boolean(row?.admin_grant_active && (row?.admin_grant_expires_at == null || new Date(row.admin_grant_expires_at).getTime() > Date.now())),
+    adminAccessExpiresAt: row?.admin_grant_expires_at || null,
+    planCode: row?.active_plan_code || ((!row?.billing_required || (row?.admin_grant_active && (row?.admin_grant_expires_at == null || new Date(row.admin_grant_expires_at).getTime() > Date.now()))) ? row?.plan_tier || null : null),
     cycle: row?.cycle || null,
     paidUntil: row?.paid_until || null,
     cancelAtPeriodEnd: Boolean(row?.cancel_at_period_end),
@@ -575,7 +582,7 @@ async function gate(req, res, next) {
       const slug = String(req.body?.storeSlug || '')
       if (!slug) return next()
       row = (await pool.query([
-        'SELECT s.billing_required,b.subscription_status,b.active_plan_code,b.paid_until',
+        'SELECT s.billing_required,s.admin_grant_active,s.admin_grant_expires_at,b.subscription_status,b.active_plan_code,b.paid_until',
         'FROM stores s LEFT JOIN shopvax_stripe_billing b ON b.store_id=s.id WHERE s.slug=$1',
       ].join(' '), [slug])).rows[0]
       if (!row) return next()
