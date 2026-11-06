@@ -73,6 +73,7 @@ export default function GoogleSignInButton({
   onCredential: (credential: string) => void | Promise<void>
   onUnavailable?: (message: string) => void
 }) {
+  const hostRef = useRef<HTMLDivElement | null>(null)
   const mountRef = useRef<HTMLDivElement | null>(null)
   const callbackRef = useRef(onCredential)
   const [clientId, setClientId] = useState('')
@@ -98,9 +99,11 @@ export default function GoogleSignInButton({
   }, [])
 
   useEffect(() => {
-    if (!enabled || !clientId || !mountRef.current) return
+    if (!enabled || !clientId || !mountRef.current || !hostRef.current) return
     let active = true
     let resizeObserver: ResizeObserver | null = null
+    let scheduledFrame: number | null = null
+    let renderedWidth = 0
     setStatus('loading'); setError('')
 
     loadGoogleScript()
@@ -118,9 +121,15 @@ export default function GoogleSignInButton({
         })
 
         const render = () => {
-          if (!active || !mountRef.current || !window.google?.accounts?.id) return
+          if (!active || !mountRef.current || !hostRef.current || !window.google?.accounts?.id) return
+          // O elemento que recebe o iframe não pode observar a própria altura:
+          // renderButton muda seu layout e disparava renderizações sucessivas no Safari.
+          const availableWidth = Math.floor(hostRef.current.getBoundingClientRect().width)
+          if (availableWidth <= 0) return
+          const width = Math.max(180, Math.min(400, availableWidth))
+          if (width === renderedWidth) return
+          renderedWidth = width
           mountRef.current.replaceChildren()
-          const width = Math.max(180, Math.min(400, Math.floor(mountRef.current.getBoundingClientRect().width || 360)))
           window.google.accounts.id.renderButton(mountRef.current, {
             type: 'standard',
             theme: 'outline',
@@ -135,7 +144,16 @@ export default function GoogleSignInButton({
         }
 
         render()
-        if (typeof ResizeObserver !== 'undefined') { resizeObserver = new ResizeObserver(render); resizeObserver.observe(mountRef.current) }
+        if (typeof ResizeObserver !== 'undefined' && hostRef.current) {
+          resizeObserver = new ResizeObserver(() => {
+            if (scheduledFrame !== null) return
+            scheduledFrame = window.requestAnimationFrame(() => {
+              scheduledFrame = null
+              render()
+            })
+          })
+          resizeObserver.observe(hostRef.current)
+        }
       })
       .catch((error) => {
         if (active) {
@@ -149,17 +167,17 @@ export default function GoogleSignInButton({
     return () => {
       active = false
       resizeObserver?.disconnect()
+      if (scheduledFrame !== null) window.cancelAnimationFrame(scheduledFrame)
       window.google?.accounts?.id?.cancel()
     }
   }, [clientId, enabled, mode, onUnavailable])
 
   if (!enabled) return null
 
-  return <div className={disabled ? 'google-auth-button is-disabled' : 'google-auth-button'} aria-disabled={disabled}>
+  return <div ref={hostRef} className={['google-auth-button', disabled && 'is-disabled', status === 'error' && 'is-error'].filter(Boolean).join(' ')} aria-disabled={disabled}>
     <div ref={mountRef} className="google-auth-button__mount" />
-    {status === 'loading' && <span role="status" className="google-auth-button__status">Preparando entrada com Google…</span>}
+    {(status === 'loading' || disabled) && <span role="status" className="google-auth-button__status">{disabled ? 'Autenticando com Google…' : 'Preparando entrada com Google…'}</span>}
     {status === 'error' && <p role="alert" className="google-auth-button__error">{error}</p>}
-    {disabled && <span role="status" className="google-auth-button__status">Autenticando com Google…</span>}
     {disabled && <span className="google-auth-button__blocker" aria-hidden="true" />}
   </div>
 }
