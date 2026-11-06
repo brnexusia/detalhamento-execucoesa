@@ -1,5 +1,6 @@
 import { systemPlans } from './system-plans.mjs'
 import { blackFridayPromotion } from './black-friday-pricing.mjs'
+import { registerPlatformBillingRepricing } from './platform-billing-repricing.mjs'
 import { registerPlatformBuyerDirectory } from './platform-buyer-directory.mjs'
 import crypto from 'node:crypto'
 import express from 'express'
@@ -661,6 +662,7 @@ function installPlatformRoutes(app) {
 
   registerPlatformInsights(router, requirePlatformAdmin, asyncRoute, pool)
   registerPlatformBuyerDirectory(router, requirePlatformAdmin, asyncRoute, pool)
+  registerPlatformBillingRepricing(router, requirePlatformAdmin, asyncRoute, pool, audit)
 
   router.get('/health', requirePlatformAdmin, asyncRoute(async (_req, res) => {
     const db = await pool.query('SELECT now() AS now')
