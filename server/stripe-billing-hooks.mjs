@@ -103,6 +103,7 @@ async function owner(req) {
 async function stripe(method, path, fields, idempotencyKey) {
   if (!ready) throw Object.assign(new Error('Stripe ainda não vinculada.'), { status: 503 })
   const params = fields ? new URLSearchParams(fields) : null
+  const startedAt = Date.now()
   const response = await fetch('https://api.stripe.com/v1/' + path, {
     method,
     headers: {
@@ -115,6 +116,11 @@ async function stripe(method, path, fields, idempotencyKey) {
     signal: AbortSignal.timeout(16000),
   })
   const payload = await response.json().catch(() => ({}))
+  const elapsedMs = Date.now() - startedAt
+  if (elapsedMs >= 1200) {
+    // Only HTTP verb, resource type and timing; never log API keys, customer IDs or URLs.
+    console.info('[stripe-billing] slow Stripe API', { method, resource:path.split('/')[0], elapsedMs })
+  }
   if (!response.ok) {
     console.error('[stripe-billing] Stripe request failed:', response.status, path.split('/')[0], payload?.error?.code || '')
     throw Object.assign(new Error('A Stripe não conseguiu concluir esta operação. Verifique a configuração e tente novamente.'), { status: 502 })
@@ -318,6 +324,11 @@ async function redirectToCheckout(req, res) {
 }
 
 async function checkout(req, res) {
+  const startedAt = Date.now()
+  res.once('finish', () => {
+    const elapsedMs = Date.now() - startedAt
+    if (elapsedMs >= 1200) console.info('[stripe-billing] slow checkout', { elapsedMs, httpStatus:res.statusCode })
+  })
   const account = await requireOwner(req, res)
   if (!account) return
   if (!ready) return apiError(res, 503, 'A cobrança online ainda não está disponível.', 'BILLING_NOT_CONFIGURED')
