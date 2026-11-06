@@ -1,6 +1,12 @@
-// Liberação temporária de novos cadastros sem cobrança.
-// A exigência de assinatura só é ativada explicitamente pelo operador.
-// Lojas existentes mantêm seu próprio billing_required.
+// Cobrança obrigatória para todas as NOVAS lojas em produção.
+// O cadastro técnico é criado como pendente para emitir Checkout Stripe;
+// não há acesso ao painel até invoice.paid validada pelo webhook.
+// Lojas antigas preservam a coluna billing_required sem migração automática.
 export function requiresPaymentForSignup(env = process.env) {
-  return String(env.SHOPVAX_REQUIRE_PAYMENT_ON_SIGNUP || '').trim() === '1'
+  // O desvio abaixo existe somente para suites de integração locais.
+  // SHOPVAX_REQUIRE_PAYMENT_ON_SIGNUP=0 nunca libera cadastro gratuito em produção.
+  if (String(env.NODE_ENV || '').trim() === 'test') {
+    return String(env.SHOPVAX_REQUIRE_PAYMENT_ON_SIGNUP || '').trim() === '1'
+  }
+  return true
 }
