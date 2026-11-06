@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict'
 import { processImportJob, processNormalizationJob } from './scanner-hooks.mjs'
+import pg from 'pg'
+import crypto from 'node:crypto'
+import sharp from 'sharp'
 
 const base = process.env.BASE_URL || 'http://127.0.0.1:3000'
 
@@ -37,6 +40,21 @@ assert.equal(response.status, 201)
 let payload = await response.json()
 const jobId = payload.job.id
 
+// A produção agora publica exclusivamente URLs de imagens armazenadas.
+const db = new pg.Pool({ connectionString: process.env.DATABASE_URL })
+const owner = await db.query('SELECT store_id FROM import_jobs WHERE id=$1', [jobId])
+assert.ok(owner.rows[0]?.store_id)
+const image = await sharp({ create: { width:80, height:80, channels:3, background:'#c2a1aa' } }).jpeg().toBuffer()
+const media = []
+for (const name of ['camiseta.jpg','premium.jpg']) {
+  const assetId = crypto.randomUUID()
+  await db.query(
+    'INSERT INTO media_assets (id,store_id,mime_type,original_name,byte_size,data) VALUES ($1,$2,$3,$4,$5,$6)',
+    [assetId,owner.rows[0].store_id,'image/jpeg',name,image.length,image],
+  )
+  media.push('/media/'+assetId)
+}
+
 const colors = ['Preto', 'Azul']
 const sizes = ['P', 'M']
 const candidates = Array.from({ length: 251 }, (_, index) => {
@@ -49,7 +67,7 @@ const candidates = Array.from({ length: 251 }, (_, index) => {
     description: 'Camiseta em algodão.',
     sku: `CAM-${index}`,
     category: 'Camisetas',
-    images: index === 0 ? ['https://cdn.fixture.example/camiseta.jpg'] : [],
+    images: index === 0 ? [media[0]] : [],
     properties: [{ name: 'Cor', value: color }, { name: 'Tamanho', value: size }],
     variants: [],
     price: 39.9,
@@ -66,7 +84,7 @@ candidates.push({
   description: 'Outra peça.',
   sku: 'PREM-1',
   category: 'Camisetas',
-  images: ['https://cdn.fixture.example/premium.jpg'],
+  images: [media[1]],
   properties: [{ name: 'Cor', value: 'Branco' }],
   variants: [],
   price: 59.9,
@@ -97,7 +115,7 @@ assert.equal(response.status, 200)
 payload = await response.json()
 assert.equal(payload.products.length, 2, 'variações não podem ser cadastradas como produtos separados')
 
-const parent = payload.products.find((item) => item.media_url === 'https://cdn.fixture.example/camiseta.jpg')
+const parent = payload.products.find((item) => item.media_url === media[0])
 assert.ok(parent, 'imagem encontrada em uma das variações deve acompanhar o produto pai')
 assert.equal(parent.name, 'Camiseta Essencial')
 assert.equal(parent.sku, '', 'SKUs diferentes das variantes não devem ocupar o SKU do pai')
@@ -107,7 +125,7 @@ assert.deepEqual(variationMap.Tamanho, ['M', 'P'])
 
 const premium = payload.products.find((item) => item.sku === 'PREM-1')
 assert.ok(premium, 'produto distinto com o mesmo título deve continuar separado')
-assert.equal(premium.media_url, 'https://cdn.fixture.example/premium.jpg')
+assert.equal(premium.media_url, media[1])
 
 response = await api(`/api/admin/imports/${jobId}/publish`, cookie, { method: 'POST', body: '{}' })
 assert.equal(response.status, 200)
@@ -119,4 +137,5 @@ response = await api('/api/admin/bootstrap', cookie)
 payload = await response.json()
 assert.equal(payload.products.length, 2, 'repetir publicação não pode duplicar os produtos pais')
 
-console.log('[scanner parent product] image + variations grouped at publish: ok')
+await db.end()
+console.log('[scanner parent product] stored media + variations grouped at publish: ok')
