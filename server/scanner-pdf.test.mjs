@@ -235,3 +235,32 @@ test('global listing image indices are not the extracted page-local indexes', ()
   assert.equal(entries.length, 2)
   assert.deepEqual(entries.map((entry) => entry.index), [17, 26])
 })
+
+test('PDF with explicitly referenced products but unreadable prices remains reviewable', async () => {
+  const buffer = await new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ autoFirstPage: false, compress: false })
+    const chunks = []
+    doc.on('data', chunk => chunks.push(chunk))
+    doc.on('error', reject)
+    doc.on('end', () => resolve(Buffer.concat(chunks)))
+    doc.addPage()
+    doc.fontSize(20).text('Vestido Aurora')
+    doc.fontSize(12).text('REF: VA-42')
+    doc.text('Consulte o valor no atendimento')
+    doc.end()
+  })
+  const result = await collectPdfCatalog(buffer)
+  assert.equal(result.candidates.length, 1)
+  assert.equal(result.candidates[0].title, 'Vestido Aurora')
+  assert.equal(result.candidates[0].price, null)
+  const normalized = normalizeCandidate(result.candidates[0])
+  assert.ok(normalized.warnings.includes('missing_price'))
+  assert.equal(prepareReview(normalized.normalized).publishable, false)
+})
+
+test('PDF scanner accepts a standalone explicit BRL decimal without a currency label', () => {
+  const page = 'Vestido Tropical\\nREF: VT-77\\n49,90\\nBlusa Atlântica\\nR$ 35,00'
+  const result = parsePdfCatalogText(page)
+  assert.equal(result.candidates.length, 2)
+  assert.deepEqual(result.candidates.map(item => item.price), [49.90,35.00])
+})
