@@ -58,7 +58,7 @@ Os planos comerciais são **Bronze, Prata e Ouro**. Os mesmos nomes são usados 
 
 | Regra base | Bronze | Prata | Ouro |
 | --- | ---: | ---: | ---: |
-| Mensal | R$ 49,90 | R$ 94,90 | R$ 144,90 |
+| Mensal — Black Friday | R$ 29,99 | R$ 49,99 | R$ 69,99 |
 | Produtos | 500 | 2.000 | Ilimitados |
 | Vendedoras | 5 | 15 | Ilimitadas |
 | Fotos por produto | 5 | 10 | Ilimitadas |
@@ -75,6 +75,8 @@ Os planos comerciais são **Bronze, Prata e Ouro**. Os mesmos nomes são usados 
 | Frete calculado | — | — | Sim |
 | Feed Meta Shopping | — | — | Sim |
 | API / ERP | — | — | Sim |
+
+**Campanha Black Friday 2026:** os valores mensais promocionais aparecem na vitrine, cadastro, painel e Checkout Stripe. Os valores anteriores de referência são R$ 49,90 / R$ 94,90 / R$ 144,90. O painel admin (tabela `platform_plans`) é a fonte de preço em todos os canais; valores alterados no admin refletem imediatamente nas respostas da API, e o selo da oferta desaparece se o valor deixar de coincidir com a promoção. A implantação realiza uma migração **única** apenas dos preços antigos de fábrica. Assinaturas Stripe anteriores não são reprificadas automaticamente. A duração da promoção não está configurada para expirar automaticamente.
 
 Produtos possuem limites aprovados de 500 no Bronze e 2.000 no Prata; o Ouro é ilimitado. Em bancos existentes, a migração v3 exige `SHOPVAX_APPLY_APPROVED_PLAN_LIMITS=1` em uma inicialização controlada **após backup e auditoria de clientes**. Sem essa flag, os limites antigos continuam em contas já cadastradas. A migração não exclui produtos ou vendedoras; lojas acima do novo teto preservam dados, mas novas inclusões ficam sujeitas ao limite após migração. Semestral usa 5% de desconto e anual 15% por padrão na configuração comercial. O cadastro público mostra o valor mensal para não sugerir um ciclo de cobrança que ainda não é selecionável pelo lojista.
 
