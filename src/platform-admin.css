@@ -28,3 +28,36 @@
 /* Selo comercial: campanha configurada no backend, não um preço fixo no frontend. */
 .platform-plan-black-friday{display:block;width:max-content;font:800 10px/1.3 monospace;letter-spacing:.04em;padding:3px 6px;margin-bottom:4px;color:#fff;background:#191716;font-style:normal}
 .platform-plan-previous{display:block;color:#777;font-size:13px;font-weight:500;line-height:1.4;text-decoration:line-through}
+
+/* Gestão de reajuste: opt-in e prévia obrigatória, não altera contratos ao salvar o plano. */
+.platform-reprice{margin-top:40px;padding:clamp(16px,3vw,28px);background:#fcfaf5;border:1px solid #d4d0c4;color:#161514;display:grid;gap:15px;max-width:1100px}
+.platform-reprice header>span{font:700 10px/1.5 monospace;letter-spacing:.08em;color:#a04a21}
+.platform-reprice h2{font-family:var(--svx-font-display,'Archivo Narrow',sans-serif);font-size:clamp(26px,3vw,38px);margin:5px 0 8px}
+.platform-reprice h3{font-size:18px;margin:0 0 8px}
+.platform-reprice p{font-size:13px;line-height:1.55;color:#4e4a43;margin:0}
+.platform-reprice__safety{background:#f3f0e8;border-left:3px solid #d47540;padding:13px;display:grid;gap:5px}
+.platform-reprice__safety strong{font-size:14px}
+.platform-reprice__controls{display:flex;flex-wrap:wrap;gap:12px;align-items:end}
+.platform-reprice__controls label,.platform-reprice__preview>label{display:grid;gap:6px;font-size:13px;font-weight:600}
+.platform-reprice select,.platform-reprice input[type=text]{font:inherit;min-height:43px;border:1px solid #9b9689;background:#fff;padding:8px 10px;color:#161514}
+.platform-reprice__scope{border:1px solid #d4d0c4;display:grid;gap:9px;padding:12px}
+.platform-reprice__scope legend{font-weight:700;font-size:12px;padding:0 6px}
+.platform-reprice__scope label,.platform-reprice__ack{display:flex!important;gap:9px!important;align-items:flex-start;font-size:13px;line-height:1.5}
+.platform-reprice input[type=checkbox],.platform-reprice input[type=radio]{width:17px;height:17px;flex:0 0 17px;accent-color:#f25c05;margin-top:2px}
+.platform-reprice__list{display:grid;gap:0;max-height:390px;overflow:auto;border:1px solid #d4d0c4;background:#fff}
+.platform-reprice__row{display:grid;grid-template-columns:24px minmax(0,1fr) auto;align-items:center;gap:12px;padding:12px;border-bottom:1px solid #e0dcd2}
+.platform-reprice__row:last-child{border-bottom:0}
+.platform-reprice__row>span{display:grid;min-width:0;gap:3px}
+.platform-reprice__row small{font-size:11px;line-height:1.4;color:#686357;overflow-wrap:anywhere}
+.platform-reprice__row b{font-size:13px}
+.platform-reprice__preview{display:grid;gap:12px;padding:18px;border:2px solid #b9551b;background:#fffaf4}
+.platform-reprice__preview ul{margin:0;padding-left:21px;max-height:230px;overflow:auto;font-size:12px;line-height:1.8}
+.platform-reprice__error{color:#aa2c1b!important;font-weight:700}
+.platform-reprice__result{padding:15px;background:#eaf4ed;border:1px solid #7c9f85;display:grid;gap:8px}
+.platform-reprice .platform-primary{width:max-content;max-width:100%;font-size:12px}
+@media(max-width:560px){
+ .platform-reprice{padding:14px}
+ .platform-reprice__row{grid-template-columns:24px minmax(0,1fr);gap:8px}
+ .platform-reprice__row>span:last-child{grid-column:2;grid-row:2}
+ .platform-reprice .platform-primary{width:100%}
+}
