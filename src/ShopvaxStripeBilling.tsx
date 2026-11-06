@@ -103,48 +103,93 @@ export default function ShopvaxStripeBilling() {
   if (!state?.enabled) return <div className="svx-billing"><p role="alert" className="svx-billing__error">Pagamento Stripe indisponível nesta instância. Sua conta está registrada, mas a assinatura não pode ser iniciada até que a conexão seja restabelecida.</p></div>
 
   const activeSubscription = state.status === 'active' && state.accessGranted
-  const hasSubscription = state.status !== 'none' && state.status !== 'canceled' && state.status !== 'incomplete_expired'
+  const hasSubscription = !['none', 'canceled', 'incomplete_expired'].includes(state.status)
+  const needsRegularization = hasSubscription && !activeSubscription
+  const isShopping = !hasSubscription || activeSubscription
+  const activePlanName = plans.find(plan => plan.code === state.planCode)?.name
+  const priceLabel = (amount: number) => brl.format(amount / 100)
+
   return <section className="svx-billing">
     <header className="svx-billing__header">
-      <span className="svx-billing__eyebrow">SHOPVAX · ASSINATURA</span>
-      <h1>Plano e cobrança</h1>
-      <p>Seu catálogo vende pelo WhatsApp. Aqui você paga somente a assinatura do Shopvax, de forma segura pela Stripe.</p>
-      {state.prices.some(price=>price.promotion)&&<p className="svx-billing__promo-banner">BLACK FRIDAY · Desconto nos planos para novas contratações. O valor final do ciclo aparece antes de continuar para a Stripe.</p>}
+      <span className="svx-billing__eyebrow">SHOPVAX / ASSINATURA</span>
+      <h1>{activeSubscription ? 'Plano e cobrança' : needsRegularization ? 'Regularize seu pagamento' : 'Ative sua loja'}</h1>
+      <p>{activeSubscription
+        ? 'Consulte sua assinatura, gerencie cobranças ou escolha outro plano.'
+        : needsRegularization
+          ? 'O pagamento ainda não foi confirmado. A loja permanece protegida até a regularização.'
+          : 'Escolha um plano e conclua a assinatura com segurança pela Stripe.'}</p>
     </header>
-    <div className="svx-billing__summary">
-      <div><span>STATUS DA CONTA</span><strong>{!state.required && !state.planCode ? 'Conta legada' : activeSubscription ? 'Assinatura ativa' : state.status === 'past_due' ? 'Pagamento pendente' : state.status === 'canceled' ? 'Cancelada' : 'Aguardando pagamento'}</strong>
-        <small>{state.cancelAtPeriodEnd ? 'Cancelamento agendado para o fim do período pago.' : state.paidUntil ? 'Período confirmado até ' + day.format(new Date(state.paidUntil)) : 'O acesso pago será liberado quando a Stripe confirmar o pagamento.'}</small>
+
+    <div className={`svx-billing__status ${activeSubscription ? 'is-active' : needsRegularization ? 'needs-action' : 'is-pending'}`}>
+      <div className="svx-billing__status-main">
+        <span className="svx-billing__status-icon" aria-hidden="true">{activeSubscription ? <ShieldCheck size={22}/> : <CreditCard size={22}/>}</span>
+        <div>
+          <span className="svx-billing__status-label">STATUS DA ASSINATURA</span>
+          <h2>{activeSubscription ? 'Assinatura ativa' : needsRegularization ? 'Pagamento não confirmado' : 'Aguardando pagamento'}</h2>
+          <p>{activeSubscription
+            ? `${activePlanName || state.planCode?.toUpperCase() || 'Plano ativo'}${state.cycle ? ' · ' + terms.find(term => term.key === state.cycle)?.label : ''}${state.paidUntil ? ' · Pago até ' + day.format(new Date(state.paidUntil)) : ''}`
+            : needsRegularization
+              ? 'Abra a central de cobrança para verificar a fatura e atualizar o cartão. Não precisa criar outra conta.'
+              : 'Sua conta foi criada. Escolha uma opção abaixo; o painel será liberado após a confirmação do pagamento.'}</p>
+        </div>
       </div>
-      <div><span>PLANO LIBERADO</span><strong>{state.planCode ? state.planCode.toUpperCase() : state.required ? 'Pendente' : 'Legado'}</strong><small>{state.cycle ? terms.find((term) => term.key === state.cycle)?.label : 'Sem cobrança recorrente ativa'}</small></div>
-      <div className="svx-billing__actions">
-        <button type="button" onClick={() => void refresh()} disabled={busy}><RefreshCw size={16}/> Atualizar</button>
-        {hasSubscription && <button type="button" onClick={() => void act('/api/billing/portal')} disabled={busy}><CreditCard size={16}/> Faturas, cartão e cancelamento <ArrowUpRight size={14}/></button>}
+      <div className="svx-billing__status-actions">
+        {hasSubscription && <button type="button" className={activeSubscription ? 'svx-billing__secondary' : 'svx-billing__primary'} onClick={() => void act('/api/billing/portal')} disabled={busy}>
+          <CreditCard size={17}/>{activeSubscription ? 'Faturas e cartão' : 'Ver cobrança e atualizar cartão'}<ArrowUpRight size={16}/>
+        </button>}
+        <button className="svx-billing__secondary" type="button" onClick={() => void refresh()} disabled={busy}><RefreshCw size={16}/> Verificar pagamento</button>
       </div>
     </div>
-    {notice && <p role="status" className="svx-billing__notice"><ShieldCheck size={16}/>{notice}</p>}
-    {error && <p role="alert" className="svx-billing__error"><AlertCircle size={16}/>{error}</p>}
-    {!hasSubscription && <div className="svx-billing__referral"><label htmlFor="svx-billing-referral">Código de indicação (opcional)</label><input id="svx-billing-referral" value={referralCode} maxLength={40} onChange={e=>setReferralCode(e.target.value.toUpperCase())} disabled={Boolean(state.referralCode)} placeholder="SVX- OU SVP-"/><small>{state.referralCode ? 'Código vinculado à sua loja; não pode ser trocado após a atribuição.' : 'Pode ser de lojista ou parceiro independente. O benefício só é liberado após pagamento confirmado.'}</small></div>}
-    <div className="svx-billing__term" aria-label="Ciclo de cobrança">
-      {terms.map((term) => <button type="button" key={term.key} aria-pressed={cycle === term.key} className={cycle === term.key ? 'is-selected' : ''} onClick={() => setCycle(term.key)}><strong>{term.label}</strong><small>{term.desc}</small></button>)}
-    </div>
-    <div className="svx-billing__plans">
-      {plans.map((plan) => {
-        const price = state.prices.find((item) => item.code === plan.code && item.cycle === cycle)
-        const current = activeSubscription && state.planCode === plan.code && state.cycle === cycle
-        return <article key={plan.code} className={plan.code === resumePlan ? 'is-featured' : plan.code === 'prata' ? 'is-featured' : ''}>
-          <span>{price?.promotion ? 'BLACK FRIDAY' : plan.code === 'prata' ? 'RECOMENDADO' : 'PLANO'}</span>
-          <h2>{plan.name}</h2>
-           {price?.promotion && price.previousAmountCents != null && <del className="svx-billing__previous-price">{brl.format(price.previousAmountCents/100)}</del>}
-          <strong>{price ? brl.format(price.amount / 100) : 'Indisponível'}</strong>
-          <p>Valor total do ciclo {terms.find((item) => item.key === cycle)?.label.toLowerCase()} em reais.{price?.promotion ? ' Preço promocional de Black Friday.' : ''}</p>
-          <button type="button" disabled={busy || current || !price || (hasSubscription && !activeSubscription)}
-            onClick={() => void act(activeSubscription ? '/api/billing/change' : '/api/billing/checkout',
-              { planCode: plan.code, cycle, referralCode: !activeSubscription ? referralCode.trim() : undefined, requestId: crypto.randomUUID() })}>
-            {busy ? 'Processando…' : current ? 'Plano atual' : activeSubscription ? 'Alterar plano' : hasSubscription ? 'Gerencie a cobrança acima' : resumePlan === plan.code ? 'Retomar pagamento na Stripe' : 'Assinar com cartão'}
-          </button>
-        </article>
-      })}
-    </div>
-    <p className="svx-billing__fineprint">Cobrança recorrente conforme o ciclo escolhido. Alterações podem gerar cobrança proporcional. O cancelamento pode ser feito na central segura da Stripe e não remove pedidos ou arquivos históricos. A liberação depende dos eventos de pagamento confirmados pelo servidor, nunca de um redirecionamento.</p>
+
+    {notice && <p role="status" className="svx-billing__notice"><ShieldCheck size={18}/>{notice}</p>}
+    {error && <p role="alert" className="svx-billing__error"><AlertCircle size={18}/>{error}</p>}
+
+    {needsRegularization && <div className="svx-billing__guidance" role="note">
+      <strong>Seu acesso continua bloqueado por segurança.</strong>
+      <p>Se o cartão foi recusado, consulte a cobrança na Stripe e escolha outro meio de pagamento disponível. Após a Stripe confirmar o pagamento, toque em “Verificar pagamento”.</p>
+    </div>}
+
+    {isShopping && <>
+      <div className="svx-billing__section-head">
+        <div><span className="svx-billing__eyebrow">{activeSubscription ? 'SUA ASSINATURA' : 'ESCOLHA SEU PLANO'}</span><h2>{activeSubscription ? 'Outros planos' : 'Planos e preços'}</h2></div>
+        {!activeSubscription && state.prices.some(price => price.promotion) && <span className="svx-billing__promo-tag">BLACK FRIDAY</span>}
+      </div>
+      <p className="svx-billing__section-subtitle">{activeSubscription
+        ? 'Você pode comparar os planos e solicitar uma alteração quando precisar.'
+        : 'Selecione a duração da assinatura e depois escolha Bronze, Prata ou Ouro.'}</p>
+      <div className="svx-billing__term" role="group" aria-label="Período de cobrança">
+        {terms.map(term => <button type="button" key={term.key} aria-pressed={cycle === term.key} className={cycle === term.key ? 'is-selected' : ''} onClick={() => setCycle(term.key)}>
+          <strong>{term.label}</strong><small>{term.desc}</small>
+        </button>)}
+      </div>
+      <div className="svx-billing__plans">
+        {plans.map(plan => {
+          const price = state.prices.find(item => item.code === plan.code && item.cycle === cycle)
+          const current = activeSubscription && state.planCode === plan.code && state.cycle === cycle
+          return <article key={plan.code} className={plan.code === resumePlan ? 'is-featured' : plan.code === 'prata' ? 'is-featured' : ''}>
+            <div className="svx-billing__plan-top"><h3>{plan.name}</h3>{price?.promotion && <span>BLACK FRIDAY</span>}</div>
+            <div className="svx-billing__price">
+              {price?.promotion && price.previousAmountCents != null && <del>{priceLabel(price.previousAmountCents)}</del>}
+              <strong>{price ? priceLabel(price.amount) : 'Indisponível'}</strong>
+              <small>{cycle === 'monthly' ? 'por mês' : cycle === 'semiannual' ? 'a cada 6 meses' : 'por ano'}</small>
+            </div>
+            <p className="svx-billing__plan-note">{price?.promotion ? 'Preço promocional de Black Friday. ' : ''}Pagamento do período escolhido pela Stripe.</p>
+            <button type="button" disabled={busy || current || !price}
+              onClick={() => void act(activeSubscription ? '/api/billing/change' : '/api/billing/checkout', {
+                planCode: plan.code, cycle, referralCode: !activeSubscription ? referralCode.trim() : undefined, requestId: crypto.randomUUID(),
+              })}>
+              {busy ? 'Processando…' : current ? 'Seu plano atual' : activeSubscription ? 'Alterar para ' + plan.name : 'Assinar ' + plan.name}
+            </button>
+          </article>
+        })}
+      </div>
+      {!activeSubscription && <div className="svx-billing__referral">
+        <label htmlFor="svx-billing-referral">Possui um código de indicação? <small>Opcional</small></label>
+        <input id="svx-billing-referral" value={referralCode} maxLength={40} onChange={e => setReferralCode(e.target.value.toUpperCase())} disabled={Boolean(state.referralCode)} placeholder="SVX- OU SVP-" />
+        <small>{state.referralCode ? 'Indicação vinculada à sua conta.' : 'Se tiver um código, informe antes de contratar. O benefício depende da confirmação do pagamento.'}</small>
+      </div>}
+    </>}
+
+    <p className="svx-billing__fineprint">A assinatura é recorrente conforme o ciclo escolhido. Acesso e benefícios são liberados somente após a confirmação do pagamento pela Stripe. Alterações de planos ativos podem gerar cobranças proporcionais; cancelamentos e faturas são gerenciados na central segura.</p>
   </section>
 }
