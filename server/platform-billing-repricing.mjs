@@ -131,11 +131,20 @@ export function registerPlatformBillingRepricing(router, requirePlatformAdmin, a
           await shopvaxStripeAdminRuntime.stripe('POST','subscriptions/'+encodeURIComponent(subscription.id),
             nextInvoiceRepriceFields(valid.itemId,priceId),
             'svx-reprice-'+req.body.requestId+'-'+row.store_id)
-          await audit(req.platformUser.id,'billing.reprice.scheduled','store',row.store_id,{
-            planCode:code, cycle:row.cycle, fromCents:valid.currentAmountCents,
-            toCents:target.amountCents, effective:'next_invoice', requestId:req.body.requestId,
-          })
-          results.push({ storeId:row.store_id,status:'updated',fromCents:valid.currentAmountCents,toCents:target.amountCents })
+          // Stripe is an external system: an audit DB hiccup cannot roll back a
+          // successful price switch. Report success and flag any audit failure.
+          let auditRecorded = true
+          try {
+            await audit(req.platformUser.id,'billing.reprice.scheduled','store',row.store_id,{
+              planCode:code, cycle:row.cycle, fromCents:valid.currentAmountCents,
+              toCents:target.amountCents, effective:'next_invoice', requestId:req.body.requestId,
+            })
+          } catch (auditError) {
+            auditRecorded = false
+            console.error('[stripe-repricing] audit write failed:',row.store_id,auditError?.code||'database')
+          }
+          results.push({ storeId:row.store_id,status:'updated',
+            fromCents:valid.currentAmountCents,toCents:target.amountCents,auditRecorded })
         } catch (error) {
           // The Stripe error is intentionally not returned verbatim.
           console.error('[stripe-repricing] store failed:', row.store_id, error?.status || error?.code || 'validation')
