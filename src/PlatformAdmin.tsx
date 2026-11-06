@@ -1,6 +1,7 @@
 import ShopvaxLoading from './ShopvaxLoading'
 import PlatformBuyerDirectory from './PlatformBuyerDirectory'
 import PlatformReferralPanel from './PlatformReferralPanel'
+import PlatformRepricing from './PlatformRepricing'
 import { useEffect, useState } from 'react'
 import { apiRequest } from './api'
 import {
@@ -318,6 +319,7 @@ export default function PlatformAdmin() {
       {section === 'planos' && <div className="platform-page">
         <div className="platform-title platform-title--action"><div><span>Comercial</span><h1>Planos</h1><p>Bronze, Prata, Ouro e planos personalizados com limites aplicados no backend.</p></div><button className="platform-primary" onClick={() => setPlanOpen('new')}><CreditCard size={17}/> Novo plano</button></div>
         <div className="platform-plan-grid">{data.plans.map((plan) => <article key={plan.id} className={!plan.active ? 'is-inactive' : ''}><header><div><span>{plan.code}</span><h2>{plan.name}</h2></div><strong>{plan.promotion&&<><em className="platform-plan-black-friday">BLACK FRIDAY</em><del className="platform-plan-previous">{money.format(plan.promotion.originalMonthlyPrice)}</del></>}{money.format(plan.monthlyPrice)}<small>/mês</small></strong></header><div className="platform-plan-cycles"><span>Semestral <b>{money.format(semesterPrice(plan))}</b></span><span>Anual <b>{money.format(annualPrice(plan))}</b></span></div><ul><li>{limitLabel(plan.sellerLimit, 'vendedoras')}</li><li>{limitLabel(plan.productLimit, 'produtos')}</li><li>{limitLabel(plan.catalogLimit, 'catálogos')}</li><li>{plan.photoLimit == null ? 'Fotos por produto ilimitadas' : `${plan.photoLimit} fotos por produto`}</li><li>{limitLabel(plan.franchiseeLimit, 'franqueados')}</li><li>Prioridade de feed: {plan.trafficPriority || 'baixa'}</li></ul><footer><button className="platform-secondary" onClick={() => setPlanOpen(plan)}><Pencil size={15}/> Editar</button>{!plan.isSystem && <button className="platform-icon-danger" onClick={() => void deletePlan(plan)}><Trash2 size={16}/></button>}</footer></article>)}</div>
+        <PlatformRepricing />
       </div>}
 
       {section === 'admins' && <div className="platform-page">
