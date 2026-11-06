@@ -19,6 +19,8 @@ type State = {
   prices: Price[]
   referralCode?: string
   referralStatus?: string | null
+  adminAccessActive?: boolean
+  adminAccessExpiresAt?: string | null
 }
 
 const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -99,6 +101,26 @@ export default function ShopvaxStripeBilling() {
     <header className="svx-billing__header"><span className="svx-billing__eyebrow">SHOPVAX · ASSINATURA</span><h1>Plano e cobrança</h1></header>
     <p role="status">Seu acesso está liberado sem pagamento por enquanto. Nenhuma assinatura automática foi criada.</p>
     <p>Plano atual: <strong>{state.planCode?.toUpperCase() || 'BRONZE'}</strong>. Os limites do plano escolhido continuam valendo.</p>
+  </section>
+  if (state?.adminAccessActive && state.accessGranted) return <section className="svx-billing">
+    <header className="svx-billing__header">
+      <span className="svx-billing__eyebrow">SHOPVAX / ACESSO ADMINISTRATIVO</span>
+      <h1>Acesso liberado</h1>
+      <p>Sua loja está com uma cortesia administrativa. Nenhuma cobrança da Stripe foi criada por essa liberação.</p>
+    </header>
+    <div className="svx-billing__status is-active">
+      <div className="svx-billing__status-main">
+        <span className="svx-billing__status-icon" aria-hidden="true"><ShieldCheck size={22}/></span>
+        <div><span className="svx-billing__status-label">CORTESIA ADMINISTRATIVA</span>
+          <h2>{plans.find(p=>p.code===state.planCode)?.name || state.planCode?.toUpperCase() || 'Plano liberado'}</h2>
+          <p>{state.adminAccessExpiresAt ? 'Acesso válido até '+day.format(new Date(state.adminAccessExpiresAt)) : 'Acesso sem prazo definido, sujeito à revogação administrativa.'}</p>
+        </div>
+      </div>
+      <div className="svx-billing__status-actions">
+        <button type="button" className="svx-billing__secondary" onClick={()=>{window.history.pushState({},'', '/painel');window.dispatchEvent(new PopStateEvent('popstate'))}}>Abrir meu painel</button>
+      </div>
+    </div>
+    <p className="svx-billing__fineprint">Ao expirar ou ser revogada, a cortesia deixa de liberar o painel. Caso não exista uma assinatura paga válida, será necessário contratar um plano para continuar usando a loja.</p>
   </section>
   if (!state?.enabled) return <div className="svx-billing"><p role="alert" className="svx-billing__error">Pagamento Stripe indisponível nesta instância. Sua conta está registrada, mas a assinatura não pode ser iniciada até que a conexão seja restabelecida.</p></div>
 
