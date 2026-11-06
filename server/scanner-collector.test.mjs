@@ -250,3 +250,14 @@ assert.ok(maxBatch50k <= 250)
 assert.ok(shopify50k.pagesScanned >= 201)
 
 console.log('[scanner module 2] collector tests: ok')
+
+await assert.rejects(
+  () => collectCatalog('https://empty-catalog.example/', {
+    request: fixtureRequest({
+      'https://empty-catalog.example/': { contentType:'text/html', body:'<html><body><h1>Vitrine carregada via JavaScript</h1></body></html>' },
+    }),
+    maxPages:5,
+  }),
+  /não encontrou produtos com dados públicos reconhecíveis/,
+  'sites sem produtos acessíveis precisam explicar o problema, não concluir importação vazia',
+)
