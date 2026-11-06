@@ -6,7 +6,7 @@ import { trustedStripeCheckoutUrl } from './stripe-checkout-client'
 import './stripe-billing.css'
 
 type Cycle = 'monthly' | 'semiannual' | 'annual'
-type Price = { code: string; cycle: Cycle; amount: number; label: string }
+type Price = { code: string; cycle: Cycle; amount: number; label: string; previousAmountCents?: number | null; promotion?: { label: string; originalMonthlyPrice: number } | null }
 type State = {
   enabled: boolean
   required: boolean
@@ -109,6 +109,7 @@ export default function ShopvaxStripeBilling() {
       <span className="svx-billing__eyebrow">SHOPVAX · ASSINATURA</span>
       <h1>Plano e cobrança</h1>
       <p>Seu catálogo vende pelo WhatsApp. Aqui você paga somente a assinatura do Shopvax, de forma segura pela Stripe.</p>
+      {state.prices.some(price=>price.promotion)&&<p className="svx-billing__promo-banner">BLACK FRIDAY · Desconto nos planos para novas contratações. O valor final do ciclo aparece antes de continuar para a Stripe.</p>}
     </header>
     <div className="svx-billing__summary">
       <div><span>STATUS DA CONTA</span><strong>{!state.required && !state.planCode ? 'Conta legada' : activeSubscription ? 'Assinatura ativa' : state.status === 'past_due' ? 'Pagamento pendente' : state.status === 'canceled' ? 'Cancelada' : 'Aguardando pagamento'}</strong>
@@ -131,10 +132,11 @@ export default function ShopvaxStripeBilling() {
         const price = state.prices.find((item) => item.code === plan.code && item.cycle === cycle)
         const current = activeSubscription && state.planCode === plan.code && state.cycle === cycle
         return <article key={plan.code} className={plan.code === resumePlan ? 'is-featured' : plan.code === 'prata' ? 'is-featured' : ''}>
-          <span>{plan.code === 'prata' ? 'RECOMENDADO' : 'PLANO'}</span>
+          <span>{price?.promotion ? 'BLACK FRIDAY' : plan.code === 'prata' ? 'RECOMENDADO' : 'PLANO'}</span>
           <h2>{plan.name}</h2>
+           {price?.promotion && price.previousAmountCents != null && <del className="svx-billing__previous-price">{brl.format(price.previousAmountCents/100)}</del>}
           <strong>{price ? brl.format(price.amount / 100) : 'Indisponível'}</strong>
-          <p>Valor total do ciclo {terms.find((item) => item.key === cycle)?.label.toLowerCase()} em reais.</p>
+          <p>Valor total do ciclo {terms.find((item) => item.key === cycle)?.label.toLowerCase()} em reais.{price?.promotion ? ' Preço promocional de Black Friday.' : ''}</p>
           <button type="button" disabled={busy || current || !price || (hasSubscription && !activeSubscription)}
             onClick={() => void act(activeSubscription ? '/api/billing/change' : '/api/billing/checkout',
               { planCode: plan.code, cycle, referralCode: !activeSubscription ? referralCode.trim() : undefined, requestId: crypto.randomUUID() })}>
