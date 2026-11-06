@@ -8,6 +8,7 @@ import sharp from 'sharp'
 import { inferPdfProductCategory } from './scanner-pdf-category.mjs'
 import { parseNumberedLookbookPages, parseLookbookPhotoBands } from './scanner-pdf-lookbook.mjs'
 import { parseReferenceOnlyPdfProducts } from './scanner-pdf-review-fallback.mjs'
+import { parseNamedUnpricedPdfProducts } from './scanner-pdf-named-products.mjs'
 
 const run = promisify(execFile)
 export const MAX_PDF_BYTES = 100 * 1024 * 1024
@@ -303,7 +304,8 @@ export async function collectPdfCatalog(buffer, options = {}) {
     // no detected text products STILL goes through OCR on every page.
     const textLayerParsed = parsePdfCatalogText(pages.join('\f'), totalPages)
     const textLayerCandidates = textLayerParsed.candidates.length
-    const mixedTextAndPhotoCatalog = Boolean(textLayerParsed.lookbook) || (textLayerCandidates >= 8 && totalPages >= 30)
+    const namedTextCandidates = parseNamedUnpricedPdfProducts(pages, MAX_PRODUCTS).length
+    const mixedTextAndPhotoCatalog = Boolean(textLayerParsed.lookbook) || (textLayerCandidates >= 8 && totalPages >= 30) || (namedTextCandidates >= 4 && totalPages >= 20)
     let textLayerOcrAttempts = 0
     for (let i = 0; i < totalPages; i += 1) {
       if (mixedTextAndPhotoCatalog && !(pages[i] || '').trim()) {
@@ -346,11 +348,20 @@ export async function collectPdfCatalog(buffer, options = {}) {
     }
 
     const parsed = parsePdfCatalogText(pages.join('\f'), totalPages)
-    const candidates = parsed.candidates.length
-      ? parsed.candidates
-      : parseReferenceOnlyPdfProducts(pages,MAX_PRODUCTS)
+    const candidates = [...parsed.candidates]
     if (!candidates.length) {
-      throw new Error('Não foi possível identificar produtos neste PDF. O arquivo não apresentou nomes e preços legíveis nem referências associadas a peças. Verifique se as páginas estão nítidas ou envie outro formato.')
+      candidates.push(...parseReferenceOnlyPdfProducts(pages,MAX_PRODUCTS))
+    }
+    const pricedPages = new Set(candidates.map(item => item.pdf_page))
+    // A supplier may describe products in a price-free brochure and supply
+    // wholesale prices separately. Preserve only explicit title+pack-size
+    // lines as review items, never infer prices from neighboring prose.
+    for (const item of parseNamedUnpricedPdfProducts(pages,MAX_PRODUCTS)) {
+      if (candidates.length>=MAX_PRODUCTS)break
+      if (!pricedPages.has(item.pdf_page)) candidates.push(item)
+    }
+    if (!candidates.length) {
+      throw new Error('Não foi possível identificar produtos neste PDF. Não foram encontrados produtos com preço, referência ou títulos e embalagens suficientemente claros. Confira a nitidez ou envie imagens para revisão.')
     }
 
     // Preserve product names/prices even when a long Canva export embeds many
