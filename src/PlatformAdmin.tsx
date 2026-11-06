@@ -79,7 +79,7 @@ function actionLabel(action: string) {
     'store.activate': 'Conta reativada', 'store.suspend': 'Conta suspensa', 'store.plan.change': 'Plano alterado',
     'plan.create': 'Plano criado', 'plan.update': 'Plano editado', 'plan.delete': 'Plano apagado',
     'admin.add': 'Administrador adicionado', 'admin.remove': 'Administrador removido', 'admin.claim': 'Admin inicial ativado',
-    'account.delete': 'Conta apagada',
+    'account.delete': 'Conta apagada', 'billing.reprice.scheduled': 'Reajuste programado para próxima fatura',
   } as Record<string, string>)[action] || action
 }
 
@@ -396,7 +396,7 @@ function PlanModal({ plan, onClose, onSaved }: { plan: PlatformPlan | null; onCl
   }
   return <ModalFrame title={plan ? `Editar ${plan.name}` : 'Novo plano'} kicker="Planos" onClose={onClose}><form onSubmit={submit}><div className="platform-modal__body platform-plan-form">
     <div className="platform-form-grid"><label><span>Nome</span><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} disabled={Boolean(plan?.isSystem)} required /></label><label><span>Código</span><input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} disabled={Boolean(plan)} required /></label></div>
-    {plan?.isSystem && <p className="platform-form-note">Bronze, Prata e Ouro mantêm nome e código fixos. Preço, limites e recursos podem ser ajustados.</p>}
+    {plan?.isSystem && <p className="platform-form-note">Bronze, Prata e Ouro mantêm nome e código fixos. Alterar o valor aqui afeta novas contratações; assinaturas existentes só mudam através do controle de reajustes com confirmação na seção Planos.</p>}
     <div className="platform-form-grid"><label><span>Mensal (R$)</span><input type="number" min="0" step="0.01" value={form.monthlyPrice} onChange={(e) => setForm({ ...form, monthlyPrice: e.target.value })} required /></label><label><span>Semestral desconto %</span><input type="number" min="0" max="95" step="0.01" value={form.semesterDiscount} onChange={(e) => setForm({ ...form, semesterDiscount: e.target.value })} /></label><label><span>Anual desconto %</span><input type="number" min="0" max="95" step="0.01" value={form.annualDiscount} onChange={(e) => setForm({ ...form, annualDiscount: e.target.value })} /></label></div>
     <div className="platform-form-grid"><label><span>Vendedoras</span><input type="number" min="1" value={form.sellerLimit} onChange={(e) => setForm({ ...form, sellerLimit: e.target.value })} placeholder="Ilimitado" /></label><label><span>Produtos</span><input type="number" min="1" value={form.productLimit} onChange={(e) => setForm({ ...form, productLimit: e.target.value })} placeholder="Ilimitado" /></label><label><span>Catálogos</span><input type="number" min="1" value={form.catalogLimit} onChange={(e) => setForm({ ...form, catalogLimit: e.target.value })} placeholder="Ilimitado" /></label></div>
     <div className="platform-form-grid"><label><span>Fotos por produto</span><input type="number" min="1" value={form.photoLimit} onChange={(e) => setForm({ ...form, photoLimit: e.target.value })} placeholder="Ilimitado" /></label><label><span>Franqueados</span><input type="number" min="1" value={form.franchiseeLimit} onChange={(e) => setForm({ ...form, franchiseeLimit: e.target.value })} placeholder="Ilimitado" /></label><label><span>Peso no feed (1–3)</span><input type="number" min="1" max="3" value={form.socialWeight} onChange={(e) => setForm({ ...form, socialWeight: e.target.value })} /></label></div>
