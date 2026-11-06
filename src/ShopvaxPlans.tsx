@@ -5,6 +5,7 @@ export type PlanView = {
   code:string
   name:string
   monthlyPrice:number
+  promotion?: {label:string;originalMonthlyPrice:number}|null
   sellerLimit:number|null
   catalogLimit:number|null
   photoLimit:number|null
@@ -29,10 +30,10 @@ type Props={plans:PlanView[];onChoose:(code:string)=>void}
 export default function ShopvaxPlans({plans,onChoose}:Props){
   const sorted=[...plans].sort((a,b)=>['bronze','prata','ouro'].indexOf(a.code)-['bronze','prata','ouro'].indexOf(b.code))
   return <div className="svx-plans">
-    <div className="svx-plans__intro"><div><span className="svx-kicker">PLANOS PRA QUEM VENDE</span><h2>Escolha o tamanho da sua empresa ou loja</h2><SVStamp className="svx-plans__stamp">SEU PRÓXIMO PASSO</SVStamp></div><p>Todos os planos têm catálogo, pedidos por WhatsApp e produtos conforme os limites do plano. Mude de tamanho conforme a sua operação.</p></div>
+    <div className="svx-plans__intro"><div><span className="svx-kicker">{sorted.some(plan=>plan.promotion)?'OFERTAS BLACK FRIDAY':'PLANOS PRA QUEM VENDE'}</span><h2>Escolha o tamanho da sua empresa ou loja</h2><SVStamp className="svx-plans__stamp">SEU PRÓXIMO PASSO</SVStamp></div><p>Todos os planos têm catálogo, pedidos por WhatsApp e produtos conforme os limites do plano. Mude de tamanho conforme a sua operação.</p></div>
     <div className="svx-plans__comparison" role="region" aria-label="Comparação dos planos Shopvax" tabIndex={0}>
       <table>
-        <thead><tr><th scope="col" className="svx-plans__reference"><span className="svx-kicker">PLANOS</span><p>Compare equipe, catálogos e recursos disponíveis em cada plano.</p></th>{sorted.map(plan=><th scope="col" key={plan.code} className={plan.code==='prata'?'svx-plans__recommended':''}>{plan.code==='prata'&&<span className="svx-plans__flag">RECOMENDADO</span>}<h3>{plan.name}</h3><p>{info[plan.code]||'Catálogo para o seu negócio.'}</p><strong>{money.format(plan.monthlyPrice)}</strong><small>POR MÊS</small></th>)}</tr></thead>
+        <thead><tr><th scope="col" className="svx-plans__reference"><span className="svx-kicker">PLANOS</span><p>Compare equipe, catálogos e recursos disponíveis em cada plano.</p></th>{sorted.map(plan=><th scope="col" key={plan.code} className={plan.code==='prata'?'svx-plans__recommended':''}>{plan.code==='prata'&&<span className="svx-plans__flag">RECOMENDADO</span>}<h3>{plan.name}</h3><p>{info[plan.code]||'Catálogo para o seu negócio.'}</p>{plan.promotion&&<div className="svx-plans__offer"><span>BLACK FRIDAY</span><del aria-label="Preço original">{money.format(plan.promotion.originalMonthlyPrice)}</del></div>}<strong>{money.format(plan.monthlyPrice)}</strong><small>POR MÊS</small></th>)}</tr></thead>
         <tbody>{rows.map(row=><tr key={row.key}><th scope="row">{row.label}</th>{sorted.map(plan=><td key={plan.code} className={plan.code==='prata'?'svx-plans__recommended':''}>{number(plan[row.key])}</td>)}</tr>)}</tbody>
         <tfoot><tr><td>Escolha seu plano</td>{sorted.map(plan=><td key={plan.code} className={plan.code==='prata'?'svx-plans__recommended':''}><button type="button" aria-label={`Começar no ${plan.name}`} className={plan.code==='prata'?'svx-plans__cta is-featured':'svx-plans__cta'} onClick={()=>onChoose(plan.code)}><span className="svx-plans__cta-prefix">Começar no </span>{plan.name} <ArrowRight size={15}/></button></td>)}</tr></tfoot>
       </table>
