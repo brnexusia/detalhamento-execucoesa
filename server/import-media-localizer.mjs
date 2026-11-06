@@ -233,7 +233,9 @@ export async function recoverImportImagesFromSource(sourceUrl, product, { reques
   const name = normalizeText(product?.name)
   const match = (sku && candidates.find((candidate) => normalizeText(candidate?.sku) === sku)) ||
     (name && candidates.find((candidate) => normalizeText(candidate?.title) === name)) ||
-    (candidates.length === 1 ? candidates[0] : null)
+    candidates.find(candidate => candidate?.source_url === source)
+  // Do not borrow the only product on an unrelated page just because it is the
+  // sole JSON-LD entry. Product images must match SKU, title or exact URL.
   return match ? candidateImages(match) : []
 }
 
