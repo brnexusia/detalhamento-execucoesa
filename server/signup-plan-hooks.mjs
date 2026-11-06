@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import express from 'express'
 import pg from 'pg'
+import { blackFridayPromotion } from './black-friday-pricing.mjs'
 
 const { Pool } = pg
 const databaseUrl = process.env.DATABASE_URL?.trim() || ''
@@ -51,6 +52,7 @@ function shapePlan(row) {
     code: row.code,
     name: row.name,
     monthlyPrice: Number(row.monthly_price),
+    promotion: blackFridayPromotion(row.code, row.monthly_price),
     sellerLimit: row.seller_limit == null ? null : Number(row.seller_limit),
     productLimit: row.product_limit == null ? null : Number(row.product_limit),
     catalogLimit: row.catalog_limit == null ? null : Number(row.catalog_limit),
@@ -60,6 +62,7 @@ function shapePlan(row) {
 }
 
 async function listPlans(_req, res) {
+  res.set('Cache-Control', 'no-store')
   try {
     await ensureSchema()
     const result = await pool.query(`
