@@ -4,11 +4,15 @@ import pg from 'pg'
 import { cycles, planPrice, subscriptionAccess, verifyStripeSignature } from './stripe-billing-policy.mjs'
 import { systemPlans } from './system-plans.mjs'
 import { requiresPaymentForSignup } from './signup-billing-mode.mjs'
-import { parseStripeServerKey } from './stripe-key-config.mjs'
+import { parseStripeServerKey, resolveStripeServerKey } from './stripe-key-config.mjs'
 import { ensureReferralSchema, captureReferral, qualifyReferralOnPaidInvoice, applyMerchantStripeCredits, reverseReferralForRefund } from './referral-program-core.mjs'
 
 const { Pool } = pg
-const key = String(process.env.SHOPVAX_STRIPE_SECRET_KEY || '').trim()
+const keyConfig = resolveStripeServerKey(process.env)
+const key = keyConfig.value
+if (keyConfig.source === 'SHOPVAX_STRIPE_SECRET_KEY_URL') {
+  console.warn('[stripe-billing] SHOPVAX_STRIPE_SECRET_KEY_URL é um nome legado; migre a credencial para SHOPVAX_STRIPE_SECRET_KEY no EasyPanel.')
+}
 const webhookSecret = String(process.env.SHOPVAX_STRIPE_WEBHOOK_SECRET || '').trim()
 const stripeKey = parseStripeServerKey(key)
 const stripeMode = stripeKey.mode || 'test'
