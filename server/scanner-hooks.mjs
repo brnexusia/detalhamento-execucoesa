@@ -5,7 +5,7 @@ import multer from 'multer'
 import pg from 'pg'
 import { collectPdfCatalog, MAX_PDF_BYTES } from './scanner-pdf.mjs'
 import { collectCatalog } from './scanner-collector.mjs'
-import { whatsappCatalogPhone } from './scanner-whatsapp-catalog.mjs'
+import { whatsappCatalogPhone, evolutionCatalogConfig } from './scanner-whatsapp-catalog.mjs'
 import { sharedPhotoSourceKind } from './scanner-photo-albums.mjs'
 import { normalizeCandidates } from './scanner-normalizer.mjs'
 import { prepareReview } from './scanner-review.mjs'
@@ -758,6 +758,10 @@ function installScannerRoutes(app) {
 
     if (normalized.host === 'wa.me' && !whatsappCatalogPhone(normalized.url)) {
       return res.status(400).json({ error:'Use o link do catálogo do WhatsApp no formato https://wa.me/c/55DDDNUMERO.' })
+    }
+    if (whatsappCatalogPhone(normalized.url)) {
+      try { evolutionCatalogConfig() }
+      catch(error) { return res.status(503).json({ error:error instanceof Error ? error.message : 'Integração de catálogo WhatsApp indisponível.' }) }
     }
     const existing = await pool.query(
       `SELECT * FROM import_jobs WHERE store_id=$1 AND source_url=$2 AND status IN ('queued','scanning','processing') ORDER BY created_at DESC LIMIT 1`,
