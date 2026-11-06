@@ -64,7 +64,10 @@ export function normalizeWhatsAppCatalogPayload(payload, phone, sourceUrl) {
       product.image, product.productImage, product.imageUrl, product.image_url, product.thumbnail, product.thumbnailUrl,
     ].map(publicImage).filter(Boolean).slice(0,30)
     const price = moneyFromWhatsApp(product)
-    const specificUrl = id && /^\d+$/.test(id) ? 'https://wa.me/p/'+id+'/'+phone : sourceUrl
+    // Distinct source keys are required even when WhatsApp omits product IDs.
+    const specificUrl = id && /^\d+$/.test(id)
+      ? 'https://wa.me/p/'+id+'/'+phone
+      : sourceUrl + '#item-' + encodeURIComponent(id || title.toLowerCase().replace(/\s+/g,'-').slice(0,90))
     candidates.push({
       source_url: specificUrl,external_id: id,title,
       description:String(product.description || '').trim().slice(0,12000),
