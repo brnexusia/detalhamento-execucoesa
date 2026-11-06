@@ -120,3 +120,24 @@ body:has(.svx-onboarding) .svx-support__panel {
     margin-right: 16px;
   }
 }
+
+
+/* No cadastro mobile, o suporte fica após o formulário, nunca sobre os campos. */
+@media(max-width:700px) {
+  body:has(.auth-shell--register) .svx-support {
+    position:relative;
+    inset:auto;
+    display:flex;
+    flex-direction:column;
+    align-items:flex-end;
+    width:auto;
+    max-width:calc(100% - 36px);
+    margin:0 18px max(20px,env(safe-area-inset-bottom)) auto;
+  }
+  body:has(.auth-shell--register) .svx-support__panel {
+    position:static;
+    width:min(410px,100%);
+    max-height:min(680px,calc(100dvh - 120px));
+    margin-top:12px;
+  }
+}
