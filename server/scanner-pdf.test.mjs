@@ -259,7 +259,7 @@ test('PDF with explicitly referenced products but unreadable prices remains revi
 })
 
 test('PDF scanner accepts a standalone explicit BRL decimal without a currency label', () => {
-  const page = 'Vestido Tropical\\nREF: VT-77\\n49,90\\nBlusa Atlântica\\nR$ 35,00'
+  const page = 'Vestido Tropical\nREF: VT-77\n49,90\nBlusa Atlântica\nR$ 35,00'
   const result = parsePdfCatalogText(page)
   assert.equal(result.candidates.length, 2)
   assert.deepEqual(result.candidates.map(item => item.price), [49.90,35.00])
