@@ -11,6 +11,7 @@ import {
   Edit3,
   FileText,
   Images,
+  MessageCircle,
   Search,
   Trash2,
   X,
@@ -39,6 +40,7 @@ function platformLabel(value: string) {
   if (value === 'pdf') return 'Catálogo PDF'
   if (value === 'google-photos') return 'Google Fotos'
   if (value === 'image-link') return 'Link de imagem'
+  if (value === 'whatsapp') return 'WhatsApp Business'
   return value
 }
 
@@ -80,7 +82,7 @@ export default function ScannerModule1() {
   const [open, setOpen] = useState(false)
   const [mode, setMode] = useState<'scan' | 'review'>('scan')
   const [url, setUrl] = useState('')
-  const [sourceMode, setSourceMode] = useState<'site' | 'pdf' | 'album'>('site')
+  const [sourceMode, setSourceMode] = useState<'site' | 'pdf' | 'album' | 'whatsapp'>('site')
   const [pdfFile, setPdfFile] = useState<File | null>(null)
   const [uploadVersion, setUploadVersion] = useState(0)
   const [jobs, setJobs] = useState<ImportJob[]>([])
@@ -227,7 +229,9 @@ export default function ScannerModule1() {
           ? 'PDF recebido. Vamos identificar os produtos para sua revisão.'
           : sourceMode === 'album'
             ? 'Fotos importadas para revisão. Preencha nome e preço antes de publicar.'
-            : 'Scanner iniciado. Você pode acompanhar o progresso abaixo.')
+            : sourceMode === 'whatsapp'
+              ? 'Consulta do catálogo WhatsApp iniciada. Você poderá revisar todos os itens retornados.'
+              : 'Scanner iniciado. Você pode acompanhar o progresso abaixo.')
       setUrl('')
       setPdfFile(null)
       setUploadVersion((value) => value + 1)
@@ -399,10 +403,14 @@ export default function ScannerModule1() {
           <form onSubmit={submit}>
             <div className="scanner-source-tabs" role="group" aria-label="Origem do catálogo">
               <button type="button" aria-pressed={sourceMode === 'site'} className={sourceMode === 'site' ? 'is-active' : ''} onClick={() => setSourceMode('site')}><Search size={16}/> Link de loja</button>
+              <button type="button" aria-pressed={sourceMode === 'whatsapp'} className={sourceMode === 'whatsapp' ? 'is-active' : ''} onClick={() => setSourceMode('whatsapp')}><MessageCircle size={16}/> WhatsApp</button>
               <button type="button" aria-pressed={sourceMode === 'pdf'} className={sourceMode === 'pdf' ? 'is-active' : ''} onClick={() => setSourceMode('pdf')}><FileText size={16}/> Arquivo PDF</button>
               <button type="button" aria-pressed={sourceMode === 'album'} className={sourceMode === 'album' ? 'is-active' : ''} onClick={() => setSourceMode('album')}><Images size={16}/> Álbum de fotos</button>
             </div>
-            {sourceMode === 'site' ? <>
+            {sourceMode === 'whatsapp' ? <>
+              <label><span>Link do catálogo WhatsApp Business</span><input value={url} onChange={event=>setUrl(event.target.value)} inputMode="url" autoComplete="url" placeholder="https://wa.me/c/5511961860913" required autoFocus/></label>
+              <p className="scanner-help">Cole o link compartilhado do catálogo (wa.me/c/...). A consulta precisa de uma instância Evolution API autorizada e conectada no servidor. Os produtos retornados vão para revisão, com fotos e preços quando disponibilizados; nada será publicado automaticamente.</p>
+            </> : sourceMode === 'site' ? <>
               <label><span>URL da sua loja atual</span><input value={url} onChange={(event) => setUrl(event.target.value)} inputMode="url" autoComplete="url" placeholder="https://minhaloja.com.br" required autoFocus /></label>
               <p className="scanner-help">Cole o endereço público da loja que pertence à sua empresa. O sistema identificará os produtos disponíveis.</p>
             </> : sourceMode === 'album' ? <>
@@ -415,7 +423,7 @@ export default function ScannerModule1() {
             <p className="scanner-help">Produtos extraídos permanecem em revisão e só entram na loja após sua confirmação.</p>
             {error && <p className="scanner-message scanner-message--error">{error}</p>}
             {success && <p className="scanner-message scanner-message--success"><Check size={16} /> {success}</p>}
-            <button className="primary-action scanner-submit" disabled={busy}>{busy ? 'Processando…' : sourceMode === 'pdf' ? 'Importar PDF para revisão' : sourceMode === 'album' ? 'Importar fotos para revisão' : 'Escanear loja'}<ArrowRight size={17} /></button>
+            <button className="primary-action scanner-submit" disabled={busy}>{busy ? 'Processando…' : sourceMode === 'pdf' ? 'Importar PDF para revisão' : sourceMode === 'album' ? 'Importar fotos para revisão' : sourceMode === 'whatsapp' ? 'Consultar catálogo WhatsApp' : 'Escanear loja'}<ArrowRight size={17} /></button>
           </form>
           <div className="scanner-jobs">
             <div><strong>Importações recentes</strong><small>{loadingJobs ? 'Atualizando…' : jobs.length ? `${jobs.length} registro(s)` : 'Nenhuma ainda'}</small></div>
