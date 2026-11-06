@@ -64,7 +64,7 @@ const defaultVideoOrigins = [
   'https://storage.googleapis.com',
 ]
 function trustedMediaOrigins(value) {
-  return String(value || '').split(/[\\s,]+/).map((item) => {
+  return String(value || '').split(/[\s,]+/).map((item) => {
     if (!item) return ''
     try {
       const url = new URL(item.includes('://') ? item : 'https://' + item)
