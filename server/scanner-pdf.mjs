@@ -7,6 +7,7 @@ import crypto from 'node:crypto'
 import sharp from 'sharp'
 import { inferPdfProductCategory } from './scanner-pdf-category.mjs'
 import { parseNumberedLookbookPages, parseLookbookPhotoBands } from './scanner-pdf-lookbook.mjs'
+import { parseReferenceOnlyPdfProducts } from './scanner-pdf-review-fallback.mjs'
 
 const run = promisify(execFile)
 export const MAX_PDF_BYTES = 100 * 1024 * 1024
@@ -49,7 +50,13 @@ function priceFromLine(line) {
     const value = match[1].replace(/\./g, '').replace(',', '.')
     return Number(value)
   }).filter((value) => value > 0 && value <= 1000000)
-  return prices.length ? Math.min(...prices) : null
+  if (prices.length) return Math.min(...prices)
+  // Some wholesale PDFs print only a monetary amount on the next line,
+  // without the R$ prefix. Accept ONLY the unambiguous comma-decimal form.
+  const bare= /^\s*(?:R\$\s*)?(\d{1,6}(?:\.\d{3})*,\d{2})\s*$/.exec(String(line))
+  if (!bare) return null
+  const parsed=Number(bare[1].replace(/\./g,'').replace(',','.'))
+  return Number.isFinite(parsed)&&parsed>0&&parsed<=1000000?parsed:null
 }
 
 function referenceFrom(textValue) {
@@ -293,6 +300,7 @@ export async function collectPdfCatalog(buffer, options = {}) {
     const textLayerParsed = parsePdfCatalogText(pages.join('\f'), totalPages)
     const textLayerCandidates = textLayerParsed.candidates.length
     const mixedTextAndPhotoCatalog = Boolean(textLayerParsed.lookbook) || (textLayerCandidates >= 8 && totalPages >= 30)
+    let textLayerOcrAttempts = 0
     for (let i = 0; i < totalPages; i += 1) {
       if (mixedTextAndPhotoCatalog && !(pages[i] || '').trim()) {
         await options.onProgress?.({ progress: Math.min(65, 12 + Math.round(50 * (i + 1) / totalPages)), pagesScanned: i + 1, platform: 'pdf' })
@@ -301,7 +309,15 @@ export async function collectPdfCatalog(buffer, options = {}) {
       // Item numbers and prices are already machine-readable, even when a short
       // lookbook page has fewer than 20 alphanumeric characters. OCR could
       // misread R$ or change a verified price and must not overwrite it.
-      if ((pages[i] || '').replace(/\W/g, '').length >= 20 || /\bR\$\s*\d/.test(pages[i] || '')) continue
+      const hasReadableText=(pages[i] || '').replace(/\W/g, '').length >= 20 || /\bR\$\s*\d/.test(pages[i] || '')
+      if (hasReadableText) {
+        // A text layer may contain headers only, while product prices are
+        // embedded in images. Recheck a bounded number of likely product
+        // pages with OCR, but never re-OCR fully parsed editorial catalogs.
+        if (textLayerCandidates>0 || textLayerOcrAttempts>=12 ||
+            !/(?:ref(?:er[eê]ncia)?|sku|vestido|blusa|camisa|cal[cç]a|conjunto|brinco|bolsa|produto|pre[cç]o)/i.test(pages[i] || '')) continue
+        textLayerOcrAttempts += 1
+      }
       const prefix = path.join(dir, 'ocr-' + i)
       try {
         await command('pdftoppm', ['-f', String(i + 1), '-l', String(i + 1), '-scale-to', '1600', '-singlefile', '-gray', '-png', pdf, prefix], 25000, deadline)
@@ -318,9 +334,11 @@ export async function collectPdfCatalog(buffer, options = {}) {
     }
 
     const parsed = parsePdfCatalogText(pages.join('\f'), totalPages)
-    const candidates = parsed.candidates
+    const candidates = parsed.candidates.length
+      ? parsed.candidates
+      : parseReferenceOnlyPdfProducts(pages,MAX_PRODUCTS)
     if (!candidates.length) {
-      throw new Error('Nenhum produto com nome e preço reconhecíveis foi encontrado. Use um PDF com preços legíveis ou cadastre os produtos manualmente.')
+      throw new Error('Não foi possível identificar produtos neste PDF. O arquivo não apresentou nomes e preços legíveis nem referências associadas a peças. Verifique se as páginas estão nítidas ou envie outro formato.')
     }
 
     // Preserve product names/prices even when a long Canva export embeds many
