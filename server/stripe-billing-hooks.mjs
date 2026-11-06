@@ -2,7 +2,7 @@ import crypto from 'node:crypto'
 import express from 'express'
 import pg from 'pg'
 import { cycles, planPrice, subscriptionAccess, verifyStripeSignature } from './stripe-billing-policy.mjs'
-import { systemPlans } from './system-plans.mjs'
+import { blackFridayPromotion } from './black-friday-pricing.mjs'
 import { requiresPaymentForSignup } from './signup-billing-mode.mjs'
 import { parseStripeServerKey, resolveStripeServerKey } from './stripe-key-config.mjs'
 import { ensureReferralSchema, captureReferral, qualifyReferralOnPaidInvoice, applyMerchantStripeCredits, reverseReferralForRefund } from './referral-program-core.mjs'
@@ -120,12 +120,47 @@ async function stripe(method, path, fields, idempotencyKey) {
   return payload
 }
 
-function amountOptions() {
-  return ['bronze', 'prata', 'ouro'].flatMap((code) =>
-    Object.keys(cycles).map((cycle) => {
-      const plan = planPrice(code, cycle)
-      return { code, cycle, amount: plan.amountCents, label: plan.name, interval: plan.interval, count: plan.intervalCount }
-    }))
+// Uma fonte de verdade para preços: platform_plans, editada em /admin.
+async function activeSystemPlans() {
+  if (!pool) throw new Error('PostgreSQL indisponível para consulta de preços.')
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    const found = await pool.query("SELECT to_regclass('public.platform_plans') AS plans")
+    if (found.rows[0]?.plans) break
+    if (attempt === 79) throw new Error('Tabela de planos indisponível.')
+    await new Promise((resolve) => setTimeout(resolve, 50))
+  }
+  const result = await pool.query(`
+    SELECT code,name,monthly_price,semester_discount,annual_discount,
+      seller_limit,product_limit,catalog_limit,photo_limit,franchisee_limit
+    FROM platform_plans
+    WHERE is_system=true AND active=true AND code IN ('bronze','prata','ouro')
+    ORDER BY CASE code WHEN 'bronze' THEN 1 WHEN 'prata' THEN 2 ELSE 3 END
+  `)
+  return result.rows
+}
+
+function priceForCycle(row, cycle) {
+  const price = planPrice(row.code, cycle, row)
+  if (!price) return null
+  const promotion = blackFridayPromotion(row.code, row.monthly_price)
+  const originalPrice = promotion
+    ? planPrice(row.code, cycle, { ...row, monthly_price: promotion.originalMonthlyPrice })
+    : null
+  return {
+    code: row.code, cycle, amount: price.amountCents, label: price.name,
+    interval: price.interval, count: price.intervalCount,
+    promotion, previousAmountCents: originalPrice?.amountCents ?? null,
+  }
+}
+
+function amountOptions(rows) {
+  return rows.flatMap((row) => Object.keys(cycles).map((cycle) => priceForCycle(row, cycle)).filter(Boolean))
+}
+
+async function currentPlanPrice(code, cycle) {
+  const rows = await activeSystemPlans()
+  const row = rows.find((plan) => plan.code === code)
+  return row ? planPrice(code, cycle, row) : null
 }
 
 async function ensureStripePrice(plan) {
@@ -151,7 +186,7 @@ async function ensureStripePrice(plan) {
   return price.id
 }
 
-function billingShape(row) {
+function billingShape(row, prices) {
   return {
     enabled: ready,
     required: Boolean(row?.billing_required),
@@ -161,7 +196,7 @@ function billingShape(row) {
     cycle: row?.cycle || null,
     paidUntil: row?.paid_until || null,
     cancelAtPeriodEnd: Boolean(row?.cancel_at_period_end),
-    prices: amountOptions(),
+    prices,
   }
 }
 
@@ -176,7 +211,8 @@ async function status(req, res) {
   if (!account) return
   await ensureReferralSchema()
   const referral = (await pool.query('SELECT referral_code,status FROM shopvax_referral_claims WHERE referred_store_id=$1',[account.id])).rows[0]
-  res.json({ ...billingShape(account), referralCode: referral?.referral_code || '', referralStatus: referral?.status || null })
+  const prices = amountOptions(await activeSystemPlans())
+  res.json({ ...billingShape(account, prices), referralCode: referral?.referral_code || '', referralStatus: referral?.status || null })
 }
 
 async function customerFor(account, client) {
@@ -199,7 +235,7 @@ async function checkout(req, res) {
   const account = await requireOwner(req, res)
   if (!account) return
   if (!ready) return apiError(res, 503, 'A cobrança online ainda não está disponível.', 'BILLING_NOT_CONFIGURED')
-  const plan = planPrice(String(req.body?.planCode || '').toLowerCase(), String(req.body?.cycle || 'monthly'))
+  const plan = await currentPlanPrice(String(req.body?.planCode || '').toLowerCase(), String(req.body?.cycle || 'monthly'))
   if (!plan) return apiError(res, 400, 'Selecione um plano e um ciclo válidos.', 'INVALID_PLAN')
   await ensureReferralSchema()
   const client = await pool.connect()
@@ -226,7 +262,7 @@ async function checkout(req, res) {
     }
     if (current?.checkout_session_id) {
       const old = await stripe('GET', 'checkout/sessions/' + encodeURIComponent(current.checkout_session_id))
-      if (old.status === 'open' && current.checkout_plan === plan.code && current.checkout_cycle === plan.cycle) {
+      if (old.status === 'open' && Number(old.amount_total) === plan.amountCents && current.checkout_plan === plan.code && current.checkout_cycle === plan.cycle) {
         await client.query('COMMIT')
         return res.json({ url: old.url })
       }
@@ -296,7 +332,7 @@ async function change(req, res) {
   if (!ready || !account.subscription_id || account.stripe_mode !== stripeMode || !subscriptionAccess(account)) {
     return apiError(res, 409, 'É necessária uma assinatura ativa para alterar seu plano.', 'SUBSCRIPTION_NOT_ACTIVE')
   }
-  const plan = planPrice(String(req.body?.planCode || '').toLowerCase(), String(req.body?.cycle || 'monthly'))
+  const plan = await currentPlanPrice(String(req.body?.planCode || '').toLowerCase(), String(req.body?.cycle || 'monthly'))
   if (!plan) return apiError(res, 400, 'Plano ou ciclo inválido.', 'INVALID_PLAN')
   if (plan.code === account.active_plan_code && plan.cycle === account.cycle) return res.json({ ok: true, unchanged: true })
   const sub = await stripe('GET', 'subscriptions/' + encodeURIComponent(account.subscription_id))
@@ -439,15 +475,23 @@ function install(app) {
   if (app.__shopvaxStripeInstalled) return
   app.__shopvaxStripeInstalled = true
   app.post('/api/billing/stripe/webhook', express.raw({ type: 'application/json', limit: '256kb' }), wrap(webhook))
-  app.get('/api/billing/public-plans', (_req,res) => {
+  app.get('/api/billing/public-plans', wrap(async (_req,res) => {
     res.set('Cache-Control','no-store')
-    res.json({ enabled:ready, paymentRequired:signupPaymentRequired, plans: systemPlans.map(plan => ({
-      code:plan.code,name:plan.name,monthlyPrice:planPrice(plan.code,'monthly').amountCents/100,
-      sellerLimit:plan.sellerLimit,productLimit:plan.productLimit,catalogLimit:plan.catalogLimit,
-      photoLimit:plan.photoLimit,franchiseeLimit:plan.franchiseeLimit,
-      cycles:Object.keys(cycles).map(cycle => ({code:cycle,amountCents:planPrice(plan.code,cycle).amountCents})),
+    const rows = await activeSystemPlans()
+    res.json({ enabled:ready, paymentRequired:signupPaymentRequired, plans: rows.map(row => ({
+      code:row.code,name:row.name,monthlyPrice:Number(row.monthly_price),
+      sellerLimit:row.seller_limit == null ? null : Number(row.seller_limit),
+      productLimit:row.product_limit == null ? null : Number(row.product_limit),
+      catalogLimit:row.catalog_limit == null ? null : Number(row.catalog_limit),
+      photoLimit:row.photo_limit == null ? null : Number(row.photo_limit),
+      franchiseeLimit:row.franchisee_limit == null ? null : Number(row.franchisee_limit),
+      promotion:blackFridayPromotion(row.code, row.monthly_price),
+      cycles:Object.keys(cycles).map(cycle => {
+        const item = priceForCycle(row, cycle)
+        return { code:cycle, amountCents:item?.amount ?? null, previousAmountCents:item?.previousAmountCents ?? null }
+      }),
     })) })
-  })
+  }))
   app.get('/api/billing/status', headersNoCache, wrap(status))
   app.post('/api/billing/checkout', express.json({ limit: '8kb' }), headersNoCache, wrap(checkout))
   app.post('/api/billing/portal', express.json({ limit: '8kb' }), headersNoCache, wrap(portal))
