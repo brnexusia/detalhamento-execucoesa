@@ -96,7 +96,7 @@ export function evolutionCatalogConfig(env = process.env) {
       /^(?:\d{1,3}\.){3}\d{1,3}$/.test(u.hostname) || u.hostname.includes(':')) {
     throw new Error('Configure uma origem HTTPS pública válida da Evolution API, sem portas ou caminhos.')
   }
-  if (!/^[\w-]{1,100}$/.test(instance)) throw new Error('Identificador da instância Evolution inválido.')
+  if (!/^[A-Za-z0-9_. -]{1,100}$/.test(instance)) throw new Error('Identificador da instância Evolution inválido.')
   return { url:new URL('/business/getCatalog/'+encodeURIComponent(instance),u).toString(), apiKey }
 }
 
