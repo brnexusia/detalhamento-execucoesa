@@ -2,6 +2,7 @@ import ShopvaxLoading from './ShopvaxLoading'
 import PlatformBuyerDirectory from './PlatformBuyerDirectory'
 import PlatformReferralPanel from './PlatformReferralPanel'
 import PlatformRepricing from './PlatformRepricing'
+import PlatformComplimentaryModal from './PlatformComplimentaryModal'
 import { useEffect, useState } from 'react'
 import { apiRequest } from './api'
 import {
@@ -37,6 +38,7 @@ type PlatformPlan = {
 type PlatformStore = {
   id: string; slug: string; name: string; isActive: boolean; createdAt: string; ownerId: string; ownerName: string; ownerEmail: string
   planCode: string; products: number; sellers: number; orders: number; orderValue: number
+  adminAccessActive?:boolean; adminAccessExpiresAt?:string|null; adminAccessReason?:string|null
 }
 type PlatformAdminUser = { id: string; name: string; email: string; createdAt: string; hasStore: boolean }
 type LatestUser = { id: string; name: string; email: string; createdAt: string; storeName?: string | null; storeSlug?: string | null }
@@ -79,7 +81,7 @@ function actionLabel(action: string) {
     'store.activate': 'Conta reativada', 'store.suspend': 'Conta suspensa', 'store.plan.change': 'Plano alterado',
     'plan.create': 'Plano criado', 'plan.update': 'Plano editado', 'plan.delete': 'Plano apagado',
     'admin.add': 'Administrador adicionado', 'admin.remove': 'Administrador removido', 'admin.claim': 'Admin inicial ativado',
-    'account.delete': 'Conta apagada', 'billing.reprice.scheduled': 'Reajuste programado para próxima fatura',
+    'account.delete': 'Conta apagada', 'store.complimentary.grant':'Cortesia concedida', 'store.complimentary.revoke':'Cortesia revogada', 'billing.reprice.scheduled': 'Reajuste programado para próxima fatura',
   } as Record<string, string>)[action] || action
 }
 
@@ -100,6 +102,7 @@ export default function PlatformAdmin() {
   const [onlyPaying, setOnlyPaying] = useState(false)
   const [adminOpen, setAdminOpen] = useState(false)
   const [planOpen, setPlanOpen] = useState<PlatformPlan | 'new' | null>(null)
+  const [complimentaryTarget, setComplimentaryTarget] = useState<PlatformStore|null>(null)
   const [danger, setDanger] = useState<DangerTarget | null>(null)
   const [claimToken, setClaimToken] = useState('')
   const [claiming, setClaiming] = useState(false)
@@ -252,7 +255,7 @@ export default function PlatformAdmin() {
             <div className="platform-avatar platform-avatar--large">{account.name.slice(0, 2).toUpperCase()}</div>
             <div className="platform-account-main"><h2>{account.store?.name || account.name}</h2><span>{account.name} · {account.email}</span>
               <small>{account.store ? '/' + account.store.slug : 'Sem operação comercial associada'}</small>
-              <div className="platform-account-flags">{account.isAdmin && <b>ADMIN</b>}{account.store && <b>{account.store.isActive ? 'ATIVA' : 'SUSPENSA'}</b>}</div>
+              <div className="platform-account-flags">{account.isAdmin && <b>ADMIN</b>}{account.store && <b>{account.store.isActive ? 'ATIVA' : 'SUSPENSA'}</b>}{store?.adminAccessActive && <b className="platform-courtesy-tag">ACESSO GRATUITO{store.adminAccessExpiresAt ? ' · ATÉ '+date.format(new Date(store.adminAccessExpiresAt)) : ' · SEM PRAZO'}</b>}</div>
               {store && <div className="platform-account-facts"><span>{store.products} produtos</span><span>{store.sellers} vendedoras</span><span>{store.orders} pedidos</span><span>{money.format(store.orderValue)} em pedidos preparados</span></div>}
             </div>
             <div className="platform-account-operations">
@@ -261,7 +264,8 @@ export default function PlatformAdmin() {
                   {data.plans.filter((plan) => plan.active || plan.code === store.planCode).map((plan) => <option key={plan.id} value={plan.code}>{plan.name}</option>)}
                 </select>
                 <div><a href={'/' + store.slug} target="_blank" rel="noreferrer"><ExternalLink size={15}/> Abrir</a>
-                  <button type="button" className={store.isActive ? 'is-danger' : 'is-success'} onClick={() => void toggleStore(store)}>{store.isActive ? 'Suspender' : 'Reativar'}</button></div>
+                  <button type="button" className={store.adminAccessActive ? 'is-danger' : 'is-success'} onClick={()=>setComplimentaryTarget(store)}>{store.adminAccessActive ? 'Revogar cortesia' : 'Liberar sem pagar'}</button>
+                   <button type="button" className={store.isActive ? 'is-danger' : 'is-success'} onClick={() => void toggleStore(store)}>{store.isActive ? 'Suspender' : 'Reativar'}</button></div>
               </>}
               <button className="platform-icon-danger" disabled={account.id === data.user.id || account.isAdmin}
                 onClick={() => setDanger({ kind: 'account', id: account.id, name: account.store?.name || account.name })}
@@ -332,6 +336,7 @@ export default function PlatformAdmin() {
 
     {adminOpen && <AdminModal onClose={() => setAdminOpen(false)} onSaved={async () => { setAdminOpen(false); flash('Administrador adicionado.'); await load() }} />}
     {planOpen && <PlanModal plan={planOpen === 'new' ? null : planOpen} onClose={() => setPlanOpen(null)} onSaved={async () => { setPlanOpen(null); flash('Plano salvo.'); await load() }} />}
+    {complimentaryTarget && <PlatformComplimentaryModal store={complimentaryTarget} plans={data.plans} auth={{hasPassword:data.user.hasPassword,hasGoogle:data.user.hasGoogle}} onClose={()=>setComplimentaryTarget(null)} onSaved={async()=>{setComplimentaryTarget(null);flash('Acesso administrativo atualizado.');await load();await loadAccounts(0)}} />}
     {danger && <DangerModal target={danger} auth={{ hasPassword: data.user.hasPassword, hasGoogle: data.user.hasGoogle }} onClose={() => setDanger(null)} onConfirm={executeDanger} />}
   </div>
 }
