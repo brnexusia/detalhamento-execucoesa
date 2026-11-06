@@ -74,7 +74,8 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const [plansError, setPlansError] = useState('')
   const [signupPaymentRequired, setSignupPaymentRequired] = useState(true)
   const [googleBusy, setGoogleBusy] = useState(false)
-  const [cycle, setCycle] = useState<'monthly'|'semiannual'|'annual'>('monthly')
+  // Cadastro direto no plano mensal. Outros ciclos continuam disponíveis no painel de assinatura.
+  const cycle = 'monthly' as const
   const [googleSignup, setGoogleSignup] = useState<{ credential: string; name: string; email: string; picture?: string } | null>(null)
   const [form, setForm] = useState({
     name: '',
@@ -266,12 +267,6 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
         <button className="auth-close" onClick={() => go('/')} aria-label="Fechar"><X size={20} /></button>
         <form className="auth-form" onSubmit={submit}>
           <div className="auth-form__head">
-            {registrationMode ? (
-              <div className="auth-register-brand" aria-label="Shopvax">
-                <img className="svx-brand-symbol" src="/brand/shopvax-symbol.svg" alt="" aria-hidden="true" draggable={false} />
-                <img className="svx-brand-wordmark" src="/brand/shopvax-wordmark.svg" alt="Shopvax" draggable={false} />
-              </div>
-            ) : null}
             <p>{registrationMode ? 'Criar conta' : 'Entrar'}</p>
             <h2>{googleSignup ? 'Complete os dados da sua loja.' : registrationMode ? 'Comece com a sua loja.' : 'Acesse seu painel.'}</h2>
           </div>
@@ -302,12 +297,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
                   </button>)}
                 </div>}
                 <input className="signup-plan-required" tabIndex={-1} aria-hidden="true" value={form.planCode} onChange={() => undefined} required />
-                {signupPaymentRequired && <div className="signup-plan-grid signup-plan-cycle" role="group" aria-label="Ciclo da assinatura">
-                  {([{code:'monthly',label:'Mensal'},{code:'semiannual',label:'Semestral'},{code:'annual',label:'Anual'}] as const).map(option =>
-                    <button type="button" key={option.code} className={cycle===option.code?'signup-plan is-selected':'signup-plan'} aria-pressed={cycle===option.code} onClick={()=>setCycle(option.code)}>{option.label}</button>
-                  )}
-                </div>}
-                {selectedPlan && <small className="signup-plan-choice">{signupPaymentRequired ? `Selecionado: ${selectedPlan.name} · ${cycle==='monthly'?'Mensal':cycle==='semiannual'?'Semestral':'Anual'} · ${selectedCyclePrice==null?'Valor indisponível':planMoney.format(selectedCyclePrice/100)} por período. Após criar a conta, você será encaminhado automaticamente à Stripe.` : `Plano ${selectedPlan.name} selecionado. Nenhum pagamento será solicitado no cadastro.`}</small>}
+                {selectedPlan && <small className="signup-plan-choice">{signupPaymentRequired ? `Selecionado: ${selectedPlan.name} · Mensal · ${selectedCyclePrice==null?'Valor indisponível':planMoney.format(selectedCyclePrice/100)} por mês. Após criar a conta, você será encaminhado automaticamente à Stripe.` : `Plano ${selectedPlan.name} selecionado. Nenhum pagamento será solicitado no cadastro.`}</small>}
               </fieldset>}
             </>
           )}
