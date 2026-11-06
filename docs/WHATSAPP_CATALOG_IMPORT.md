@@ -1,35 +1,47 @@
-# ShopVax — importador de catálogos WhatsApp Business
+# ShopVax — importação de catálogo WhatsApp via UAZAPI
 
-## Escopo
-O scanner aceita links `https://wa.me/c/55DDDNUMERO` e também a mensagem compartilhada que contenha esse link. Exemplo: `https://wa.me/c/5511961860913`. O link é um deep link do WhatsApp, **não** um feed público que possa ser raspado como HTML. Sem uma instância Evolution API autenticada, é impossível consultar seus produtos de forma confiável apenas pelo endereço.
+## Contrato verificado
 
-A integração usa `POST /business/getCatalog/{instance}` da Evolution API para consultar o catálogo de um número comercial e passar os itens retornados à revisão do ShopVax. Uma conexão ativa e a disponibilidade do catálogo para a instância são pré-requisitos; alguns perfis ou versões da Evolution não retornam todos os produtos.
+O ShopVax recebe links públicos no formato `https://wa.me/c/55DDDNUMERO` (inclusive texto compartilhado que contenha o link). O endereço do WhatsApp não expõe sozinho o catálogo como HTML, então a leitura ocorre por uma **instância UAZAPI conectada**.
 
-## Configuração no serviço backend do EasyPanel
-Adicionar estas variáveis de ambiente **somente no backend**:
+Conforme o contrato UAZAPI 2.6.9, o backend faz:
+`POST /business/catalog/list` com header `token: <TOKEN_DA_INSTANCIA>` e JSON `{"jid":"5511961860913@s.whatsapp.net"}`. Cada página retorna `{"response":{"products":[...],"next":"..."}}`. A próxima chamada envia o mesmo `jid` e `after` com o cursor opaco retornado em `response.next`. Não há necessidade de informar nome/ID da instância na rota, apenas sua credencial.
+
+Fonte: https://docs.uazapi.com/openapi-bundled.json (operação getCatalog e schemas BusinessCatalogPage / BusinessProduct).
+
+## Configuração no EasyPanel (backend shopvax)
 
 ```env
-SHOPVAX_WHATSAPP_EVOLUTION_URL=https://SEU_HOST_EVOLUTION
-SHOPVAX_WHATSAPP_EVOLUTION_INSTANCE=NOME_DA_INSTANCIA_CONECTADA
-SHOPVAX_WHATSAPP_EVOLUTION_API_KEY=CHAVE_DA_API_DA_INSTANCIA
+SHOPVAX_WHATSAPP_UAZAPI_URL=https://SEU_SERVIDOR_UAZAPI
+SHOPVAX_WHATSAPP_UAZAPI_TOKEN=TOKEN_DA_INSTANCIA_CONECTADA
 ```
 
-A origem deve ser HTTPS pública, sem caminho nem porta personalizada. A instância precisa estar conectada e ser compatível com a leitura de catálogos. **Não colocar chaves no frontend, na URL compartilhada ou no GitHub.** Se não estiver configurado, a API rejeita a tentativa imediatamente com mensagem objetiva e não inicia um job vazio.
+A URL precisa ser a origem HTTPS pública da UAZAPI, sem path nem porta extra. O token é **da instância**, não o `admintoken`. Não enviar credenciais ao navegador nem armazená-las no GitHub. Estas duas variáveis substituem definitivamente `SHOPVAX_WHATSAPP_EVOLUTION_URL`, `SHOPVAX_WHATSAPP_EVOLUTION_INSTANCE` e `SHOPVAX_WHATSAPP_EVOLUTION_API_KEY`.
 
-## Uso
-1. Entre como lojista com acesso ativo no ShopVax, abra **Importar catálogo** e escolha **WhatsApp**.
-2. Cole o link completo do catálogo de seu próprio negócio (ou um que tenha autorização para copiar).
-3. Clique em **Consultar catálogo WhatsApp**. O backend consulta a Evolution API e salva os candidatos no pipeline existente.
-4. Acesse **Revisar**. Nenhum item de origem WhatsApp começa selecionado automaticamente. Confirme títulos, valores e imagens, selecione os itens corretos e só depois publique.
-5. Produtos sem preço confirmado ficam com preço ausente para correção manual. Valores numéricos `priceAmount1000` são divididos por 1000 (ex.: `29990` vira R$ 29,99). Valores ambíguos não são convertidos por adivinhação.
+## Como importar
 
-## Limitações e proteção
-- Não é garantido extrair todos os produtos: há versões da Evolution API com limitações de paginação, acesso por número e imagens. Se faltar alguma imagem ou item, revise manualmente ou use uma exportação autorizada.
-- A API externa não é acionada no navegador. O endpoint do backend é fixado pela configuração administrativa; a URL do usuário é validada e só serve para identificar o número do catálogo.
-- A requisição externa não segue redirecionamentos, limita a resposta e usa transporte com resolução de endereços públicos, reduzindo riscos de SSRF/vazamento de token.
-- Não são gerados produtos fictícios, não há login indevido no WhatsApp de terceiros nem publicação automática.
-- A integração não pede a senha pessoal ou QR Code do lojista no formulário de importação.
-- Para importação que dependa de credenciais da própria empresa, é necessário providenciar uma instância autorizada específica ou uma integração oficial com o Commerce Manager.
+1. Abra **Importar catálogo → WhatsApp** no ShopVax.
+2. Cole o link `https://wa.me/c/5511961860913` (da loja que você pode importar).
+3. Clique em **Consultar catálogo WhatsApp**.
+4. O backend consulta e pagina os itens via UAZAPI, normaliza nomes, descrição, referência, preço e fotos disponibilizadas, e envia todos para **Revisão**.
+5. Selecione os produtos e confira os dados antes de publicá-los no ShopVax. Nenhum produto é selecionado ou publicado automaticamente.
+
+## Preços e fotos
+
+O campo `price` e `sale_price.price` são strings numéricas inteiras expressas em **milésimos**. Por exemplo, `"29990"` significa R$ 29,99, e não R$ 299,90. Se não houver preço confiável, o produto fica sem preço e exige revisão manual.
+
+As imagens vêm do array `media.images`, usando `original_image_url` e, quando necessário, `request_image_url`. Alguns endereços podem expirar ou deixar de estar acessíveis; revise as fotos antes de publicar.
+
+## Falhas e segurança
+
+- O scanner só consulta um endpoint fixo de UAZAPI configurado pelo servidor. O usuário informa o telefone, não um destino de API arbitrário.
+- A consulta usa o transporte existente com validação de IP público, limite de tamanho, timeout e **sem seguir redirecionamentos**.
+- Respostas com schema inválido, token recusado, cursor repetido ou falha de paginação abortam o trabalho, sem importar parcialmente.
+- Não inventa fotos, preços ou produtos; não publica automaticamente.
+- O sistema limita a consulta a 40 páginas de até 50 itens cada (2 mil itens); importações maiores precisam de estratégia própria.
+- A UAZAPI precisa conseguir consultar o catálogo da loja a partir da instância autorizada. Disponibilidade real de itens e imagens depende da conta WhatsApp e da própria UAZAPI.
+- O código e os testes unitários foram alterados. Teste de integração em ambiente com instância real é necessário antes de afirmar que o catálogo do número fornecido foi capturado.
 
 ## Testes
-`npm run test:scanner:whatsapp` valida links, conversão de valores, chamadas simuladas à Evolution, formato dos candidatos e erros de acesso/configuração.
+
+`npm run test:scanner:whatsapp` verifica validação do link, chamada `POST /business/catalog/list`, token, `jid`, paginação por `after`, preços em milésimos, imagens, campos ausentes e falhas de autenticação.
