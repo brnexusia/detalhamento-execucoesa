@@ -51,7 +51,13 @@ export async function stageSelectedImportMedia({
       const product = prepareReview(row.data).data
       const originalImages = sourceImages(product)
       const remoteImages = originalImages.filter(remote)
-      if (!remoteImages.length) continue // Local PDF media already saved at scan time.
+      // Some storefront pages expose product images only on the detail page.
+      // Recover such images for the exact product, but never guess a picture.
+      const source = String(product.source_url || '')
+      const sourceMayContainProduct = !originalImages.length &&
+        remote(source) && !/https?:\/\/(?:www\.)?wa\.me\//i.test(source) &&
+        /\/(?:produto|product|products|p|item)\//i.test(source)
+      if (!remoteImages.length && !sourceMayContainProduct) continue
       const localized = await localize({
         query, storeId, product, sourceUrl: product.source_url || '',
       })
@@ -61,6 +67,9 @@ export async function stageSelectedImportMedia({
       })
       const anyLocal = replacements.some(isLocalShopvaxMedia)
       if (!anyLocal) {
+        // A source page with no declared image is not a broken external image.
+        // Keep the user-reviewed no-image product unchanged if recovery fails.
+        if (!remoteImages.length) continue
         failed += 1
         throw new Error(
           'Não foi possível salvar nenhuma foto do produto "' +
