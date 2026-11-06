@@ -48,9 +48,9 @@ Na aba **Produtos → Importar catálogo → Álbum de fotos**, o lojista pode c
 - configurações comerciais;
 - as integrações experimentais Asaas, frete, Meta Shopping e API/ERP existentes no código ficam fora do escopo comercial do MVP e não devem ser anunciadas como concluídas.
 
-## Cadastro temporariamente sem pagamento
+## Cadastro com cobrança obrigatória
 
-Até a ativação comercial explícita, novas lojas podem criar conta com e-mail/senha ou Google (se disponível), escolher um plano e acessar o painel **sem checkout Stripe**. O plano selecionado segue com limites normais; não se cria assinatura automática. Para exigir pagamento dos **novos** cadastros, configurar `SHOPVAX_REQUIRE_PAYMENT_ON_SIGNUP=1` no backend e publicar a versão. Não modificar `billing_required` de lojas antigas automaticamente. Veja `docs/STRIPE_BILLING.md`.
+Novas lojas só recebem acesso operacional após contratação de plano e confirmação autenticada do pagamento na Stripe. O fluxo por e-mail/senha ou Google cria um **cadastro técnico pendente** para gerar o Checkout hospedado; cancelamento, abandono ou erro de pagamento não liberam a loja. Após pagar, o webhook `invoice.paid` ativa a assinatura. Em produção, `SHOPVAX_REQUIRE_PAYMENT_ON_SIGNUP=0` não habilita mais cadastros gratuitos. Em caso de indisponibilidade da Stripe, novos cadastros são bloqueados (503), e contas já existentes não são migradas automaticamente. Veja `docs/STRIPE_BILLING.md`.
 
 ## Planos do MVP
 
