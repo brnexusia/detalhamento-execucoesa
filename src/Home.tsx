@@ -10,7 +10,7 @@ function go(path: string) {
   window.dispatchEvent(new PopStateEvent('popstate'))
 }
 
-type HomePlan = { code: string; name: string; monthlyPrice: number; sellerLimit: number | null; catalogLimit: number | null; photoLimit: number | null; franchiseeLimit: number | null }
+type HomePlan = { code: string; name: string; monthlyPrice: number; promotion?: { label: string; originalMonthlyPrice: number } | null; sellerLimit: number | null; catalogLimit: number | null; photoLimit: number | null; franchiseeLimit: number | null }
 
 export default function Home() {
   const ownerSession = useOwnerSession()
