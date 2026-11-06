@@ -61,3 +61,9 @@
  .platform-reprice__row>span:last-child{grid-column:2;grid-row:2}
  .platform-reprice .platform-primary{width:100%}
 }
+
+/* Acesso gratuito concedido pelo administrador — status visível por conta. */
+.platform-courtesy-tag{display:inline-flex;max-width:100%;overflow-wrap:anywhere;padding:4px 7px;border:1px solid #4b8261!important;background:#eef5ef;color:#24593a!important;font-size:9px;line-height:1.5;font-weight:800}
+.platform-account-operations>div{display:flex;flex-wrap:wrap;gap:6px}
+.platform-account-operations>div>button,.platform-account-operations>div>a{white-space:normal;text-align:center;min-height:35px}
+@media(max-width:560px){.platform-account-operations>div{display:flex;flex-wrap:wrap}.platform-account-operations>div>button{flex:1 1 130px}}
