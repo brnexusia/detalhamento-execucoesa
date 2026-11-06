@@ -22,7 +22,7 @@ export function fingerprintStorefront(html, sourceUrl = '') {
     ['bigcommerce',/cdn\d+\.bigcommerce\.com|stencil-utils|bigcommerce/.test(text),'BigCommerce signature'],
     ['wix',/wixstatic\.com|parastorage\.com|wix-code-sdk|wix-website/.test(text),'Wix signature'],
     ['squarespace',/static\d*\.squarespace\.com|squarespace\.com\/universal/.test(text),'Squarespace signature'],
-    ['prestashop',/prestashop|var prestashop|prestashop\/.test(text),'PrestaShop signature'],
+    ['prestashop',/prestashop|var prestashop|prestashop\//.test(text),'PrestaShop signature'],
     ['opencart',/index\.php\?route=product|catalog\/view\/theme|opencart/.test(text),'OpenCart signature'],
     ['shopify',/cdn\.shopify\.com|shopify\.theme|shopify-section|myshopify\.com/.test(text),'Shopify signature'],
     ['woocommerce',/woocommerce|wc-block|wp-content\/plugins\/woocommerce/.test(text),'WooCommerce signature'],
