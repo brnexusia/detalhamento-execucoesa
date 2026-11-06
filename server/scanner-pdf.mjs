@@ -45,7 +45,6 @@ function text(value) {
 
 function priceFromLine(line) {
   const matches = [...String(line).matchAll(/(?:R\$\s*|(?:pre[cç]o|atacado|varejo|valor)\s*(?:de|:|-)?\s*)(\d{1,6}(?:\.\d{3})*,\d{2}|\d{1,6}(?:\.\d{3})*)/gi)]
-  if (!matches.length) return null
   const prices = matches.map((match) => {
     const value = match[1].replace(/\./g, '').replace(',', '.')
     return Number(value)
