@@ -263,7 +263,7 @@ async function checkout(req, res) {
     }
     if (current?.checkout_session_id) {
       const old = await stripe('GET', 'checkout/sessions/' + encodeURIComponent(current.checkout_session_id))
-      if (old.status === 'open' && Number(old.amount_total) === plan.amountCents && current.checkout_plan === plan.code && current.checkout_cycle === plan.cycle) {
+      if (old.status === 'open' && Number(old.amount_subtotal ?? old.amount_total) === plan.amountCents && current.checkout_plan === plan.code && current.checkout_cycle === plan.cycle) {
         await client.query('COMMIT')
         return res.json({ url: old.url })
       }
