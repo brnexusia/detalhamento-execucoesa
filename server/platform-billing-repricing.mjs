@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import { planPrice } from './stripe-billing-policy.mjs'
 import { shopvaxStripeAdminRuntime } from './stripe-billing-hooks.mjs'
+import { validateStripeRepricingTarget, nextInvoiceRepriceFields } from './stripe-reprice-policy.mjs'
 
 const VALID_PLANS = new Set(['bronze', 'prata', 'ouro'])
 const MAX_BATCH = 50
@@ -120,37 +121,21 @@ export function registerPlatformBillingRepricing(router, requirePlatformAdmin, a
         try {
           if (!target) throw new Error('Preço de destino inválido.')
           const subscription = await shopvaxStripeAdminRuntime.stripe('GET','subscriptions/'+encodeURIComponent(row.subscription_id))
-          const first = subscription.items?.data?.[0]
-          const currentPrice = first?.price
-          const customer = typeof subscription.customer === 'string' ? subscription.customer : subscription.customer?.id
-          const cycle = target.interval === 'year' ? { interval:'year',count:1 } :
-            { interval:'month',count:target.intervalCount }
-          if (subscription.id !== row.subscription_id ||
-              subscription.metadata?.shopvax_store_id !== row.store_id ||
-              customer !== row.customer_id || subscription.status !== 'active' ||
-              subscription.cancel_at_period_end || subscription.pending_update ||
-              subscription.items?.data?.length !== 1 || !first?.id ||
-              typeof currentPrice !== 'object' || currentPrice.currency !== 'brl' ||
-              currentPrice.recurring?.interval !== cycle.interval ||
-              Number(currentPrice.recurring?.interval_count) !== cycle.count) {
-            throw new Error('Assinatura ou ciclo não corresponde ao registro local; nenhuma alteração feita.')
-          }
-          if (Number(currentPrice.unit_amount) === target.amountCents) {
+          const valid = validateStripeRepricingTarget(subscription,row,target)
+          if (!valid.ok) throw new Error(valid.reason)
+          if (valid.currentAmountCents === target.amountCents) {
             results.push({ storeId:row.store_id,status:'unchanged' })
             continue
           }
           const priceId = await shopvaxStripeAdminRuntime.ensureStripePrice(target)
-          await shopvaxStripeAdminRuntime.stripe('POST','subscriptions/'+encodeURIComponent(subscription.id),{
-            'items[0][id]':first.id,
-            'items[0][price]':priceId,
-            proration_behavior:'none',
-            // Same recurring interval: Stripe retains the billing date.
-          }, 'svx-reprice-'+req.body.requestId+'-'+row.store_id)
+          await shopvaxStripeAdminRuntime.stripe('POST','subscriptions/'+encodeURIComponent(subscription.id),
+            nextInvoiceRepriceFields(valid.itemId,priceId),
+            'svx-reprice-'+req.body.requestId+'-'+row.store_id)
           await audit(req.platformUser.id,'billing.reprice.scheduled','store',row.store_id,{
-            planCode:code, cycle:row.cycle, fromCents:currentPrice.unit_amount,
+            planCode:code, cycle:row.cycle, fromCents:valid.currentAmountCents,
             toCents:target.amountCents, effective:'next_invoice', requestId:req.body.requestId,
           })
-          results.push({ storeId:row.store_id,status:'updated',fromCents:currentPrice.unit_amount,toCents:target.amountCents })
+          results.push({ storeId:row.store_id,status:'updated',fromCents:valid.currentAmountCents,toCents:target.amountCents })
         } catch (error) {
           // The Stripe error is intentionally not returned verbatim.
           console.error('[stripe-repricing] store failed:', row.store_id, error?.status || error?.code || 'validation')
