@@ -5,6 +5,7 @@ import multer from 'multer'
 import pg from 'pg'
 import { collectPdfCatalog, MAX_PDF_BYTES } from './scanner-pdf.mjs'
 import { collectCatalog } from './scanner-collector.mjs'
+import { whatsappCatalogPhone } from './scanner-whatsapp-catalog.mjs'
 import { sharedPhotoSourceKind } from './scanner-photo-albums.mjs'
 import { normalizeCandidates } from './scanner-normalizer.mjs'
 import { prepareReview } from './scanner-review.mjs'
@@ -61,6 +62,8 @@ function isBlockedHostname(hostname) {
 
 export function normalizeImportUrl(input) {
   let value = String(input || '').trim()
+  const pastedCatalog = value.match(/https:\/\/wa\.me\/c\/\d{10,15}\/?/i)
+  if (pastedCatalog && !value.startsWith('http')) value = pastedCatalog[0]
   if (!value || value.length > 2048) throw new Error('Informe uma URL válida da sua loja atual.')
   if (/^[a-z][a-z0-9+.-]*:\/\//i.test(value) && !/^https?:\/\//i.test(value)) throw new Error('A loja precisa usar uma URL http ou https.')
   if (!/^https?:\/\//i.test(value)) value = `https://${value}`
@@ -227,7 +230,7 @@ function compactCandidate(candidate) {
     images: Array.isArray(candidate?.images) ? candidate.images.map(String).filter(Boolean).slice(0, 30) : [],
     variants: Array.isArray(candidate?.variants) ? candidate.variants.slice(0, 250) : [],
     properties: Array.isArray(candidate?.properties) ? candidate.properties.slice(0, 50) : [],
-    price: Number.isFinite(Number(candidate?.price)) ? Number(candidate.price) : null,
+    price: candidate?.price != null && candidate.price !== '' && Number.isFinite(Number(candidate.price)) ? Number(candidate.price) : null,
     price_text: String(candidate?.price_text || '').slice(0, 100),
     currency: String(candidate?.currency || '').slice(0, 20),
     availability: String(candidate?.availability || '').slice(0, 200),
@@ -432,7 +435,7 @@ export async function processNormalizationJob(jobId, normalizer = normalizeCandi
           // Editorial PDF lookbooks require an explicit review/selection
           // before publication, even when prices and images appear complete.
           // Simple named product PDFs keep the previous selection behavior.
-          selected: warnings.length === 0 && !(job.platform === 'pdf' &&
+          selected: warnings.length === 0 && job.platform !== 'whatsapp' && !(job.platform === 'pdf' &&
             String(sourceById.get(product.source_candidate_id)?.external_id || '').startsWith('pdf-lookbook-')),
         }
       })
@@ -753,6 +756,9 @@ function installScannerRoutes(app) {
     try { normalized = normalizeImportUrl(req.body?.url) }
     catch (error) { return res.status(400).json({ error: error instanceof Error ? error.message : 'URL inválida.' }) }
 
+    if (normalized.host === 'wa.me' && !whatsappCatalogPhone(normalized.url)) {
+      return res.status(400).json({ error:'Use o link do catálogo do WhatsApp no formato https://wa.me/c/55DDDNUMERO.' })
+    }
     const existing = await pool.query(
       `SELECT * FROM import_jobs WHERE store_id=$1 AND source_url=$2 AND status IN ('queued','scanning','processing') ORDER BY created_at DESC LIMIT 1`,
       [req.scannerStore.store_id, normalized.url],
