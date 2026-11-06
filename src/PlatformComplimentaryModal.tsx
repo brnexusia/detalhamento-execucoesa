@@ -25,6 +25,14 @@ export default function PlatformComplimentaryModal({
   const [busy,setBusy]=useState(false)
   const [error,setError]=useState('')
   const confirmationWord=revoke?'REVOGAR':'LIBERAR'
+  const reasonValid=revoke || reason.trim().length>=10
+  const confirmationValid=confirmation===confirmationWord
+  const googleDisabled=busy || !confirmationValid || !reasonValid
+  const googleDisabledMessage=!reasonValid
+    ? 'Descreva o motivo da cortesia (mínimo de 10 caracteres).'
+    : !confirmationValid
+      ? 'Digite '+confirmationWord+' no campo acima para ativar o Google.'
+      : 'Confirmação indisponível no momento.'
 
   const submit=async (credential?:string)=>{
     if(confirmation!==confirmationWord) {setError('Digite '+confirmationWord+' para confirmar.');return}
@@ -86,8 +94,15 @@ export default function PlatformComplimentaryModal({
             <input type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} required/>
           </label>}
           {auth.hasGoogle&&<div className="platform-complimentary-google">
-            <p>{auth.hasPassword?'Ou confirme a identidade com Google':'Confirme sua identidade com Google'}</p>
-            <GoogleSignInButton mode="login" disabled={busy||confirmation!==confirmationWord||(!revoke&&reason.trim().length<10)} onCredential={credential=>void submit(credential)} onUnavailable={setError}/>
+            <p>{auth.hasPassword?'Ou confirme a identidade com Google':'Para habilitar o botão Google, preencha os campos acima. Depois, confirme sua identidade.'}</p>
+            <GoogleSignInButton
+              mode="login"
+              disabled={googleDisabled}
+              processing={busy}
+              disabledMessage={googleDisabledMessage}
+              onCredential={credential=>void submit(credential)}
+              onUnavailable={setError}
+            />
           </div>}
           {error&&<p className="platform-complimentary-error" role="alert">{error}</p>}
         </div>
