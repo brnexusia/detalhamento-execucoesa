@@ -307,7 +307,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
                     <button type="button" key={option.code} className={cycle===option.code?'signup-plan is-selected':'signup-plan'} aria-pressed={cycle===option.code} onClick={()=>setCycle(option.code)}>{option.label}</button>
                   )}
                 </div>}
-                {selectedPlan && <small className="signup-plan-choice">{signupPaymentRequired ? `Selecionado: ${selectedPlan.name} · ${cycle==='monthly'?'Mensal':cycle==='semiannual'?'Semestral':'Anual'} · ${selectedCyclePrice==null?'Valor indisponível':planMoney.format(selectedCyclePrice/100)} por período. Após criar a conta, você será encaminhado automaticamente à Stripe.` : `Plano ${selectedPlan.name} selecionado. Seu plano será liberado apenas após o pagamento.`}</small>}
+                {selectedPlan && <small className="signup-plan-choice">{signupPaymentRequired ? `Selecionado: ${selectedPlan.name} · ${cycle==='monthly'?'Mensal':cycle==='semiannual'?'Semestral':'Anual'} · ${selectedCyclePrice==null?'Valor indisponível':planMoney.format(selectedCyclePrice/100)} por período. Após criar a conta, você será encaminhado automaticamente à Stripe.` : `Plano ${selectedPlan.name} selecionado. Nenhum pagamento será solicitado no cadastro.`}</small>}
               </fieldset>}
             </>
           )}
