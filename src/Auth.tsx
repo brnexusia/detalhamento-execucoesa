@@ -12,6 +12,7 @@ type SignupPlan = {
   code: string
   name: string
   monthlyPrice: number
+  promotion?: { label: string; originalMonthlyPrice: number } | null
   sellerLimit: number | null
   productLimit: number | null
   catalogLimit: number | null
@@ -125,7 +126,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
 
     setPlansLoading(true)
     setPlansError('')
-    fetch('/api/billing/public-plans', { signal: controller.signal })
+    fetch('/api/billing/public-plans', { signal: controller.signal, cache: 'no-store' })
       .then(async (response) => response.ok ? response.json() : null)
       .then((payload) => {
         const requiresPayment = payload?.paymentRequired !== false
@@ -297,7 +298,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
                 {plansError && <div className="signup-plans__state signup-plans__state--error">{plansError}</div>}
                 {!plansLoading && !plansError && <div className="signup-plan-grid">
                   {plans.map((plan) => <button type="button" key={plan.code} className={form.planCode === plan.code ? 'signup-plan is-selected' : 'signup-plan'} onClick={() => update('planCode', plan.code)} aria-pressed={form.planCode === plan.code}>
-                    <span>{plan.name}</span><strong>{planMoney.format(plan.monthlyPrice)}<small>/mês</small></strong><em>{planSummary(plan)}</em>
+                    <span>{plan.name}</span>{plan.promotion&&<span className="signup-plan__offer">BLACK FRIDAY</span>}{plan.promotion&&<del className="signup-plan__before">{planMoney.format(plan.promotion.originalMonthlyPrice)}</del>}<strong>{planMoney.format(plan.monthlyPrice)}<small>/mês</small></strong><em>{planSummary(plan)}</em>
                   </button>)}
                 </div>}
                 <input className="signup-plan-required" tabIndex={-1} aria-hidden="true" value={form.planCode} onChange={() => undefined} required />
