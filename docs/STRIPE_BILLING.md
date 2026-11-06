@@ -13,13 +13,13 @@ Os preços normais anteriores para comparação comercial são Bronze R$ 49,90, 
 
 Ciclos: assinatura mensal, assinatura a cada **6 meses** e assinatura **anual**. Valores são cobrados pelo período inteiro, não mensalidades fracionadas.
 
-## Cadastro sem pagamento — configuração temporária
+## Cadastro com pagamento obrigatório
 
-Por decisão de produto, **novas contas podem se cadastrar e acessar o painel sem pagamento por padrão**.
-- O cadastro por e-mail/senha e Google (quando configurado) não abre checkout. O plano Bronze/Prata/Ouro escolhido é liberado com seus limites e não é criada assinatura Stripe.
-- Para voltar a exigir pagamento de **novas** lojas, configure `SHOPVAX_REQUIRE_PAYMENT_ON_SIGNUP=1` no serviço backend do EasyPanel e reinicie/deploy; isso restaura o gate de criação e as regras Stripe sem alterar lojas existentes.
-- Contas previamente pagas e contas já pendentes de cobrança não são alteradas automaticamente. Nunca converter lojas existentes para cobrança em massa sem aprovação e backup.
-- `SHOPVAX_REQUIRE_PAYMENT_ON_SIGNUP=0` ou variável ausente mantém a liberação temporária.
+- **Novas lojas (e-mail/senha e Google) precisam pagar a assinatura Stripe**. O cadastro técnico fica pendente para gerar uma sessão de Checkout; a loja **não tem acesso operacional** antes da confirmação da fatura (`invoice.paid` autenticada pelo webhook).
+- Em **produção**, a cobrança é obrigatória por padrão. A variável antiga `SHOPVAX_REQUIRE_PAYMENT_ON_SIGNUP=0` não desliga mais a cobrança. Somente suítes locais com `NODE_ENV=test` podem simular um cadastro gratuito.
+- Se a configuração Stripe estiver ausente ou indisponível, o servidor responde `503 BILLING_NOT_CONFIGURED` e **não permite novo cadastro** (fail closed).
+- Contas legadas não são convertidas para pagamento obrigatório em massa. Alterações em contas existentes seguem suas políticas anteriores.
+- Se o Checkout falhar após a criação técnica, o lojista pode entrar e retomar em `/painel/assinatura` sem criar uma segunda conta. O retorno à aplicação não libera acesso: isso exige confirmação no webhook.
 
 ## Credenciais e vinculação — no EasyPanel, nunca no repositório
 
@@ -50,7 +50,7 @@ As rotas reais do backend exigem acesso às seguintes categorias da Stripe (nome
 
 Para o Portal, se o painel listar uma permissão complementar para recursos de pagamento/Elements, confirme-a pela mensagem de erro ou pelos registros da Stripe. Não habilite acesso a payouts, transferências ou outras operações de dinheiro não utilizadas pelo código. **Webhooks são autenticados separadamente** pelo segredo `whsec_`; não precisam de permissão de consulta de eventos.
 
-A conexão Stripe fica disponível quando as três variáveis estiverem válidas; exigir pagamento no cadastro também requer a flag explícita acima. O aplicativo **não precisa de publishable key**: Checkout e Billing Portal são hospedados pela Stripe. Não colocar `sk_`, `rk_` ou `whsec_` no frontend, Vite, GitHub, ticket ou mensagens públicas. Preferir variáveis secretas do EasyPanel. As variáveis não são enviadas por GET /health nem pelo frontend.
+A conexão Stripe fica disponível quando as três variáveis estiverem válidas; novos cadastros em produção exigem pagamento automaticamente. O aplicativo **não precisa de publishable key**: Checkout e Billing Portal são hospedados pela Stripe. Não colocar `sk_`, `rk_` ou `whsec_` no frontend, Vite, GitHub, ticket ou mensagens públicas. Preferir variáveis secretas do EasyPanel. As variáveis não são enviadas por GET /health nem pelo frontend.
 
 Na Stripe, configurar um webhook de produção em:
 
@@ -72,7 +72,7 @@ Copiar o **signing secret deste endpoint** para `SHOPVAX_STRIPE_WEBHOOK_SECRET`,
 
 ## Como funciona
 
-1. O cadastro cria a loja sem liberar recursos pagos automaticamente. Para novas lojas, apenas com `SHOPVAX_REQUIRE_PAYMENT_ON_SIGNUP=1`, `stores.billing_required` é `true`; a base já existente permanece isenta até migração comercial explícita, não sendo bloqueada em um deploy sem cobrança.
+1. O cadastro cria a loja sem liberar recursos pagos automaticamente. Para novas lojas em produção, `stores.billing_required` é `true`; a base já existente permanece no modo de cobrança anterior, sem migração comercial em massa.
 2. A visita a **/painel/assinatura** mostra plano/ciclo, checkout, estado confirmado e acesso às faturas, cartão e cancelamento.
 3. `POST /api/billing/checkout` (sessão do proprietário) aceita somente `planCode` bronze/prata/ouro e `cycle` monthly/semiannual/annual. O servidor determina o valor: o navegador nunca manda um preço. O checkout hospedado aceita cartão para renovações confiáveis.
 4. O retorno para o site **não ativa o plano**. A ativação é feita somente após `invoice.paid` da Stripe, assinatura de webhook verificada, vinculação da assinatura ao customer/loja e price ID cadastrado.
