@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   AlertTriangle,
@@ -93,6 +93,8 @@ export default function ScannerModule1() {
   const [success, setSuccess] = useState('')
   const [discardingId, setDiscardingId] = useState<string | null>(null)
 
+  const reviewRequestSequence = useRef(0)
+  const activeReviewJobId = useRef<string | null>(null)
   const [reviewJob, setReviewJob] = useState<ImportJob | null>(null)
   const [reviewProducts, setReviewProducts] = useState<ImportReviewProduct[]>([])
   const [reviewSummary, setReviewSummary] = useState<ImportReviewSummary | null>(null)
@@ -161,6 +163,10 @@ export default function ScannerModule1() {
     jobId: string,
     options: { offset?: number; filter?: 'all' | 'alerts' | 'selected'; q?: string } = {},
   ) => {
+    // A previous catalog or search response must never overwrite the active
+    // catalog's title, totals, rows or pagination.
+    if (activeReviewJobId.current !== jobId) return
+    const requestSequence = ++reviewRequestSequence.current
     setReviewLoading(true)
     setReviewError('')
     try {
@@ -170,14 +176,21 @@ export default function ScannerModule1() {
         filter: options.filter ?? reviewFilter,
         q: options.q ?? reviewQuery,
       })
+      if (requestSequence !== reviewRequestSequence.current || activeReviewJobId.current !== jobId) return
+      if (result.job.id !== jobId) throw new Error('O servidor retornou uma importação diferente da solicitada.')
+      if (result.summary.total_count < result.pagination.total) {
+        throw new Error('Os totais da revisão estão inconsistentes. Atualize a importação antes de publicar.')
+      }
       setReviewJob(result.job)
       setReviewProducts(result.products)
       setReviewSummary(result.summary)
       setReviewPagination(result.pagination)
     } catch (err) {
-      setReviewError(err instanceof Error ? err.message : 'Não foi possível carregar a revisão.')
+      if (requestSequence === reviewRequestSequence.current && activeReviewJobId.current === jobId) {
+        setReviewError(err instanceof Error ? err.message : 'Não foi possível carregar a revisão.')
+      }
     } finally {
-      setReviewLoading(false)
+      if (requestSequence === reviewRequestSequence.current && activeReviewJobId.current === jobId) setReviewLoading(false)
     }
   }
 
@@ -202,6 +215,10 @@ export default function ScannerModule1() {
   }, [reviewFilter, reviewQuery])
 
   const show = () => {
+    activeReviewJobId.current = null
+    reviewRequestSequence.current += 1
+    setReviewSummary(null)
+    setReviewProducts([])
     setPollCount(0)
     setOpen(true)
     setMode('scan')
@@ -287,6 +304,12 @@ export default function ScannerModule1() {
   }
 
   const openReview = async (job: ImportJob) => {
+    activeReviewJobId.current = job.id
+    reviewRequestSequence.current += 1
+    setReviewProducts([])
+    setReviewSummary(null)
+    setReviewError('')
+    setReviewLoading(true)
     setMode('review')
     setReviewJob(job)
     setReviewFilter('all')
@@ -296,6 +319,9 @@ export default function ScannerModule1() {
   }
 
   const backToImports = () => {
+    activeReviewJobId.current = null
+    reviewRequestSequence.current += 1
+    setReviewLoading(false)
     setMode('scan')
     setReviewJob(null)
     setReviewProducts([])
@@ -395,7 +421,7 @@ export default function ScannerModule1() {
 
     {open && createPortal(
       <div className="scanner-modal-layer" role="dialog" aria-modal="true" aria-labelledby="scanner-title">
-        <button className="scanner-modal-backdrop" aria-label="Fechar" onClick={() => setOpen(false)} />
+        <button className="scanner-modal-backdrop" aria-label="Fechar" onClick={() => { activeReviewJobId.current = null; reviewRequestSequence.current += 1; setOpen(false) }} />
 
         {mode === 'scan' ? <section className="scanner-modal">
           <header>
