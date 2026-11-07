@@ -45,6 +45,8 @@ function text(value) {
 }
 
 function priceFromLine(line) {
+  // Kit totals and amounts for payment/discounts are not individual products.
+  if (/^\s*(?:TOTAL|SUBTOTAL|TOTAL DO KIT|TOTAL GERAL|FRETE|DESCONTO)\s*[:=-]/i.test(String(line))) return null
   // Some exported catalogs use a dot for decimal cents (R$ 49.90).
   // Check these BEFORE the integer pattern, which would read them as R$ 49.
   const dotPrices = [...String(line).matchAll(/(?:R\$|BRL|pre[cç]o|atacado|varejo|valor)\s*[:=-]?\s*(\d{1,6}\.\d{2})(?![\d,])/gi)]
@@ -78,10 +80,20 @@ function isNonTitle(line) {
 }
 
 function titleFor(lines, index, after) {
-  const current = text(lines[index].replace(/(?:R\$\s*|(?:pre[cç]o|atacado|varejo|valor)\s*(?:de|:|-)?\s*)\d{1,6}(?:\.\d{3})*(?:,\d{2})?/gi, ''))
+  const current = text(lines[index]
+    .replace(/(?:R\$\s*|(?:pre[cç]o|atacado|varejo|valor)\s*(?:de|:|-)?\s*)\d{1,6}(?:\.\d{3})*(?:,\d{2})?/gi, '')
+    .replace(/@[\w.-]{2,100}\b/gi, ''))
+  const step=/^\(passo\s*\d+\)\s*(\d+(?:[,.]\d+)?\s*(?:ml|g|kg|l))?/i.exec(current)
+  if(step) {
+    for (let j=index-1;j>=Math.max(0,index-3);j--) {
+      const candidate=text(lines[j])
+      if(!isNonTitle(candidate)&&/[a-záàãâéêíóôõúç]/i.test(candidate))
+        return (candidate+' '+(step[1]||'')).trim().slice(0,180)
+    }
+  }
   if (!isNonTitle(current) && /[a-záàãâéêíóôõúç]/i.test(current)) return current.slice(0, 180)
   for (let j = index - 1; j >= Math.max(0, after); j -= 1) {
-    const candidate = text(lines[j])
+    const candidate = text(lines[j]).replace(/@[\w.-]{2,100}\b/gi,'').trim()
     if (!isNonTitle(candidate) && /[a-záàãâéêíóôõúç]/i.test(candidate)) return candidate.slice(0, 180)
   }
   return ''
@@ -89,14 +101,21 @@ function titleFor(lines, index, after) {
 
 function pageCandidates(pageText, page) {
   const lines = String(pageText || '').split('\n').map(text).filter(Boolean).slice(0, 600)
+  const joined=lines.join(' ')
+  // In uniform/polo lookbooks the model is the product; embroidery, patch,
+  // personalised names and sleeve surcharges are options, not standalone SKUs.
+  const poloName=/(?:Camiseta\s+)?POLO\s+(?:DRY|BABYLOOK|V)(?![a-záàãâéêíóôõúç])|POLO\s+ESTILOS\s+(?:HORIZONTAL|TRADICIONAL|LATERAL)/i.exec(joined)?.[0]||''
   const result = []
   let lastPriceIndex = -1
   for (let i = 0; i < lines.length && result.length < MAX_PRODUCTS; i += 1) {
     const price = priceFromLine(lines[i])
     if (price == null) continue
+    if (poloName && /(?:nome\s+personalizado|patch\s+bordado\s+sublimado|manga\s+longa|personalizado\s+em\s+DTF)/i.test(lines[i])) continue
     // A single product can show atacado, varejo and promotional prices in adjacent lines.
     if (lastPriceIndex >= 0 && i - lastPriceIndex <= 2 && result.length && !titleFor(lines, i, lastPriceIndex + 1)) continue
-    const name = titleFor(lines, i, Math.max(lastPriceIndex + 1, i - 4))
+    const isolatedPrice=/^\s*(?:(?:R\$\s*)?\d{1,6}(?:\.\d{3})*,\d{2}|R\$\s*)\s*$/i.test(lines[i])
+    const name = poloName && (isolatedPrice||price>=25) ? poloName.replace(/POLO\s+(DRY|BABYLOOK|V)(?=POLO)/i,'POLO $1').trim() :
+      titleFor(lines, i, Math.max(lastPriceIndex + 1, i - 4))
     if (!name) continue
     const surrounding = lines.slice(Math.max(lastPriceIndex + 1, i - 4), Math.min(i + 3, lines.length)).join(' ')
     const sku = referenceFrom(surrounding)
