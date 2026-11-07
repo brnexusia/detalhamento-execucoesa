@@ -41,7 +41,7 @@ Data: 2026-11-07. Origem: https://www.instagram.com/reel/Dfby7sPgMPU/
 | 28 | Balanceador/instâncias | Depende de infra | Teste de saturação e capacidade real antes de aumentar réplicas |
 | 29 | Fontes locais e poucos pesos | Pendente de revisão | Verificar fontes efetivamente usadas; não adicionar arquivos de fonte sem licença |
 | 30 | Monitorar velocidade real, p75 | Implementado em código | `src/real-user-performance.ts` usa `web-vitals` oficial + `server/metrics-hooks.mjs`: LCP, FCP, INP, CLS, TTFB, agregados protegidos |
-| 31 | Testar celular/rede lenta | Testes existentes, rede lenta pendente | e2e responsivo; falta ensaio explícito com CPU 4x / Slow 3G após deploy |
+| 31 | Testar celular/rede lenta | Teste CI adicionado | `tests/shopvax-slow-mobile.e2e.mjs` emula CPU x4 e banda reduzida/latência; homologação em aparelho real ainda pendente |
 
 ## Entrega de métricas únicas diárias
 
