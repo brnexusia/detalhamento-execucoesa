@@ -10,8 +10,9 @@ import { parseNumberedLookbookPages, parseLookbookPhotoBands } from './scanner-p
 import { parseReferenceOnlyPdfProducts } from './scanner-pdf-review-fallback.mjs'
 import { parseNamedUnpricedPdfProducts } from './scanner-pdf-named-products.mjs'
 import { parseFashionPhotoPages } from './scanner-pdf-fashion-pages.mjs'
-import { isPaddleOcrSelected, paddleOcrLayout } from './scanner-pdf-paddle.mjs'
+import { parseTesseractTsv } from './scanner-pdf-tesseract.mjs'
 import { associateOcrProducts, sanitizeAmbiguousOcrPrices } from './scanner-pdf-spatial.mjs'
+import { parsePdfVisualGeometry, numberedPhotoRegions, associateNativePricesByProximity, proximityPhotoRegions } from './scanner-pdf-visual-association.mjs'
 
 const run = promisify(execFile)
 export const MAX_PDF_BYTES = 100 * 1024 * 1024
@@ -232,11 +233,11 @@ async function assertExtractedImageBudget(dir, filenames) {
 }
 
 
-async function attachLookbookPhotos(pdf, dir, candidates, imageListByPage, onImage, deadline) {
+async function attachLookbookPhotos(pdf, dir, candidates, imageListByPage, onImage, deadline, knownBbox = null) {
   // Read visual word positions from the existing PDF text layer; no OCR of pure
   // editorial photograph pages and no guessing product image associations.
-  const layout = await command('pdftotext', ['-bbox-layout', pdf, '-'], 30000, deadline)
-  const regions = parseLookbookPhotoBands(layout)
+  const bboxText = knownBbox ?? await command('pdftotext', ['-bbox-layout', pdf, '-'], 30000, deadline)
+  const regions = parseLookbookPhotoBands(bboxText)
   const itemsByPage = new Map()
   for (const candidate of candidates) {
     if (!candidate.pdf_detail_page) continue
@@ -300,6 +301,65 @@ async function attachLookbookPhotos(pdf, dir, candidates, imageListByPage, onIma
   }
 }
 
+async function attachSuggestedPhotoRegions(pdf, dir, regions, onImage, deadline) {
+  const byPage = new Map()
+  for (const entry of regions) {
+    if (entry.candidate.images?.length) continue
+    const list = byPage.get(entry.page) || []
+    list.push(entry); byPage.set(entry.page,list)
+  }
+  let saved = 0, totalPixels = 0
+  for (const [page, items] of byPage) {
+    if (saved >= MAX_EXTRACTED_PRODUCT_PHOTOS) break
+    const prefix = path.join(dir, 'positioned-' + page)
+    const file = prefix + '.png'
+    try {
+      await command('pdftoppm', ['-f',String(page),'-l',String(page),
+        '-scale-to','1400','-singlefile','-png',pdf,prefix],25000,deadline)
+      const bytes = await readFile(file)
+      if (bytes.length > MAX_GENERATED_FILE_BYTES) throw new PdfSafetyError(UNSAFE_PDF_MESSAGE)
+      const meta = await sharp(bytes,{limitInputPixels:MAX_IMAGE_PIXELS}).metadata()
+      const width=meta.width||0,height=meta.height||0
+      if(!width||!height||width*height>MAX_IMAGE_PIXELS||
+        totalPixels+width*height>MAX_CUMULATIVE_EXTRACTED_PIXELS)break
+      totalPixels+=width*height
+      for(const {candidate,rect,method} of items){
+        if(candidate.images?.length||saved>=MAX_EXTRACTED_PRODUCT_PHOTOS)continue
+        const x0=Math.max(0,Math.floor(rect.left/rect.width*width))
+        const x1=Math.min(width,Math.ceil(rect.right/rect.width*width))
+        const y0=Math.max(0,Math.floor(rect.top/rect.height*height))
+        const y1=Math.min(height,Math.ceil(rect.bottom/rect.height*height))
+        if(x1-x0<110||y1-y0<110)continue
+        try{
+          const photo=await sharp(bytes,{limitInputPixels:MAX_IMAGE_PIXELS})
+            .extract({left:x0,top:y0,width:x1-x0,height:y1-y0})
+            .resize({width:1200,height:1200,fit:'inside',withoutEnlargement:true})
+            .webp({quality:83}).toBuffer()
+          if(photo.length>5*1024*1024)continue
+          const name='catalogo-p'+page+'-sugestao-'+(candidate.pdf_item_number||candidate.external_id||saved)+'.webp'
+          const uri=await onImage(photo,'image/webp',name.replace(/[^a-zA-Z0-9_.-]/g,'-'))
+          if(!uri)continue
+          candidate.images.push(uri)
+          candidate.pdf_review_required=true
+          candidate.pdf_image_match_method=method
+          candidate.pdf_image_source_page=page
+          const message=method==='number_marker'
+            ? 'REVISÃO OBRIGATÓRIA: imagem aproximada pelo marcador numérico '+candidate.pdf_item_number+' na página '+page+'; confira o enquadramento.'
+            : 'REVISÃO OBRIGATÓRIA: imagem recortada pela posição do nome/preço na página '+page+'; confira o produto.'
+          candidate.description=(String(candidate.description||'')+' '+message).trim().slice(0,2000)
+          saved+=1
+        }catch(error){
+          if(error instanceof PdfSafetyError)throw error
+          console.warn('[pdf import] suggested crop skipped',page,error.message)
+        }
+      }
+    }catch(error){
+      if(error instanceof PdfSafetyError)throw error
+      console.warn('[pdf import] positioned photo page skipped',page,error.message)
+    }finally{await rm(file,{force:true})}
+  }
+}
+
 export async function collectPdfCatalog(buffer, options = {}) {
   if (!Buffer.isBuffer(buffer) || buffer.length < 8 || buffer.length > MAX_PDF_BYTES ||
       !buffer.subarray(0, 1024).toString('latin1').includes('%PDF-')) {
@@ -353,28 +413,17 @@ export async function collectPdfCatalog(buffer, options = {}) {
       const prefix = path.join(dir, 'ocr-' + i)
       try {
         await command('pdftoppm', ['-f', String(i + 1), '-l', String(i + 1), '-scale-to', '1600', '-singlefile', '-gray', '-png', pdf, prefix], 25000, deadline)
-        let fallback = ''
-        let paddleCompleted = false
-        if (isPaddleOcrSelected()) {
-          try {
-            const layout = await paddleOcrLayout(await readFile(prefix + '.png'), { deadline })
-            fallback = layout.text
-            paddleCompleted = true
-            // When the native text layer has no priced products, retain real
-            // PaddleOCR coordinates to match names/descriptions to prices.
-            // Never replace products in a page already parsed reliably from PDF text.
-            const textLayerItems = parsePdfCatalogText(pages[i] || '').candidates.length
-            if (textLayerItems === 0) {
-              const grouped = associateOcrProducts(layout, i + 1)
-              if (grouped.length) spatialCandidatesByPage.set(i + 1, grouped)
-            }
-            if (fallback) console.info('[pdf import] OCR page', i + 1, 'via PaddleOCR')
-          } catch (error) {
-            console.warn('[pdf import] PaddleOCR unavailable on page', i + 1, '- using Tesseract:', error.message)
-          }
+        const tsv = await command('tesseract', [prefix + '.png', 'stdout', '-l', 'por+eng', 'tsv'], 18000, deadline)
+        const layout = parseTesseractTsv(tsv)
+        let fallback = layout.text
+        // Tesseract provides positioned word boxes in TSV, without loading
+        // any separate deep-learning model or making another HTTP request.
+        const textLayerItems = parsePdfCatalogText(pages[i] || '').candidates.length
+        if (textLayerItems === 0 && layout.lines.length) {
+          const grouped = associateOcrProducts(layout, i + 1)
+          if (grouped.length) spatialCandidatesByPage.set(i + 1, grouped)
         }
-        // A valid empty Paddle result is not a failure; avoid OCRing empty photo pages twice.
-        if (!paddleCompleted) fallback = await command('tesseract', [prefix + '.png', 'stdout', '-l', 'por+eng'], 18000, deadline)
+        if (fallback) console.info('[pdf import] OCR page', i + 1, 'via Tesseract TSV')
         // OCR mistakes such as R$ 1300 / R$ 12,0 must never reach the
         // generic PDF parser as unambiguous 1300.00 / 12.00 prices.
         fallback = sanitizeAmbiguousOcrPrices(fallback)
@@ -427,6 +476,25 @@ export async function collectPdfCatalog(buffer, options = {}) {
     if (!candidates.length) {
       throw new Error('Não foi possível identificar produtos neste PDF. Não foram encontrados produtos com preço, referência ou títulos e embalagens suficientemente claros. Confira a nitidez ou envie imagens para revisão.')
     }
+    // Extract native PDF word coordinates only for pages with multiple items or
+    // supplier-numbered lookbooks. Already verified references always take
+    // precedence over any spatial heuristic.
+    let positionedXml = null
+    let positionedPages = new Map()
+    let priceMatches = []
+    const itemsPerPage = new Map()
+    for(const candidate of candidates) itemsPerPage.set(candidate.pdf_page,(itemsPerPage.get(candidate.pdf_page)||0)+1)
+    if(parsed.lookbook || [...itemsPerPage.values()].some(n=>n>1)){
+      try{
+        positionedXml=await command('pdftotext',['-bbox-layout',pdf,'-'],30000,deadline)
+        positionedPages=parsePdfVisualGeometry(positionedXml,totalPages)
+        if(!parsed.lookbook && !parsed.fashion) priceMatches=associateNativePricesByProximity(candidates,positionedPages)
+      }catch(error){
+        if(error instanceof PdfSafetyError)throw error
+        console.warn('[pdf import] position analysis unavailable:',error.message)
+      }
+    }
+
 
     // Preserve product names/prices even when a long Canva export embeds many
     // masks, icons and background images. Inspect the listing first, then
@@ -447,7 +515,7 @@ export async function collectPdfCatalog(buffer, options = {}) {
           byPage.get(item.page).push(item)
         }
         if (parsed.lookbook) {
-          await attachLookbookPhotos(pdf, dir, candidates, byPage, options.onImage, deadline)
+          await attachLookbookPhotos(pdf, dir, candidates, byPage, options.onImage, deadline, positionedXml)
         } else {
         let processedPixels = 0
         let savedPhotos = 0
@@ -515,6 +583,15 @@ export async function collectPdfCatalog(buffer, options = {}) {
             }
           }
         }
+        }
+        // A lookbook's price list is linked by its exact printed item number,
+        // while independent multi-product pages use same-page spatial crops.
+        const visualRegions = parsed.lookbook
+          ? numberedPhotoRegions(candidates, positionedPages)
+          : proximityPhotoRegions(priceMatches, positionedPages, byPage)
+        if(visualRegions.length) {
+          await attachSuggestedPhotoRegions(pdf,dir,visualRegions,options.onImage,deadline)
+          console.info('[pdf import] visual associations',visualRegions.length)
         }
       } catch (error) {
         if (error instanceof PdfSafetyError) throw error
