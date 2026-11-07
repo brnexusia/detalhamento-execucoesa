@@ -104,7 +104,7 @@ function pageCandidates(pageText, page) {
   const joined=lines.join(' ')
   // In uniform/polo lookbooks the model is the product; embroidery, patch,
   // personalised names and sleeve surcharges are options, not standalone SKUs.
-  const poloName=/(?:Camiseta\s+)?POLO\s+(?:DRY|BABYLOOK|V)(?![a-záàãâéêíóôõúç])|POLO\s+ESTILOS\s+(?:HORIZONTAL|TRADICIONAL|LATERAL)/i.exec(joined)?.[0]||''
+  const poloName=/(?:Camiseta\s+)?POLO\s+(?:DRY|BABYLOOK|V)(?=POLO\b|\b)|POLO\s+ESTILOS\s+(?:HORIZONTAL|TRADICIONAL|LATERAL)/i.exec(joined)?.[0]||''
   const result = []
   let lastPriceIndex = -1
   for (let i = 0; i < lines.length && result.length < MAX_PRODUCTS; i += 1) {
@@ -114,7 +114,7 @@ function pageCandidates(pageText, page) {
     // A single product can show atacado, varejo and promotional prices in adjacent lines.
     if (lastPriceIndex >= 0 && i - lastPriceIndex <= 2 && result.length && !titleFor(lines, i, lastPriceIndex + 1)) continue
     const isolatedPrice=/^\s*(?:(?:R\$\s*)?\d{1,6}(?:\.\d{3})*,\d{2}|R\$\s*)\s*$/i.test(lines[i])
-    const name = poloName && (isolatedPrice||price>=25) ? poloName.replace(/POLO\s+(DRY|BABYLOOK|V)(?=POLO)/i,'POLO $1').trim() :
+    const name = poloName && (isolatedPrice||price>=25) ? poloName.replace(/(DRY|BABYLOOK|V)POLO\b/i,'$1').replace(/\s+/g,' ').trim() :
       titleFor(lines, i, Math.max(lastPriceIndex + 1, i - 4))
     if (!name) continue
     const surrounding = lines.slice(Math.max(lastPriceIndex + 1, i - 4), Math.min(i + 3, lines.length)).join(' ')
