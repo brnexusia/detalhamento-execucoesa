@@ -1,0 +1,33 @@
+name: scanner-full-platforms-validation
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'server/scanner-gopage.mjs'
+      - 'server/scanner-collector.mjs'
+      - 'server/scanner-full-platforms.test.mjs'
+      - '.github/workflows/scanner-full-platforms-validation.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'server/scanner-gopage.mjs'
+      - 'server/scanner-collector.mjs'
+      - 'server/scanner-full-platforms.test.mjs'
+jobs:
+  scanner:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Syntax and platform regression tests
+        run: |
+          node --check server/scanner-gopage.mjs
+          node --check server/scanner-collector.mjs
+          node --test server/scanner-full-platforms.test.mjs server/scanner-collector.test.mjs
+      - name: Frontend build
+        run: npm run build
