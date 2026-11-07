@@ -45,3 +45,25 @@ test('conflicting price labels must be reviewed instead of inventing a single va
   assert.equal(result.candidates[3].price,null)
   assert.equal(result.candidates[3].pdf_review_required,true)
 })
+
+test('reassembles real duplicated two-line fashion title without guessing from a single occurrence',()=>{
+  const wrapped='Tecido: Crepinho\\nTecido: Crepinho\\nTam: unico\\nTam: unico\\n'+
+    'Valor: R$ 100,00\\nValor: R$ 100,00\\n'+
+    'Conjunto Noelle\\nCherry\\nConjunto Noelle\\nCherry\\nCores:\\nCores:'
+  const pages=[sample('Calça Dominique','60,00'),sample('Blusa Dominique','50,00'),
+    wrapped,wrapped,sample('Shorts Eva','45,00','Cetim')]
+  const parsed=parseFashionPhotoPages(pages)
+  assert.equal(parsed.candidates[2].title,'Conjunto Noelle Cherry')
+  assert.equal(parsed.candidates[3].title,'Conjunto Noelle Cherry')
+  assert.equal(parsed.candidates[2].price,100)
+  assert.equal(parsed.candidates[2].pdf_duplicate_model,true)
+  assert.equal(parsed.candidates[0].title,'Calça Dominique')
+})
+
+test('does not concatenate unpaired single-line product titles with generic metadata',()=>{
+  const pages=[sample('Calça Dominique','60,00'),sample('Blusa Dominique','50,00'),
+    sample('Calça Olivia','60,00','Marrant'),sample('Blusa Eva','35,00','Cetim')]
+  const parsed=parseFashionPhotoPages(pages)
+  assert.deepEqual(parsed.candidates.map(p=>p.title),
+    ['Calça Dominique','Blusa Dominique','Calça Olivia','Blusa Eva'])
+})
