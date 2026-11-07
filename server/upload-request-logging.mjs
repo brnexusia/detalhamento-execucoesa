@@ -5,6 +5,7 @@ import crypto from 'node:crypto'
 export function traceUpload(kind, options = {}) {
   const now = options.now || (() => Date.now())
   const newId = options.newId || (() => crypto.randomUUID())
+  const logger = options.logger || console
   return (req, res, next) => {
     const id = newId()
     const started = now()
@@ -12,15 +13,15 @@ export function traceUpload(kind, options = {}) {
     const bytes = Number.isSafeInteger(rawLength) && rawLength >= 0 ? rawLength : null
     res.setHeader('X-Upload-Request-ID', id)
     const summary = { id, kind, bytes }
-    console.info('[upload] started', summary)
+    logger.info('[upload] started', summary)
     let finished = false
     res.once('finish', () => {
       finished = true
-      console.info('[upload] finished', { ...summary, status: res.statusCode, elapsedMs: now() - started })
+      logger.info('[upload] finished', { ...summary, status: res.statusCode, elapsedMs: now() - started })
     })
     res.once('close', () => {
       if (!finished) {
-        console.warn('[upload] connection closed before response', {
+        logger.warn('[upload] connection closed before response', {
           ...summary, status: res.statusCode, elapsedMs: now() - started,
         })
       }
