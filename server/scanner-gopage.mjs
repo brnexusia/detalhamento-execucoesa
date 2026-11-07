@@ -90,7 +90,7 @@ export function gopageProducts(props,baseUrl) {
  const page=props?.page || {}
  const raw=props?.productsList?.products
  const products=Array.isArray(raw)?raw:props?.product?[props.product]:[]
- return products.filter(x=>x&&typeof x==='object'&&text(x.name??x.title)).map(item=>{
+ return products.filter(x=>x&&typeof x==='object'&&x.hidden!==true&&text(x.name??x.title)).map(item=>{
   const origin=new URL(baseUrl).origin
   const productUrl=url(item.url || (item.slug ? '/produto/'+encodeURIComponent(item.slug) : ''),origin)
   const sameOrigin=productUrl && new URL(productUrl).origin===origin?productUrl:baseUrl
