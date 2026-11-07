@@ -1,4 +1,4 @@
-import { notifyAuthChange } from './auth-session-sync'
+import { notifyAuthChange, listenAuthChanges } from './auth-session-sync'
 import { prepareCatalogPhoto } from './catalog-photo-upload'
 import type { AdminBootstrap, AdminProduct, Catalog, PublicPayload } from './types'
 
@@ -79,6 +79,11 @@ export type AdminCatalog = Catalog & {
 // Share only simultaneously pending plain GETs. Never cache responses or
 // deduplicate mutations, uploads, credentialed overrides or abortable requests.
 const inFlightGets = new Map<string, Promise<unknown>>()
+if (typeof window !== 'undefined') {
+  // Never join a request issued under the previous authentication context.
+  listenAuthChanges('owner', () => inFlightGets.clear())
+  listenAuthChanges('customer', () => inFlightGets.clear())
+}
 
 export function apiRequest<T>(url: string, options: RequestInit = {}): Promise<T> {
   const method = (options.method || 'GET').toUpperCase()
