@@ -161,13 +161,13 @@ export async function collectGopage(rootResponse, request, maxProducts, maxPages
  const starts=[rootResponse.url]
  if(!/\/produto\//i.test(new URL(rootResponse.url).pathname) && categories.length)starts.push(...categories)
  const visited=new Set()
- let pagesScanned=0, expectedOnRoot=null, detailFailures=0, listingFailures=0
+ let pagesScanned=0, listingPages=0, expectedOnRoot=null, detailFailures=0, listingFailures=0
  for(const start of starts){
   if(start!==rootResponse.url && expectedOnRoot!=null && sink.count>=expectedOnRoot)break
-  if(sink.count>=maxProducts || pagesScanned>=maxPages)break
+  if(sink.count>=maxProducts || listingPages>=maxPages)break
   let page=1
   const signatureSet=new Set()
-  while(sink.count<maxProducts && pagesScanned<maxPages){
+  while(sink.count<maxProducts && listingPages<maxPages){
    const target=new URL(start)
    if(page>1)target.searchParams.set('page',String(page))
    const pageUrl=target.toString()
@@ -177,6 +177,7 @@ export async function collectGopage(rootResponse, request, maxProducts, maxPages
    try { response=page===1&&start===rootResponse.url?rootResponse:await request(pageUrl,{accept:'text/html,application/xhtml+xml'}) }
    catch(error){listingFailures++;throw new Error('GoPage: falha ao consultar a página '+page+' do catálogo: '+error.message)}
    pagesScanned++
+   listingPages++
    if(!response.ok)throw new Error('GoPage: página '+page+' retornou HTTP '+response.status+'.')
    const props=parseGopageInertia(response.body)
    if(!props)throw new Error('GoPage: a página '+page+' não retornou catálogo estruturado.')
@@ -214,11 +215,11 @@ export async function collectGopage(rootResponse, request, maxProducts, maxPages
  }
  // For home URLs, a known public total is a useful completeness guarantee.
  if(starts.length===1 && expectedOnRoot!=null &&
-   sink.count<expectedOnRoot && sink.count<maxProducts && pagesScanned<maxPages){
+   sink.count<expectedOnRoot && sink.count<maxProducts && listingPages<maxPages){
    throw new Error('GoPage: importação parcial. Encontrados '+sink.count+' de '+expectedOnRoot+' produtos públicos.')
  }
  await sink.flush()
  return {candidateCount:sink.count,pagesScanned,expectedProducts:expectedOnRoot,
-  complete:listingFailures===0 && detailFailures===0 && pagesScanned<maxPages,
+  complete:listingFailures===0 && detailFailures===0 && listingPages<maxPages,
   warnings:detailFailures?[detailFailures+' páginas de detalhes indisponíveis']:[]}
 }
