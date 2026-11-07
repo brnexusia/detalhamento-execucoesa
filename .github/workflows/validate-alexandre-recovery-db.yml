@@ -1,0 +1,52 @@
+name: validate-alexandre-recovery-db
+on:
+  push:
+    branches: [fix/alexandre-product-identity-20261107]
+    paths:
+      - 'server/scanner-alexandre-recovery.integration.mjs'
+      - 'server/scanner-alexandre-recovery.mjs'
+      - 'server/scanner-publish-hooks.mjs'
+      - '.github/workflows/validate-alexandre-recovery-db.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: shopvax_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d shopvax_test"
+          --health-interval 5s --health-timeout 3s --health-retries 15
+    env:
+      NODE_ENV: test
+      PORT: '3000'
+      SCANNER_WORKER_DISABLED: '1'
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/shopvax_test
+      SHOPVAX_PUBLIC_CURSOR_SECRET: ci-only-public-cursor-secret-over-32-chars
+      SHOPVAX_INTEGRATION_SECRET: ci-only-integration-secret-over-32-chars
+      SHOPVAX_SECURITY_RATE_LIMIT_DISABLED: '1'
+      SHOPVAX_PLAN_LIMITS_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: npm install --no-audit --no-fund
+      - run: |
+          npm start > /tmp/shopvax-alexandre-server.log 2>&1 &
+          for i in $(seq 1 120); do
+            if curl -fsS http://127.0.0.1:3000/api/health >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          tail -100 /tmp/shopvax-alexandre-server.log
+          exit 1
+      - run: node server/scanner-alexandre-recovery.integration.mjs
+      - if: failure()
+        run: tail -140 /tmp/shopvax-alexandre-server.log || true
