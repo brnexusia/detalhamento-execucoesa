@@ -464,14 +464,39 @@ export async function collectPdfCatalog(buffer, options = {}) {
     }
     let positionedXml = null
     let positionedPages = new Map()
-    if (!candidates.length && !parsed.lookbook && !parsed.fashion) {
-      // Only recover detached price legends if the ordinary scanner found no
-      // products. Two or more isolated photo numbers must corroborate a nearby
-      // numbered BRL price table; otherwise leave the PDF for manual review.
+    // A legacy generic parser may read the FIRST numbered price row as the
+    // SECOND product's title ("01 R$ 12,50" => title for 02 R$ 25,00).
+    // If distinct numbered photo badges corroborate the price table, prefer
+    // the supplier's exact row numbers, even when generic candidates exist.
+    const hasDetachedPriceLegend = !parsed.lookbook && !parsed.fashion &&
+      pages.some(page => {
+        const numbered = String(page || '').match(/(?:^|\n)\s*(?:0?[1-9]|[1-9][0-9])\s*[:.\-]?\s*R\s*\$\s*\d{1,6}(?:\.\d{3})*,\d{2}(?![\d,])/gim)
+        return (numbered?.length || 0) >= 2
+      })
+    if (hasDetachedPriceLegend) {
       try {
         positionedXml=await command('pdftotext',['-bbox-layout',pdf,'-'],30000,deadline)
         positionedPages=parsePdfVisualGeometry(positionedXml,totalPages)
-        candidates.push(...parseNumberedReferenceFallback(pages,positionedPages,MAX_PRODUCTS))
+        const numbered=parseNumberedReferenceFallback(pages,positionedPages,MAX_PRODUCTS)
+        if(numbered.length) {
+          const recoveredPages=new Map()
+          for(const item of numbered){
+            const list=recoveredPages.get(item.pdf_page)||[]
+            list.push(item)
+            recoveredPages.set(item.pdf_page,list)
+          }
+          for(const [page,list] of recoveredPages){
+            const originalItems=candidates.filter(item=>item.pdf_page===page)
+            // Preserve any fully identified product from the old scanner
+            // rather than replacing a larger set with a partial legend.
+            if(originalItems.length>list.length)continue
+            candidates=candidates.filter(item=>item.pdf_page!==page)
+            candidates.push(...list)
+          }
+          candidates.sort((a,b)=>(a.pdf_page||0)-(b.pdf_page||0) ||
+            String(a.external_id||'').localeCompare(String(b.external_id||'')))
+          candidates=candidates.slice(0,MAX_PRODUCTS)
+        }
       } catch(error) {
         if(error instanceof PdfSafetyError)throw error
         console.warn('[pdf import] numbered layout fallback unavailable:',error.message)
