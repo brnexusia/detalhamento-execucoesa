@@ -70,3 +70,14 @@ for(const url of [
    console.log('FZ_MEDIA_CHECK',JSON.stringify({url,status:res.status,type:res.contentType,size:res.buffer?.length,signature:res.buffer?.subarray(0,16).toString('hex')}))
  }catch(e){console.log('FZ_MEDIA_ERROR',JSON.stringify({url,error:String(e.message)}))}
 }
+
+try {
+ const url='https://damafinnalingerie.com.br/produto/4612607'
+ const r=await safeRequest(url,{timeout:17000,maxBytes:6*1024*1024})
+ const $=load(r.body)
+ const images=$('img').map((_,el)=>({
+   src:$(el).attr('src'),dataSrc:$(el).attr('data-src'),srcset:$(el).attr('srcset'),alt:$(el).attr('alt')
+ })).get().filter(x=>/produto|calcinha|foto|178|177/i.test(JSON.stringify(x))).slice(0,12)
+ const photos=[...r.body.matchAll(/.{0,90}(?:imagens|imagem_principal|galeria|Calcinha Sofia|4612607).{0,180}/gi)].slice(0,12).map(x=>x[0])
+ console.log('FZ_MISSING_DETAIL',JSON.stringify({url:r.url,status:r.status,bytes:r.body.length,title:$('title').text(),ogImage:$('meta[property="og:image"]').attr('content'),images,photos}))
+} catch(e){console.log('FZ_MISSING_DETAIL_ERROR',String(e.message).slice(0,300))}
