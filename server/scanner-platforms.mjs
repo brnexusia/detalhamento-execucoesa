@@ -216,7 +216,7 @@ export function extractFacilZapRuntime(html) {
   return null
 }
 
-function normalizeVariation(item, fallbackId = '', parent = {}) {
+function normalizeVariation(item, fallbackId = '', parent = {}, sourceUrl = '') {
   if (!item || typeof item !== 'object') return null
   const externalId = text(item.id ?? item.idVariacao ?? item.variacao_id ?? item.variant_id ?? fallbackId)
   const title = text(item.nome ?? item.name ?? item.titulo ?? item.title)
@@ -249,7 +249,7 @@ function normalizeVariation(item, fallbackId = '', parent = {}) {
     images: facilZapMediaUrls([
       item.imagens, item.images, item.fotos, item.photos,
       item.imagem, item.image, item.foto, item.media, item.galeria,
-    ], parent?.source_url || parent?.url || ''),
+    ], sourceUrl),
     properties,
   }
 }
@@ -286,7 +286,7 @@ export function facilZapProducts(payload, sourceUrl) {
     // Na API real `variacoes` é um objeto indexado pelo ID da variação.
     const variantSource = item.variacoes ?? item.variants ?? item.grade ?? item.grades ?? item.opcoes
     const variants = objectEntries(variantSource)
-      .map(([variantId, variant]) => normalizeVariation(variant, variantId, item))
+      .map(([variantId, variant]) => normalizeVariation(variant, variantId, item, sourceUrl))
       .filter((variant) => variant && (variant.external_id || variant.sku || variant.properties.length))
 
     // Some storefronts expose photos only under individual variations.
