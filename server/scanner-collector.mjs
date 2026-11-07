@@ -918,9 +918,14 @@ async function collectFacilZap(rootResponse, request, maxProducts, sink, onProgr
         if (!detailResponse.ok || !detailResponse.contentType.includes('html')) return candidate
         const detailProducts = extractProductsFromHtml(detailResponse.body, detailResponse.url)
         const normalizedTitle = String(candidate.title || '').trim().toLowerCase()
-        const detail = detailProducts.find((product) => String(product.sku || '').trim() && String(product.sku || '').trim() === String(candidate.sku || '').trim()) ||
-          detailProducts.find((product) => String(product.title || '').trim().toLowerCase() === normalizedTitle) || detailProducts[0]
-        return mergeDetailIntoCandidate(candidate, detail)
+        // Never borrow another product's photos if a storefront redirects a
+        // product URL to a category/home page with unrelated JSON-LD.
+        const sku = String(candidate.sku || '').trim().toLowerCase()
+        const detail = (sku && detailProducts.find((product) =>
+          String(product.sku || '').trim().toLowerCase() === sku)) ||
+          (normalizedTitle && detailProducts.find((product) =>
+            String(product.title || '').trim().toLowerCase() === normalizedTitle))
+        return detail ? mergeDetailIntoCandidate(candidate, detail) : candidate
       } catch {
         return candidate
       }
