@@ -384,7 +384,7 @@ export function extractFacilZapDetailProduct(html, sourceUrl) {
   const match=/\b(?:const|let|var)\s+DadosProduto\s*=\s*/.exec(source)
   if(!match)return null
   const start=source.indexOf('{',match.index+match[0].length)
-  if(start<0 || start-match.index>15)return null
+  if(start<0 || start-(match.index+match[0].length)>5)return null
   let depth=0, quoted=false, escaped=false, end=-1
   for(let i=start;i<source.length && i<start+2_000_000;i++){
     const char=source[i]
