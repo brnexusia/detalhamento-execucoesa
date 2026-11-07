@@ -16,15 +16,34 @@ RUN if [ -n "$GIT_SHA" ]; then printf '%s' "$GIT_SHA" > /app/dist/shopvax-releas
 FROM node:22-bookworm-slim AS runner
 # PDF text/images and OCR fallback for scanned wholesale catalogs.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends poppler-utils tesseract-ocr tesseract-ocr-por tesseract-ocr-eng util-linux \
+    && apt-get install -y --no-install-recommends \
+      poppler-utils tesseract-ocr tesseract-ocr-por tesseract-ocr-eng util-linux \
+      python3 python3-venv libgomp1 libglib2.0-0 libgl1 \
     && rm -rf /var/lib/apt/lists/*
+# PaddleOCR stays in the same application container as Tesseract.
+# The isolated Python venv prevents mixing Node runtime dependencies.
+RUN python3 -m venv /opt/paddleocr \
+    && /opt/paddleocr/bin/pip install --no-cache-dir paddlepaddle==3.2.0 \
+      -i https://www.paddlepaddle.org.cn/packages/stable/cpu/ \
+    && /opt/paddleocr/bin/pip install --no-cache-dir paddleocr==3.7.0
 ENV NODE_ENV=production
 ENV PORT=80
+ENV PDF_OCR_ENGINE=paddle
+ENV PDF_OCR_PORT=8088
+ENV OMP_NUM_THREADS=1
+ENV MKL_NUM_THREADS=1
+ENV OPENBLAS_NUM_THREADS=1
+ENV NUMEXPR_NUM_THREADS=1
+ENV PADDLE_PDX_MODEL_SOURCE=BOS
 WORKDIR /app
 COPY package.json ./
 RUN npm install --omit=dev --no-audit --no-fund && npm cache clean --force
 COPY --from=builder /app/dist ./dist
 COPY server ./server
+COPY scripts/start-with-paddle-ocr.sh /app/scripts/start-with-paddle-ocr.sh
+# Cache official small models in the image so runtime OCR does not depend on downloads.
+RUN /opt/paddleocr/bin/python -c 'from paddleocr import PaddleOCR; PaddleOCR(device="cpu", text_detection_model_name="PP-OCRv6_small_det", text_recognition_model_name="PP-OCRv6_small_rec", use_doc_orientation_classify=False, use_doc_unwarping=False, use_textline_orientation=False, cpu_threads=1)'
+ENTRYPOINT ["/bin/sh", "/app/scripts/start-with-paddle-ocr.sh"]
 EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD node -e "fetch('http://127.0.0.1/health').then(async r=>{const h=await r.json();if(!r.ok||h.ok!==true||h.database!==true)process.exit(1)}).catch(()=>process.exit(1))"
 CMD ["node", "--import", "./server/brand-compat-hooks.mjs", "--import", "./server/security-hooks.mjs", "--import", "./server/performance-hooks.mjs", "--import", "./server/seo-routes-hooks.mjs", "--import", "./server/metrics-hooks.mjs", "--import", "./server/stripe-billing-hooks.mjs", "--import", "./server/startup-write-serialization-hooks.mjs", "--import", "./server/api-json-hooks.mjs", "--import", "./server/phase4-schema-gate-hooks.mjs", "--import", "./server/phase4-integrations-hooks.mjs", "--import", "./server/phase4-public-config-hooks.mjs", "--import", "./server/phase4-order-events-hooks.mjs", "--import", "./server/phase5-launch-hooks.mjs", "--import", "./server/phase3-route-bridge-hooks.mjs", "--import", "./server/onboarding-growth-hooks.mjs", "--import", "./server/phase3-growth-hooks.mjs", "--import", "./server/phase3-checkout-hooks.mjs", "--import", "./server/analytics-features-hooks.mjs", "--import", "./server/team-features-hooks.mjs", "--import", "./server/commercial-config-hooks.mjs", "--import", "./server/catalog-order-lock-fix.mjs", "--import", "./server/phase2-compat-hooks.mjs", "--import", "./server/phase2-operation-hooks.mjs", "--import", "./server/phase2-public-config-hooks.mjs", "--import", "./server/catalog-features-hooks.mjs", "--import", "./server/business-features-hooks.mjs", "--import", "./server/platform-hooks.mjs", "--import", "./server/plan-limits-hooks.mjs", "--import", "./server/signup-plan-hooks.mjs", "--import", "./server/google-auth-hooks.mjs", "--import", "./server/buyer-whatsapp-auth-hooks.mjs", "--import", "./server/phase1-product-media-hooks.mjs", "--import", "./server/scanner-hooks.mjs", "--import", "./server/scanner-publish-hooks.mjs", "--import", "./server/social-network-hooks.mjs", "--import", "./server/social-feed-ranking-hooks.mjs", "--import", "./server/social-commerce-hooks.mjs", "--import", "./server/social-analytics-hooks.mjs", "--import", "./server/public-protection-hooks.mjs", "--import", "./server/page-metadata-hooks.mjs", "server/app.mjs"]
