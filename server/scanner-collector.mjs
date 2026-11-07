@@ -1150,6 +1150,9 @@ export async function collectCatalog(sourceUrl, options = {}) {
       onProgress,
     })
   }
+  // Identify vendor from the URL the merchant submitted, before redirects.
+  // A JS-rendered Alexandre storefront is never a generic HTML crawl.
+  const requestedAlexandre = isAlexandreBijouxStorefront(sourceUrl)
   let rootResponse = await request(sourceUrl)
   if (!rootResponse.ok) throw new Error(`A loja respondeu HTTP ${rootResponse.status}.`)
   if (!rootResponse.contentType.includes('html')) throw new Error('A URL informada não parece ser uma página de loja.')
@@ -1165,7 +1168,11 @@ export async function collectCatalog(sourceUrl, options = {}) {
     rootResponse = redirected
   }
 
-  const platform = isAlexandreBijouxStorefront(rootResponse.url) ? 'alexandre-bijoux' : detectPlatform(rootResponse.body, rootResponse.url)
+  if (requestedAlexandre && !isAlexandreBijouxStorefront(rootResponse.url)) {
+    throw new Error('A vitrine Alexandre Bijoux redirecionou para outro domínio. A captura foi interrompida para evitar importar um catálogo incorreto.')
+  }
+  const platform = (requestedAlexandre || isAlexandreBijouxStorefront(rootResponse.url))
+    ? 'alexandre-bijoux' : detectPlatform(rootResponse.body, rootResponse.url)
   await onProgress({ progress: 10, pagesScanned: 1, candidates: 0, platform })
 
   if (platform === 'alexandre-bijoux') {
