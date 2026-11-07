@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { isPaddleOcrSelected, paddleOcrImage } from './scanner-pdf-paddle.mjs'
+import { isPaddleOcrSelected, paddleOcrImage, paddleOcrLayout } from './scanner-pdf-paddle.mjs'
 
 const png = Buffer.from([137,80,78,71,13,10,26,10,1,2,3,4])
 
@@ -49,4 +49,19 @@ test('rejects excessive text responses', async () => {
   await assert.rejects(paddleOcrImage(png, {
     fetchImpl: async () => new Response(JSON.stringify({ text: 'A'.repeat(500001) })),
   }), /excessiva/)
+})
+
+test('retains PaddleOCR coordinates for spatial product matching', async () => {
+  const lines = [
+    { text: 'Vestido Solar', score: 0.98, box: [30, 80, 210, 110] },
+    { text: 'R$ 29,90', score: 0.99, box: [35, 145, 165, 173] },
+  ]
+  const result = await paddleOcrLayout(png, {
+    fetchImpl: async () => new Response(JSON.stringify({
+      text: 'Vestido Solar\nR$ 29,90',
+      lines,
+    })),
+  })
+  assert.deepEqual(result.lines, lines)
+  assert.match(result.text, /Vestido Solar/)
 })

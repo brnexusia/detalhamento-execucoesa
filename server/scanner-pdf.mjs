@@ -10,7 +10,8 @@ import { parseNumberedLookbookPages, parseLookbookPhotoBands } from './scanner-p
 import { parseReferenceOnlyPdfProducts } from './scanner-pdf-review-fallback.mjs'
 import { parseNamedUnpricedPdfProducts } from './scanner-pdf-named-products.mjs'
 import { parseFashionPhotoPages } from './scanner-pdf-fashion-pages.mjs'
-import { isPaddleOcrSelected, paddleOcrImage } from './scanner-pdf-paddle.mjs'
+import { isPaddleOcrSelected, paddleOcrLayout } from './scanner-pdf-paddle.mjs'
+import { associateOcrProducts, sanitizeAmbiguousOcrPrices } from './scanner-pdf-spatial.mjs'
 
 const run = promisify(execFile)
 export const MAX_PDF_BYTES = 100 * 1024 * 1024
@@ -331,6 +332,7 @@ export async function collectPdfCatalog(buffer, options = {}) {
     const namedTextCandidates = parseNamedUnpricedPdfProducts(pages, MAX_PRODUCTS).length
     const mixedTextAndPhotoCatalog = Boolean(textLayerParsed.lookbook) || (textLayerCandidates >= 8 && totalPages >= 30) || (namedTextCandidates >= 4 && totalPages >= 20)
     let textLayerOcrAttempts = 0
+    const spatialCandidatesByPage = new Map()
     for (let i = 0; i < totalPages; i += 1) {
       if (mixedTextAndPhotoCatalog && !(pages[i] || '').trim()) {
         await options.onProgress?.({ progress: Math.min(65, 12 + Math.round(50 * (i + 1) / totalPages)), pagesScanned: i + 1, platform: 'pdf' })
@@ -355,8 +357,17 @@ export async function collectPdfCatalog(buffer, options = {}) {
         let paddleCompleted = false
         if (isPaddleOcrSelected()) {
           try {
-            fallback = await paddleOcrImage(await readFile(prefix + '.png'), { deadline })
+            const layout = await paddleOcrLayout(await readFile(prefix + '.png'), { deadline })
+            fallback = layout.text
             paddleCompleted = true
+            // When the native text layer has no priced products, retain real
+            // PaddleOCR coordinates to match names/descriptions to prices.
+            // Never replace products in a page already parsed reliably from PDF text.
+            const textLayerItems = parsePdfCatalogText(pages[i] || '').candidates.length
+            if (textLayerItems === 0) {
+              const grouped = associateOcrProducts(layout, i + 1)
+              if (grouped.length) spatialCandidatesByPage.set(i + 1, grouped)
+            }
             if (fallback) console.info('[pdf import] OCR page', i + 1, 'via PaddleOCR')
           } catch (error) {
             console.warn('[pdf import] PaddleOCR unavailable on page', i + 1, '- using Tesseract:', error.message)
@@ -364,6 +375,9 @@ export async function collectPdfCatalog(buffer, options = {}) {
         }
         // A valid empty Paddle result is not a failure; avoid OCRing empty photo pages twice.
         if (!paddleCompleted) fallback = await command('tesseract', [prefix + '.png', 'stdout', '-l', 'por+eng'], 18000, deadline)
+        // OCR mistakes such as R$ 1300 / R$ 12,0 must never reach the
+        // generic PDF parser as unambiguous 1300.00 / 12.00 prices.
+        fallback = sanitizeAmbiguousOcrPrices(fallback)
         if (fallback.trim()) {
           const existingText = pages[i] || ''
           const originalMatches = parsePdfCatalogText(existingText).candidates.length
@@ -384,7 +398,21 @@ export async function collectPdfCatalog(buffer, options = {}) {
     }
 
     const parsed = parsePdfCatalogText(pages.join('\f'), totalPages)
-    const candidates = [...parsed.candidates]
+    let candidates = [...parsed.candidates]
+    // Spatial interpretation is a FALLBACK for raster/scanned pages, not a
+    // replacement for native-PDF numbered lookbooks or known fashion layouts.
+    if (!parsed.lookbook && !parsed.fashion && spatialCandidatesByPage.size) {
+      for (const [pageNumber, grouped] of spatialCandidatesByPage) {
+        const currentCount = candidates.filter((item) => item.pdf_page === pageNumber).length
+        // Never drop already-recovered products for a partial OCR grouping.
+        if (grouped.length < currentCount) continue
+        candidates = candidates.filter((item) => item.pdf_page !== pageNumber)
+        candidates.push(...grouped)
+      }
+      candidates.sort((a, b) => a.pdf_page - b.pdf_page ||
+        String(a.external_id || '').localeCompare(String(b.external_id || '')))
+      candidates = candidates.slice(0, MAX_PRODUCTS)
+    }
     if (!candidates.length) {
       candidates.push(...parseReferenceOnlyPdfProducts(pages,MAX_PRODUCTS))
     }

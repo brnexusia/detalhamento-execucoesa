@@ -51,3 +51,32 @@ a associação de foto, nome e preço em layouts ambíguos. A extração de imag
 com Poppler/Sharp segue o processo existente. O PaddleOCR dentro do mesmo
 contêiner também concorre pela CPU/RAM da aplicação principal, conforme a
 decisão de arquitetura adotada para simplificar a operação.
+
+
+## Coordenadas OCR para associação nome + descrição + preço
+
+Quando PaddleOCR processa uma página escaneada sem produtos legíveis no texto
+nativo do PDF, o scanner recebe também linhas com:
+- `text`: valor OCR original;
+- `box: [xMin, yMin, xMax, yMax]`: retângulo na imagem rasterizada;
+- `score`: confiança do OCR.
+
+O módulo `server/scanner-pdf-spatial.mjs` encontra nomes explícitos de produto
+e preços em reais, compara proximidade 2D normalizada pela altura dos textos,
+respeita separação entre colunas e associa linhas com `Descrição: ...` ao
+preço espacialmente mais próximo. Ele não usa simplesmente a ordem das linhas
+extraídas. Cada preço pode receber **no máximo um nome** e vice-versa.
+
+O parser `parseBrazilianPrice()` converte `R$ 12,50` para o número `12.5` e
+`R$ 1.234,56` para `1234.56`. Valores com separadores incertos (`R$ 1300`,
+`R$ 12,0`), totais de pedido e múltiplos preços na mesma linha são rejeitados
+em vez de presumidos.
+
+As associações espaciais são apresentadas **para revisão obrigatória**, sem
+publicação automática. O scanner conserva produtos já reconhecidos pelo PDF
+nativo e não substitui coleções numeradas/looks com parsers especializados.
+Sem caixas de coordenadas confiáveis, mantém o processamento legado.
+
+Testes:
+- `node --test server/scanner-pdf-spatial.test.mjs`
+- `node --test server/scanner-pdf-spatial.integration.test.mjs`

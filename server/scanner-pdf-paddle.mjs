@@ -2,13 +2,14 @@
 // The HTTP server listens on loopback only; there is no public URL, token or extra EasyPanel service.
 const MAX_INPUT_BYTES = 8 * 1024 * 1024
 const MAX_TEXT_BYTES = 500_000
+const MAX_RESPONSE_BYTES = 2_000_000
 const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])
 
 export function isPaddleOcrSelected(env = process.env) {
   return String(env.PDF_OCR_ENGINE ?? 'paddle').trim().toLowerCase() === 'paddle'
 }
 
-export async function paddleOcrImage(image, options = {}) {
+export async function paddleOcrLayout(image, options = {}) {
   const env = options.env || process.env
   if (!Buffer.isBuffer(image) || image.length < 8 || image.length > MAX_INPUT_BYTES ||
       !image.subarray(0, 8).equals(PNG_SIGNATURE)) {
@@ -30,8 +31,17 @@ export async function paddleOcrImage(image, options = {}) {
     signal: AbortSignal.timeout(timeout),
   })
   if (!response.ok) throw new Error('PaddleOCR: motor local retornou HTTP ' + response.status)
-  const result = await response.json()
+  const declaredSize = Number(response.headers?.get?.('content-length') || 0)
+  if (declaredSize > MAX_RESPONSE_BYTES) throw new Error('PaddleOCR: resposta excessiva.')
+  const payload = await response.text()
+  if (Buffer.byteLength(payload, 'utf8') > MAX_RESPONSE_BYTES) throw new Error('PaddleOCR: resposta excessiva.')
+  const result = JSON.parse(payload)
   const extracted = String(result?.text || '').trim()
   if (Buffer.byteLength(extracted, 'utf8') > MAX_TEXT_BYTES) throw new Error('PaddleOCR: resposta excessiva.')
-  return extracted
+  return { text: extracted, lines: Array.isArray(result?.lines) ? result.lines.slice(0, 800) : [] }
+}
+
+// Backwards-compatible text-only API for callers that do not use geometry.
+export async function paddleOcrImage(image, options = {}) {
+  return (await paddleOcrLayout(image, options)).text
 }
