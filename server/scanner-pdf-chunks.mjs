@@ -105,6 +105,7 @@ export function installChunkedPdfRoutes(router, {
       'INSERT INTO import_pdf_upload_sessions (id,store_id,filename,size_bytes,total_chunks) VALUES ($1,$2,$3,$4,$5)',
       [uploadId, req.scannerStore.store_id, filename, sizeBytes, totalChunks],
     )
+    console.info('[pdf upload] chunk session created', { uploadId, bytes: sizeBytes, parts: totalChunks })
     res.status(201).json({ uploadId, chunkSize: PDF_CHUNK_BYTES, totalChunks })
   }))
 
@@ -196,6 +197,22 @@ export function installChunkedPdfRoutes(router, {
       client.release()
     }
     if (!workerDisabled) setImmediate(() => void runNextWork())
+    console.info('[pdf upload] finalized', { uploadId, jobId: job.id })
     res.status(202).json({ job, duplicated: false })
   }))
+
+  router.delete('/pdf/chunks/:uploadId', requireStore, asyncRoute(async (req, res) => {
+    await pool.query(
+      'DELETE FROM import_pdf_upload_sessions WHERE id=$1 AND store_id=$2 AND job_id IS NULL',
+      [req.params.uploadId, req.scannerStore.store_id],
+    )
+    res.json({ ok: true })
+  }))
+
+  // Clean up interrupted browser sessions even when nobody starts a new upload.
+  const cleanup = setInterval(() => {
+    void pool.query('DELETE FROM import_pdf_upload_sessions WHERE job_id IS NULL AND expires_at < now()')
+      .catch(error => console.warn('[pdf upload] stale session cleanup:', error.message))
+  }, 60 * 60 * 1000)
+  cleanup.unref()
 }
