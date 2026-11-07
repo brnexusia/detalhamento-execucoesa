@@ -1,0 +1,49 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import { facilZapProducts, vestiProducts } from './scanner-platforms.mjs'
+
+test('FácilZap imports gallery photos even when only variations carry the images', () => {
+  const source = 'https://minhaloja.com.br/'
+  const { products } = facilZapProducts({
+    produtos: [{
+      id: 101, nome: 'Vestido', preco: '49,90',
+      galeria: [{ image_url: 'produtos/capa.webp' }],
+      variacoes: {
+        azul: { id: 'azul', nome: 'Azul', fotos: [{ path: 'produtos/azul.webp' }] },
+        preto: { id: 'preto', nome: 'Preto', images: [{ imageUrl: 'https://cdn.example.com/preto.webp' }] },
+      },
+    }],
+  }, source)
+  assert.equal(products.length, 1)
+  assert.deepEqual(products[0].images, [
+    'https://arquivos.facilzap.app.br/produtos/capa.webp',
+    'https://arquivos.facilzap.app.br/produtos/azul.webp',
+    'https://cdn.example.com/preto.webp',
+  ])
+  assert.deepEqual(products[0].variants.map(v => v.images[0]), [
+    'https://arquivos.facilzap.app.br/produtos/azul.webp',
+    'https://cdn.example.com/preto.webp',
+  ])
+})
+
+test('Vesti captures images across image, photos, gallery, and SKU media', () => {
+  const context = { catalogBaseUrl: 'https://v.vesti.mobi/loja/catalogo/abc' }
+  const [result] = vestiProducts({
+    products: [{
+      id: '10', name: 'Camisa', code: 'REF10',
+      media: [{ path: 'https://cdn.example.com/capa.webp' }],
+      gallery: [{ image_url: 'https://cdn.example.com/lado.webp' }],
+      stocks: [{
+        id: '11', sku: 'CAM-11', color_name: 'Rosa',
+        photos: [{ photoUrl: 'https://cdn.example.com/rosa.webp' }],
+      }],
+    }],
+  }, context)
+  assert.deepEqual(result.images, [
+    'https://cdn.example.com/capa.webp',
+    'https://cdn.example.com/lado.webp',
+    'https://cdn.example.com/rosa.webp',
+  ])
+  assert.deepEqual(result.variants[0].images, ['https://cdn.example.com/rosa.webp'])
+  assert.equal(result.sku, 'REF10')
+})
