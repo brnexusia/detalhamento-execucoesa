@@ -1,4 +1,5 @@
 import { requiresPaymentForSignup } from './signup-billing-mode.mjs'
+import { traceUpload } from './upload-request-logging.mjs'
 import crypto from 'node:crypto'
 import path from 'node:path'
 import { readFileSync } from 'node:fs'
@@ -694,6 +695,7 @@ if (process.env.REDIS_URL && process.env.SHOPVAX_MEDIA_WORKER_DISABLED !== '1') 
 
 app.post(
   '/api/admin/upload',
+  traceUpload('media'),
   auth,
   upload.single('file'),
   asyncRoute(async (req, res) => {
