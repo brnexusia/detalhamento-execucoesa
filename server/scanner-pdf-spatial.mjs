@@ -27,6 +27,19 @@ export function parseBrazilianPrice(input) {
   return decimal(marked[0][1])
 }
 
+// Prevent the legacy text parser from inventing cents on OCR-only pages.
+// Native PDF amounts are never rewritten by this guard.
+export function sanitizeAmbiguousOcrPrices(input) {
+  return String(input || '').replace(/\b(?:R\s*\$|BRL)\s*\d[\d.,]*/gi, (fragment) => {
+    const trailing = /[.,]+$/.exec(fragment)?.[0] || ''
+    const token = trailing ? fragment.slice(0, -trailing.length) : fragment
+    // The legacy parser intentionally accepts conventional 49.90 decimal dots.
+    const validDotDecimal = /^(?:R\s*\$|BRL)\s*\d{1,6}\.\d{2}$/i.test(token)
+    if (parseBrazilianPrice(token) != null || validDotDecimal) return fragment
+    return 'PREÇO OCR AMBÍGUO - REVISÃO OBRIGATÓRIA' + trailing
+  })
+}
+
 function priceOnLine(input) {
   const str = String(input || '').trim()
   if (BLOCKED_AMOUNT.test(str)) return null
