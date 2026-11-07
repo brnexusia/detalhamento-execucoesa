@@ -6,7 +6,7 @@ import sharp from 'sharp'
 import { parseNumberedLookbookPages, parseLookbookPhotoBands } from './scanner-pdf-lookbook.mjs'
 import { collectPdfCatalog, parsePdfCatalogText } from './scanner-pdf.mjs'
 
-test('links numbered prices to the next colors board by item number and preserves unknowns', () => {
+test('keeps numbered price links and suggests corroborated adjacent labels for review', () => {
   const pages = [
     'MEMORIES traduz a beleza dos detalhes',
     '',
@@ -28,8 +28,11 @@ test('links numbered prices to the next colors board by item number and preserve
   assert.equal(parsed.candidates[1].title.startsWith('Pulseira · Memories · 01-03'), true)
   assert.equal(parsed.candidates[2].title.startsWith('Pulseira · Memories · 01-02'), true)
   assert.equal(parsed.candidates[3].title.startsWith('Brinco · Memories · 02-01'), true)
-  assert.match(parsed.candidates[4].title, /Acessório para identificar/)
-  assert.equal(parsed.candidates[4].category, 'Geral')
+  assert.match(parsed.candidates[4].title, /^Pulseira · Memories · 02-02/)
+  assert.equal(parsed.candidates[4].category, 'Pulseiras')
+  assert.equal(parsed.candidates[4].pdf_review_required, true)
+  assert.match(parsed.candidates[4].description, /TIPO SUGERIDO/)
+  assert.match(parsed.candidates[4].description, /quadro da página 6/)
   assert.equal(parsed.candidates[4].sku, '')
   assert.notEqual(parsed.candidates[0].external_id, parsed.candidates[3].external_id)
 })
