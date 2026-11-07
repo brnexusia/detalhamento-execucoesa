@@ -1,0 +1,29 @@
+name: admin-billing-navigation-smoke
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/AdminRoute.tsx'
+      - 'tests/admin-billing-splash.test.mjs'
+      - '.github/workflows/admin-billing-navigation-smoke.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/AdminRoute.tsx'
+      - 'tests/admin-billing-splash.test.mjs'
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Gate and navigation regressions
+        run: node --test tests/admin-billing-splash.test.mjs
+      - name: Frontend typecheck and build
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
