@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
+import { startRealUserPerformanceMonitoring } from './real-user-performance'
 import './styles.css'
 import './saas.css'
 import './canvas.css'
@@ -27,6 +28,8 @@ document.addEventListener('dragstart', (event) => {
     '.svx-brand-symbol, .svx-brand-wordmark, .brand__logo, .store-intro__logo, .panel-brand img, .customer-store-head img, .social-profile-avatar img, .social-profile__avatar img',
   )) event.preventDefault()
 })
+
+startRealUserPerformanceMonitoring()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
