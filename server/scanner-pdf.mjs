@@ -11,7 +11,7 @@ import { parseReferenceOnlyPdfProducts } from './scanner-pdf-review-fallback.mjs
 import { parseNamedUnpricedPdfProducts } from './scanner-pdf-named-products.mjs'
 import { parseFashionPhotoPages } from './scanner-pdf-fashion-pages.mjs'
 import { isPaddleOcrSelected, paddleOcrLayout } from './scanner-pdf-paddle.mjs'
-import { associateOcrProducts } from './scanner-pdf-spatial.mjs'
+import { associateOcrProducts, sanitizeAmbiguousOcrPrices } from './scanner-pdf-spatial.mjs'
 
 const run = promisify(execFile)
 export const MAX_PDF_BYTES = 100 * 1024 * 1024
@@ -375,6 +375,9 @@ export async function collectPdfCatalog(buffer, options = {}) {
         }
         // A valid empty Paddle result is not a failure; avoid OCRing empty photo pages twice.
         if (!paddleCompleted) fallback = await command('tesseract', [prefix + '.png', 'stdout', '-l', 'por+eng'], 18000, deadline)
+        // OCR mistakes such as R$ 1300 / R$ 12,0 must never reach the
+        // generic PDF parser as unambiguous 1300.00 / 12.00 prices.
+        fallback = sanitizeAmbiguousOcrPrices(fallback)
         if (fallback.trim()) {
           const existingText = pages[i] || ''
           const originalMatches = parsePdfCatalogText(existingText).candidates.length
