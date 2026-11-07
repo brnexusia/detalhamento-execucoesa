@@ -23,8 +23,16 @@ function images(value,base) {
   if(input == null || depth>4 || result.length>=MAX_IMAGES)return
   if(Array.isArray(input)){for(const item of input)visit(item,depth+1);return}
   if(typeof input==='object'){
-   const keys=['url','original','src','image_url','imageUrl','image','photo','large','full','thumb']
-   for(const key of keys)if(input[key]!=null)visit(input[key],depth+1)
+   // GoPage supplies both full-sized "url" and its derivative "thumb".
+   // Import just the original, never two gallery photos for the same shot.
+   const preferred=['original','full','large','url','src','image_url','imageUrl','image','photo']
+   for(const key of preferred){
+    if(input[key]==null)continue
+    const before=result.length
+    visit(input[key],depth+1)
+    if(result.length>before)return
+   }
+   if(input.thumb!=null)visit(input.thumb,depth+1)
    return
   }
   const found=url(input,base)
