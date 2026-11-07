@@ -281,7 +281,7 @@ async function reports(req, res) {
 
   return res.json({
     periodDays: days,
-    interpretation: 'Cliques para o WhatsApp representam intenção / lead / pedido enviado ao WhatsApp. Não representam faturamento, ticket médio ou venda concluída.',
+    interpretation: 'Views de produto e acessos são contados no máximo uma vez por visitante por dia (horário de Brasília). Cliques para o WhatsApp representam intenção, não venda ou faturamento confirmado.',
     items, links, sellers, catalogs, funnel,
   })
 }
