@@ -14,6 +14,8 @@ on:
       - 'src/real-user-performance.ts'
       - 'src/main.tsx'
       - 'src/api.ts'
+      - 'src/SocialFeed.tsx'
+      - 'package.json'
       - '.github/workflows/validate-daily-unique-views.yml'
   workflow_dispatch:
 permissions:
