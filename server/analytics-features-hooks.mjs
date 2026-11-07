@@ -119,8 +119,9 @@ export async function recordEvents(events) {
       event.productId || null, event.orderId || null, event.kind,
       event.visitorKey || '', JSON.stringify(event.metadata || {}),
     )
-    return `(${offset + 1},${offset + 2},${offset + 3},${offset + 4},${offset + 5},${offset + 6},${offset + 7},${offset + 8},${offset + 9},
-      CASE WHEN ${offset + 7} IN ('access','product_view') THEN (now() AT TIME ZONE 'America/Sao_Paulo')::date ELSE NULL END)`
+    const parameterRefs = Array.from({ length: 9 }, (_, position) => '$' + (offset + position + 1))
+    return '(' + parameterRefs.join(',') + ", CASE WHEN $" + (offset + 7) +
+      " IN ('access','product_view') THEN (now() AT TIME ZONE 'America/Sao_Paulo')::date ELSE NULL END)"
   })
   await pool.query(
     `INSERT INTO intent_events (id,store_id,seller_id,catalog_id,product_id,order_id,kind,visitor_key,metadata,view_day)
