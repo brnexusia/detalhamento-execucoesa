@@ -141,3 +141,23 @@ try{
   }))
  }
 }catch(e){console.warn('VESTI_DETAIL_DIAG',JSON.stringify({error:String(e?.message||e).slice(0,200)}))}
+
+for(const id of ['4612607','3137028','3468778']){
+ const u='https://damafinnalingerie.com.br/produto/'+id
+ try{
+  const r=await safeRequest(u,{timeout:14000})
+  const $=load(r.body)
+  const imageElements=$('img').map((_,i)=>({
+   src:$(i).attr('src')?.slice(0,180),
+   lazy:$(i).attr('data-src')?.slice(0,180),
+   classes:$(i).attr('class')?.slice(0,130),
+  })).get()
+  const photos=imageElements.filter(x=>/produto|product|media|foto/i.test((x.src||'')+' '+(x.lazy||''))).slice(0,8)
+  console.log('FACILZAP_MISSING_IMAGE_DIAG',JSON.stringify({
+   id,status:r.status,len:r.body.length,contentType:r.contentType,
+   title:$('title').text().slice(0,90),
+   ogImage:$('meta[property="og:image"]').attr('content')?.slice(0,150),
+   imgCount:imageElements.length,photos,markupPatterns:[...r.body.matchAll(/.{0,40}(?:imagens|fotos|imagem_produto|file_name|produto_imagem).{0,100}/gi)].slice(0,7).map(x=>x[0].replace(/\s+/g,' ')),
+  }))
+ }catch(e){console.log('FACILZAP_MISSING_IMAGE_DIAG',JSON.stringify({id,error:String(e.message).slice(0,150)}))}
+}
