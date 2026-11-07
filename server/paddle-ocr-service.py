@@ -1,5 +1,4 @@
-"""Private, single-request-at-a-time PaddleOCR 3.x CPU inference bridge."""
-import hmac
+"""Single-container PaddleOCR CPU inference bridge; bound to loopback only."""
 import json
 import os
 import sys
@@ -7,10 +6,6 @@ import tempfile
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 MAX_PNG = 8 * 1024 * 1024
-TOKEN = os.environ.get("PDF_OCR_SHARED_SECRET", "").strip()
-if len(TOKEN) < 16:
-    raise RuntimeError("PDF_OCR_SHARED_SECRET deve ter pelo menos 16 caracteres")
-
 # Load the models exactly once per service, not once per PDF page.
 from paddleocr import PaddleOCR
 
@@ -69,9 +64,6 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path != "/ocr":
             return self.reply(404, {"error": "not_found"})
-        provided = self.headers.get("X-PDF-OCR-Token", "")
-        if not hmac.compare_digest(provided, TOKEN):
-            return self.reply(401, {"error": "unauthorized"})
         try:
             size = int(self.headers.get("Content-Length", "0"))
         except ValueError:
@@ -93,5 +85,5 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     port = int(os.environ.get("PDF_OCR_PORT", "8088"))
-    print("[paddle-ocr] CPU ready on port", port, flush=True)
-    HTTPServer(("0.0.0.0", port), Handler).serve_forever()
+    print("[paddle-ocr] CPU ready on 127.0.0.1:", port, flush=True)
+    HTTPServer(("127.0.0.1", port), Handler).serve_forever()
