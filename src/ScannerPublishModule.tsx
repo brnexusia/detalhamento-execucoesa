@@ -175,7 +175,7 @@ export default function ScannerPublishModule() {
   }
 
   const action = readyTotal > 0
-    ? <button type="button" className="scanner-publish-entry" onClick={show}><PackageCheck size={17} /> Importar {readyTotal} pronto(s)</button>
+    ? <button type="button" className="scanner-publish-entry" onClick={show}><PackageCheck size={17} /> Ver {readyTotal} produto(s) de {readyJobs.length} importação(ões)</button>
     : null
 
   return <>
@@ -191,6 +191,7 @@ export default function ScannerPublishModule() {
             <button type="button" onClick={() => setOpen(false)}><X size={20} /></button>
           </header>
           <div className="scanner-publish-content">
+            <p>Este painel reúne <strong>{readyTotal} produtos de {readyJobs.length} importação(ões) pendente(s)</strong>. Os totais são somados entre catálogos diferentes. Use o botão de cada catálogo abaixo para publicar apenas aquela importação; abrir este painel não publica todos.</p>
             <p>Os produtos tecnicamente válidos já estão selecionados. Itens que realmente precisam de correção ficam de fora e podem ser tratados depois.</p>
             {error && <div className="scanner-publish-message scanner-publish-message--error">{error}</div>}
             {success && <div className="scanner-publish-message scanner-publish-message--success"><CheckCircle2 size={17} /><div><strong>Importação concluída.</strong><span>{success.result.created} novo(s) cadastrado(s){success.result.skipped_existing ? ` · ${success.result.skipped_existing} SKU(s) já existente(s) preservado(s)` : ''}.</span></div></div>}
