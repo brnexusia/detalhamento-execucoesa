@@ -4,6 +4,7 @@ import express from 'express'
 import multer from 'multer'
 import pg from 'pg'
 import { collectPdfCatalog, MAX_PDF_BYTES } from './scanner-pdf.mjs'
+import { traceUpload } from './upload-request-logging.mjs'
 import { collectCatalog } from './scanner-collector.mjs'
 import { whatsappCatalogPhone, uazapiCatalogConfig } from './scanner-uazapi-catalog.mjs'
 import { sharedPhotoSourceKind } from './scanner-photo-albums.mjs'
@@ -566,7 +567,7 @@ function installScannerRoutes(app) {
   }))
 
 
-  router.post('/pdf', requireStore, acceptPdfUpload, asyncRoute(async (req, res) => {
+  router.post('/pdf', traceUpload('pdf'), requireStore, acceptPdfUpload, asyncRoute(async (req, res) => {
     const file = req.file
     if (!file || !file.buffer?.subarray(0, 1024).toString('latin1').includes('%PDF-')) {
       return res.status(400).json({ error: 'Selecione um arquivo PDF válido.' })
