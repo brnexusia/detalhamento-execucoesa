@@ -1,0 +1,18 @@
+name: validate-alexandre-import-identity
+on:
+  push:
+    branches: [fix/alexandre-product-identity-20261107]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: npm install --no-audit --no-fund
+      - run: node scripts/diagnose-alexandre-publish-collapse-20261107.mjs
+      - run: node --test server/scanner-alexandre-bijoux.test.mjs server/scanner-import-grouping.test.mjs
