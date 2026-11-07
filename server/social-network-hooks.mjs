@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import express from 'express'
 import pg from 'pg'
+import { ensureSocialDailyViews, dailySocialViewInsertSQL } from './social-daily-views-schema.mjs'
 
 const { Pool } = pg
 const databaseUrl = process.env.DATABASE_URL?.trim() || ''
@@ -88,6 +89,7 @@ async function ensureSchema() {
       BEFORE INSERT OR UPDATE ON products
       FOR EACH ROW EXECUTE FUNCTION shopvax_touch_social_publication();
   `)
+  await ensureSocialDailyViews(pool)
 }
 
 let schemaPromise = null
@@ -204,7 +206,7 @@ async function publicStoreProfile(slug, followerKey, followerStoreId) {
     SELECT s.id,s.slug,s.name,s.tagline,s.eyebrow,s.logo_url,s.accent,s.plan_tier,
       COUNT(p.id) FILTER (WHERE p.active=true AND p.social_published=true)::int AS product_count,
       (SELECT COUNT(*)::int FROM social_store_follows f WHERE f.store_id=s.id) AS follower_count,
-      (SELECT COUNT(*)::int FROM social_post_views v WHERE v.store_id=s.id) AS view_count,
+      (SELECT COUNT(*)::int FROM social_post_daily_views v WHERE v.store_id=s.id) AS view_count,
       EXISTS(SELECT 1 FROM social_store_follows f WHERE f.store_id=s.id AND f.visitor_key=$2 AND ($3::text IS NULL OR f.store_id=$3)) AS following
     FROM stores s
     LEFT JOIN products p ON p.store_id=s.id
@@ -251,7 +253,7 @@ async function publicFeed(cursorValue, requestedLimit, viewerKey, followerKey, f
   const result = await pool.query(`
     SELECT p.id,p.sku,p.name,p.description,p.price,p.category,p.media_url,p.media_type,p.images,p.pack,p.variations,p.featured,p.social_published_at,
       s.id AS store_id,s.slug AS store_slug,s.name AS store_name,s.logo_url AS store_logo_url,s.accent AS store_accent,s.plan_tier,
-      (SELECT COUNT(*)::int FROM social_post_views v WHERE v.product_id=p.id) AS social_views,
+      (SELECT COUNT(*)::int FROM social_post_daily_views v WHERE v.product_id=p.id) AS social_views,
       (SELECT COUNT(*)::int FROM social_post_likes l WHERE l.product_id=p.id) AS social_likes,
       (SELECT COUNT(*)::int FROM social_actions a WHERE a.product_id=p.id AND a.kind='share') AS social_shares,
       (SELECT COUNT(*)::int FROM social_store_follows f WHERE f.store_id=s.id) AS social_followers,
@@ -302,8 +304,8 @@ async function socialProduct(productId) {
 async function viewPost(productId, key) {
   const product = await socialProduct(productId)
   if (!product) return null
-  await pool.query(`INSERT INTO social_post_views (product_id,store_id,visitor_key) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`, [product.id, product.store_id, key])
-  const count = await pool.query('SELECT COUNT(*)::int AS total FROM social_post_views WHERE product_id=$1', [product.id])
+  await pool.query(dailySocialViewInsertSQL, [product.id, product.store_id, key])
+  const count = await pool.query('SELECT COUNT(*)::int AS total FROM social_post_daily_views WHERE product_id=$1', [product.id])
   return { views: Number(count.rows[0]?.total || 0) }
 }
 
