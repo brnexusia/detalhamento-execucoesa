@@ -1176,8 +1176,9 @@ export async function collectCatalog(sourceUrl, options = {}) {
       const result = await collectFacilZap(rootResponse, request, maxProducts, sink, onProgress)
       if (result.candidateCount) return { platform, pagesScanned: result.pagesScanned, candidateCount: sink.count, candidates: sink.candidates }
     } catch (error) {
-      if (options.strictPlatformAdapters) throw error
-      // A vitrine muda com frequência; o crawler genérico continua como fallback seguro.
+      if (sink.count > 0 || options.strictPlatformAdapters) throw error
+      // Generic discovery remains possible only when the platform adapter
+      // extracted nothing. Never treat 1-2 pages as a complete catalog.
     }
   }
 
@@ -1186,8 +1187,9 @@ export async function collectCatalog(sourceUrl, options = {}) {
       const result = await collectVesti(rootResponse, request, maxProducts, sink, onProgress)
       if (result.candidateCount) return { platform, pagesScanned: result.pagesScanned, candidateCount: sink.count, candidates: sink.candidates }
     } catch (error) {
-      if (options.strictPlatformAdapters) throw error
-      // Mantém fallback genérico para URLs Vesti legadas.
+      if (sink.count > 0 || options.strictPlatformAdapters) throw error
+      // Older Vesti storefront URLs may lack a discoverable catalogue ID.
+      // Only empty adapters can fall back to the generic public crawler.
     }
   }
 
