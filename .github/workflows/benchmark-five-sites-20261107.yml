@@ -1,0 +1,27 @@
+name: Test external catalog scanners — five sites
+on:
+  push:
+    branches: [test/paddleocr-seven-pdfs-five-sites-20261107]
+    paths:
+      - 'scripts/benchmark-external-sites-20261107.mjs'
+      - '.github/workflows/benchmark-five-sites-20261107.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  external-catalogs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --no-audit --no-fund
+      - name: Scan all five public sites for products/prices/images
+        run: node scripts/benchmark-external-sites-20261107.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: benchmark-five-sites-results
+          path: artifacts/paddle-sites/
