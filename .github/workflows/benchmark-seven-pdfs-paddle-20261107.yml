@@ -1,4 +1,4 @@
-name: Test original seven catalog PDFs with real PaddleOCR
+name: Test six accessible original catalog PDFs with real PaddleOCR
 on:
   push:
     branches: [test/paddleocr-seven-pdfs-five-sites-20261107]
@@ -14,7 +14,7 @@ jobs:
     timeout-minutes: 85
     steps:
       - uses: actions/checkout@v4
-      - name: Download seven shared catalog PDFs from Drive (original sources)
+      - name: Download six shared catalog PDFs from Drive (original sources)
         shell: bash
         run: |
           set -euo pipefail
@@ -26,9 +26,9 @@ jobs:
           gdown --id '1oCliRjVXZfCj44KecRP2vzRjHsR0o3HP' -O pdf-fixtures/Memories.pdf
           gdown --id '1mfIq_z4snzKmKkXpQ5h20lttXXYW1eAD' -O pdf-fixtures/MemoriesDropII.pdf
           gdown --id '1KDv3ySeYSrUgzIGkVZDWvB81Btahn6PD' -O pdf-fixtures/Broches.pdf
-          gdown --id '1PEwXlCFrOORZLHA01l4iX3kT476fR-oJ' -O pdf-fixtures/Verao.pdf
+          echo 'Look Premium original is private on Drive: excluding from cloud OCR, do not alter permissions.'
           du -sh pdf-fixtures
-      - name: Verify all original PDF checksums before processing
+      - name: Verify six original PDF checksums before processing
         shell: bash
         run: |
           set -eu
@@ -39,7 +39,6 @@ jobs:
           bf3048455626074f2b010392119755164eb737e4b88a22bc7e0dd3ec461200c0  pdf-fixtures/Memories.pdf
           f94852f2e23d0025eda099134d4d67d8b6a688fe0da0a72eec700ec09ad89bcc  pdf-fixtures/MemoriesDropII.pdf
           765f9986c2d5b1cc09ac49601828db02c04cb1996095f25f84c03098aa743a01  pdf-fixtures/Broches.pdf
-          5726caa960773336114b1cc3315e44a7aaaea84a8b852a3c9070400a084abd09  pdf-fixtures/Verao.pdf
           EOF
           sha256sum --check pdf-fixtures/checksums.txt
       - name: Build original Atacado Shop image with real PaddleOCR
@@ -62,13 +61,13 @@ jobs:
           done
           docker logs seven-paddle
           exit 1
-      - name: Scan full original PDFs with PaddleOCR where OCR is necessary
+      - name: Scan six full original PDFs with PaddleOCR where OCR is necessary
         run: docker exec seven-paddle node /app/scripts/benchmark-seven-pdfs-paddle-20261107.mjs
       - name: Save summaries (no source PDFs published as artifacts)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: paddleocr-seven-original-catalogs
+          name: paddleocr-six-accessible-original-catalogs
           path: artifacts/paddle-pdfs/
       - name: Stop OCR container
         if: always()
