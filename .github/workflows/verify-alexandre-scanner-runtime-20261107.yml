@@ -1,0 +1,19 @@
+name: verify-alexandre-scanner-routing-and-deploy
+on:
+  push:
+    branches: [fix/alexandre-scanner-route-deploy-guard-20261107]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: npm install --no-audit --no-fund
+      - run: node --test server/scanner-alexandre-bijoux.test.mjs server/scanner-full-platforms.test.mjs
+      - run: npm run build
+      - run: node scripts/diagnose-alexandre-runtime-20261107.mjs
