@@ -35,10 +35,10 @@ function mediaUrls(value, baseUrl) {
       return
     }
     if (typeof item !== 'object') return
-    for (const key of ['url', 'src', 'image', 'imagem', 'foto', 'arquivo', 'fallback']) {
+    for (const key of ['url', 'src', 'image', 'imagem', 'foto', 'arquivo', 'fallback', 'path', 'original', 'full', 'large', 'image_url', 'imageUrl', 'photo_url', 'photoUrl', 'media_url', 'thumbnail_url']) {
       if (typeof item[key] === 'string') visit(item[key])
     }
-    for (const key of ['normal', 'zoom', 'thumb', 'media', 'images', 'imagens', 'fotos']) {
+    for (const key of ['normal', 'zoom', 'thumb', 'thumbnail', 'media', 'images', 'imagens', 'fotos', 'gallery', 'galeria', 'photos', 'pictures']) {
       if (item[key]) visit(item[key])
     }
   }
@@ -75,10 +75,10 @@ function facilZapMediaUrls(value, baseUrl) {
       return
     }
     if (typeof item !== 'object') return
-    for (const key of ['url', 'src', 'image', 'imagem', 'foto', 'arquivo', 'fallback', 'caminho', 'path']) {
+    for (const key of ['url', 'src', 'image', 'imagem', 'foto', 'arquivo', 'fallback', 'caminho', 'path', 'original', 'full', 'large', 'image_url', 'imageUrl', 'photo_url', 'photoUrl', 'media_url']) {
       if (typeof item[key] === 'string') visit(item[key])
     }
-    for (const key of ['normal', 'zoom', 'thumb', 'media', 'images', 'imagens', 'fotos']) {
+    for (const key of ['normal', 'zoom', 'thumb', 'thumbnail', 'media', 'images', 'imagens', 'fotos', 'gallery', 'galeria', 'photos', 'pictures']) {
       if (item[key]) visit(item[key])
     }
   }
@@ -246,6 +246,10 @@ function normalizeVariation(item, fallbackId = '', parent = {}) {
     ),
     available: explicitAvailable && (!controlled || stock == null || stock > 0),
     stock,
+    images: facilZapMediaUrls([
+      item.imagens, item.images, item.fotos, item.photos,
+      item.imagem, item.image, item.foto, item.media, item.galeria,
+    ], parent?.source_url || parent?.url || ''),
     properties,
   }
 }
@@ -272,6 +276,11 @@ export function facilZapProducts(payload, sourceUrl) {
       item.imagem,
       item.image,
       item.imagens_variacoes,
+      item.galeria,
+      item.gallery,
+      item.photos,
+      item.foto,
+      item.imagem_principal,
     ], sourceUrl)
 
     // Na API real `variacoes` é um objeto indexado pelo ID da variação.
@@ -280,6 +289,12 @@ export function facilZapProducts(payload, sourceUrl) {
       .map(([variantId, variant]) => normalizeVariation(variant, variantId, item))
       .filter((variant) => variant && (variant.external_id || variant.sku || variant.properties.length))
 
+    // Some storefronts expose photos only under individual variations.
+    // Preserve these in the parent gallery so the product card never loses every image.
+    for (const variant of variants) {
+      variant.images = facilZapMediaUrls(variant.images, sourceUrl)
+    }
+    const allImages = unique([...images, ...variants.flatMap((variant) => variant.images || [])])
     const propertyMap = new Map()
     const addProperty = (nameValue, valueValue) => {
       const name = text(nameValue)
@@ -318,7 +333,7 @@ export function facilZapProducts(payload, sourceUrl) {
       sku: text(item.sku ?? item.codigo ?? item.referencia ?? item.code),
       category: text(item.categoria_nome ?? item.categoria?.nome ?? item.categoria ?? item.category?.name ?? item.category),
       brand: text(item.marca?.nome ?? item.marca ?? item.brand?.name ?? item.brand),
-      images,
+      images: allImages,
       variants,
       properties,
       price: effectivePrice,
@@ -368,6 +383,7 @@ export function vestiProducts(payload, context) {
         color,
         size,
         price: numberValue(variant.price ?? item.price),
+        images: mediaUrls([variant.media, variant.images, variant.image, variant.photos, variant.photo], context.catalogBaseUrl),
         available: (variant.qnt ?? variant.quantity ?? variant.stock ?? 1) !== 0,
         properties: [color && { name: 'Cor', value: color }, size && { name: 'Tamanho', value: size }].filter(Boolean),
       }
@@ -384,7 +400,10 @@ export function vestiProducts(payload, context) {
       sku: text(item.code ?? item.sku),
       category: text(item.category?.name ?? item.category ?? asArray(item.categories)[0]?.name),
       brand: text(item.brand?.name ?? item.brand),
-      images: mediaUrls(item.media ?? item.images, context.catalogBaseUrl),
+      images: unique([
+        ...mediaUrls([item.media, item.images, item.image, item.photos, item.photo, item.gallery], context.catalogBaseUrl),
+        ...variants.flatMap((variant) => variant.images || []),
+      ]),
       variants,
       properties,
       price,
