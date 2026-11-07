@@ -99,3 +99,22 @@ for(const u of ['https://meuestoque.catalogo.com.br/','https://meuestoque.catalo
   }))
  }catch(e){console.log('GOPAGE_PROPS',JSON.stringify({url:u,error:String(e.message).slice(0,300)}))}
 }
+
+for(const u of ['https://meuestoque.catalogo.com.br/','https://meuestoque.catalogo.com.br/?page=2','https://meuestoque.catalogo.com.br/categoria/celulares-mRwey?page=2','https://damafinnalingerie.com.br/']){
+ try{
+  const r=await safeRequest(u,{timeout:18000})
+  const $=load(r.body)
+  const page=JSON.parse($('[data-page]').first().attr('data-page')||'{}')
+  const props=page.props||{}
+  const list=props.productsList||{}
+  console.log('PAGINATION_DIAG',JSON.stringify({url:u,status:r.status,bytes:r.body.length,
+    platform:detectPlatform(r.body,u),
+    pagination:list.pagination,
+    listCount:Array.isArray(list.products)?list.products.length:0,
+    firstIds:list.products?.slice(0,3).map(x=>x.id),
+    route:props.route,
+    runtime:extractFacilZapRuntime(r.body),
+    tinyPrefix:r.body.length<150?r.body:'',
+  }).slice(0,3000))
+ }catch(e){console.log('PAGINATION_DIAG',JSON.stringify({url:u,error:String(e?.message||e).slice(0,220)}))}
+}
