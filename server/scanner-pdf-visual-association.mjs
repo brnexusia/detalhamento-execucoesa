@@ -65,9 +65,11 @@ function rectAroundMarker(marker, layout, siblings) {
 export function numberedPhotoRegions(candidates, layoutPages, imagePages = null) {
   const groups=new Map()
   for(const c of candidates){
-    if(!c.pdf_lookbook || c.images?.length || !Number.isInteger(c.pdf_item_number) || !Number.isInteger(c.pdf_page))continue
-    const items=groups.get(c.pdf_page)||[]
-    items.push(c); groups.set(c.pdf_page,items)
+    if(!(c.pdf_lookbook||c.pdf_numbered_reference) || c.images?.length ||
+      !Number.isInteger(c.pdf_item_number) || !Number.isInteger(c.pdf_page))continue
+    const photoPage=c.pdf_photo_marker_page||c.pdf_page
+    const items=groups.get(photoPage)||[]
+    items.push(c); groups.set(photoPage,items)
   }
   const matches=[]
   for(const [page,items] of groups){
@@ -233,4 +235,88 @@ export function proximityPhotoRegions(matched, layouts, imagePages){
     }
   }
   return results
+}
+
+
+// Generic catalog layout where photos printed with item numbers occur on
+// one page and a separate price list occurs on a neighboring page.
+// Never activate if the primary supplier/parser already identified products.
+const NUMBERED_PRICE = /\b(0?[1-9]|[1-9][0-9])\s*[:.\-]?\s*R\s*\$\s*(\d{1,6}(?:\.\d{3})*,\d{2})(?![\d,])/gi
+function numberedPriceTable(raw) {
+  const table=new Map(),bad=new Set()
+  for(const row of String(raw||'').matchAll(NUMBERED_PRICE)){
+    const id=Number(row[1]),price=Number(row[2].replace(/\./g,'').replace(',','.'))
+    if(!(price>0&&price<=1e6))continue
+    if(table.has(id) && table.get(id)!==price)bad.add(id)
+    else table.set(id,price)
+  }
+  for(const id of bad)table.delete(id)
+  return table.size>=2?table:null
+}
+function photoBadgeIds(layout) {
+  if(!layout)return new Set()
+  const footerYs=layout.lines.filter(line=>/(?:R\s*\$|BRL)/i.test(line.text)).map(line=>line.cy)
+  const counts=new Map()
+  for(const word of layout.words) {
+    const id=numberOnWord(word.text)
+    if(!id || word.cy>layout.height*.90 || word.cy<layout.height*.035 ||
+      footerYs.some(y=>Math.abs(word.cy-y)<=Math.max(12,layout.height*.012)))continue
+    counts.set(id,(counts.get(id)||0)+1)
+  }
+  return new Set([...counts].filter(([,count])=>count===1).map(([id])=>id))
+}
+/**
+ * Build strictly evidenced candidates from a detached numbered price table:
+ *  01 R$ 12,50  ↔  isolated photo badge "1" on a nearby visual page.
+ * Require at least two corroborating numbers, unique top ranked page, and a
+ * single use of the photo page. All resulting items require human approval.
+ */
+export function parseNumberedReferenceFallback(rawPages,layoutPages,maxProducts=500) {
+  const pages=Array.isArray(rawPages)?rawPages:String(rawPages||'').split('\f')
+  const pricePages=[]
+  for(let i=0;i<pages.length;i++) {
+    const table=numberedPriceTable(pages[i])
+    if(table)pricePages.push({page:i+1,table})
+  }
+  if(!pricePages.length)return []
+  const usedPhotoPages=new Set(),out=[]
+  for(const entry of pricePages) {
+    if(out.length>=maxProducts)break
+    const options=[]
+    for(let page=Math.max(1,entry.page-3);page<=Math.min(pages.length,entry.page+3);page++){
+      const layout=layoutPages.get(page)
+      if(!layout)continue
+      const markers=photoBadgeIds(layout)
+      const matching=[...entry.table.keys()].filter(id=>markers.has(id))
+      if(matching.length<2)continue
+      const distance=Math.abs(page-entry.page)
+      // Supplier photo pages usually come before the item/price legend.
+      const score=matching.length*10-distance-(page>entry.page?.7:0)
+      options.push({page,matching,score})
+    }
+    options.sort((a,b)=>b.score-a.score || a.page-b.page)
+    const winner=options.find(x=>!usedPhotoPages.has(x.page))
+    const competitor=options.find(x=>x!==winner&&!usedPhotoPages.has(x.page))
+    if(!winner || (competitor && competitor.score>=winner.score-.2))continue
+    usedPhotoPages.add(winner.page)
+    for(const [id,price] of entry.table){
+      if(out.length>=maxProducts)break
+      // Never manufacture a product when the corresponding photo number is absent.
+      if(!winner.matching.includes(id))continue
+      const item=String(id).padStart(2,'0')
+      const description='Referência '+item+' da tabela na página '+entry.page+
+        '; número marcado na fotografia da página '+winner.page+
+        '. REVISÃO OBRIGATÓRIA: confirmar o produto e o recorte.'
+      out.push({
+        title:'Produto numerado · página '+winner.page+' · ref. '+item,
+        description,sku:'',category:'Geral',price,price_text:'R$ '+price.toFixed(2).replace('.',','),
+        currency:'BRL',images:[],properties:[],variants:[],source:'pdf',
+        source_url:'pdf://page/'+entry.page+'/reference/'+item,
+        external_id:'pdf-numbered-p'+entry.page+'-r'+item,
+        pdf_page:entry.page,pdf_photo_marker_page:winner.page,
+        pdf_item_number:id,pdf_numbered_reference:true,pdf_review_required:true,
+      })
+    }
+  }
+  return out
 }
