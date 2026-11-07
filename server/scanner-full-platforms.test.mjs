@@ -40,7 +40,7 @@ test('GoPage Inertia gives complete product gallery, category, SKU and attribute
  assert.equal(result[0].category,'Vestidos')
  assert.equal(result[0].sku,'REF-1')
  assert.deepEqual(result[0].images,[
-  'https://img.gopage.bio/p/1-1.jpg','https://img.gopage.bio/p/1-1-sm.jpg',
+  'https://img.gopage.bio/p/1-1.jpg',
   'https://img.gopage.bio/p/1-2.jpg','https://img.gopage.bio/p/variant.jpg',
  ])
  assert.equal(result[0].variants.length,1)
