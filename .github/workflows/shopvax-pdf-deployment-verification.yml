@@ -4,6 +4,8 @@ on:
     branches: [main]
     paths:
       - 'server/scanner-pdf-chunks.mjs'
+      - 'server/scanner-gopage.mjs'
+      - 'server/scanner-collector.mjs'
       - 'server/scanner-hooks.mjs'
       - 'server/app.mjs'
       - 'src/api.ts'
