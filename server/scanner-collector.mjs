@@ -5,7 +5,7 @@ import { isPublicAddress } from './network-egress-policy.mjs'
 export { isPublicAddress } from './network-egress-policy.mjs'
 import { gunzipSync } from 'node:zlib'
 import { load } from 'cheerio'
-import { detectStorefrontPlatform, extractFacilZapRuntime, facilZapProducts, parseVestiContext, vestiProducts, isZapFacilCatalogPage } from './scanner-platforms.mjs'
+import { detectStorefrontPlatform, extractFacilZapRuntime, facilZapProducts, extractFacilZapDetailProduct, parseVestiContext, vestiProducts, isZapFacilCatalogPage } from './scanner-platforms.mjs'
 import { collectDirectedSitemap, collectTrayPublic, parseVestiCompanyId, enrichVestiCandidate } from './scanner-platform-collectors.mjs'
 import { collectGopage } from './scanner-gopage.mjs'
 import { isAlexandreBijouxStorefront, collectAlexandreBijoux } from './scanner-alexandre-bijoux.mjs'
@@ -868,7 +868,7 @@ function mergeDetailIntoCandidate(candidate, detail) {
     ]).slice(0, 8)
     return variantImages.length ? { ...variant, images: variantImages } : variant
   })
-  return { ...candidate, images, variants }
+  return { ...candidate, description: candidate.description || detail.description || '', images, variants }
 }
 
 async function collectFacilZap(rootResponse, request, maxProducts, sink, onProgress) {
@@ -916,6 +916,11 @@ async function collectFacilZap(rootResponse, request, maxProducts, sink, onProgr
         const detailResponse = await request(detailUrl, { accept: 'text/html,application/xhtml+xml' })
         pagesScanned += 1
         if (!detailResponse.ok || !detailResponse.contentType.includes('html')) return candidate
+        const inlineDetail = extractFacilZapDetailProduct(detailResponse.body, detailResponse.url)
+        if (inlineDetail && inlineDetail.external_id &&
+            String(inlineDetail.external_id) === String(candidate.external_id)) {
+          return mergeDetailIntoCandidate(candidate, inlineDetail)
+        }
         const detailProducts = extractProductsFromHtml(detailResponse.body, detailResponse.url)
         const normalizedTitle = String(candidate.title || '').trim().toLowerCase()
         // Never borrow another product's photos if a storefront redirects a
