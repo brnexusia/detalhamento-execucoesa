@@ -10,6 +10,7 @@ import { parseNumberedLookbookPages, parseLookbookPhotoBands } from './scanner-p
 import { parseReferenceOnlyPdfProducts } from './scanner-pdf-review-fallback.mjs'
 import { parseNamedUnpricedPdfProducts } from './scanner-pdf-named-products.mjs'
 import { parseFashionPhotoPages } from './scanner-pdf-fashion-pages.mjs'
+import { isPaddleOcrSelected, paddleOcrImage } from './scanner-pdf-paddle.mjs'
 
 const run = promisify(execFile)
 export const MAX_PDF_BYTES = 100 * 1024 * 1024
@@ -350,7 +351,16 @@ export async function collectPdfCatalog(buffer, options = {}) {
       const prefix = path.join(dir, 'ocr-' + i)
       try {
         await command('pdftoppm', ['-f', String(i + 1), '-l', String(i + 1), '-scale-to', '1600', '-singlefile', '-gray', '-png', pdf, prefix], 25000, deadline)
-        const fallback = await command('tesseract', [prefix + '.png', 'stdout', '-l', 'por+eng'], 18000, deadline)
+        let fallback = ''
+        if (isPaddleOcrSelected()) {
+          try {
+            fallback = await paddleOcrImage(await readFile(prefix + '.png'), { deadline })
+            if (fallback) console.info('[pdf import] OCR page', i + 1, 'via PaddleOCR')
+          } catch (error) {
+            console.warn('[pdf import] PaddleOCR unavailable on page', i + 1, '- using Tesseract:', error.message)
+          }
+        }
+        if (!fallback) fallback = await command('tesseract', [prefix + '.png', 'stdout', '-l', 'por+eng'], 18000, deadline)
         if (fallback.trim()) {
           const existingText = pages[i] || ''
           const originalMatches = parsePdfCatalogText(existingText).candidates.length
