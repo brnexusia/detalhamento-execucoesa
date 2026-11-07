@@ -18,11 +18,18 @@ ou modelos de OCR em memória. O endpoint de upload em partes segue inalterado.
    candidatos, tenta localizar o nome de cada um e todos os preços em BRL.
    Apenas quando há correspondência única um-a-um e nenhum concorrente próximo
    o preço pode ser associado por proximidade na mesma coluna.
-3. **Fotografias em grade:** com imagem incorporada e nomes posicionados
+3. **Tabela numerada em outra página, sem quadro de cores:** quando o parser
+   normal não identifica produtos, procura linhas `01 R$ 12,50` e
+   `02 R$ 25,00` junto com pelo menos dois marcadores fotográficos distintos
+   na própria página ou até três páginas próximas. Cada conjunto numérico
+   pertence à sua própria página de tabela; referências 01 repetidas em outros
+   grupos nunca são mescladas. Se duas fotos competirem sem vencedor
+   único, nenhuma delas é vinculada automaticamente.
+4. **Fotografias em grade:** com imagem incorporada e nomes posicionados
    sob cada coluna, sugere um recorte acima do respectivo título, delimitando
    a coluna pelos vizinhos. Não inventa correspondência em páginas sem
    evidência geométrica.
-4. **Tesseract:** para páginas sem camada textual, usa a saída TSV (caixas
+5. **Tesseract:** para páginas sem camada textual, usa a saída TSV (caixas
    de cada palavra) e o parser BRL estrito existente. Valores como
    `R$ 1300` ou `R$ 12,0` seguem para revisão, nunca viram preços
    inferidos.
