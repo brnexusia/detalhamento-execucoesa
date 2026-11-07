@@ -77,3 +77,25 @@ for(const u of ['https://facilzap.app.br/damafinnalingerie','https://facilzap.co
  const r=await safeRequest(u,{timeout:15000})
  console.log('FACILZAP_BODY',JSON.stringify({url:u,len:r.body.length,prefix:r.body.slice(0,250),ending:r.body.slice(-300)}))
 }
+
+for(const u of ['https://meuestoque.catalogo.com.br/','https://meuestoque.catalogo.com.br/categoria/celulares-mRwey','https://meuestoque.catalogo.com.br/produto/ac-relogio-haylou-vibe-ls30-preto']){
+ try{
+  const r=await safeRequest(u,{timeout:15000})
+  const $=load(r.body); const obj=JSON.parse($('[data-page]').first().attr('data-page')||'{}'); const p=obj.props||{}
+  const products=p.productsList
+  const product=p.product
+  const entry=products?.data?.[0]||products?.products?.[0]||products?.[0]||product
+  const categories=p.categories?.data||p.categories
+  console.log('GOPAGE_PROPS',JSON.stringify({url:u,
+   productListType:typeof products,listKeys:Object.keys(products||{}).slice(0,30),
+   listCount:products?.data?.length||products?.products?.length||products?.length,
+   pagination:{current_page:products?.current_page,last_page:products?.last_page,
+    next_page_url:products?.next_page_url,total:products?.total,per_page:products?.per_page,
+    links:products?.links?.slice?.(-3)},
+   entryFields:Object.keys(entry||{}).slice(0,70),
+   entryImageFields:Object.fromEntries(Object.entries(entry||{}).filter(([k])=>/image|gallery|photo|media|variation|price|category|stock|slug|sku|reference/i.test(k)).map(([k,v])=>[k,Array.isArray(v)?{length:v.length,sampleKeys:Object.keys(v[0]||{}).slice(0,30)}:v&&typeof v==='object'?Object.keys(v).slice(0,35):String(v).slice(0,120)])),
+   categoriesType:typeof categories,categoriesCount:categories?.length||0,
+   categoriesFields:Object.keys(categories?.[0]||{}).slice(0,30),
+  }))
+ }catch(e){console.log('GOPAGE_PROPS',JSON.stringify({url:u,error:String(e.message).slice(0,300)}))}
+}
