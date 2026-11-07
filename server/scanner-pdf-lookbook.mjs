@@ -97,6 +97,96 @@ function groupPages(pages) {
  * across ALL consecutive board pages (not merely the first). A missing name
  * or corrupt price stays in review rather than becoming a guessed product.
  */
+/**
+ * Salvages item types when the supplier's "CORES DISPONÍVEIS" board on the
+ * expected page labels only some of the numbered accessories.
+ *
+ * This is NOT proof that the neighboring board belongs to the same look:
+ * the inferred type is a REVIEW suggestion, never a confirmed classification.
+ * We accept only boards whose printed numbered labels form a clean subset
+ * of the current price page references, with >=65% item coverage and >=2
+ * distinct matching IDs. Numbers remain scoped to the price page.
+ */
+export function suggestMissingLookbookTypes(candidates, rawPages) {
+  const pages = Array.isArray(rawPages) ? rawPages : String(rawPages || '').replace(/\r/g, '').split('\f')
+  const grouped = new Map()
+  for (const item of candidates) {
+    if (!Number.isInteger(item.pdf_page)) continue
+    const items = grouped.get(item.pdf_page) || []
+    items.push(item)
+    grouped.set(item.pdf_page, items)
+  }
+  const boards = []
+  for (let index = 0; index < pages.length; index++) {
+    if (!isBoard(pages[index])) continue
+    const board = labelsFromPage(pages[index])
+    boards.push({page:index+1, labels:board.labels, standalone:board.standalone})
+  }
+  let suggestions = 0
+  for (const [pricePage, items] of grouped) {
+    const ids = new Set(items.map(x=>x.pdf_item_number).filter(Number.isInteger))
+    const reviewItems = items.filter(x => /^Acessório para identificar\b/i.test(String(x.title||'')) &&
+      Number.isInteger(x.pdf_item_number))
+    if (!reviewItems.length || !ids.size) continue
+    const possibilities = boards.filter(b => Math.abs(b.page - pricePage) <= 3)
+      .map(board => {
+        const matched = [...board.labels.keys()].filter(id=>ids.has(id))
+        const extras = [...board.labels.keys()].filter(id=>!ids.has(id))
+        return {...board, matched, extras}
+      }).filter(board =>
+        board.extras.length === 0 &&
+        board.matched.length >= Math.max(2, Math.ceil(ids.size * .65)))
+      .sort((a,b)=>b.matched.length - a.matched.length ||
+        Math.abs(a.page-pricePage)-Math.abs(b.page-pricePage))
+    for (const item of reviewItems) {
+      const chosen = possibilities.find(board => {
+        const classes = board.labels.get(item.pdf_item_number)
+        return classes?.size === 1
+      })
+      let type = null
+      let sourcePage = null
+      if (chosen) {
+        const topCount = chosen.matched.length
+        // Do not select a type when another equally corroborated board
+        // contradicts it; the number 02 is reused throughout the catalog.
+        const choices = possibilities.filter(b =>
+          b.matched.length === topCount && b.labels.has(item.pdf_item_number))
+          .flatMap(b=>[...b.labels.get(item.pdf_item_number)])
+        if (new Set(choices).size === 1) {
+          type = [...chosen.labels.get(item.pdf_item_number)][0]
+          sourcePage = chosen.page
+        }
+      }
+      // One explicitly named but unnumbered supplier board next to a
+      // one-price photo is useful evidence (e.g. "BOLSA" next to R$ 140).
+      if (!type && ids.size === 1) {
+        const single = boards.filter(b =>
+          Math.abs(b.page-pricePage) === 1 &&
+          b.standalone.length === 1 && !b.labels.size)
+          .sort((a,b)=>Math.abs(a.page-pricePage)-Math.abs(b.page-pricePage))
+        if (single.length === 1) {
+          type = single[0].standalone[0]
+          sourcePage = single[0].page
+        }
+      }
+      if (!type) continue
+      item.title = String(item.title).replace(/^Acessório para identificar\b/i,type)
+      item.category = inferPdfProductCategory(type)
+      item.pdf_review_required = true
+      item.description = [
+        String(item.description||''),
+        'TIPO SUGERIDO: ' + type + ' por referência ' +
+          String(item.pdf_item_number).padStart(2,'0') +
+          ' no quadro da página ' + sourcePage +
+          '. REVISÃO OBRIGATÓRIA: confirmar se o quadro e a fotografia pertencem ao mesmo look.',
+      ].filter(Boolean).join(' ')
+      item.pdf_type_suggestion_page = sourcePage
+      suggestions++
+    }
+  }
+  return suggestions
+}
+
 export function parseNumberedLookbookPages(rawPages, maxProducts = 500) {
   const pages = Array.isArray(rawPages) ? rawPages : String(rawPages || '').replace(/\r/g, '').split('\f')
   const groups = groupPages(pages)
@@ -162,7 +252,8 @@ export function parseNumberedLookbookPages(rawPages, maxProducts = 500) {
       })
     }
   }
-  return { candidates, pagesScanned: pages.filter((page) => clean(page)).length, lookbook: true }
+  const typeSuggestions = suggestMissingLookbookTypes(candidates, pages)
+  return { candidates, pagesScanned: pages.filter((page) => clean(page)).length, lookbook: true, typeSuggestions }
 }
 function xml(raw) { return String(raw || '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'") }
 

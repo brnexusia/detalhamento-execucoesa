@@ -1,0 +1,44 @@
+name: memories-lookbook-type-recovery
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'server/scanner-pdf-lookbook.mjs'
+      - 'server/scanner-pdf-lookbook.test.mjs'
+      - 'server/scanner-pdf-neighbor-types.test.mjs'
+      - 'scripts/check-memories-lookbook-types.mjs'
+      - '.github/workflows/memories-lookbook-type-recovery.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'server/scanner-pdf-lookbook.mjs'
+      - 'server/scanner-pdf-lookbook.test.mjs'
+      - 'server/scanner-pdf-neighbor-types.test.mjs'
+      - 'scripts/check-memories-lookbook-types.mjs'
+jobs:
+  lookbook:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install PDF and Node dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends poppler-utils tesseract-ocr tesseract-ocr-por tesseract-ocr-eng util-linux
+          npm install --no-audit --no-fund
+          python -m pip install --quiet gdown==5.2.0
+      - name: Run neighbor-board and full scanner regressions
+        run: |
+          node --check server/scanner-pdf-lookbook.mjs
+          node --test server/scanner-pdf-neighbor-types.test.mjs
+          npm run test:scanner:pdf
+      - name: Fetch and verify original Memories Drop II, read-only
+        run: |
+          mkdir -p pdf-fixtures
+          gdown '1mfIq_z4snzKmKkXpQ5h20lttXXYW1eAD' -O pdf-fixtures/memories-drop-ii.pdf
+          printf '%s\n' 'f94852f2e23d0025eda099134d4d67d8b6a688fe0da0a72eec700ec09ad89bcc  pdf-fixtures/memories-drop-ii.pdf' | sha256sum --check
+      - name: Verify no lost references or altered prices and fourteen safe type suggestions
+        run: node scripts/check-memories-lookbook-types.mjs
