@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - 'server/scanner-pdf-lookbook.mjs'
+      - 'server/scanner-pdf-lookbook.test.mjs'
       - 'server/scanner-pdf-neighbor-types.test.mjs'
       - 'scripts/check-memories-lookbook-types.mjs'
       - '.github/workflows/memories-lookbook-type-recovery.yml'
@@ -11,6 +12,7 @@ on:
     branches: [main]
     paths:
       - 'server/scanner-pdf-lookbook.mjs'
+      - 'server/scanner-pdf-lookbook.test.mjs'
       - 'server/scanner-pdf-neighbor-types.test.mjs'
       - 'scripts/check-memories-lookbook-types.mjs'
 jobs:
