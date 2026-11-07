@@ -331,6 +331,15 @@ export const api = {
     }
   },
   discardImportJob: (jobId: string) => request<{ ok: true }>(`/api/admin/imports/${encodeURIComponent(jobId)}`, { method: 'DELETE' }),
+  previewAlexandreRecovery: (jobId: string) => request<{preview:{selected:number;preserved:number;missing:number;recoverable:boolean}}>(
+    `/api/admin/imports/${encodeURIComponent(jobId)}/recover-alexandre-preview`,
+  ),
+  recoverAlexandreImport: (jobId:string,expectedMissing:number) => request<{
+    recovered:number;preserved_originals:number;total_published:number;idempotent:boolean
+  }>(
+    `/api/admin/imports/${encodeURIComponent(jobId)}/recover-alexandre`,
+    {method:'POST',body:JSON.stringify({confirm:true,expectedMissing})},
+  ),
   recoverLegacyPdfImport: (jobId: string) => request<{ recovered: number; recategorized: number; preserved_originals: number; total_published: number; not_split_with_sku: number }>(
     `/api/admin/imports/${encodeURIComponent(jobId)}/recover-pdf`, { method: 'POST', body: '{}' },
   ),
