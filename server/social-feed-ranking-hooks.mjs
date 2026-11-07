@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import express from 'express'
 import pg from 'pg'
+import { ensureSocialDailyViews } from './social-daily-views-schema.mjs'
 
 const { Pool } = pg
 const databaseUrl = process.env.DATABASE_URL?.trim() || ''
@@ -70,6 +71,7 @@ function ensureSchema() {
         created_at timestamptz NOT NULL DEFAULT now()
       );
     `)
+    await ensureSocialDailyViews(pool)
   })().catch((error) => { schemaPromise = null; throw error })
   return schemaPromise
 }
@@ -156,7 +158,7 @@ async function rankedFeed(req, res) {
           WHEN COALESCE(pp.social_weight, CASE WHEN s.plan_tier='ouro' THEN 3 WHEN s.plan_tier='prata' THEN 2 ELSE 1 END) >= 2 THEN 'prata'
           ELSE 'bronze'
         END AS tier,
-        (SELECT COUNT(*)::int FROM social_post_views v WHERE v.product_id=p.id) AS social_views,
+        (SELECT COUNT(*)::int FROM social_post_daily_views v WHERE v.product_id=p.id) AS social_views,
         (SELECT COUNT(*)::int FROM social_post_likes l WHERE l.product_id=p.id) AS social_likes,
         (SELECT COUNT(*)::int FROM social_actions a WHERE a.product_id=p.id AND a.kind='share') AS social_shares,
         (SELECT COUNT(*)::int FROM social_store_follows f WHERE f.store_id=s.id) AS social_followers,
