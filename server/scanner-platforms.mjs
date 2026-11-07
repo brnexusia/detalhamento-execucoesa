@@ -381,7 +381,7 @@ export function facilZapProducts(payload, sourceUrl) {
  */
 export function extractFacilZapDetailProduct(html, sourceUrl) {
   const source=String(html || '')
-  const match=/\\b(?:const|let|var)\\s+DadosProduto\\s*=\\s*/.exec(source)
+  const match=/\b(?:const|let|var)\s+DadosProduto\s*=\s*/.exec(source)
   if(!match)return null
   const start=source.indexOf('{',match.index+match[0].length)
   if(start<0 || start-match.index>15)return null
@@ -390,7 +390,7 @@ export function extractFacilZapDetailProduct(html, sourceUrl) {
     const char=source[i]
     if(quoted){
       if(escaped)escaped=false
-      else if(char==='\\\\')escaped=true
+      else if(char==='\\')escaped=true
       else if(char==='"')quoted=false
       continue
     }
