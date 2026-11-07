@@ -375,6 +375,35 @@ export function facilZapProducts(payload, sourceUrl) {
 }
 
 
+/**
+ * FácilZap product pages expose a plain JSON object via `DadosProduto`.
+ * Parse the balanced object only (no evaluation of arbitrary JavaScript).
+ */
+export function extractFacilZapDetailProduct(html, sourceUrl) {
+  const source=String(html || '')
+  const match=/\\b(?:const|let|var)\\s+DadosProduto\\s*=\\s*/.exec(source)
+  if(!match)return null
+  const start=source.indexOf('{',match.index+match[0].length)
+  if(start<0 || start-match.index>15)return null
+  let depth=0, quoted=false, escaped=false, end=-1
+  for(let i=start;i<source.length && i<start+2_000_000;i++){
+    const char=source[i]
+    if(quoted){
+      if(escaped)escaped=false
+      else if(char==='\\\\')escaped=true
+      else if(char==='"')quoted=false
+      continue
+    }
+    if(char==='"'){quoted=true;continue}
+    if(char==='{')depth++
+    else if(char==='}'){depth--;if(depth===0){end=i+1;break}}
+  }
+  if(end<0)return null
+  let payload
+  try{payload=JSON.parse(source.slice(start,end))}catch{return null}
+  return facilZapProducts({produtos:[payload]},sourceUrl).products[0] || null
+}
+
 export function parseVestiContext(sourceUrl, html = '') {
   let url
   try { url = new URL(sourceUrl) } catch { return null }
