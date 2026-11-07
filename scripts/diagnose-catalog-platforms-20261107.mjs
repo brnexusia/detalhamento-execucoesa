@@ -25,3 +25,55 @@ for (const entry of targets){
   }))
  } catch(e){console.info('PLATFORM_DIAG',JSON.stringify({label:entry.label,error:String(e?.message||e).slice(0,300)}))}
 }
+
+
+function outline(value,prefix='',depth=0,rows=[]) {
+ if(depth>5||rows.length>=80 || value==null)return rows
+ if(Array.isArray(value)) {
+  if(value.length)rows.push({path:prefix,length:value.length,sampleKeys:Object.keys(value[0]&&typeof value[0]==='object'?value[0]:{}).slice(0,22)})
+  if(value.length && typeof value[0]==='object')outline(value[0],prefix+'[0]',depth+1,rows)
+  return rows
+ }
+ if(typeof value!=='object')return rows
+ for(const [key,entry] of Object.entries(value)){
+  if(/product|categor|item|page|pagination|catalog|meta|collection|data|links|groups/i.test(key)) {
+    rows.push({path:prefix+'.'+key,type:Array.isArray(entry)?'array':typeof entry,
+      length:Array.isArray(entry)?entry.length:undefined,
+      keys:entry&&typeof entry==='object'&&!Array.isArray(entry)?Object.keys(entry).slice(0,18):undefined})
+  }
+  if(entry&&typeof entry==='object'&&rows.length<80)outline(entry,prefix+'.'+key,depth+1,rows)
+ }
+ return rows
+}
+for(const url of [
+ 'https://meuestoque.catalogo.com.br/',
+ 'https://meuestoque.catalogo.com.br/categoria/celulares-mRwey',
+ 'https://meuestoque.catalogo.com.br/produto/ac-relogio-haylou-vibe-ls30-preto',
+]){
+ try{
+  const r=await safeRequest(url,{timeout:20000})
+  const $=load(r.body)
+  const node=$('[data-page]').first()
+  let obj=null
+  try{obj=JSON.parse(node.attr('data-page')||'null')}catch{}
+  console.log('INERTIA_DIAG',JSON.stringify({url,status:r.status,found:Boolean(obj),
+    length:node.attr('data-page')?.length,propsKeys:Object.keys(obj?.props||{}),
+    paths:outline(obj?.props||{}).slice(0,70)}))
+ } catch(e){console.log('INERTIA_DIAG',JSON.stringify({url,error:String(e.message)}))}
+}
+for(const page of [1,2]){
+ const url='https://apivesti.vesti.mobi/appmarca/v2/catalogue/3d65968050c8488/company/l2m/?page='+page+'&perpage=60&with_categories=true&with_colors=true&with_product_colors=true&with_sizes=true&with_brands=true&with_prices=true&with_tags=1'
+ try{
+  const r=await safeRequest(url,{accept:'application/json',timeout:15000})
+  const obj=JSON.parse(r.body)
+  console.log('VESTI_API_DIAG',JSON.stringify({page,status:r.status,length:r.body.length,keys:Object.keys(obj),
+   products:Array.isArray(obj.products)?obj.products.length:null,
+   links:obj.links,meta:obj.meta,
+   sampleFields:Array.isArray(obj.products)?Object.keys(obj.products[0]||{}).slice(0,40):[],
+  }))
+ }catch(e){console.log('VESTI_API_DIAG',JSON.stringify({page,error:String(e.message).slice(0,300)}))}
+}
+for(const u of ['https://facilzap.app.br/damafinnalingerie','https://facilzap.com.br/centralbrasatacado']){
+ const r=await safeRequest(u,{timeout:15000})
+ console.log('FACILZAP_BODY',JSON.stringify({url:u,len:r.body.length,prefix:r.body.slice(0,250),ending:r.body.slice(-300)}))
+}
