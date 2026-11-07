@@ -161,7 +161,7 @@ export async function collectGopage(rootResponse, request, maxProducts, maxPages
  const starts=[rootResponse.url]
  if(!/\/produto\//i.test(new URL(rootResponse.url).pathname) && categories.length)starts.push(...categories)
  const visited=new Set()
- let pagesScanned=0, listingPages=0, expectedOnRoot=null, detailFailures=0, listingFailures=0
+ let pagesScanned=0, listingPages=0, expectedOnRoot=null, detailFailures=0, listingFailures=0, lastListingExhausted=false
  for(const start of starts){
   if(start!==rootResponse.url && expectedOnRoot!=null && sink.count>=expectedOnRoot)break
   if(sink.count>=maxProducts || listingPages>=maxPages)break
@@ -208,8 +208,8 @@ export async function collectGopage(rootResponse, request, maxProducts, maxPages
    })
    await sink.push(enriched)
    await onProgress({progress:Math.min(90,15+Math.floor(Math.log2(page+1)*8)),pagesScanned,candidates:sink.count,platform:'gopage'})
-   if(!pagination?.hasMore || !batch.length)break
-   if(pagination.totalPages && page>=pagination.totalPages)break
+   if(!pagination?.hasMore || !batch.length){ lastListingExhausted=true; break }
+   if(pagination.totalPages && page>=pagination.totalPages){lastListingExhausted=true;break}
    page++
   }
  }
@@ -219,7 +219,11 @@ export async function collectGopage(rootResponse, request, maxProducts, maxPages
    throw new Error('GoPage: importação parcial. Encontrados '+sink.count+' de '+expectedOnRoot+' produtos públicos.')
  }
  await sink.flush()
+ const catalogComplete = expectedOnRoot != null ? sink.count>=expectedOnRoot : lastListingExhausted
+ const warnings=[]
+ if(!catalogComplete)warnings.push('A vitrine não confirmou que todos os produtos foram recuperados.')
+ if(detailFailures)warnings.push(detailFailures+' páginas de detalhes indisponíveis')
  return {candidateCount:sink.count,pagesScanned,expectedProducts:expectedOnRoot,
-  complete:listingFailures===0 && detailFailures===0 && listingPages<maxPages,
-  warnings:detailFailures?[detailFailures+' páginas de detalhes indisponíveis']:[]}
+  complete:catalogComplete && listingFailures===0 && detailFailures===0,
+  warnings}
 }
