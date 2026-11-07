@@ -352,15 +352,18 @@ export async function collectPdfCatalog(buffer, options = {}) {
       try {
         await command('pdftoppm', ['-f', String(i + 1), '-l', String(i + 1), '-scale-to', '1600', '-singlefile', '-gray', '-png', pdf, prefix], 25000, deadline)
         let fallback = ''
+        let paddleCompleted = false
         if (isPaddleOcrSelected()) {
           try {
             fallback = await paddleOcrImage(await readFile(prefix + '.png'), { deadline })
+            paddleCompleted = true
             if (fallback) console.info('[pdf import] OCR page', i + 1, 'via PaddleOCR')
           } catch (error) {
             console.warn('[pdf import] PaddleOCR unavailable on page', i + 1, '- using Tesseract:', error.message)
           }
         }
-        if (!fallback) fallback = await command('tesseract', [prefix + '.png', 'stdout', '-l', 'por+eng'], 18000, deadline)
+        // A valid empty Paddle result is not a failure; avoid OCRing empty photo pages twice.
+        if (!paddleCompleted) fallback = await command('tesseract', [prefix + '.png', 'stdout', '-l', 'por+eng'], 18000, deadline)
         if (fallback.trim()) {
           const existingText = pages[i] || ''
           const originalMatches = parsePdfCatalogText(existingText).candidates.length
