@@ -1,75 +1,53 @@
-# PaddleOCR no importador PDF — instalação experimental
+# Importador PDF — PaddleOCR no mesmo serviço do Atacado Shop
 
-O Atacado Shop continua extraindo a camada de texto nativa do PDF com Poppler.
-Para páginas digitalizadas cuja leitura de texto precisa de OCR, o scanner pode
-chamar o **PaddleOCR PP-OCRv6 Small (CPU)** em um serviço interno. Se o serviço
-estiver indisponível, o Tesseract original continua funcionando.
+O contêiner principal instala PaddlePaddle 3.2.0 (CPU), PaddleOCR 3.7.0
+(PP-OCRv6 Small), Poppler e Tesseract. **Não crie outro serviço no EasyPanel**.
+Não é preciso informar URL, token, porta pública nem segredo para o OCR.
 
-## 1. Publicar um serviço privado no EasyPanel
+## Funcionamento
 
-Usar o MESMO repositório, mas com o caminho de Dockerfile `Dockerfile.paddle-ocr`
-para criar um **serviço de OCR distinto**, sem domínio público. Porta interna:
-`8088`. O contêiner instala PaddlePaddle CPU 3.2.0 e PaddleOCR 3.7.0;
-na primeira inicialização poderá baixar os modelos oficiais e consumir mais
-memória. Evite colocá-lo no serviço web atual.
+- O scanner continua lendo texto nativo com Poppler, sem executar OCR quando
+  os produtos já são recuperados da camada textual do PDF.
+- Quando OCR é necessário, o próprio contêiner inicia automaticamente um
+  processo Python interno na interface **127.0.0.1:8088**, sem exposição pública.
+- O Python carrega os modelos uma vez e atende as páginas sequencialmente.
+- Se o processo PaddleOCR estiver indisponível, a importação volta para o
+  **Tesseract** de forma automática; nenhum produto é publicado sem revisão.
+- O modelo é baixado para a imagem **durante o build do Docker**, para que a
+  aplicação não dependa de baixar os pesos na primeira importação.
 
-Configurar a variável do serviço PaddleOCR:
+## Ativação e rollback
 
-```env
-PDF_OCR_SHARED_SECRET=<segredo-aleatorio-de-pelo-menos-16-caracteres>
-PDF_OCR_PORT=8088
-```
-
-O segredo deve ser longo e gerado aleatoriamente. Não versionar segredos.
-O serviço usa uma requisição por vez para limitar concorrência. Limitar CPU
-no EasyPanel (por exemplo 0,5–1 vCPU inicialmente, ajustando por métricas) e
-monitorar RAM, tempo de fila, latência do site e erros.
-
-## 2. Configurar o serviço web/API
-
-Adicionar variáveis ao SERVIÇO WEB (não no navegador):
+Ao publicar a `main` com o Dockerfile padrão do projeto, PaddleOCR estará
+ligado por padrão. Para forçar o Tesseract e desabilitar o processo Python,
+defina na aplicação:
 
 ```env
-PDF_OCR_ENGINE=paddle
-PDF_OCR_SERVICE_URL=http://NOME_INTERNO_DO_SERVICO:8088
-PDF_OCR_SHARED_SECRET=<mesmo-segredo-do-servico-paddle>
+PDF_OCR_ENGINE=tesseract
 ```
 
-Substituir `NOME_INTERNO_DO_SERVICO` pelo host DNS privado real da rede do
-EasyPanel. Usar rede privada; não expor a porta 8088 ao público. O serviço
-aceita apenas requisições com o segredo. Reiniciar o serviço web após ajustar
-as variáveis.
+Para voltar ao Paddle, remova a variável ou defina
+`PDF_OCR_ENGINE=paddle` e refaça o deploy/reinicie o serviço.
 
-Para desativar/reverter imediatamente: `PDF_OCR_ENGINE=tesseract` ou remover
-`PDF_OCR_ENGINE`. A versão antiga do OCR permanece instalada no contêiner web.
-Se o serviço PaddleOCR falhar ou devolver texto vazio, o scanner utiliza
-Tesseract como fallback (registrado nos logs).
+Não mantenha antigas variáveis `PDF_OCR_SERVICE_URL` e
+`PDF_OCR_SHARED_SECRET`; elas não são utilizadas no desenho de contêiner
+único. `PDF_OCR_PORT` pode ser alterada somente para outro valor de porta
+interna, mas normalmente não é necessária.
 
-## 3. Testar
+## Testes
 
 - `node --test server/scanner-pdf-paddle.test.mjs`
 - `npm run test:scanner:pdf`
-- Fazer upload de um catálogo **digitalizado ou imagem-only**; arquivos com
-  camada de texto confiável passam direto pelo Poppler, sem acionar OCR.
-- Verificar nos logs web: `[pdf import] OCR page ... via PaddleOCR`.
-- Comparar identificação de nome e preço, duração, CPU, RAM e contagem total
-  com o modo `PDF_OCR_ENGINE=tesseract`, sem alterar produtos publicados.
+- Após o build, no log de importação de uma página escaneada, confira
+  `[pdf import] OCR page <n> via PaddleOCR`.
+- Importar um PDF com texto nativo **não testa** o novo motor; compare também
+  um PDF digitalizado ou baseado em imagem.
+- Compare saída, tempo total, picos de CPU e memória com
+  `PDF_OCR_ENGINE=tesseract`.
 
-**Limitação importante:** este teste integra o motor de OCR ao fallback de
-páginas escaneadas. Ele NÃO substitui o parser de catálogos numerados,
-NÃO implementa PaddleDetection / PP-StructureV3 nem associa automaticamente
-fotografias a nomes e preços em layouts ambíguos. Isso exige um segundo módulo
-de layout/associação validado por páginas e coordenadas. Também preserva o
-comportamento atual de pular páginas exclusivamente fotográficas em
-catálogos mistos para evitar falsos produtos.
-
-## Segurança e isolamento
-
-- O endpoint aceita até 8 MiB de PNG e opera em instância de OCR independente.
-- Não exponha o serviço PaddleOCR via proxy público e nunca informe seu token
-  no frontend.
-- O worker espera modelos inicializados antes de servir; o primeiro boot pode
-  ser demorado se os downloads oficiais estiverem lentos.
-- A importação continua sujeita aos limites de páginas, tempo e extração já
-  existentes no projeto; habilitar OCR mais robusto NÃO garante precisão
-  comercial de 100% em catálogos sem informações suficientes.
+**Limites:** a alteração integra o motor de OCR ao processo de importação,
+mas não instala o PP-StructureV3/PaddleDetection nem resolve automaticamente
+a associação de foto, nome e preço em layouts ambíguos. A extração de imagens
+com Poppler/Sharp segue o processo existente. O PaddleOCR dentro do mesmo
+contêiner também concorre pela CPU/RAM da aplicação principal, conforme a
+decisão de arquitetura adotada para simplificar a operação.
