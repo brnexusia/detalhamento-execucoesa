@@ -774,7 +774,7 @@ async function collectShopify(rootUrl, request, maxProducts, sink, onProgress) {
     let payload
     try { payload = JSON.parse(response.body) } catch { break }
     const products = Array.isArray(payload?.products) ? payload.products : []
-    if (!products.length) break
+    if (!products.length) { exhausted = true; break }
 
     const signature = `${products[0]?.id || products[0]?.handle || ''}|${products.at(-1)?.id || products.at(-1)?.handle || ''}|${products.length}`
     if (pageSignatures.has(signature)) throw new Error('Vesti: a API repetiu uma página de produtos; importação incompleta.')
@@ -877,6 +877,7 @@ async function collectFacilZap(rootResponse, request, maxProducts, sink, onProgr
   const seenPages = new Set()
   let pagesScanned = 1
   let page = 1
+  let exhausted = false
   while (sink.count < maxProducts) {
     const category = Number(runtime.categoria || 0) > 0 ? String(runtime.categoria) : 'todas'
     const endpoint = String(runtime.urlCarregarProdutosTemplate)
@@ -900,7 +901,7 @@ async function collectFacilZap(rootResponse, request, maxProducts, sink, onProgr
     let payload
     try { payload = JSON.parse(response.body || '{}') } catch { throw new Error('O FácilZap retornou uma página de catálogo em formato inesperado.') }
     const mapped = facilZapProducts(payload, rootResponse.url)
-    if (mapped.end) break
+    if (mapped.end) { exhausted = true; break }
     const signature = mapped.products.map((product) => product.external_id || product.source_url || product.title).join('|')
     if (!signature) throw new Error('FácilZap: a página ' + page + ' não contém identificadores reconhecíveis.')
     if (seenPages.has(signature))
@@ -929,7 +930,7 @@ async function collectFacilZap(rootResponse, request, maxProducts, sink, onProgr
     page += 1
   }
   await sink.flush()
-  return { candidateCount: sink.count, pagesScanned }
+  return { candidateCount: sink.count, pagesScanned, complete: exhausted, warnings: exhausted ? [] : ['Limite de produtos atingido antes de confirmar a última página do FácilZap.'] }
 }
 
 async function collectVesti(rootResponse, request, maxProducts, sink, onProgress) {
@@ -938,6 +939,7 @@ async function collectVesti(rootResponse, request, maxProducts, sink, onProgress
   const companyId = parseVestiCompanyId(rootResponse.body)
   const pageSignatures = new Set()
   let pagesScanned = 1
+  let exhausted = false
 
   for (let page = 1; sink.count < maxProducts; page += 1) {
     const endpoint = new URL(`https://apivesti.vesti.mobi/appmarca/v2/catalogue/${encodeURIComponent(context.catalogId)}/company/${encodeURIComponent(context.schemeUrl)}/`)
@@ -993,10 +995,10 @@ async function collectVesti(rootResponse, request, maxProducts, sink, onProgress
     const totalPages = Number(pageMeta.last_page ?? pageMeta.total_pages)
     const hasMore = Boolean(payload?.links?.next || payload?.next_page_url) ||
       (Number.isInteger(totalPages) && totalPages>page)
-    if (!hasMore) break
+    if (!hasMore) { exhausted = true; break }
   }
   await sink.flush()
-  return { candidateCount: sink.count, pagesScanned }
+  return { candidateCount: sink.count, pagesScanned, complete: exhausted, warnings: exhausted ? [] : ['Limite de produtos atingido antes da última página do Vesti.'] }
 }
 
 async function mapLimit(values, limit, mapper) {
@@ -1174,7 +1176,7 @@ export async function collectCatalog(sourceUrl, options = {}) {
   if (platform === 'facilzap') {
     try {
       const result = await collectFacilZap(rootResponse, request, maxProducts, sink, onProgress)
-      if (result.candidateCount) return { platform, pagesScanned: result.pagesScanned, candidateCount: sink.count, candidates: sink.candidates }
+      if (result.candidateCount) return { platform, pagesScanned: result.pagesScanned, candidateCount: sink.count, candidates: sink.candidates, complete: result.complete, warnings: result.warnings }
     } catch (error) {
       if (sink.count > 0 || options.strictPlatformAdapters) throw error
       // Generic discovery remains possible only when the platform adapter
