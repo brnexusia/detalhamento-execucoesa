@@ -95,3 +95,30 @@ test('real multi-product PDF connects per-column photo/price to title, never to 
  assert.ok(result.candidates.every(x=>x.pdf_review_required===true))
  assert.ok(result.candidates.every(x=>x.pdf_image_match_method==='above_label_proximity'))
 })
+
+test('generic detached numbered photo pages link to price pages without a CORES DISPONÍVEIS board', {timeout:60000}, async()=>{
+ const art=await makeImage(100,150,200,750,1100)
+ const pdf=await pdfFrom(doc=>{
+   doc.addPage().image(art,20,45,{width:760,height:1150})
+   doc.fontSize(30).text('1',210,240).text('2',580,650)
+   doc.addPage().fontSize(27).text('01 R$ 12,50',80,500)
+   doc.text('02 R$ 25,00',80,555)
+   doc.addPage().image(art,20,45,{width:760,height:1150})
+   doc.fontSize(30).text('1',210,240).text('2',580,650)
+   doc.addPage().fontSize(27).text('01 R$ 35,00',80,500)
+   doc.text('02 R$ 49,90',80,555)
+ })
+ const imported=await collectPdfCatalog(pdf,{
+  onImage:async(bytes,mime,filename)=>{
+   assert.equal(mime,'image/webp')
+   assert.ok(bytes.length>100)
+   return '/media/'+crypto.randomUUID()
+  },
+ })
+ assert.equal(imported.candidates.length,4)
+ assert.deepEqual(imported.candidates.map(x=>x.price),[12.5,25,35,49.9])
+ assert.deepEqual(imported.candidates.map(x=>x.pdf_photo_marker_page),[1,1,3,3])
+ assert.ok(imported.candidates.every(x=>x.images.length===1))
+ assert.ok(imported.candidates.every(x=>x.pdf_review_required===true))
+ assert.ok(imported.candidates.every(x=>x.pdf_image_match_method==='number_marker'))
+})
