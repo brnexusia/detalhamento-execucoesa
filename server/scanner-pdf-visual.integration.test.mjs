@@ -50,6 +50,7 @@ test('real multi-page numbered catalog links photo badge 02 to price 02 while pr
  })
  assert.equal(parsed.candidates.length,3)
  const [first,second,other]=parsed.candidates
+ console.info('NUMBERED_DEBUG',JSON.stringify(parsed.candidates.map(x=>({title:x.title,price:x.price,page:x.pdf_page,detail:x.pdf_detail_page,images:x.images.length,method:x.pdf_image_match_method,item:x.pdf_item_number}))))
  assert.deepEqual(parsed.candidates.map(x=>x.price),[15,44,19])
  assert.equal(second.pdf_item_number,2)
  assert.equal(second.pdf_page,2)
