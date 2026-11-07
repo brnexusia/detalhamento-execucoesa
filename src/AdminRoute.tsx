@@ -31,7 +31,8 @@ export default function AdminRoute() {
 
   useEffect(() => {
     let live = true
-    setBillingGate('checking')
+    // Revalidate on navigation without replacing the current panel with an
+    // intermediate billing screen. Initial mount still waits for server authorization.
     apiRequest<{ required: boolean; accessGranted: boolean }>('/api/billing/status')
       .then((result) => { if (live) setBillingGate(!result.required || result.accessGranted ? 'paid' : 'payment') })
       .catch((error: Error & { status?: number }) => {
@@ -49,7 +50,9 @@ export default function AdminRoute() {
   const subscription = path === '/painel/assinatura' || path.startsWith('/painel/assinatura/')
   // Não renderizar nem montar módulos do painel antes da confirmação no servidor.
   // A tela de pagamento fica acessível mesmo sem assinatura ativa.
-  if (billingGate === 'checking') return <div className="svx-billing" role="status"><p>Verificando o pagamento da assinatura…</p></div>
+  // During the first load, keep the protected panel unmounted until the
+  // backend confirms access; do not flash a full-screen payment verification.
+  if (billingGate === 'checking') return null
   if (billingGate === 'anonymous') return <RedirectTo path="/entrar" />
   if (billingGate === 'unavailable') return <section className="svx-billing" role="alert"><h1>Não foi possível confirmar a assinatura.</h1><p>Por segurança, o painel permanece bloqueado até que a verificação funcione.</p><button type="button" onClick={() => setRevision(x => x + 1)}>Verificar novamente</button></section>
   if (billingGate === 'payment' && !subscription) return <RedirectTo path="/painel/assinatura" />
