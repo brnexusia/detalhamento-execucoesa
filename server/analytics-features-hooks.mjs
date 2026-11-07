@@ -7,7 +7,6 @@ const databaseUrl = process.env.DATABASE_URL?.trim() || ''
 const pool = databaseUrl ? new Pool({ connectionString: databaseUrl, max: 8, connectionTimeoutMillis: 5000 }) : null
 const sessionCookie = 'atacado_session'
 const visitorCookie = 'atacado_public'
-const dailyZone = 'America/Sao_Paulo'
 const allowedKinds = new Set(['access', 'product_view', 'product_click', 'cart_add', 'checkout_start', 'whatsapp_click'])
 
 if (pool) pool.on('error', (error) => console.error('[analytics features] pool:', error.message))
@@ -49,7 +48,7 @@ function visitorKey(req, res) {
   return hash(`visitor:${token}`).slice(0, 40)
 }
 
-async function ensureSchema() {
+export async function ensureSchema() {
   if (!pool) throw new Error('DATABASE_URL não configurada.')
   await pool.query(`
     CREATE TABLE IF NOT EXISTS intent_events (
@@ -109,7 +108,7 @@ async function requireStore(req, res, next) {
   } catch (error) { next(error) }
 }
 
-async function recordEvents(events) {
+export async function recordEvents(events) {
   const rows = events.filter((event) => event?.storeId && allowedKinds.has(event?.kind))
   if (!rows.length) return
   const values = []
