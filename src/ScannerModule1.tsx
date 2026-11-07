@@ -240,6 +240,14 @@ export default function ScannerModule1() {
     setError('')
     setSuccess('')
     try {
+      if (sourceMode === 'site') {
+        let submittedHost=''
+        try { submittedHost=new URL(url.trim()).hostname.toLowerCase() } catch { /* API validates malformed URLs */ }
+        if (submittedHost === 'alexandrebijoux.com.br' || submittedHost === 'www.alexandrebijoux.com.br') {
+          setUrl('https://bijouxalexandre.com.br')
+          throw new Error('O endereço estava invertido: alexandrebijoux.com.br. Corrigi o campo para bijouxalexandre.com.br. Confira e clique em Escanear loja novamente.')
+        }
+      }
       if (sourceMode === 'pdf' && (!pdfFile || pdfFile.size > 100 * 1024 * 1024)) {
         throw new Error('Selecione um PDF válido de até 100 MB.')
       }
@@ -488,6 +496,13 @@ export default function ScannerModule1() {
             {jobs.slice(0, 5).map((job) => <article key={job.id}>
               <div><strong>{job.source_host}</strong><small>{jobDetails(job)}</small>{job.status === 'failed' && job.error && <small className="scanner-job-error">{job.error}</small>}</div>
               <div className="scanner-job-actions">
+                {job.status === 'failed' && ['alexandrebijoux.com.br', 'www.alexandrebijoux.com.br'].includes(job.source_host) &&
+                  <button type="button" className="scanner-review-open" onClick={() => {
+                    setSourceMode('site')
+                    setUrl('https://bijouxalexandre.com.br')
+                    setError('')
+                    setSuccess('O link correto foi preenchido. Clique em Escanear loja para iniciar uma nova revisão.')
+                  }}>Corrigir endereço</button>}
                 {job.status === 'review' && <button type="button" className="scanner-review-open" onClick={() => void openReview(job)}>Revisar</button>}
                 {job.status === 'completed' && job.platform === 'alexandre-bijoux' &&
                   job.selected_count > (job.published_count || 0) + (job.skipped_existing_count || 0) &&
