@@ -9,6 +9,11 @@ on:
       - 'server/social-feed-ranking-hooks.mjs'
       - 'server/analytics-features-hooks.mjs'
       - 'server/daily-unique-views.integration.mjs'
+      - 'server/metrics-hooks.mjs'
+      - 'server/metrics-hooks.test.mjs'
+      - 'src/real-user-performance.ts'
+      - 'src/main.tsx'
+      - 'src/api.ts'
       - '.github/workflows/validate-daily-unique-views.yml'
   workflow_dispatch:
 permissions:
@@ -41,4 +46,5 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: node --check server/social-daily-views-schema.mjs && node --check server/analytics-features-hooks.mjs && node --check server/social-network-hooks.mjs
       - run: node --test server/daily-unique-views.integration.mjs
+      - run: node --test server/metrics-hooks.test.mjs
       - run: npm run build
