@@ -111,29 +111,53 @@ async function previewJob(req, res) {
   const mode = pdfMode(String(req.query.mode || ''), job.platform)
   if (!mode) return res.status(400).json({ error: 'Modo de importação inválido.' })
   const selected = await pool.query(
-    `SELECT id,COALESCE(review_data,normalized_data) AS data FROM import_normalized_products
-     WHERE job_id=$1 AND store_id=$2 AND selected=true ORDER BY id ASC`,
+    `SELECT n.id,COALESCE(n.review_data,n.normalized_data) AS data,
+       c.raw_data->>'external_id' AS external_id
+     FROM import_normalized_products n
+     LEFT JOIN import_candidates c ON c.id=n.source_candidate_id
+     WHERE n.job_id=$1 AND n.store_id=$2 AND n.selected=true ORDER BY n.id ASC`,
     [job.id, store.store_id],
   )
-  const preview = previewPdfPublishGroups(selected.rows, mode)
+  const preview = job.platform === 'alexandre-bijoux'
+    ? (() => {
+        const groups = new Set(selected.rows.map((row) =>
+          importPublishGroupHash(row.data, {
+            sourcePlatform: 'alexandre-bijoux',
+            externalId: row.external_id,
+          })))
+        return {
+          mode: 'separate', selected_count: selected.rows.length,
+          publication_count: groups.size,
+          grouped_count: selected.rows.length - groups.size,
+          examples: [],
+        }
+      })()
+    : previewPdfPublishGroups(selected.rows, mode)
   res.json({ preview, job: { id: job.id, platform: job.platform } })
 }
 
-async function assignPublishGroups(client, jobId, storeId, pdfSeparate = false) {
+async function assignPublishGroups(client, jobId, storeId, pdfSeparate = false, sourcePlatform = '') {
   let cursorId = ''
   while (true) {
     const result = await client.query(
-      `SELECT id,COALESCE(review_data,normalized_data) AS data
-       FROM import_normalized_products
-       WHERE job_id=$1 AND store_id=$2 AND selected=true AND id>$3
-       ORDER BY id ASC
+      `SELECT n.id,COALESCE(n.review_data,n.normalized_data) AS data,
+         c.raw_data->>'external_id' AS external_id
+       FROM import_normalized_products n
+       LEFT JOIN import_candidates c ON c.id=n.source_candidate_id
+       WHERE n.job_id=$1 AND n.store_id=$2 AND n.selected=true AND n.id>$3
+       ORDER BY n.id ASC
        LIMIT $4
-       FOR UPDATE`,
+       FOR UPDATE OF n`,
       [jobId, storeId, cursorId, PUBLISH_BATCH_SIZE],
     )
     if (!result.rowCount) break
 
-    const updates = result.rows.map((row) => ({ id: row.id, group_key: importPublishGroupHash(row.data, { pdfSeparate, rowId: row.id }) }))
+    const updates = result.rows.map((row) => ({
+      id: row.id,
+      group_key: importPublishGroupHash(row.data, {
+        pdfSeparate, rowId: row.id, sourcePlatform, externalId: row.external_id,
+      }),
+    }))
     await client.query(
       `UPDATE import_normalized_products p
        SET publish_group_key=x.group_key,updated_at=now()
@@ -331,7 +355,7 @@ async function publishJob(req, res) {
       await client.query('ROLLBACK')
       return res.status(400).json({ error: 'Modo de importação inválido.' })
     }
-    await assignPublishGroups(client, job.id, store.store_id, job.platform === 'pdf' && mode === 'separate')
+    await assignPublishGroups(client, job.id, store.store_id, job.platform === 'pdf' && mode === 'separate', job.platform)
 
     const groupCountResult = await client.query(
       `SELECT count(DISTINCT publish_group_key)::int AS count
@@ -340,6 +364,14 @@ async function publishJob(req, res) {
       [job.id, store.store_id],
     )
     const selectedParentCount = Number(groupCountResult.rows[0]?.count || 0)
+    // A 1,308-item Alexandre catalog must never silently collapse into
+    // 88 products again because dozens share a generic title and price.
+    if (job.platform === 'alexandre-bijoux' && selectedParentCount !== Number(job.selected_count || 0)) {
+      await client.query('ROLLBACK')
+      return res.status(409).json({
+        error: 'A publicação do Alexandre agrupou itens distintos. Nenhum produto foi gravado: revise as identidades e tente novamente.',
+      })
+    }
     if (!selectedParentCount) {
       await client.query('ROLLBACK')
       return res.status(400).json({ error: 'Nenhum produto válido está selecionado para importação.' })
