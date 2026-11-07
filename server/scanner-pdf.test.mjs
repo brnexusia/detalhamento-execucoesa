@@ -271,3 +271,53 @@ test('PDF parser preserves cents when prices use dot decimals', () => {
   assert.equal(result.candidates.length, 1)
   assert.equal(result.candidates[0].price, 49.9)
 })
+
+
+test('regression: retail kit totals are not product prices, and steps retain names', () => {
+  const text = [
+    'Kit Brilho 300 g',
+    'Shampoo Hidratante 300ml R$ 13,93',
+    'Mascara Hidratante 300g R$ 16,53',
+    'TOTAL: R$ 30,46',
+    'Nano Reconstrutor Antiemborrachamento',
+    '(passo 1) 365ml R$ 43,85',
+    'Mascara Acidificante Ultra Emoliente',
+    '(passo 2) 365g R$ 21,71',
+    'TOTAL: R$ 65,56',
+  ].join('\n')
+  const p = parsePdfCatalogText(text)
+  assert.deepEqual(p.candidates.map(row => [row.title,row.price]),[
+    ['Shampoo Hidratante 300ml',13.93],
+    ['Mascara Hidratante 300g',16.53],
+    ['Nano Reconstrutor Antiemborrachamento 365ml',43.85],
+    ['Mascara Acidificante Ultra Emoliente 365g',21.71],
+  ])
+})
+
+test('regression: polo catalog imports models, not customization extras', () => {
+  const pages = [
+    'Camiseta\nPOLO DRYPOLO\nAcabamento resistente\n71,90\nR$\nMinimo de 10 pecas\nNome personalizado: R$10\nPatch Bordado Sublimado: R$10\nManga longa: R$ 10',
+    'Camiseta\nPOLO BABYLOOKPOLO\n71,90\nR$\nNome personalizado: R$10',
+    'Camiseta\nPOLO VPOLO\n67,90\nNome personalizado: R$10',
+    'POLO ESTILOS\nHORIZONTALPOLO\n76,90\nNome personalizado em DTF: R$10',
+    'POLO ESTILOS\nTRADICIONALPOLO\n72,90\nNome personalizado em DTF: R$10',
+    'POLO ESTILOS\nLATERALPOLO\n74,90\nNome personalizado em DTF: R$10',
+  ]
+  const result=parsePdfCatalogText(pages.join('\f'))
+  assert.deepEqual(result.candidates.map(row=>[row.title,row.price]),[
+    ['Camiseta POLO DRY',71.9],['Camiseta POLO BABYLOOK',71.9],
+    ['Camiseta POLO V',67.9],['POLO ESTILOS HORIZONTAL',76.9],
+    ['POLO ESTILOS TRADICIONAL',72.9],['POLO ESTILOS LATERAL',74.9],
+  ])
+})
+
+test('regression: social usernames cannot contaminate imported product names',()=>{
+  const result=parsePdfCatalogText([
+    'Lançamento de acessórios',
+    'Broche Cereja R$ 10,00@marcaficticia.oficial',
+    'Broche Joaninha R$ 13,00@marcaficticia.oficial',
+  ].join('\n'))
+  assert.deepEqual(result.candidates.map(p=>[p.title,p.price]),[
+    ['Broche Cereja',10],['Broche Joaninha',13],
+  ])
+})
