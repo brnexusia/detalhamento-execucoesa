@@ -76,9 +76,15 @@ export function numberedPhotoRegions(candidates, layoutPages, imagePages = null)
     const images=imagePages?.get(page)||[]
     if(imagePages && !images.some(x=>x.kind==='image'&&x.width>=220&&x.height>=220))continue
     const ids=new Set(items.map(x=>x.pdf_item_number))
+    // Some numbered bracelets sit immediately above the printed price footer.
+    // Instead of dropping all lower-page badges, exclude the ACTUAL R$ table
+    // rows by their Y coordinate. This prevents price row "04" being a marker.
+    const priceRowY=layout.lines.filter(line=>/(?:R\s*\$|BRL)/i.test(line.text))
+      .map(line=>line.cy)
     const markers=layout.words.filter(word=>
-      word.cy<layout.height*.83 && word.cy>layout.height*.035 &&
-      ids.has(numberOnWord(word.text)))
+      word.cy<layout.height*.90 && word.cy>layout.height*.035 &&
+      ids.has(numberOnWord(word.text)) &&
+      priceRowY.every(y=>Math.abs(word.cy-y)>Math.max(12,layout.height*.012)))
     const counts=new Map()
     for(const mark of markers){
       const n=numberOnWord(mark.text)
