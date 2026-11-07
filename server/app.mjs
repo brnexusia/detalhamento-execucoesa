@@ -357,9 +357,35 @@ app.get('/shopvax-ui-version.json', (_req, res) => {
   return res.json(packagedUiVersion)
 })
 
-app.get('/health', (_req, res) =>
+let paddleHealthCache = { checkedAt: 0, ready: false }
+async function paddleHealth() {
+  if (String(process.env.PDF_OCR_ENGINE ?? 'paddle').toLowerCase() !== 'paddle') {
+    return { engine: 'tesseract', ready: false }
+  }
+  const now = Date.now()
+  if (now - paddleHealthCache.checkedAt > 10_000) {
+    const port = Number(process.env.PDF_OCR_PORT || 8088)
+    let ready = false
+    if (Number.isSafeInteger(port) && port >= 1024 && port <= 65535) {
+      try {
+        const response = await fetch('http://127.0.0.1:' + port + '/health', {
+          signal: AbortSignal.timeout(1200),
+        })
+        if (response.ok) {
+          const body = await response.json()
+          ready = body?.ok === true && body?.engine === 'paddleocr'
+        }
+      } catch {}
+    }
+    paddleHealthCache = { checkedAt: Date.now(), ready }
+  }
+  return { engine: 'paddle', ready: paddleHealthCache.ready }
+}
+
+app.get('/health', asyncRoute(async (_req, res) =>
   res.json({
     ok: true,
+    paddleOCR: await paddleHealth(),
     database: dbReady,
     databaseError: dbReady ? null : 'unavailable',
     storage: dbReady ? 'postgres' : 'unavailable',
@@ -369,7 +395,7 @@ app.get('/health', (_req, res) =>
     uiRevision: packagedUiVersion?.revision || null,
     uiFingerprint: packagedUiVersion?.sourceFingerprint || null,
   }),
-)
+))
 
 app.get(
   '/media/:assetId',
