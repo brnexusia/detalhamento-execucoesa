@@ -47,9 +47,9 @@ test('conflicting price labels must be reviewed instead of inventing a single va
 })
 
 test('reassembles real duplicated two-line fashion title without guessing from a single occurrence',()=>{
-  const wrapped='Tecido: Crepinho\\nTecido: Crepinho\\nTam: unico\\nTam: unico\\n'+
-    'Valor: R$ 100,00\\nValor: R$ 100,00\\n'+
-    'Conjunto Noelle\\nCherry\\nConjunto Noelle\\nCherry\\nCores:\\nCores:'
+  const wrapped='Tecido: Crepinho\nTecido: Crepinho\nTam: unico\nTam: unico\n'+
+    'Valor: R$ 100,00\nValor: R$ 100,00\n'+
+    'Conjunto Noelle\nCherry\nConjunto Noelle\nCherry\nCores:\nCores:'
   const pages=[sample('Calça Dominique','60,00'),sample('Blusa Dominique','50,00'),
     wrapped,wrapped,sample('Shorts Eva','45,00','Cetim')]
   const parsed=parseFashionPhotoPages(pages)
