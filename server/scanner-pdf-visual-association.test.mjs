@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { parseTesseractTsv } from './scanner-pdf-tesseract.mjs'
 import {
   parsePdfVisualGeometry,numberedPhotoRegions,
-  associateNativePricesByProximity,proximityPhotoRegions,
+  associateNativePricesByProximity,proximityPhotoRegions,parseNumberedReferenceFallback,
 } from './scanner-pdf-visual-association.mjs'
 
 const word=(text,x,y,w=70,h=24)=>'<word xMin="'+x+'" yMin="'+y+'" xMax="'+(x+w)+'" yMax="'+(y+h)+'">'+text+'</word>'
@@ -121,4 +121,33 @@ test('badge 04 just above price footer is retained, footer number 04 itself is n
  assert.deepEqual(matched.map(x=>x.candidate.pdf_item_number),[1,2,3,4])
  assert.equal(matched[3].page,1)
  assert.ok(matched[3].rect.bottom<=1440*.88)
+})
+
+test('separate photo pages and price legends link by exact numbers scoped to each look',()=>{
+ const layouts=parsePdfVisualGeometry(
+  page(line(word('1',250,200)),line(word('2',420,450)),line(word('3',550,700)))+
+  page(line(word('01',60,300),word('R$',130,300),word('12,50',200,300)))+
+  page(line(word('1',200,250)),line(word('2',490,500)))+
+  page(line(word('01',60,300),word('R$',130,300),word('35,00',200,300)))
+ )
+ const raw=[
+  '1\n2\n3',
+  '01 R$ 12,50\n02 R$ 23,00\n03 R$ 39,00',
+  '1\n2',
+  '01 R$ 35,00\n02 R$ 49,90',
+ ]
+ const result=parseNumberedReferenceFallback(raw,layouts)
+ assert.deepEqual(result.map(x=>[x.pdf_page,x.pdf_photo_marker_page,x.pdf_item_number,x.price]),[
+  [2,1,1,12.5],[2,1,2,23],[2,1,3,39],
+  [4,3,1,35],[4,3,2,49.9],
+ ])
+ assert.ok(result.every(x=>x.pdf_review_required===true&&x.pdf_numbered_reference===true))
+ assert.equal(new Set(result.map(x=>x.external_id)).size,result.length)
+})
+test('rejects uncorroborated numeric price lists without a matching photo page',()=>{
+ const raw=['Sem fotos numeradas','01 R$ 12,50\n02 R$ 29,90']
+ const layouts=parsePdfVisualGeometry(page(line(word('COLEÇÃO',30,60)))+
+  page(line(word('01',50,400),word('R$',130,400),word('12,50',200,400)),
+    line(word('02',50,450),word('R$',130,450),word('29,90',200,450))))
+ assert.deepEqual(parseNumberedReferenceFallback(raw,layouts),[])
 })
