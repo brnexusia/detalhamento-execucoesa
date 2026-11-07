@@ -1,0 +1,35 @@
+name: paddle-ocr-bridge-smoke
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'server/scanner-pdf-paddle.mjs'
+      - 'server/scanner-pdf-paddle.test.mjs'
+      - 'server/paddle-ocr-service.py'
+      - 'server/scanner-pdf.mjs'
+      - 'Dockerfile.paddle-ocr'
+      - '.github/workflows/paddle-ocr-smoke.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'server/scanner-pdf-paddle.mjs'
+      - 'server/scanner-pdf-paddle.test.mjs'
+      - 'server/paddle-ocr-service.py'
+      - 'server/scanner-pdf.mjs'
+      - 'Dockerfile.paddle-ocr'
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate JavaScript syntax
+        run: |
+          node --check server/scanner-pdf-paddle.mjs
+          node --check server/scanner-pdf.mjs
+      - name: Validate Python syntax
+        run: python3 -m py_compile server/paddle-ocr-service.py
+      - name: PaddleOCR bridge contracts
+        run: node --test server/scanner-pdf-paddle.test.mjs
