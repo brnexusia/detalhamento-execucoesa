@@ -19,7 +19,14 @@ await mkdir('artifacts/paddle-pdfs',{recursive:true})
 const tests=[]
 for(const item of benchmarks){
   const start=performance.now()
-  const bytes=await readFile('pdf-fixtures/'+item.file)
+  let bytes
+  try { bytes=await readFile('pdf-fixtures/'+item.file) }
+  catch (error) {
+    const unavailable={name:item.name,status:'not_available_private_source',expected:item.expected,reason:'Original Look Premium PDF is not publicly shared for CI. No source permission changes or publication.'}
+    tests.push(unavailable)
+    console.info('PDF_RESULT',JSON.stringify(unavailable))
+    continue
+  }
   const hash=createHash('sha256').update(bytes).digest('hex')
   if(hash!==item.sha){console.error('MISMATCH_HASH',item.name,hash);tests.push({...item,status:'invalid_download',sha_actual:hash});continue}
   let ocrPages=0,fallbacks=0,photos=0,photoBytes=0,progress=0
