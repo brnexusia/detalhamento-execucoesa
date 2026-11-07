@@ -11,7 +11,7 @@ const results=[]
 for(const site of sites) {
  const start=Date.now()
  let withImage=0,withPrice=0,withVariation=0,withSku=0,withCategory=0,withDescription=0,photos=0,variants=0
- const uniqueIds=new Set(),invalidIds=[]
+ const uniqueIds=new Set(),invalidIds=[],withoutImages=[],withoutDescription=[],withoutPrice=[]
  let lastPage=0,done=false,candidateCount=0
  try{
   const got=await collectCatalog(site.url,{
@@ -24,11 +24,14 @@ for(const site of sites) {
      if(!id || uniqueIds.has(id))invalidIds.push(id)
      else uniqueIds.add(id)
      if(x.images?.length){withImage++;photos+=x.images.length}
+     else if(withoutImages.length<30)withoutImages.push({id:x.external_id,title:x.title,url:x.source_url})
      if(Number(x.price)>0)withPrice++
+     else if(withoutPrice.length<15)withoutPrice.push({id:x.external_id,title:x.title})
      if(x.variants?.length){withVariation++;variants+=x.variants.length}
      if(x.sku)withSku++
      if(x.category)withCategory++
      if(x.description)withDescription++
+     else if(withoutDescription.length<20)withoutDescription.push({id:x.external_id,title:x.title})
     }
    },
   })
@@ -42,7 +45,7 @@ for(const site of sites) {
    withPrice,withImage,photos,withSku,withCategory,withDescription,withVariation,variants,
    duplicateIds:invalidIds.length,pagesScanned:got.pagesScanned,
    durationSeconds:Math.round((Date.now()-start)/100)/10,
-   warnings:got.warnings||[],
+   warnings:got.warnings||[],withoutImages,withoutDescription,withoutPrice,
   }
   results.push(report)
   console.info('FULL_SITE_RESULT',JSON.stringify(report))
