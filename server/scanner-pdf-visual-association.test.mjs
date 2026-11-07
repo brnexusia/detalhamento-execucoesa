@@ -50,8 +50,7 @@ test('duplicate marker on same page is ambiguous; never crop or invent match',()
    line(word('2',200,320))))
  const candidates=[1,2].map(id=>({pdf_lookbook:true,pdf_page:1,pdf_item_number:id,images:[]}))
  const got=numberedPhotoRegions(candidates,g)
- assert.equal(got.length,1)
- assert.equal(got[0].candidate.pdf_item_number,2)
+ assert.equal(got.length,0,'ambiguous numbered photo page is held for manual review')
 })
 
 test('match right-column price to right-column product regardless of reading order',()=>{
