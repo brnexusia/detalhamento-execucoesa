@@ -1,0 +1,38 @@
+name: upload-diagnostics-smoke
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/api.ts'
+      - 'server/app.mjs'
+      - 'server/scanner-hooks.mjs'
+      - 'server/upload-request-logging.mjs'
+      - 'server/upload-request-logging.test.mjs'
+      - '.github/workflows/upload-diagnostics-smoke.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/api.ts'
+      - 'server/app.mjs'
+      - 'server/scanner-hooks.mjs'
+      - 'server/upload-request-logging.mjs'
+      - 'server/upload-request-logging.test.mjs'
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check backend syntax
+        run: |
+          node --check server/app.mjs
+          node --check server/scanner-hooks.mjs
+          node --check server/upload-request-logging.mjs
+      - name: Test upload request telemetry
+        run: node --test server/upload-request-logging.test.mjs
+      - name: Build frontend with differentiated upload messages
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
