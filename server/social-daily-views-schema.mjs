@@ -40,13 +40,13 @@ async function migrate(pool) {
       );
       CREATE INDEX IF NOT EXISTS idx_social_daily_views_store
         ON social_post_daily_views(store_id,view_day DESC);
-      CREATE TABLE IF NOT EXISTS shopvax_schema_migrations (
+      CREATE TABLE IF NOT EXISTS shopvax_social_view_migrations (
         key text PRIMARY KEY,
         applied_at timestamptz NOT NULL DEFAULT now()
       );
     `)
     const marker = await client.query(
-      'SELECT key FROM shopvax_schema_migrations WHERE key=$1',
+      'SELECT key FROM shopvax_social_view_migrations WHERE key=$1',
       ['social_post_daily_views_backfill_v1'],
     )
     if (!marker.rowCount) {
@@ -62,7 +62,7 @@ async function migrate(pool) {
         ON CONFLICT (product_id,visitor_key,view_day) DO NOTHING
       `)
       await client.query(
-        'INSERT INTO shopvax_schema_migrations (key) VALUES ($1) ON CONFLICT DO NOTHING',
+        'INSERT INTO shopvax_social_view_migrations (key) VALUES ($1) ON CONFLICT DO NOTHING',
         ['social_post_daily_views_backfill_v1'],
       )
     }
