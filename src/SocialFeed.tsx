@@ -147,6 +147,7 @@ const SocialPostCard = memo(function SocialPostCard({ post, cartCount, active, s
   const cardRef = useRef<HTMLElement | null>(null)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const viewed = useRef(false)
+  const liking = useRef(false)
   const [interactions, setInteractions] = useState(post.interactions)
   useEffect(() => {
     setInteractions((current) => ({ ...current, following: post.interactions.following, followers: post.interactions.followers }))
@@ -198,9 +199,26 @@ const SocialPostCard = memo(function SocialPostCard({ post, cartCount, active, s
   }, [post.id, active, saveData])
 
   const like = async () => {
-    const response = await fetch(`/api/social/posts/${post.id}/like`, { method: 'POST' })
-    const body = await response.json().catch(() => null)
-    if (response.ok && body) setInteractions((current) => ({ ...current, liked: body.liked, likes: body.likes }))
+    if (liking.current) return
+    liking.current = true
+    const previous = { liked: interactions.liked, likes: interactions.likes }
+    // Reversible optimistic UI only for likes (never for payments or stock).
+    setInteractions((current) => ({
+      ...current,
+      liked: !current.liked,
+      likes: Math.max(0, current.likes + (current.liked ? -1 : 1)),
+    }))
+    try {
+      const response = await fetch(`/api/social/posts/${post.id}/like`, { method: 'POST' })
+      const body = await response.json().catch(() => null)
+      if (!response.ok || typeof body?.liked !== 'boolean' || !Number.isFinite(Number(body?.likes))) throw new Error('like-unconfirmed')
+      setInteractions((current) => ({ ...current, liked: body.liked, likes: Number(body.likes) }))
+    } catch {
+      setInteractions((current) => ({ ...current, ...previous }))
+      showToast('Não foi possível atualizar a curtida. Tente novamente.', 'error')
+    } finally {
+      liking.current = false
+    }
   }
 
   const share = async () => {
