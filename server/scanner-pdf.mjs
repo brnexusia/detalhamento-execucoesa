@@ -9,6 +9,7 @@ import { inferPdfProductCategory } from './scanner-pdf-category.mjs'
 import { parseNumberedLookbookPages, parseLookbookPhotoBands } from './scanner-pdf-lookbook.mjs'
 import { parseReferenceOnlyPdfProducts } from './scanner-pdf-review-fallback.mjs'
 import { parseNamedUnpricedPdfProducts } from './scanner-pdf-named-products.mjs'
+import { parseFashionPhotoPages } from './scanner-pdf-fashion-pages.mjs'
 
 const run = promisify(execFile)
 export const MAX_PDF_BYTES = 100 * 1024 * 1024
@@ -149,6 +150,8 @@ export function parsePdfCatalogText(pdfText, maxPages = MAX_PDF_PAGES) {
   const pages = String(pdfText || '').replace(/\r/g, '').split('\f').slice(0, maxPages)
   const lookbook = parseNumberedLookbookPages(pages, MAX_PRODUCTS)
   if (lookbook) return lookbook
+  const fashion=parseFashionPhotoPages(pages,MAX_PRODUCTS)
+  if (fashion) return fashion
   const candidates = []
   for (let index = 0; index < pages.length; index += 1) {
     const products = pageCandidates(pages[index], index + 1)
@@ -414,7 +417,8 @@ export async function collectPdfCatalog(buffer, options = {}) {
           // 75 price pages in a 166-page PDF). Never borrow an image from a
           // page containing another product or other readable text.
           const photoPages = [candidate.pdf_page]
-          for (let next = candidate.pdf_page + 1; next <= totalPages && photoPages.length < MAX_PHOTO_PAGES_PER_PRODUCT; next += 1) {
+          for (let next = candidate.pdf_page + 1; !candidate.pdf_fashion_lookbook &&
+            next <= totalPages && photoPages.length < MAX_PHOTO_PAGES_PER_PRODUCT; next += 1) {
             if (pageCounts.has(next) || (pages[next - 1] || '').trim()) break
             photoPages.push(next)
           }
