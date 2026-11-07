@@ -37,6 +37,7 @@ function platformLabel(value: string) {
   if (value === 'nuvemshop') return 'Nuvemshop'
   if (value === 'lojaintegrada') return 'Loja Integrada'
   if (value === 'tray') return 'Tray'
+  if (value === 'alexandre-bijoux') return 'Alexandre Bijoux'
   if (value === 'pdf') return 'Catálogo PDF'
   if (value === 'google-photos') return 'Google Fotos'
   if (value === 'image-link') return 'Link de imagem'
@@ -45,6 +46,9 @@ function platformLabel(value: string) {
 }
 
 function jobDetails(job: ImportJob) {
+  if (job.status === 'completed' && job.platform === 'alexandre-bijoux') {
+    return `Alexandre Bijoux · ${job.published_count ?? 0} cadastrado(s) de ${job.selected_count} selecionado(s)`
+  }
   if (job.status === 'completed' && job.platform === 'pdf') {
     return `Catálogo PDF · ${job.published_count ?? 0} produto(s) cadastrado(s) de ${job.selected_count} selecionado(s)`
   }
@@ -303,6 +307,32 @@ export default function ScannerModule1() {
     }
   }
 
+  const recoverAlexandre = async (job: ImportJob) => {
+    setRecoveringId(job.id)
+    setError('')
+    setSuccess('')
+    try {
+      const { preview } = await api.previewAlexandreRecovery(job.id)
+      if (!preview.recoverable) {
+        setSuccess(`Catálogo já está associado corretamente: ${preview.selected} produtos.`)
+        return
+      }
+      if (!await confirmAction(
+        `A importação de Alexandre Bijoux publicou ${preview.preserved} registros, mas contém ${preview.selected} peças distintas.\\n\\n` +
+        `Deseja recuperar ${preview.missing} peças? Os ${preview.preserved} produtos existentes e seus IDs serão preservados.\\n\\n` +
+        'A operação será transacional e interrompida se houver fotos sem armazenamento interno ou limite do plano.',
+      )) return
+      const result=await api.recoverAlexandreImport(job.id,preview.missing)
+      setSuccess(`Alexandre corrigido: ${result.recovered} peças recuperadas. Total vinculado: ${result.total_published} produtos.`)
+      window.dispatchEvent(new Event('shopvax:catalog-changed'))
+      await loadJobs()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível recuperar os produtos do Alexandre.')
+    } finally {
+      setRecoveringId(null)
+    }
+  }
+
   const openReview = async (job: ImportJob) => {
     activeReviewJobId.current = job.id
     reviewRequestSequence.current += 1
@@ -459,6 +489,12 @@ export default function ScannerModule1() {
               <div><strong>{job.source_host}</strong><small>{jobDetails(job)}</small>{job.status === 'failed' && job.error && <small className="scanner-job-error">{job.error}</small>}</div>
               <div className="scanner-job-actions">
                 {job.status === 'review' && <button type="button" className="scanner-review-open" onClick={() => void openReview(job)}>Revisar</button>}
+                {job.status === 'completed' && job.platform === 'alexandre-bijoux' &&
+                  job.selected_count > (job.published_count || 0) + (job.skipped_existing_count || 0) &&
+                  <button type="button" className="scanner-review-open" disabled={recoveringId === job.id}
+                    onClick={() => void recoverAlexandre(job)}>
+                    {recoveringId === job.id ? 'Verificando / recuperando…' : 'Recuperar peças agrupadas'}
+                  </button>}
                 {job.status === 'completed' && job.platform === 'pdf' && !job.publish_mode && job.selected_count > (job.published_count || 0) + (job.skipped_existing_count || 0) &&
                   <button type="button" className="scanner-review-open" disabled={recoveringId === job.id} onClick={() => void recoverLegacyPdf(job)}>
                     {recoveringId === job.id ? 'Recuperando…' : 'Recuperar peças agrupadas'}

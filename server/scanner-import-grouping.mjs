@@ -176,7 +176,18 @@ export function mergeImportParentProducts(values) {
 /** PDF row identities are deliberately page-specific in individual mode.
  * Website import grouping remains unchanged for product variants.
  */
-export function importPublishGroupHash(data, { pdfSeparate = false, rowId = '' } = {}) {
+export function importPublishGroupHash(data, {
+  pdfSeparate = false, rowId = '', sourcePlatform = '', externalId = '',
+} = {}) {
+  if (sourcePlatform === 'alexandre-bijoux') {
+    // Alexandre has hundreds of distinct pieces with identical generic titles,
+    // prices and store-root URLs. External product ID is the sole safe identity.
+    const identity = text(externalId, 200)
+    if (!identity) throw new Error('Alexandre Bijoux: peça sem ID de origem. Publicação bloqueada para evitar fusão de produtos.')
+    const url = canonicalImportProductUrl(data?.source_url)
+    const origin = url ? new URL(url).origin.toLowerCase() : 'alexandre-bijoux'
+    return crypto.createHash('sha256').update('alexandre-item:' + origin + ':' + identity).digest('hex')
+  }
   if (pdfSeparate) {
     const identity = String(rowId || data?.source_url || '').trim()
     if (!identity) throw new Error('Identidade da peça do PDF ausente.')
