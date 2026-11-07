@@ -62,7 +62,7 @@ function rectAroundMarker(marker, layout, siblings) {
  * Same-page printed product number -> reference -> price item from lookbook.
  * Never join repeated 01/02 across price pages / looks; use exact page + ID.
  */
-export function numberedPhotoRegions(candidates, layoutPages, imagePages = new Map()) {
+export function numberedPhotoRegions(candidates, layoutPages, imagePages = null) {
   const groups=new Map()
   for(const c of candidates){
     if(!c.pdf_lookbook || c.images?.length || !Number.isInteger(c.pdf_item_number) || !Number.isInteger(c.pdf_page))continue
@@ -73,8 +73,8 @@ export function numberedPhotoRegions(candidates, layoutPages, imagePages = new M
   for(const [page,items] of groups){
     const layout=layoutPages.get(page)
     if(!layout)continue
-    const images=imagePages.get(page)||[]
-    if(!images.some(x=>x.kind==='image'&&x.width>=220&&x.height>=220))continue
+    const images=imagePages?.get(page)||[]
+    if(imagePages && !images.some(x=>x.kind==='image'&&x.width>=220&&x.height>=220))continue
     const ids=new Set(items.map(x=>x.pdf_item_number))
     const markers=layout.words.filter(word=>
       word.cy<layout.height*.83 && word.cy>layout.height*.035 &&
