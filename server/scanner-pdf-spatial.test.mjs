@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { associateOcrProducts, parseBrazilianPrice } from './scanner-pdf-spatial.mjs'
+import { associateOcrProducts, parseBrazilianPrice, sanitizeAmbiguousOcrPrices } from './scanner-pdf-spatial.mjs'
 
 function ocr(...lines) {
   return { text: lines.map((line) => line.text).join('\n'), lines }
@@ -103,4 +103,20 @@ test('ignores low confidence text boxes and invalid coordinates', () => {
     { text: 'Produto: Blusa Lua', score: 0.9, box: [10, 40, 20] },
   ), 4)
   assert.deepEqual(found, [])
+})
+
+test('ambiguous OCR prices are masked before any legacy PDF price parser', () => {
+  const input = [
+    'Vestido Luz R$ 1300',
+    'Blusa Florença R$ 12,0',
+    'Calça Milano R$ 1.234,56',
+    'Bermuda Áurea R$ 49.90',
+    'Saia Lua R$ 12,50.',
+  ].join('\n')
+  const output = sanitizeAmbiguousOcrPrices(input)
+  assert.match(output, /Vestido Luz PREÇO OCR AMBÍGUO/)
+  assert.match(output, /Blusa Florença PREÇO OCR AMBÍGUO/)
+  assert.match(output, /Calça Milano R\$ 1\.234,56/)
+  assert.match(output, /Bermuda Áurea R\$ 49\.90/)
+  assert.match(output, /Saia Lua R\$ 12,50\./)
 })
