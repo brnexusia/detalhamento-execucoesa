@@ -128,3 +128,58 @@ test('Vesti loads every advertised page, even after the first group of products'
  assert.deepEqual(got.candidates.map(x=>x.title),['Camisa A','Camisa B'])
  assert.ok(seen.some(x=>x.includes('page=2')))
 })
+
+
+test('FácilZap walks every POST page until explicit sem_mais_produtos without duplicating variants',async()=>{
+ const base='https://facilzap.app.br/testshop'
+ const route=base+'/carregar_produtos/{PAGE}/{CATEGORY}/123'
+ const html='<html><script>window.FZCatalogoRuntime.listagem = '+
+  JSON.stringify({urlCarregarProdutosTemplate:route,categoria:0,searchId:''})+';</script></html>'
+ const requests=[]
+ const request=async(input,options={})=>{
+  const u=String(input);requests.push({u,method:options.method||'GET'})
+  if(u===base)return {ok:true,status:200,url:u,contentType:'text/html',body:html}
+  const page=Number(/carregar_produtos\/(\d+)\//.exec(u)?.[1])
+  if(page){
+   const payload=page===3?{acao:'sem_mais_produtos'}:
+    {produtos:[{id:page,nome:'Peça '+page,preco:'49,90',
+      imagens:['produtos/'+page+'.webp'],
+      variacoes:{['v'+page]:{id:'v'+page,nome:'Azul M',preco:'49,90'}}}]}
+   return {ok:true,status:200,url:u,contentType:'application/json',body:JSON.stringify(payload)}
+  }
+  return {ok:false,status:404,url:u,contentType:'text/plain',body:''}
+ }
+ const result=await collectCatalog(base,{request,strictPlatformAdapters:true})
+ assert.equal(result.platform,'facilzap')
+ assert.equal(result.candidateCount,2)
+ assert.equal(result.complete,true)
+ assert.deepEqual(result.candidates.map(x=>x.external_id),['1','2'])
+ assert.ok(result.candidates.every(x=>x.images.length>0))
+ assert.ok(result.candidates.every(x=>x.variants.length===1))
+ assert.equal(requests.filter(x=>x.method==='POST').length,3)
+})
+
+test('FácilZap treats repeated first page as incomplete, not successful import',async()=>{
+ const base='https://facilzap.app.br/again'
+ const route=base+'/carregar_produtos/{PAGE}/{CATEGORY}/123'
+ const html='<html><script>window.FZCatalogoRuntime.listagem = '+
+  JSON.stringify({urlCarregarProdutosTemplate:route,categoria:0})+';</script></html>'
+ const request=async(input,options={})=>{
+  const u=String(input)
+  if(u===base)return {ok:true,status:200,url:u,contentType:'text/html',body:html}
+  if(u.includes('/carregar_produtos/'))return {ok:true,status:200,url:u,contentType:'application/json',
+    body:JSON.stringify({produtos:[{id:1,nome:'Peça repetida',preco:'10,00'}]})}
+  return {ok:false,status:404,url:u,contentType:'text/plain',body:''}
+ }
+ await assert.rejects(collectCatalog(base,{request,strictPlatformAdapters:true}),/repetiu a página/i)
+})
+
+test('bounded scan transparently reports a partial catalog instead of reporting total completion',async()=>{
+ const first=page([product(1),product(2)],1,6,true)
+ const second=page([product(3),product(4)],2,6,true)
+ const network=mock({[origin+'/']:markup(first),[origin+'/?page=2']:markup(second)})
+ const res=await collectCatalog(origin+'/',{request:network.request,maxPages:1,strictPlatformAdapters:true})
+ assert.equal(res.candidateCount,2)
+ assert.equal(res.expectedProducts,6)
+ assert.equal(res.complete,false)
+})
