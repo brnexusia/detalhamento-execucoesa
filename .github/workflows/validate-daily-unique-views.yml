@@ -1,0 +1,44 @@
+name: validate-daily-unique-views
+on:
+  push:
+    branches: [feat/daily-unique-views-performance-20261107]
+    paths:
+      - 'server/social-daily-views-schema.mjs'
+      - 'server/social-network-hooks.mjs'
+      - 'server/social-analytics-hooks.mjs'
+      - 'server/social-feed-ranking-hooks.mjs'
+      - 'server/analytics-features-hooks.mjs'
+      - 'server/daily-unique-views.integration.mjs'
+      - '.github/workflows/validate-daily-unique-views.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  unique-views:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: shopvax_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d shopvax_test"
+          --health-interval 5s --health-timeout 3s --health-retries 15
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/shopvax_test
+      NODE_ENV: test
+      SHOPVAX_SECURITY_RATE_LIMIT_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - run: node --check server/social-daily-views-schema.mjs && node --check server/analytics-features-hooks.mjs && node --check server/social-network-hooks.mjs
+      - run: node --test server/daily-unique-views.integration.mjs
+      - run: npm run build
