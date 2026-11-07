@@ -421,7 +421,7 @@ export async function processNormalizationJob(jobId, normalizer = normalizeCandi
           const normalized = product.normalized || {}
           if (!normalized.images?.length && !warnings.includes('missing_image')) warnings.push('missing_image')
           if (/^(?:Geral|Outros)$/i.test(String(normalized.category || original?.category || '')) && !warnings.includes('uncertain_category')) warnings.push('uncertain_category')
-          if (/REVISÃO OBRIGATÓRIA/i.test(String(original?.description || '')) && !warnings.includes('manual_review')) warnings.push('manual_review')
+          if ((original?.pdf_review_required === true || /REVISÃO OBRIGATÓRIA/i.test(String(original?.description || ''))) && !warnings.includes('manual_review')) warnings.push('manual_review')
         }
         return {
           id: id(),
@@ -436,7 +436,7 @@ export async function processNormalizationJob(jobId, normalizer = normalizeCandi
           // before publication, even when prices and images appear complete.
           // Simple named product PDFs keep the previous selection behavior.
           selected: warnings.length === 0 && job.platform !== 'whatsapp' && !(job.platform === 'pdf' &&
-            String(sourceById.get(product.source_candidate_id)?.external_id || '').startsWith('pdf-lookbook-')),
+            /^pdf-(?:lookbook|fashion)-/.test(String(sourceById.get(product.source_candidate_id)?.external_id || ''))),
         }
       })
       if (rows.length) {
