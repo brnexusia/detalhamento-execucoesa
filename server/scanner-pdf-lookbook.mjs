@@ -69,7 +69,12 @@ function groupPages(pages) {
     const money = pricesFromPage(pages[i])
     const board = isBoard(pages[i])
     if (money.size) {
-      if (!current || current.boards.length || i - current.lastPrice > 2) {
+      // A new price page that restarts item numbering is a new look, even if
+      // the supplier omitted the usual 'CORES DISPONÍVEIS' board between them.
+      // Otherwise prices from the later page overwrite earlier products.
+      const restartedIds=Boolean(current && current.pricePages.length &&
+        [...money.keys()].some(id=>current.prices.has(id)))
+      if (!current || current.boards.length || i - current.lastPrice > 2 || restartedIds) {
         current = { pricePages: [], prices: new Map(), boards: [], lastPrice: i }
         groups.push(current)
       }
