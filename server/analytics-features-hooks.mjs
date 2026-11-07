@@ -34,8 +34,11 @@ function responseVisitor(res) {
 
 function visitorKey(req, res) {
   const cookies = parseCookies(req)
-  let token = cookies.shopvax_visitor || cookies[visitorCookie] || responseVisitor(res)
-  if (!token) {
+  // The public-catalog protection cookie expires after 24 hours and is not
+  // suitable for a stable per-day identity. Use the same persistent anonymous
+  // cookie as social post views, even when a short-lived cookie also exists.
+  let token = cookies.shopvax_visitor
+  if (!/^[A-Za-z0-9_-]{24,100}$/.test(token || '')) {
     // Never identify unrelated users by a shared office/mobile IP address.
     // An anonymous first-party cookie is stable across visits, without signup.
     token = crypto.randomBytes(24).toString('base64url')
