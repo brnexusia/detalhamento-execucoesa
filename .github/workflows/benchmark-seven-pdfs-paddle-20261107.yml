@@ -1,0 +1,75 @@
+name: Test original seven catalog PDFs with real PaddleOCR
+on:
+  push:
+    branches: [test/paddleocr-seven-pdfs-five-sites-20261107]
+    paths:
+      - '.github/workflows/benchmark-seven-pdfs-paddle-20261107.yml'
+      - 'scripts/benchmark-seven-pdfs-paddle-20261107.mjs'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  seven-catalogs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 85
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download seven shared catalog PDFs from Drive (original sources)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --quiet gdown==5.2.0
+          mkdir -p pdf-fixtures
+          gdown --id '1uhrkxv37NDYJLy1aaTJE2GCBOo4_q5aY' -O pdf-fixtures/Lume.pdf
+          gdown --id '1_PKvvYsD4QNoXHFJT9pgbGRCQqXsX00-' -O pdf-fixtures/Costa.pdf
+          gdown --id '1bPIkWwnZybCJbNtSSDHBVOC-IG3k1JUE' -O pdf-fixtures/Origem.pdf
+          gdown --id '1oCliRjVXZfCj44KecRP2vzRjHsR0o3HP' -O pdf-fixtures/Memories.pdf
+          gdown --id '1mfIq_z4snzKmKkXpQ5h20lttXXYW1eAD' -O pdf-fixtures/MemoriesDropII.pdf
+          gdown --id '1KDv3ySeYSrUgzIGkVZDWvB81Btahn6PD' -O pdf-fixtures/Broches.pdf
+          gdown --id '1PEwXlCFrOORZLHA01l4iX3kT476fR-oJ' -O pdf-fixtures/Verao.pdf
+          du -sh pdf-fixtures
+      - name: Verify all original PDF checksums before processing
+        shell: bash
+        run: |
+          set -eu
+          cat > pdf-fixtures/checksums.txt <<'EOF'
+          2fddeef63f341675c21d19586279aab5455700e46deed8460a0b0b9d52b59a3a  pdf-fixtures/Lume.pdf
+          201f86ce629fef7dc898f2d09d66aaded4e1420fe84685a9d162e75a439e26ff  pdf-fixtures/Costa.pdf
+          ea53f22890635acc0b62e4a20df43a026c85e55dc0e923096d63dd895b908da9  pdf-fixtures/Origem.pdf
+          bf3048455626074f2b010392119755164eb737e4b88a22bc7e0dd3ec461200c0  pdf-fixtures/Memories.pdf
+          f94852f2e23d0025eda099134d4d67d8b6a688fe0da0a72eec700ec09ad89bcc  pdf-fixtures/MemoriesDropII.pdf
+          765f9986c2d5b1cc09ac49601828db02c04cb1996095f25f84c03098aa743a01  pdf-fixtures/Broches.pdf
+          5726caa960773336114b1cc3315e44a7aaaea84a8b852a3c9070400a084abd09  pdf-fixtures/Verao.pdf
+          EOF
+          sha256sum --check pdf-fixtures/checksums.txt
+      - name: Build original Atacado Shop image with real PaddleOCR
+        run: docker build -f Dockerfile -t atacado-seven-pdfs .
+      - name: Start OCR in same Docker container
+        shell: bash
+        run: |
+          mkdir -p artifacts/paddle-pdfs
+          docker run -d --name seven-paddle \
+            -v "$PWD/pdf-fixtures:/app/pdf-fixtures:ro" \
+            -v "$PWD/artifacts/paddle-pdfs:/app/artifacts/paddle-pdfs" \
+            -v "$PWD/scripts/benchmark-seven-pdfs-paddle-20261107.mjs:/app/scripts/benchmark-seven-pdfs-paddle-20261107.mjs:ro" \
+            --entrypoint /bin/sh atacado-seven-pdfs /app/scripts/start-with-paddle-ocr.sh sleep infinity
+          for i in $(seq 1 100); do
+            if docker exec seven-paddle node -e "fetch('http://127.0.0.1:8088/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"; then
+              echo 'PaddleOCR real ready'
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs seven-paddle
+          exit 1
+      - name: Scan full original PDFs with PaddleOCR where OCR is necessary
+        run: docker exec seven-paddle node /app/scripts/benchmark-seven-pdfs-paddle-20261107.mjs
+      - name: Save summaries (no source PDFs published as artifacts)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: paddleocr-seven-original-catalogs
+          path: artifacts/paddle-pdfs/
+      - name: Stop OCR container
+        if: always()
+        run: docker rm -f seven-paddle || true
