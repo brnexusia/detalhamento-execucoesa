@@ -118,3 +118,26 @@ for(const u of ['https://meuestoque.catalogo.com.br/','https://meuestoque.catalo
   }).slice(0,3000))
  }catch(e){console.log('PAGINATION_DIAG',JSON.stringify({url:u,error:String(e?.message||e).slice(0,220)}))}
 }
+
+const sampleListUrl='https://apivesti.vesti.mobi/appmarca/v2/catalogue/3d65968050c8488/company/l2m/?page=1&perpage=60&with_categories=true&with_colors=true&with_product_colors=true&with_sizes=true&with_brands=true&with_prices=true&with_tags=1'
+try{
+ const raw=await safeRequest(sampleListUrl,{accept:'application/json',timeout:12000})
+ const payload=JSON.parse(raw.body)
+ const sample=payload?.products?.[0],seller=payload?.meta?.seller_id
+ console.info('VESTI_FIELDS',JSON.stringify({
+  id:sample?.id,priceType:typeof sample?.price,pricesSize:sample?.prices?.length,
+  pricesSample:sample?.prices?.[0],
+  colorsSize:sample?.colors?.length,tagsSize:sample?.tags?.length,
+  mediaSize:sample?.media?.length,stockout:sample?.stockout,
+  companyIdFromBody:/(?:(?:companyId)|(?:company_id))/.test(raw.body),
+ }))
+ if(sample?.id && seller) {
+  const u='https://apivesti.vesti.mobi/appmarca/v1/products/company/'+encodeURIComponent(seller)+'/product/'+encodeURIComponent(sample.id)+'/showcase?cid=3d65968050c8488&reseller_id=null'
+  const result=await safeRequest(u,{accept:'application/json',timeout:12000})
+  let val;try{val=JSON.parse(result.body)}catch{}
+  console.info('VESTI_DETAIL_DIAG',JSON.stringify({
+   status:result.status,length:result.body.length,keys:Object.keys(val||{}).slice(0,30),
+   productKeys:Object.keys(val?.product_group||val?.product||{}).slice(0,40),
+  }))
+ }
+}catch(e){console.warn('VESTI_DETAIL_DIAG',JSON.stringify({error:String(e?.message||e).slice(0,200)}))}
