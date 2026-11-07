@@ -15,4 +15,6 @@ jobs:
         with: {node-version: '22'}
       - run: npm install --no-audit --no-fund
       - run: node scripts/diagnose-alexandre-publish-collapse-20261107.mjs
-      - run: node --test server/scanner-alexandre-bijoux.test.mjs server/scanner-import-grouping.test.mjs
+      - run: node --check server/scanner-publish-hooks.mjs && node --check server/scanner-alexandre-recovery.mjs
+      - run: node --test server/scanner-alexandre-bijoux.test.mjs server/scanner-import-grouping.test.mjs server/scanner-alexandre-recovery.test.mjs
+      - run: npm run build
