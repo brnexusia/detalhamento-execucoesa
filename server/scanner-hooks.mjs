@@ -772,6 +772,15 @@ function installScannerRoutes(app) {
     try { normalized = normalizeImportUrl(req.body?.url) }
     catch (error) { return res.status(400).json({ error: error instanceof Error ? error.message : 'URL inválida.' }) }
 
+    // Known lookalike URL: the Alexandre Bijoux catalog belongs to
+    // bijouxalexandre.com.br (name order reversed). Never queue a generic
+    // crawler against the lookalike and report a misleading empty catalog.
+    if (['alexandrebijoux.com.br', 'www.alexandrebijoux.com.br'].includes(normalized.host)) {
+      return res.status(400).json({
+        error: 'Endereço diferente: você informou alexandrebijoux.com.br. Para a loja Alexandre Bijoux, use https://bijouxalexandre.com.br (Bijoux antes de Alexandre). Nenhum scanner foi iniciado.',
+        suggested_url: 'https://bijouxalexandre.com.br',
+      })
+    }
     if (normalized.host === 'wa.me' && !whatsappCatalogPhone(normalized.url)) {
       return res.status(400).json({ error:'Use o link do catálogo do WhatsApp no formato https://wa.me/c/55DDDNUMERO.' })
     }
