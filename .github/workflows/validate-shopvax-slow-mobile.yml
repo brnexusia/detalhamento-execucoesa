@@ -21,8 +21,9 @@ jobs:
           npm install --no-audit --no-fund
           npm install --no-save --no-audit --no-fund playwright@1.58.2
           npx playwright install --with-deps chromium
+      - run: npm run build
       - run: |
-          npm run dev -- --host 127.0.0.1 > /tmp/shopvax-slow-mobile-vite.log 2>&1 &
+          npm run preview -- --host 127.0.0.1 --port 5173 > /tmp/shopvax-slow-mobile-vite.log 2>&1 &
           for i in $(seq 1 80); do
             if curl -fsS http://127.0.0.1:5173/ >/dev/null; then exit 0; fi
             sleep .25
