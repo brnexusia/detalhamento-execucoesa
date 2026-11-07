@@ -196,3 +196,20 @@ test('collects a separated-page lookbook and assigns cropped images to individua
   assert.equal(parsed.candidates[0].pdf_page,2)
   assert.equal(parsed.candidates[1].pdf_detail_page,4)
 })
+
+
+test('consecutive lookbook price pages that restart item IDs keep ALL priced pieces',()=>{
+  const pages=[
+    'LUME COLEÇÃO',
+    '01 R$ 15,00\n02 R$ 35,00',
+    '01 R$ 11,00\n02 R$ 31,50',
+    'CORES DISPONÍVEIS\nBRINCO 01\nCOLAR 02',
+    '01 R$ 20,00\n02 R$ 30,00',
+    'CORES DISPONÍVEIS\nBRINCO 01\nCOLAR 02',
+  ]
+  const result=parseNumberedLookbookPages(pages)
+  assert.ok(result?.lookbook)
+  assert.equal(result.candidates.length,6,'never overwrite restarted 01/02 item IDs')
+  assert.deepEqual(result.candidates.map(x=>x.price),[15,35,11,31.5,20,30])
+  assert.equal(result.candidates.filter(x=>x.pdf_review_required).length,2)
+})
