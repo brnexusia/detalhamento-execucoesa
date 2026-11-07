@@ -60,3 +60,35 @@ test('Alexandre maps absent price without fabricating a number',()=>{
   assert.equal(mapped.price,null)
   assert.equal(mapped.images[0],photo)
 })
+
+test('submitted Alexandre URL stays on dedicated adapter if final URL uses www',async()=>{
+  const request=async(input)=>{
+    const url=String(input)
+    if(url===origin+'/') return {
+      ok:true,status:200,url:'https://www.bijouxalexandre.com.br/',
+      contentType:'text/html',body:'<html><body>JS storefront</body></html>',
+    }
+    if(url==='https://www.bijouxalexandre.com.br/api/categorias')return {
+      ok:true,status:200,url,contentType:'application/json',body:JSON.stringify([categoryA]),
+    }
+    if(url==='https://www.bijouxalexandre.com.br/api/categorias/brincos/produtos')return {
+      ok:true,status:200,url,contentType:'application/json',body:JSON.stringify({
+        produtos:[item('p1','BRINCO',24),item('p2','ARGOLA',39)],
+      }),
+    }
+    throw new Error('Unexpected request: '+url)
+  }
+  const result=await collectCatalog(origin+'/',{request})
+  assert.equal(result.platform,'alexandre-bijoux')
+  assert.equal(result.candidateCount,2)
+  assert.equal(result.pagesScanned,3)
+})
+test('Alexandre URL cannot silently fall back to generic scan on cross-host redirect',async()=>{
+  let calls=0
+  const request=async(input)=>{
+    calls++
+    return {ok:true,status:200,url:'https://unrelated.example/',contentType:'text/html',body:'<html>No catalog</html>'}
+  }
+  await assert.rejects(collectCatalog(origin+'/',{request}),/redirecionou para outro domínio/)
+  assert.equal(calls,1,'Do not attempt a generic crawl or unknown-origin API')
+})
