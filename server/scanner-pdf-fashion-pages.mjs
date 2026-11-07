@@ -19,10 +19,29 @@ function undoDoubled(line) {
     return str.slice(0,positions[1]).trim()
   return str
 }
+// Some Canva catalog pages duplicate a title broken across two lines:
+// "Conjunto Noelle / Cherry / Conjunto Noelle / Cherry".
+// Only join when the same title+suffix pair repeats exactly; otherwise
+// preserve the supplier's original product title without guessing.
+function mirroredWrappedTitle(lines) {
+  for (let i=0; i+3<lines.length; i++) {
+    const first=lines[i]
+    const suffix=lines[i+1]
+    if (!PRODUCT_LINE.test(first)) continue
+    if (!/^[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ0-9 -]{1,28}$/.test(suffix)) continue
+    if (/^(?:cor(?:es)?|tam(?:anho)?|unico|único|tecido|valor|frente|costas|detalhes?)$/i.test(suffix)) continue
+    if (key(first)!==key(lines[i+2]) || key(suffix)!==key(lines[i+3])) continue
+    const joined=clean(first+' '+suffix)
+    if (PRODUCT_LINE.test(joined)) return joined
+  }
+  return null
+}
 function parsePage(pageText,page) {
   const lines=String(pageText||'').split(/\r?\n/).map(undoDoubled).filter(Boolean)
   const titles=[...new Map(lines.map(line=>[key(line),line])
     .filter(([,line])=>PRODUCT_LINE.test(line))).values()]
+  const wrapped=mirroredWrappedTitle(lines)
+  if(wrapped) titles.splice(0,titles.length,wrapped)
   const prices=[...new Set([...String(pageText||'').matchAll(PRICE)]
     .map(match=>Number(match[1].replace(/\./g,'').replace(',','.')))
     .filter(n=>n>0 && n<=1e6))]
