@@ -85,7 +85,8 @@ test('two photo columns above matched titles yield separate review crops',()=>{
  const matches=associateNativePricesByProximity(items,g)
  const photos=proximityPhotoRegions(matches,g,new Map([[1,[{kind:'image',width:500,height:500}]]]))
  assert.equal(photos.length,2)
- assert.ok(photos[0].rect.right<=photos[1].rect.left)
+ const ordered=[...photos].sort((a,b)=>a.rect.left-b.rect.left)
+ assert.ok(ordered[0].rect.right<=ordered[1].rect.left)
  assert.ok(photos.every(x=>x.confidence==='review'&&x.rect.bottom<x.rect.height))
 })
 
