@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/benchmark-seven-pdfs-paddle-20261107.yml'
       - 'scripts/benchmark-seven-pdfs-paddle-20261107.mjs'
+      - 'scripts/benchmark-paddle-vs-tesseract-real-pages-20261107.mjs'
   workflow_dispatch:
 permissions:
   contents: read
@@ -51,6 +52,7 @@ jobs:
             -v "$PWD/pdf-fixtures:/app/pdf-fixtures:ro" \
             -v "$PWD/artifacts/paddle-pdfs:/app/artifacts/paddle-pdfs" \
             -v "$PWD/scripts/benchmark-seven-pdfs-paddle-20261107.mjs:/app/scripts/benchmark-seven-pdfs-paddle-20261107.mjs:ro" \
+            -v "$PWD/scripts/benchmark-paddle-vs-tesseract-real-pages-20261107.mjs:/app/scripts/benchmark-paddle-vs-tesseract-real-pages-20261107.mjs:ro" \
             --entrypoint /bin/sh atacado-seven-pdfs /app/scripts/start-with-paddle-ocr.sh sleep infinity
           for i in $(seq 1 100); do
             if docker exec seven-paddle node -e "fetch('http://127.0.0.1:8088/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"; then
@@ -63,6 +65,8 @@ jobs:
           exit 1
       - name: Scan six full original PDFs with PaddleOCR where OCR is necessary
         run: docker exec seven-paddle node /app/scripts/benchmark-seven-pdfs-paddle-20261107.mjs
+      - name: Compare genuine PaddleOCR against Tesseract on eleven original catalog pages
+        run: docker exec seven-paddle node /app/scripts/benchmark-paddle-vs-tesseract-real-pages-20261107.mjs
       - name: Save summaries (no source PDFs published as artifacts)
         if: always()
         uses: actions/upload-artifact@v4
