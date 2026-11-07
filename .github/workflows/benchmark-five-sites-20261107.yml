@@ -17,7 +17,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm ci --no-audit --no-fund
+      - run: npm install --no-audit --no-fund
       - name: Scan all five public sites for products/prices/images
         run: node scripts/benchmark-external-sites-20261107.mjs
       - uses: actions/upload-artifact@v4
