@@ -1,0 +1,34 @@
+name: validate-shopvax-slow-mobile
+on:
+  push:
+    branches: [feat/daily-unique-views-performance-20261107]
+    paths:
+      - 'tests/shopvax-slow-mobile.e2e.mjs'
+      - '.github/workflows/validate-shopvax-slow-mobile.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  slow-mobile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: |
+          npm install --no-audit --no-fund
+          npm install --no-save --no-audit --no-fund playwright@1.58.2
+          npx playwright install --with-deps chromium
+      - run: |
+          npm run dev -- --host 127.0.0.1 > /tmp/shopvax-slow-mobile-vite.log 2>&1 &
+          for i in $(seq 1 80); do
+            if curl -fsS http://127.0.0.1:5173/ >/dev/null; then exit 0; fi
+            sleep .25
+          done
+          cat /tmp/shopvax-slow-mobile-vite.log
+          exit 1
+      - run: node tests/shopvax-slow-mobile.e2e.mjs
+      - if: failure()
+        run: cat /tmp/shopvax-slow-mobile-vite.log || true
