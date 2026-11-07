@@ -194,7 +194,7 @@ async function socialReports(req, res) {
 
   return res.json({
     periodDays: days,
-    interpretation: 'Visualizações, curtidas, compartilhamentos, seguidores e perguntas representam alcance e intenção dentro da rede Shopvax. Perguntas encaminhadas ao WhatsApp não representam venda ou faturamento confirmado.',
+    interpretation: 'Views da rede social: no máximo uma por visitante, produto e dia (horário de Brasília). Alcance é visitante único no período. Curtidas e perguntas ao WhatsApp não representam faturamento confirmado.',
     summary,
     products,
     sellers,
