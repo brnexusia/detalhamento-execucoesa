@@ -1,0 +1,20 @@
+name: diagnose-public-imports
+on:
+  push:
+    branches: [fix/catalog-clone-media-20261107]
+    paths:
+      - 'scripts/diagnose-alexandre-facilzap-20261107.mjs'
+      - '.github/workflows/diagnose-public-imports.yml'
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - run: node scripts/diagnose-alexandre-facilzap-20261107.mjs
