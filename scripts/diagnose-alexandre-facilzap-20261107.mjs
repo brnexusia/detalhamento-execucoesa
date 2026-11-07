@@ -41,3 +41,32 @@ for (const target of targets) {
     }
   } catch(e){console.log('SITE_ERROR',JSON.stringify({target,error:clean(e.message)}))}
 }
+
+for (const path of ['/api/categorias','/api/produtos/recentes','/api/config']) {
+  try {
+    const target='https://bijouxalexandre.com.br'+path
+    const res=await safeRequest(target,{accept:'application/json',timeout:17000,maxBytes:5*1024*1024})
+    const parsed=JSON.parse(res.body)
+    const items=Array.isArray(parsed)?parsed:parsed?.produtos||parsed?.categorias||[]
+    console.log('ALEX_API',JSON.stringify({path,status:res.status,length:res.body.length,type:res.contentType,keys:Object.keys(parsed||{}),count:items.length,items:items.slice(0,2)}).slice(0,5500))
+    if(path==='/api/categorias'){
+      for(const category of items.slice(0,3)){
+        const id=category.id
+        if(id==null)continue
+        const url='https://bijouxalexandre.com.br/api/categorias/'+encodeURIComponent(id)+'/produtos'
+        const sub=await safeRequest(url,{accept:'application/json',timeout:17000,maxBytes:5*1024*1024})
+        const value=JSON.parse(sub.body)
+        console.log('ALEX_CATEGORY',JSON.stringify({id,status:sub.status,keys:Object.keys(value||{}),count:value.produtos?.length,first:value.produtos?.[0]}).slice(0,6500))
+      }
+    }
+  }catch(e){console.log('ALEX_API_ERROR',JSON.stringify({path,message:String(e.message).slice(0,300)}))}
+}
+for(const url of [
+ 'https://arquivos.facilzap.app.br/produtos/1788886737_7ec01000544941f4b224.webp',
+ 'https://damafinnalingerie.com.br/produtos/1788886737_7ec01000544941f4b224.webp',
+]){
+ try{
+   const res=await safeRequest(url,{accept:'image/webp,image/*',responseType:'buffer',maxBytes:2*1024*1024,timeout:14000})
+   console.log('FZ_MEDIA_CHECK',JSON.stringify({url,status:res.status,type:res.contentType,size:res.buffer?.length,signature:res.buffer?.subarray(0,16).toString('hex')}))
+ }catch(e){console.log('FZ_MEDIA_ERROR',JSON.stringify({url,error:String(e.message)}))}
+}
