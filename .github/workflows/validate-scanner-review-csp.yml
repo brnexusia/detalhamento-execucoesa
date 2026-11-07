@@ -1,0 +1,22 @@
+name: validate-scanner-review-csp
+on:
+  push:
+    branches: [fix/scanner-review-csp-images-20261107]
+    paths:
+      - 'server/security-hooks.mjs'
+      - 'server/security-csp-images.test.mjs'
+      - '.github/workflows/validate-scanner-review-csp.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test-csp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - run: node --test server/security-csp-images.test.mjs
