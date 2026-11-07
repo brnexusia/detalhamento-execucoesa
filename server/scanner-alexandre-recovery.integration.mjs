@@ -33,6 +33,9 @@ const newJob=async(status,count)=>{
  return job
 }
 const job=await newJob('review',3)
+// Initialize publisher schema through its own API before seeding legacy records.
+const schemaWarmup=await call('/api/admin/imports/'+job.id+'/publish-preview',cookie)
+assert.equal(schemaWarmup.res.status,200,JSON.stringify(schemaWarmup.data))
 const owner=await db.query('SELECT store_id FROM import_jobs WHERE id=$1',[job.id])
 const store=owner.rows[0].store_id
 const images=[]
