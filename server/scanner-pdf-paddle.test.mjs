@@ -3,25 +3,23 @@ import assert from 'node:assert/strict'
 import { isPaddleOcrSelected, paddleOcrImage } from './scanner-pdf-paddle.mjs'
 
 const png = Buffer.from([137,80,78,71,13,10,26,10,1,2,3,4])
-const env = {
-  PDF_OCR_ENGINE: 'paddle',
-  PDF_OCR_SERVICE_URL: 'http://paddle-ocr:8088',
-  PDF_OCR_SHARED_SECRET: 'a-test-secret-longer-than-16',
-}
 
-test('PaddleOCR activates only by explicit engine selection', () => {
-  assert.equal(isPaddleOcrSelected({}), false)
+test('PaddleOCR is enabled by default inside the app container', () => {
+  assert.equal(isPaddleOcrSelected({}), true)
+  assert.equal(isPaddleOcrSelected({ PDF_OCR_ENGINE: 'paddle' }), true)
   assert.equal(isPaddleOcrSelected({ PDF_OCR_ENGINE: 'tesseract' }), false)
-  assert.equal(isPaddleOcrSelected(env), true)
 })
 
-test('sends PNG only to configured authenticated service and reads the text', async () => {
+test('sends PNG to loopback only; no EasyPanel hostname or token', async () => {
   let called = false
-  const text = await paddleOcrImage(png, { env, fetchImpl: async (url, opts) => {
+  const text = await paddleOcrImage(png, { env: {
+    PDF_OCR_SERVICE_URL: 'https://external.example.invalid/ocr',
+    PDF_OCR_SHARED_SECRET: 'ignored-legacy-token',
+  }, fetchImpl: async (url, opts) => {
     called = true
-    assert.equal(url, 'http://paddle-ocr:8088/ocr')
+    assert.equal(url, 'http://127.0.0.1:8088/ocr')
     assert.equal(opts.method, 'POST')
-    assert.equal(opts.headers['X-PDF-OCR-Token'], env.PDF_OCR_SHARED_SECRET)
+    assert.deepEqual(opts.headers, { 'Content-Type': 'image/png' })
     assert.equal(opts.body, png)
     return new Response(JSON.stringify({ text: 'Blusa Aurora\nR$ 40,00' }), { status: 200 })
   } })
@@ -29,20 +27,26 @@ test('sends PNG only to configured authenticated service and reads the text', as
   assert.equal(text, 'Blusa Aurora\nR$ 40,00')
 })
 
-test('rejects absent credentials and malformed input', async () => {
-  await assert.rejects(paddleOcrImage(png, { env: { ...env, PDF_OCR_SHARED_SECRET: '' } }), /segredo/)
-  await assert.rejects(paddleOcrImage(Buffer.from('not-png'), { env }), /PNG/)
+test('supports a private loopback port override', async () => {
+  await paddleOcrImage(png, { env: { PDF_OCR_PORT: '9090' }, fetchImpl: async (url) => {
+    assert.equal(url, 'http://127.0.0.1:9090/ocr')
+    return new Response(JSON.stringify({ text: '' }))
+  } })
 })
 
-test('surfaces service failures so the import pipeline can fall back to Tesseract', async () => {
+test('rejects invalid PNG and invalid internal port', async () => {
+  await assert.rejects(paddleOcrImage(Buffer.from('not-png'), {}), /PNG/)
+  await assert.rejects(paddleOcrImage(png, { env: { PDF_OCR_PORT: '99999' } }), /porta/)
+})
+
+test('reports local Paddle failure for Tesseract fallback', async () => {
   await assert.rejects(paddleOcrImage(png, {
-    env,
     fetchImpl: async () => new Response('unavailable', { status: 503 }),
   }), /HTTP 503/)
 })
 
-test('rejects public URL credentials and invalid schemes', async () => {
+test('rejects excessive text responses', async () => {
   await assert.rejects(paddleOcrImage(png, {
-    env: { ...env, PDF_OCR_SERVICE_URL: 'file:///tmp/model' },
-  }), /endereço/)
+    fetchImpl: async () => new Response(JSON.stringify({ text: 'A'.repeat(500001) })),
+  }), /excessiva/)
 })
