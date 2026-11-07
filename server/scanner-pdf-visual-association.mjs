@@ -291,7 +291,7 @@ export function parseNumberedReferenceFallback(rawPages,layoutPages,maxProducts=
       if(matching.length<2)continue
       const distance=Math.abs(page-entry.page)
       // Supplier photo pages usually come before the item/price legend.
-      const score=matching.length*10-distance-(page>entry.page?.7:0)
+      const score=matching.length*10-distance-(page>entry.page ? 0.7 : 0)
       options.push({page,matching,score})
     }
     options.sort((a,b)=>b.score-a.score || a.page-b.page)
@@ -301,11 +301,13 @@ export function parseNumberedReferenceFallback(rawPages,layoutPages,maxProducts=
     usedPhotoPages.add(winner.page)
     for(const [id,price] of entry.table){
       if(out.length>=maxProducts)break
-      // Never manufacture a product when the corresponding photo number is absent.
-      if(!winner.matching.includes(id))continue
+      // Preserve every explicitly priced reference from this corroborated
+      // table. Unmatched badges remain unillustrated instead of losing items.
+      const marked=winner.matching.includes(id)
       const item=String(id).padStart(2,'0')
       const description='Referência '+item+' da tabela na página '+entry.page+
-        '; número marcado na fotografia da página '+winner.page+
+        (marked?'; número marcado na fotografia da página '+winner.page:
+          '; fotografia do número '+item+' não identificada')+
         '. REVISÃO OBRIGATÓRIA: confirmar o produto e o recorte.'
       out.push({
         title:'Produto numerado · página '+winner.page+' · ref. '+item,
