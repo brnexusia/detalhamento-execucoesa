@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 18
     steps:
-      - name: Verify public release and PaddleOCR service readiness
+      - name: Verify public release and Tesseract configuration
         shell: bash
         run: |
           set -euo pipefail
@@ -29,7 +29,7 @@ jobs:
           try: data=json.load(sys.stdin)
           except Exception: sys.exit(1)
           print("releaseSha=",data.get("releaseSha"),"paddleOCR=",data.get("paddleOCR"),"db=",data.get("database"),flush=True)
-          sys.exit(0 if data.get("releaseSha")==os.environ.get("GITHUB_SHA") and data.get("database") is True and data.get("paddleOCR",{}).get("engine")=="paddle" and data.get("paddleOCR",{}).get("ready") is True else 1)
+          sys.exit(0 if data.get("releaseSha")==os.environ.get("GITHUB_SHA") and data.get("database") is True and data.get("ocr",{}).get("engine")=="tesseract" and data.get("ocr",{}).get("ready") is True else 1)
           '; then
               successful=1
               break
@@ -37,7 +37,7 @@ jobs:
             sleep 20
           done
           if [ "$successful" != 1 ]; then
-            echo 'Production did not confirm expected release and PaddleOCR readiness.'
+            echo 'Production did not confirm expected release and Tesseract configuration.'
             exit 1
           fi
       - name: Confirm new authenticated PDF upload route is accessible
@@ -50,4 +50,4 @@ jobs:
           echo "UNAUTHENTICATED_NEW_ROUTE_HTTP=$code"
           test "$code" = 401
           grep -q 'Sessão necessária' /tmp/pdf-probe-reply
-          echo 'RELEASE, PADDLEOCR, PDF CHUNK ROUTING VERIFIED'
+          echo 'RELEASE, TESSERACT, PDF CHUNK ROUTING VERIFIED'

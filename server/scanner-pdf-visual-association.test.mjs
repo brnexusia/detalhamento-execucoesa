@@ -1,0 +1,153 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import { parseTesseractTsv } from './scanner-pdf-tesseract.mjs'
+import {
+  parsePdfVisualGeometry,numberedPhotoRegions,
+  associateNativePricesByProximity,proximityPhotoRegions,parseNumberedReferenceFallback,
+} from './scanner-pdf-visual-association.mjs'
+
+const word=(text,x,y,w=70,h=24)=>'<word xMin="'+x+'" yMin="'+y+'" xMax="'+(x+w)+'" yMax="'+(y+h)+'">'+text+'</word>'
+const line=(...words)=>'<line>'+words.join('')+'</line>'
+const page=(...lines)=>'<page width="810" height="1440">'+lines.join('')+'</page>'
+
+test('Tesseract TSV yields trustworthy line boxes without PaddleOCR',()=>{
+ const raw=[
+ 'level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext',
+ '5\t1\t1\t1\t1\t1\t10\t20\t120\t30\t95\tVestido',
+ '5\t1\t1\t1\t1\t2\t135\t20\t100\t30\t90\tAurora',
+ '5\t1\t1\t1\t2\t1\t12\t65\t22\t30\t92\tR$',
+ '5\t1\t1\t1\t2\t2\t35\t65\t100\t30\t91\t12,50',
+ '5\t1\t1\t1\t3\t1\t20\t100\t20\t20\t12\truído',
+ ].join('\n')
+ const result=parseTesseractTsv(raw)
+ assert.equal(result.lines.length,2)
+ assert.equal(result.lines[0].text,'Vestido Aurora')
+ assert.deepEqual(result.lines[0].box,[10,20,235,50])
+ assert.equal(result.lines[1].text,'R$ 12,50')
+ assert.equal(result.lines[1].score>.9,true)
+})
+
+test('numbered image badges match EXACT price-page item ids, never another look',()=>{
+ const geometry=parsePdfVisualGeometry(
+ page(line(word('1',400,170,25)),line(word('2',180,620,25)),
+   line(word('01',70,1330,35),word('R$',110,1330,30),word('15,00',145,1330)),
+   line(word('02',70,1370,35),word('R$',110,1370,30),word('44,00',145,1370)))+
+ page(line(word('1',550,300,25)),line(word('01',70,1330,35),word('R$',110,1330,30),word('19,00',145,1330))))
+ const items=[
+ {pdf_lookbook:true,pdf_page:1,pdf_item_number:1,images:[],price:15},
+ {pdf_lookbook:true,pdf_page:1,pdf_item_number:2,images:[],price:44},
+ {pdf_lookbook:true,pdf_page:2,pdf_item_number:1,images:[],price:19},
+ ]
+ const found=numberedPhotoRegions(items,geometry)
+ assert.equal(found.length,3)
+ assert.deepEqual(found.map(x=>[x.page,x.candidate.pdf_item_number]),[[1,1],[1,2],[2,1]])
+ assert.ok(found.every(x=>x.method==='number_marker'&&x.confidence==='review'))
+ assert.ok(found.every(x=>x.rect.bottom<x.rect.height*.89))
+})
+
+test('duplicate marker on same page is ambiguous; never crop or invent match',()=>{
+ const g=parsePdfVisualGeometry(page(line(word('1',400,170)),line(word('1',430,260)),
+   line(word('2',200,320))))
+ const candidates=[1,2].map(id=>({pdf_lookbook:true,pdf_page:1,pdf_item_number:id,images:[]}))
+ const got=numberedPhotoRegions(candidates,g)
+ assert.equal(got.length,0,'ambiguous numbered photo page is held for manual review')
+})
+
+test('match right-column price to right-column product regardless of reading order',()=>{
+ const g=parsePdfVisualGeometry(page(
+  line(word('Vestido',50,550,130),word('Azul',190,550,65)),
+  line(word('Blusa',495,550,105),word('Rosa',610,550,65)),
+  line(word('R$',490,600,45),word('79,90',540,600,95)),
+  line(word('R$',55,600,45),word('29,90',105,600,95)),
+ ))
+ const items=[
+  {title:'Vestido Azul',pdf_page:1,price:79.9,description:'',images:[]},
+  {title:'Blusa Rosa',pdf_page:1,price:29.9,description:'',images:[]},
+ ]
+ const found=associateNativePricesByProximity(items,g)
+ assert.equal(found.length,2)
+ assert.deepEqual(items.map(x=>x.price),[29.9,79.9])
+ assert.ok(items.every(x=>x.pdf_review_required===true&&x.pdf_price_association==='same_page_proximity'))
+ assert.match(items[0].description,/preço anterior 79.9 alterado para 29.9/)
+})
+
+test('two photo columns above matched titles yield separate review crops',()=>{
+ const g=parsePdfVisualGeometry(page(
+   line(word('Vestido',50,650,130),word('Azul',190,650,65)),
+   line(word('Blusa',495,660,105),word('Rosa',610,660,65)),
+   line(word('R$',490,700,45),word('79,90',540,700,95)),
+   line(word('R$',55,700,45),word('29,90',105,700,95)),
+ ))
+ const items=[
+  {title:'Vestido Azul',pdf_page:1,price:29.9,images:[],description:''},
+  {title:'Blusa Rosa',pdf_page:1,price:79.9,images:[],description:''},
+ ]
+ const matches=associateNativePricesByProximity(items,g)
+ const photos=proximityPhotoRegions(matches,g,new Map([[1,[{kind:'image',width:500,height:500}]]]))
+ assert.equal(photos.length,2)
+ const ordered=[...photos].sort((a,b)=>a.rect.left-b.rect.left)
+ assert.ok(ordered[0].rect.right<=ordered[1].rect.left)
+ assert.ok(photos.every(x=>x.confidence==='review'&&x.rect.bottom<x.rect.height))
+})
+
+test('never re-price crowded price lists without unique positional evidence',()=>{
+ const geometry=parsePdfVisualGeometry(page(
+  line(word('Vestido',50,140,130),word('Azul',190,140,65)),
+  line(word('Blusa',50,160,100),word('Rosa',160,160,65)),
+  line(word('R$',50,740,30),word('12,50',85,740,80)),
+  line(word('R$',50,775,30),word('18,00',85,775,80)),
+ ))
+ const items=[
+  {title:'Vestido Azul',pdf_page:1,price:12.5,images:[]},
+  {title:'Blusa Rosa',pdf_page:1,price:18,images:[]},
+ ]
+ assert.deepEqual(associateNativePricesByProximity(items,geometry),[])
+ assert.deepEqual(items.map(x=>x.price),[12.5,18])
+})
+
+test('badge 04 just above price footer is retained, footer number 04 itself is not a visual marker',()=>{
+ const geometry=parsePdfVisualGeometry(page(
+  line(word('1',480,400,25)),
+  line(word('2',110,1050,25)),
+  line(word('3',140,1130,25)),
+  line(word('4',170,1190,25)),
+  line(word('01',210,1290,35),word('R$',255,1290,36),word('20,00',300,1290)),
+  line(word('02',210,1335,35),word('R$',255,1335,36),word('27,50',300,1335)),
+  line(word('03',430,1290,35),word('R$',480,1290,36),word('37,00',525,1290)),
+  line(word('04',430,1335,35),word('R$',480,1335,36),word('21,50',525,1335)),
+ ))
+ const group=[1,2,3,4].map(id=>({pdf_lookbook:true,pdf_page:1,pdf_item_number:id,images:[]}))
+ const matched=numberedPhotoRegions(group,geometry)
+ assert.deepEqual(matched.map(x=>x.candidate.pdf_item_number),[1,2,3,4])
+ assert.equal(matched[3].page,1)
+ assert.ok(matched[3].rect.bottom<=1440*.88)
+})
+
+test('separate photo pages and price legends link by exact numbers scoped to each look',()=>{
+ const layouts=parsePdfVisualGeometry(
+  page(line(word('1',250,200)),line(word('2',420,450)),line(word('3',550,700)))+
+  page(line(word('01',60,300),word('R$',130,300),word('12,50',200,300)))+
+  page(line(word('1',200,250)),line(word('2',490,500)))+
+  page(line(word('01',60,300),word('R$',130,300),word('35,00',200,300)))
+ )
+ const raw=[
+  '1\n2\n3',
+  '01 R$ 12,50\n02 R$ 23,00\n03 R$ 39,00',
+  '1\n2',
+  '01 R$ 35,00\n02 R$ 49,90',
+ ]
+ const result=parseNumberedReferenceFallback(raw,layouts)
+ assert.deepEqual(result.map(x=>[x.pdf_page,x.pdf_photo_marker_page,x.pdf_item_number,x.price]),[
+  [2,1,1,12.5],[2,1,2,23],[2,1,3,39],
+  [4,3,1,35],[4,3,2,49.9],
+ ])
+ assert.ok(result.every(x=>x.pdf_review_required===true&&x.pdf_numbered_reference===true))
+ assert.equal(new Set(result.map(x=>x.external_id)).size,result.length)
+})
+test('rejects uncorroborated numeric price lists without a matching photo page',()=>{
+ const raw=['Sem fotos numeradas','01 R$ 12,50\n02 R$ 29,90']
+ const layouts=parsePdfVisualGeometry(page(line(word('COLEÇÃO',30,60)))+
+  page(line(word('01',50,400),word('R$',130,400),word('12,50',200,400)),
+    line(word('02',50,450),word('R$',130,450),word('29,90',200,450))))
+ assert.deepEqual(parseNumberedReferenceFallback(raw,layouts),[])
+})
