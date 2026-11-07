@@ -774,10 +774,10 @@ async function collectShopify(rootUrl, request, maxProducts, sink, onProgress) {
     let payload
     try { payload = JSON.parse(response.body) } catch { break }
     const products = Array.isArray(payload?.products) ? payload.products : []
-    if (!products.length) { exhausted = true; break }
+    if (!products.length) break
 
     const signature = `${products[0]?.id || products[0]?.handle || ''}|${products.at(-1)?.id || products.at(-1)?.handle || ''}|${products.length}`
-    if (pageSignatures.has(signature)) throw new Error('Vesti: a API repetiu uma página de produtos; importação incompleta.')
+    if (pageSignatures.has(signature)) break
     pageSignatures.add(signature)
 
     await sink.push(products.map((product) => shopifyProduct(origin, product)))
@@ -960,9 +960,9 @@ async function collectVesti(rootResponse, request, maxProducts, sink, onProgress
     try { payload = JSON.parse(response.body) } catch { throw new Error('O Vesti retornou catálogo em formato inesperado.') }
     const listed = Array.isArray(payload?.products) ? payload.products : []
     const products = vestiProducts(payload, context)
-    if (!products.length) break
+    if (!products.length) { exhausted = true; break }
     const signature = `${products[0]?.external_id || ''}|${products.at(-1)?.external_id || ''}|${products.length}`
-    if (pageSignatures.has(signature)) break
+    if (pageSignatures.has(signature)) throw new Error('Vesti: a API repetiu uma página de produtos; importação incompleta.')
     pageSignatures.add(signature)
 
     let enriched = products
