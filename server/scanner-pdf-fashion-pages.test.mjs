@@ -39,8 +39,8 @@ test('isolated ordinary price pages do not switch the entire PDF parser into fas
 })
 
 test('conflicting price labels must be reviewed instead of inventing a single value',()=>{
-  const pages=[sample('Calça A','49,90'),sample('Blusa B','50,00'),sample('Calça C','70,00'),
-    sample('Blusa D','30,00')+'\nValor: R$ 32,00',sample('Calça E','60,00')]
+  const pages=[sample('Calça Aurora','49,90'),sample('Blusa Brisa','50,00'),sample('Calça Celina','70,00'),
+    sample('Blusa Diana','30,00')+'\nValor: R$ 32,00',sample('Calça Estela','60,00')]
   const result=parseFashionPhotoPages(pages,500)
   assert.equal(result.candidates[3].price,null)
   assert.equal(result.candidates[3].pdf_review_required,true)
