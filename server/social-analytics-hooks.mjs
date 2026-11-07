@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import express from 'express'
 import pg from 'pg'
+import { ensureSocialDailyViews } from './social-daily-views-schema.mjs'
 
 const { Pool } = pg
 const databaseUrl = process.env.DATABASE_URL?.trim() || ''
@@ -58,6 +59,7 @@ async function ensureSchema() {
     CREATE INDEX IF NOT EXISTS idx_social_analytics_follows ON social_store_follows(store_id,created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_social_analytics_actions ON social_actions(store_id,kind,created_at DESC);
   `)
+  await ensureSocialDailyViews(pool)
 }
 
 let schemaPromise = null
@@ -111,8 +113,8 @@ async function socialReports(req, res) {
     )
     SELECT
       (SELECT COUNT(*)::int FROM products WHERE store_id=$1 AND active=true AND social_published=true) AS active_posts,
-      (SELECT COUNT(DISTINCT visitor_key)::int FROM social_post_views WHERE store_id=$1 AND created_at>=now()-($2::int*interval '1 day')) AS reach,
-      (SELECT COUNT(*)::int FROM social_post_views WHERE store_id=$1 AND created_at>=now()-($2::int*interval '1 day')) AS product_views,
+      (SELECT COUNT(DISTINCT visitor_key)::int FROM social_post_daily_views WHERE store_id=$1 AND created_at>=now()-($2::int*interval '1 day')) AS reach,
+      (SELECT COUNT(*)::int FROM social_post_daily_views WHERE store_id=$1 AND created_at>=now()-($2::int*interval '1 day')) AS product_views,
       (SELECT COUNT(*)::int FROM social_post_likes WHERE store_id=$1 AND created_at>=now()-($2::int*interval '1 day')) AS likes,
       (SELECT COUNT(*)::int FROM social_actions WHERE store_id=$1 AND kind='share' AND created_at>=now()-($2::int*interval '1 day')) AS shares,
       (SELECT COUNT(*)::int FROM social_store_follows WHERE store_id=$1) AS followers,
@@ -140,7 +142,7 @@ async function socialReports(req, res) {
   const productsResult = await pool.query(`
     WITH views AS (
       SELECT product_id,COUNT(*)::int AS views
-      FROM social_post_views
+      FROM social_post_daily_views
       WHERE store_id=$1 AND created_at>=now()-($2::int*interval '1 day')
       GROUP BY product_id
     ), likes AS (
