@@ -1,0 +1,46 @@
+name: pdf-visual-real-regression
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'server/scanner-pdf.mjs'
+      - 'server/scanner-pdf-visual-association.mjs'
+      - 'server/scanner-pdf-tesseract.mjs'
+      - 'scripts/benchmark-visual-association-real-pdfs.mjs'
+      - '.github/workflows/pdf-visual-real-regression.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'server/scanner-pdf.mjs'
+      - 'server/scanner-pdf-visual-association.mjs'
+      - 'scripts/benchmark-visual-association-real-pdfs.mjs'
+jobs:
+  two-original-catalogs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install native OCR dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends poppler-utils tesseract-ocr tesseract-ocr-por tesseract-ocr-eng util-linux
+          npm install --no-audit --no-fund
+          python -m pip install --quiet gdown==5.2.0
+      - name: Download two source PDFs for read-only regression
+        run: |
+          mkdir -p pdf-fixtures artifacts/pdf-visual
+          gdown '1uhrkxv37NDYJLy1aaTJE2GCBOo4_q5aY' -O pdf-fixtures/Lume.pdf
+          gdown '1mfIq_z4snzKmKkXpQ5h20lttXXYW1eAD' -O pdf-fixtures/MemoriesDropII.pdf
+          echo '2fddeef63f341675c21d19586279aab5455700e46deed8460a0b0b9d52b59a3a  pdf-fixtures/Lume.pdf' > checksums.txt
+          echo 'f94852f2e23d0025eda099134d4d67d8b6a688fe0da0a72eec700ec09ad89bcc  pdf-fixtures/MemoriesDropII.pdf' >> checksums.txt
+          sha256sum --check checksums.txt
+      - name: Run full visual import without writing to product database
+        run: node scripts/benchmark-visual-association-real-pdfs.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pdf-visual-pairing-results
+          path: artifacts/pdf-visual/
