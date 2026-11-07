@@ -7,6 +7,7 @@ import { gunzipSync } from 'node:zlib'
 import { load } from 'cheerio'
 import { detectStorefrontPlatform, extractFacilZapRuntime, facilZapProducts, parseVestiContext, vestiProducts, isZapFacilCatalogPage } from './scanner-platforms.mjs'
 import { collectDirectedSitemap, collectTrayPublic, parseVestiCompanyId, enrichVestiCandidate } from './scanner-platform-collectors.mjs'
+import { collectGopage } from './scanner-gopage.mjs'
 import { collectSharedPhotos, sharedPhotoSourceKind } from './scanner-photo-albums.mjs'
 import { collectWhatsAppCatalog, whatsappCatalogPhone } from './scanner-uazapi-catalog.mjs'
 import { collectVtexPublic } from './scanner-vtex-public.mjs'
@@ -776,7 +777,7 @@ async function collectShopify(rootUrl, request, maxProducts, sink, onProgress) {
     if (!products.length) break
 
     const signature = `${products[0]?.id || products[0]?.handle || ''}|${products.at(-1)?.id || products.at(-1)?.handle || ''}|${products.length}`
-    if (pageSignatures.has(signature)) break
+    if (pageSignatures.has(signature)) throw new Error('Vesti: a API repetiu uma página de produtos; importação incompleta.')
     pageSignatures.add(signature)
 
     await sink.push(products.map((product) => shopifyProduct(origin, product)))
@@ -901,7 +902,9 @@ async function collectFacilZap(rootResponse, request, maxProducts, sink, onProgr
     const mapped = facilZapProducts(payload, rootResponse.url)
     if (mapped.end) break
     const signature = mapped.products.map((product) => product.external_id || product.source_url || product.title).join('|')
-    if (!signature || seenPages.has(signature)) break
+    if (!signature) throw new Error('FácilZap: a página ' + page + ' não contém identificadores reconhecíveis.')
+    if (seenPages.has(signature))
+      throw new Error('FácilZap: a paginação repetiu a página ' + page + '; a importação completa não pôde ser confirmada.')
     seenPages.add(signature)
 
     const enriched = await mapLimit(mapped.products, 6, async (candidate) => {
@@ -983,7 +986,14 @@ async function collectVesti(rootResponse, request, maxProducts, sink, onProgress
 
     await sink.push(enriched)
     await onProgress({ progress: Math.min(90, 15 + Math.floor(Math.log2(page + 1) * 8)), pagesScanned, candidates: sink.count, platform: 'vesti' })
-    if (!payload?.links?.next) break
+    const pageMeta = payload?.meta || {}
+    const pageNumber = Number(pageMeta.current_page ?? page)
+    if (Number.isInteger(pageNumber) && pageNumber !== page)
+      throw new Error('Vesti: a API retornou página ' + pageNumber + ' quando foi solicitada ' + page + '.')
+    const totalPages = Number(pageMeta.last_page ?? pageMeta.total_pages)
+    const hasMore = Boolean(payload?.links?.next || payload?.next_page_url) ||
+      (Number.isInteger(totalPages) && totalPages>page)
+    if (!hasMore) break
   }
   await sink.flush()
   return { candidateCount: sink.count, pagesScanned }
@@ -1144,6 +1154,22 @@ export async function collectCatalog(sourceUrl, options = {}) {
 
   const platform = detectPlatform(rootResponse.body, rootResponse.url)
   await onProgress({ progress: 10, pagesScanned: 1, candidates: 0, platform })
+
+  if (platform === 'gopage') {
+    try {
+      const result = await collectGopage(rootResponse, request, maxProducts, maxPages, sink, onProgress)
+      if (result.candidateCount) return {
+        platform, pagesScanned: result.pagesScanned, candidateCount: sink.count,
+        candidates: sink.candidates, expectedProducts: result.expectedProducts,
+        complete: result.complete, warnings: result.warnings,
+      }
+    } catch (error) {
+      // Returning 16 featured items as a complete 288-product catalog is worse
+      // than a clear failure. Expose parser/pagination errors instead of
+      // silently falling back to a partially crawled homepage.
+      if (sink.count>0 || options.strictPlatformAdapters) throw error
+    }
+  }
 
   if (platform === 'facilzap') {
     try {
