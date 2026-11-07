@@ -115,6 +115,7 @@ test('generic detached numbered photo pages link to price pages without a CORES 
    return '/media/'+crypto.randomUUID()
   },
  })
+ console.info('DETACHED_NUMBERED_DEBUG',JSON.stringify(imported.candidates.map(c=>({title:c.title,price:c.price,page:c.pdf_page,marker:c.pdf_photo_marker_page,kind:c.pdf_numbered_reference,photos:c.images?.length,method:c.pdf_image_match_method}))))
  assert.equal(imported.candidates.length,4)
  assert.deepEqual(imported.candidates.map(x=>x.price),[12.5,25,35,49.9])
  assert.deepEqual(imported.candidates.map(x=>x.pdf_photo_marker_page),[1,1,3,3])
