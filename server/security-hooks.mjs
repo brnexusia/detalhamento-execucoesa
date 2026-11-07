@@ -56,6 +56,10 @@ const defaultImageOrigins = [
   'https://storage.googleapis.com',
   'https://firebasestorage.googleapis.com',
   'https://lh3.googleusercontent.com',
+  // Public product photos used by catalog-cloning review. These exact hosts
+  // are trusted for images only; scripts and API connections remain blocked.
+  'https://ilsnxeayzpgdjzktwowq.supabase.co', // Alexandre Bijoux
+  'https://arquivos.facilzap.app.br', // FácilZap storefront CDN
 ]
 const defaultVideoOrigins = [
   'https://cdn.shopify.com',
