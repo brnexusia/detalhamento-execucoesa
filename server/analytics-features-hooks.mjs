@@ -6,7 +6,6 @@ const { Pool } = pg
 const databaseUrl = process.env.DATABASE_URL?.trim() || ''
 const pool = databaseUrl ? new Pool({ connectionString: databaseUrl, max: 8, connectionTimeoutMillis: 5000 }) : null
 const sessionCookie = 'atacado_session'
-const visitorCookie = 'atacado_public'
 const allowedKinds = new Set(['access', 'product_view', 'product_click', 'cart_add', 'checkout_start', 'whatsapp_click'])
 
 if (pool) pool.on('error', (error) => console.error('[analytics features] pool:', error.message))
@@ -20,16 +19,6 @@ function parseCookies(req) {
     const index = part.indexOf('=')
     return index < 0 ? [part, ''] : [part.slice(0, index), decodeURIComponent(part.slice(index + 1))]
   }))
-}
-
-function responseVisitor(res) {
-  const raw = res.getHeader('set-cookie')
-  const values = Array.isArray(raw) ? raw : raw ? [String(raw)] : []
-  for (const value of values) {
-    const match = /(?:^|;|,\s*)atacado_public=([^;,]+)/.exec(value)
-    if (match?.[1]) return decodeURIComponent(match[1])
-  }
-  return ''
 }
 
 function visitorKey(req, res) {
