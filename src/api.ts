@@ -257,6 +257,7 @@ export const api = {
         session.totalChunks !== Math.ceil(file.size / session.chunkSize)) {
       throw new Error('O servidor não confirmou o envio em partes do PDF.')
     }
+    try {
     for (let index = 0; index < session.totalChunks; index++) {
       const start = index * session.chunkSize
       const part = file.slice(start, Math.min(file.size, start + session.chunkSize))
@@ -287,9 +288,17 @@ export const api = {
       if (!sent) throw lastError
       onProgress?.(Math.min(file.size, start + part.size), file.size)
     }
-    return request<{ job: ImportJob; duplicated: boolean }>('/api/admin/imports/pdf/chunks/complete', {
+    return await request<{ job: ImportJob; duplicated: boolean }>('/api/admin/imports/pdf/chunks/complete', {
       method: 'POST', body: JSON.stringify({ uploadId: session.uploadId }),
     })
+    } catch (error) {
+      // Aborted uploads must not retain their partial PDF bytes for four hours.
+      // A successfully finalized session is protected by job_id and won't be deleted.
+      await fetch('/api/admin/imports/pdf/chunks/' + encodeURIComponent(session.uploadId), {
+        method: 'DELETE', credentials: 'include',
+      }).catch(() => undefined)
+      throw error
+    }
   },
   discardImportJob: (jobId: string) => request<{ ok: true }>(`/api/admin/imports/${encodeURIComponent(jobId)}`, { method: 'DELETE' }),
   recoverLegacyPdfImport: (jobId: string) => request<{ recovered: number; recategorized: number; preserved_originals: number; total_published: number; not_split_with_sku: number }>(
