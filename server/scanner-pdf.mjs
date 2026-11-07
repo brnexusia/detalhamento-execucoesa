@@ -12,7 +12,7 @@ import { parseNamedUnpricedPdfProducts } from './scanner-pdf-named-products.mjs'
 import { parseFashionPhotoPages } from './scanner-pdf-fashion-pages.mjs'
 import { parseTesseractTsv } from './scanner-pdf-tesseract.mjs'
 import { associateOcrProducts, sanitizeAmbiguousOcrPrices } from './scanner-pdf-spatial.mjs'
-import { parsePdfVisualGeometry, numberedPhotoRegions, associateNativePricesByProximity, proximityPhotoRegions } from './scanner-pdf-visual-association.mjs'
+import { parsePdfVisualGeometry, numberedPhotoRegions, associateNativePricesByProximity, proximityPhotoRegions, parseNumberedReferenceFallback } from './scanner-pdf-visual-association.mjs'
 
 const run = promisify(execFile)
 export const MAX_PDF_BYTES = 100 * 1024 * 1024
@@ -462,6 +462,21 @@ export async function collectPdfCatalog(buffer, options = {}) {
         String(a.external_id || '').localeCompare(String(b.external_id || '')))
       candidates = candidates.slice(0, MAX_PRODUCTS)
     }
+    let positionedXml = null
+    let positionedPages = new Map()
+    if (!candidates.length && !parsed.lookbook && !parsed.fashion) {
+      // Only recover detached price legends if the ordinary scanner found no
+      // products. Two or more isolated photo numbers must corroborate a nearby
+      // numbered BRL price table; otherwise leave the PDF for manual review.
+      try {
+        positionedXml=await command('pdftotext',['-bbox-layout',pdf,'-'],30000,deadline)
+        positionedPages=parsePdfVisualGeometry(positionedXml,totalPages)
+        candidates.push(...parseNumberedReferenceFallback(pages,positionedPages,MAX_PRODUCTS))
+      } catch(error) {
+        if(error instanceof PdfSafetyError)throw error
+        console.warn('[pdf import] numbered layout fallback unavailable:',error.message)
+      }
+    }
     if (!candidates.length) {
       candidates.push(...parseReferenceOnlyPdfProducts(pages,MAX_PRODUCTS))
     }
@@ -479,15 +494,15 @@ export async function collectPdfCatalog(buffer, options = {}) {
     // Extract native PDF word coordinates only for pages with multiple items or
     // supplier-numbered lookbooks. Already verified references always take
     // precedence over any spatial heuristic.
-    let positionedXml = null
-    let positionedPages = new Map()
     let priceMatches = []
     const itemsPerPage = new Map()
     for(const candidate of candidates) itemsPerPage.set(candidate.pdf_page,(itemsPerPage.get(candidate.pdf_page)||0)+1)
     if(parsed.lookbook || [...itemsPerPage.values()].some(n=>n>1)){
       try{
-        positionedXml=await command('pdftotext',['-bbox-layout',pdf,'-'],30000,deadline)
-        positionedPages=parsePdfVisualGeometry(positionedXml,totalPages)
+        if(!positionedXml){
+          positionedXml=await command('pdftotext',['-bbox-layout',pdf,'-'],30000,deadline)
+          positionedPages=parsePdfVisualGeometry(positionedXml,totalPages)
+        }
         if(!parsed.lookbook && !parsed.fashion) priceMatches=associateNativePricesByProximity(candidates,positionedPages)
       }catch(error){
         if(error instanceof PdfSafetyError)throw error
@@ -586,9 +601,10 @@ export async function collectPdfCatalog(buffer, options = {}) {
         }
         // A lookbook's price list is linked by its exact printed item number,
         // while independent multi-product pages use same-page spatial crops.
-        const visualRegions = parsed.lookbook
-          ? numberedPhotoRegions(candidates, positionedPages)
-          : proximityPhotoRegions(priceMatches, positionedPages, byPage)
+        const visualRegions = [
+          ...numberedPhotoRegions(candidates, positionedPages, parsed.lookbook ? null : byPage),
+          ...(!parsed.lookbook ? proximityPhotoRegions(priceMatches, positionedPages, byPage) : []),
+        ]
         if(visualRegions.length) {
           await attachSuggestedPhotoRegions(pdf,dir,visualRegions,options.onImage,deadline)
           console.info('[pdf import] visual associations',visualRegions.length)
