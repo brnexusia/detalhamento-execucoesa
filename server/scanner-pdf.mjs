@@ -82,7 +82,8 @@ function isNonTitle(line) {
 function titleFor(lines, index, after) {
   const current = text(lines[index]
     .replace(/(?:R\$\s*|(?:pre[cç]o|atacado|varejo|valor)\s*(?:de|:|-)?\s*)\d{1,6}(?:\.\d{3})*(?:,\d{2})?/gi, '')
-    .replace(/@[\w.-]{2,100}\b/gi, ''))
+    .replace(/@[\w.-]{2,100}\b/gi, '')
+    .replace(/\s+(?:CONTATOS|CONTATO|WHATSAPP|INSTAGRAM)\s*$/i,''))
   const step=/^\(passo\s*\d+\)\s*(\d+(?:[,.]\d+)?\s*(?:ml|g|kg|l))?/i.exec(current)
   if(step) {
     for (let j=index-1;j>=Math.max(0,index-3);j--) {
