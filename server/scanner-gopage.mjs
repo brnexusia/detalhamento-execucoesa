@@ -12,6 +12,7 @@ function positivePrice(value) {
 }
 function url(value,base) {
  try {
+  if(!text(value))return ''
   const result=new URL(typeof value === 'string'?value:String(value||''),base)
   return ['http:','https:'].includes(result.protocol) && !result.username && !result.password ? result.toString() : ''
  } catch { return '' }
@@ -162,6 +163,7 @@ export async function collectGopage(rootResponse, request, maxProducts, maxPages
  const visited=new Set()
  let pagesScanned=0, expectedOnRoot=null, detailFailures=0, listingFailures=0
  for(const start of starts){
+  if(start!==rootResponse.url && expectedOnRoot!=null && sink.count>=expectedOnRoot)break
   if(sink.count>=maxProducts || pagesScanned>=maxPages)break
   let page=1
   const signatureSet=new Set()
