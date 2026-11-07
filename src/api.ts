@@ -93,14 +93,19 @@ export async function apiRequest<T>(url: string, options: RequestInit = {}): Pro
   }
   const payload = response.status === 204 ? null : await response.json().catch(() => null)
   if (!response.ok) {
-    const uploadIssue = options.body instanceof FormData
+    const isUpload = options.body instanceof FormData
+    const pdfUpload = url === '/api/admin/imports/pdf'
+    const uploadIssue = isUpload
       ? response.status === 413
-        ? 'O servidor recusou o tamanho da foto. Tente uma imagem menor.'
-        : [502, 503, 504].includes(response.status)
-          ? 'O servidor de imagens está temporariamente indisponível. Tente novamente.'
+        ? pdfUpload ? 'O servidor recusou o tamanho do PDF (HTTP 413).' : 'O servidor recusou o tamanho da foto (HTTP 413).'
+        : [502,503,504].includes(response.status)
+          ? pdfUpload ? 'Falha na transferência do PDF (HTTP ' + response.status + ').'
+            : 'Falha no envio da mídia (HTTP ' + response.status + ').'
           : ''
       : ''
-    const error = new Error(payload?.error || uploadIssue || 'Não foi possível concluir a operação.') as Error & { status?: number; code?: string }
+    const requestId = isUpload ? response.headers.get('x-upload-request-id') : null
+    const detail = payload?.error || uploadIssue || 'Não foi possível concluir a operação.'
+    const error = new Error(requestId ? detail + ' Protocolo: ' + requestId : detail) as Error & { status?: number; code?: string }
     error.status = response.status
     if (payload?.code) error.code = String(payload.code)
     throw error
@@ -237,10 +242,68 @@ export const api = {
   deleteSeller: (id: string) => request(`/api/admin/sellers/${id}`, { method: 'DELETE' }),
   listImportJobs: () => request<{ jobs: ImportJob[] }>('/api/admin/imports'),
   createImportJob: (url: string) => request<{ job: ImportJob; duplicated: boolean }>('/api/admin/imports', { method: 'POST', body: JSON.stringify({ url }) }),
-  uploadPdfCatalog: (file: File) => {
-    const body = new FormData()
-    body.append('file', file)
-    return request<{ job: ImportJob; duplicated: boolean }>('/api/admin/imports/pdf', { method: 'POST', body })
+  uploadPdfCatalog: async (file: File, onProgress?: (uploadedBytes: number, totalBytes: number) => void) => {
+    const chunkLimit = 512 * 1024
+    if (file.size <= chunkLimit) {
+      const body = new FormData()
+      body.append('file', file)
+      return request<{ job: ImportJob; duplicated: boolean }>('/api/admin/imports/pdf', { method: 'POST', body })
+    }
+    // Large catalog uploads use small resumable requests. This avoids
+    // reverse-proxy body/time limits and avoids keeping 15-100 MB in a single
+    // in-flight browser request. The server assembles parts in the worker.
+    const session = await request<{ uploadId: string; chunkSize: number; totalChunks: number }>(
+      '/api/admin/imports/pdf/chunks/start', {
+        method: 'POST',
+        body: JSON.stringify({ filename: file.name, sizeBytes: file.size }),
+      },
+    )
+    if (!session.uploadId || session.chunkSize < 1 || session.chunkSize > chunkLimit ||
+        session.totalChunks !== Math.ceil(file.size / session.chunkSize)) {
+      throw new Error('O servidor não confirmou o envio em partes do PDF.')
+    }
+    try {
+    for (let index = 0; index < session.totalChunks; index++) {
+      const start = index * session.chunkSize
+      const part = file.slice(start, Math.min(file.size, start + session.chunkSize))
+      let sent = false
+      let lastError: Error = new Error('Falha no envio do PDF.')
+      for (let attempt = 0; attempt < 3; attempt++) {
+        let retryable = true
+        try {
+          const response = await fetch(
+            '/api/admin/imports/pdf/chunks/' + encodeURIComponent(session.uploadId) + '/' + index,
+            {
+              method: 'PUT',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/octet-stream' },
+              body: part,
+            },
+          )
+          if (response.ok) { sent = true; break }
+          const payload = await response.json().catch(() => null)
+          lastError = new Error(payload?.error || 'O envio de uma parte do PDF falhou (HTTP ' + response.status + ').')
+          retryable = [429, 502, 503, 504].includes(response.status)
+        } catch (error) {
+          lastError = error instanceof Error ? error : new Error('Falha de conexão no envio do PDF.')
+        }
+        if (!retryable || attempt === 2) break
+        await new Promise<void>((resolve) => window.setTimeout(resolve, 350 * (attempt + 1)))
+      }
+      if (!sent) throw lastError
+      onProgress?.(Math.min(file.size, start + part.size), file.size)
+    }
+    return await request<{ job: ImportJob; duplicated: boolean }>('/api/admin/imports/pdf/chunks/complete', {
+      method: 'POST', body: JSON.stringify({ uploadId: session.uploadId }),
+    })
+    } catch (error) {
+      // Aborted uploads must not retain their partial PDF bytes for four hours.
+      // A successfully finalized session is protected by job_id and won't be deleted.
+      await fetch('/api/admin/imports/pdf/chunks/' + encodeURIComponent(session.uploadId), {
+        method: 'DELETE', credentials: 'include',
+      }).catch(() => undefined)
+      throw error
+    }
   },
   discardImportJob: (jobId: string) => request<{ ok: true }>(`/api/admin/imports/${encodeURIComponent(jobId)}`, { method: 'DELETE' }),
   recoverLegacyPdfImport: (jobId: string) => request<{ recovered: number; recategorized: number; preserved_originals: number; total_published: number; not_split_with_sku: number }>(

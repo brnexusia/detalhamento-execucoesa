@@ -1,0 +1,42 @@
+name: pdf-upload-live-edge-probe
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/pdf-upload-live-edge-probe.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  edge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Inspect public proxy without user credentials or changing store data
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT=https://shopvax.com.br
+          echo 'PROBE_TIMESTAMP_UTC='$(date -u +%FT%TZ)
+          echo 'DNS'
+          getent ahostsv4 shopvax.com.br | head -3 || true
+          for target in /health /api/billing/public-plans; do
+            echo "GET $target"
+            curl -sSL --max-time 20 -o /tmp/shopvax-body -D /tmp/shopvax-headers -w 'http=%{http_code} seconds=%{time_total} remote=%{remote_ip} size=%{size_download}\n' "$ROOT$target" || true
+            grep -Ei '^(content-type|server|date|via|x-|cf-)' /tmp/shopvax-headers | head -15 || true
+            head -c 350 /tmp/shopvax-body || true
+            echo
+          done
+          echo 'UNAUTHENTICATED small POST'
+          printf '%%PDF-1.4\n' >/tmp/tiny.pdf
+          curl -sS --max-time 35 -H 'Expect:' -o /tmp/shopvax-body -D /tmp/shopvax-headers -w 'http=%{http_code} seconds=%{time_total} remote=%{remote_ip} upload=%{size_upload}\n' -F 'file=@/tmp/tiny.pdf;filename=probe.pdf;type=application/pdf' "$ROOT/api/admin/imports/pdf" || true
+          grep -Ei '^(content-type|server|date|via|x-|cf-)' /tmp/shopvax-headers | head -15 || true
+          head -c 350 /tmp/shopvax-body || true
+          echo
+          echo 'UNAUTHENTICATED 15.57MB POST (auth must reject before creating a job)'
+          truncate -s 15571113 /tmp/probe.pdf
+          printf '%%PDF-1.4\n' | dd of=/tmp/probe.pdf bs=1 conv=notrunc status=none
+          curl -sS --max-time 110 --connect-timeout 12 -H 'Expect:' -o /tmp/shopvax-body -D /tmp/shopvax-headers -w 'http=%{http_code} seconds=%{time_total} remote=%{remote_ip} upload=%{size_upload}\n' -F 'file=@/tmp/probe.pdf;filename=probe.pdf;type=application/pdf' "$ROOT/api/admin/imports/pdf" || true
+          grep -Ei '^(content-type|server|date|via|x-|cf-)' /tmp/shopvax-headers | head -15 || true
+          head -c 1200 /tmp/shopvax-body || true
+          echo

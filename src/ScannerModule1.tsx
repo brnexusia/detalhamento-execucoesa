@@ -87,6 +87,7 @@ export default function ScannerModule1() {
   const [uploadVersion, setUploadVersion] = useState(0)
   const [jobs, setJobs] = useState<ImportJob[]>([])
   const [busy, setBusy] = useState(false)
+  const [pdfTransferPercent, setPdfTransferPercent] = useState(0)
   const [loadingJobs, setLoadingJobs] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -214,6 +215,7 @@ export default function ScannerModule1() {
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
     setBusy(true)
+    setPdfTransferPercent(0)
     setError('')
     setSuccess('')
     try {
@@ -221,7 +223,7 @@ export default function ScannerModule1() {
         throw new Error('Selecione um PDF válido de até 100 MB.')
       }
       const result = sourceMode === 'pdf'
-        ? await api.uploadPdfCatalog(pdfFile!)
+        ? await api.uploadPdfCatalog(pdfFile!, (sent, total) => setPdfTransferPercent(Math.round(sent / total * 100)))
         : await api.createImportJob(url)
       setSuccess(result.duplicated
         ? 'Essa loja já está sendo processada.'
@@ -423,7 +425,7 @@ export default function ScannerModule1() {
             <p className="scanner-help">Produtos extraídos permanecem em revisão e só entram na loja após sua confirmação.</p>
             {error && <p className="scanner-message scanner-message--error">{error}</p>}
             {success && <p className="scanner-message scanner-message--success"><Check size={16} /> {success}</p>}
-            <button className="primary-action scanner-submit" disabled={busy}>{busy ? 'Processando…' : sourceMode === 'pdf' ? 'Importar PDF para revisão' : sourceMode === 'album' ? 'Importar fotos para revisão' : sourceMode === 'whatsapp' ? 'Consultar catálogo WhatsApp' : 'Escanear loja'}<ArrowRight size={17} /></button>
+            <button className="primary-action scanner-submit" disabled={busy}>{busy ? (sourceMode === 'pdf' && pdfTransferPercent > 0 ? 'Enviando PDF ' + pdfTransferPercent + '%…' : 'Processando…') : sourceMode === 'pdf' ? 'Importar PDF para revisão' : sourceMode === 'album' ? 'Importar fotos para revisão' : sourceMode === 'whatsapp' ? 'Consultar catálogo WhatsApp' : 'Escanear loja'}<ArrowRight size={17} /></button>
           </form>
           <div className="scanner-jobs">
             <div><strong>Importações recentes</strong><small>{loadingJobs ? 'Atualizando…' : jobs.length ? `${jobs.length} registro(s)` : 'Nenhuma ainda'}</small></div>

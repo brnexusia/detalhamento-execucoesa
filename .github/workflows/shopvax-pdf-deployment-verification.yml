@@ -1,0 +1,53 @@
+name: ShopVax PDF production verification
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server/scanner-pdf-chunks.mjs'
+      - 'server/scanner-hooks.mjs'
+      - 'server/app.mjs'
+      - 'src/api.ts'
+      - '.github/workflows/shopvax-pdf-deployment-verification.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - name: Verify public release and PaddleOCR service readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          successful=0
+          for attempt in $(seq 1 45); do
+            response="$(curl -fsS --max-time 12 'https://shopvax.com.br/health' || true)"
+            echo "PRODUCTION_HEALTH attempt=$attempt UTC=$(date -u +%FT%TZ)"
+            if printf '%s' "$response" | python3 -c '
+          import os,sys,json
+          try: data=json.load(sys.stdin)
+          except Exception: sys.exit(1)
+          print("releaseSha=",data.get("releaseSha"),"paddleOCR=",data.get("paddleOCR"),"db=",data.get("database"),flush=True)
+          sys.exit(0 if data.get("releaseSha")==os.environ.get("GITHUB_SHA") and data.get("database") is True and data.get("paddleOCR",{}).get("engine")=="paddle" and data.get("paddleOCR",{}).get("ready") is True else 1)
+          '; then
+              successful=1
+              break
+            fi
+            sleep 20
+          done
+          if [ "$successful" != 1 ]; then
+            echo 'Production did not confirm expected release and PaddleOCR readiness.'
+            exit 1
+          fi
+      - name: Confirm new authenticated PDF upload route is accessible
+        shell: bash
+        run: |
+          code="$(curl -sS -o /tmp/pdf-probe-reply -w '%{http_code}' --max-time 20 \
+            -H 'Content-Type: application/json' \
+            -d '{"filename":"probe.pdf","sizeBytes":15570850}' \
+            https://shopvax.com.br/api/admin/imports/pdf/chunks/start)"
+          echo "UNAUTHENTICATED_NEW_ROUTE_HTTP=$code"
+          test "$code" = 401
+          grep -q 'Sessão necessária' /tmp/pdf-probe-reply
+          echo 'RELEASE, PADDLEOCR, PDF CHUNK ROUTING VERIFIED'

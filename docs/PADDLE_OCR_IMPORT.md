@@ -80,3 +80,43 @@ Sem caixas de coordenadas confiáveis, mantém o processamento legado.
 Testes:
 - `node --test server/scanner-pdf-spatial.test.mjs`
 - `node --test server/scanner-pdf-spatial.integration.test.mjs`
+
+
+## Upload de PDFs grandes sem 502
+
+Arquivos com mais de 512 KiB passam pelo protocolo de upload em partes:
+1. O navegador cria uma sessão autenticada da loja.
+2. Cada bloco de até 512 KiB é enviado por uma requisição HTTP PUT
+   independente; erros transitórios podem ser repetidos sem recomeçar tudo.
+3. O PostgreSQL guarda cada bloco separado e verifica tamanho e SHA-256
+   para impedir sobrescrita acidental de uma parte já confirmada.
+4. O navegador finaliza a sessão: o backend verifica as 30 partes de um
+   PDF de 15.571.113 bytes, cria o trabalho `queued` e responde HTTP 202.
+5. O worker monta o PDF a partir dos blocos e usa o scanner existente.
+   Ao finalizar, os blocos temporários são removidos.
+
+O endpoint legado `POST /api/admin/imports/pdf` continua disponível para
+compatibilidade com clientes antigos e arquivos pequenos. Sessões interrompidas
+são eliminadas no cancelamento/erro do navegador ou por expiração. Não exponha
+cookies ou tokens nas evidências.
+
+### Verificação de produção
+
+Consultar `GET /health`. O campo `paddleOCR` é:
+- `"engine":"paddle","ready":true`: processo local carregado e respondendo;
+- `"engine":"paddle","ready":false`: processo ainda inicializando ou falhou;
+- `"engine":"tesseract","ready":false`: desligado pela configuração.
+
+O campo `releaseSha` permite comparar o commit efetivamente publicado com
+`main`. Um commit aprovado no GitHub NÃO confirma, sozinho, o deploy no
+EasyPanel. Se o site retornar um commit antigo, é necessário concluir o
+redeploy da imagem no serviço atual.
+
+O teste do motor real é:
+`PDF_OCR_REAL_TEST=1 node --test server/paddle-ocr.real.integration.test.mjs`
+dentro do contêiner, com o processo PaddleOCR carregado. O teste monta um
+PDF com duas colunas de produtos e verifica a associação dos preços nas
+coordenadas produzidas pelo PaddleOCR real (não simulado).
+
+A aplicação não cria serviço separado. O processo OCR é iniciado com prioridade
+de CPU menor que a do servidor web, mas mantém a qualidade do modelo.
