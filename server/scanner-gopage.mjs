@@ -167,7 +167,9 @@ export async function collectGopage(rootResponse, request, maxProducts, maxPages
  if(!root)throw new Error('A GoPage não retornou os dados estruturados da vitrine pública.')
  const categories=gopageCategoryUrls(root,rootResponse.url)
  const starts=[rootResponse.url]
- if(!/\/produto\//i.test(new URL(rootResponse.url).pathname) && categories.length)starts.push(...categories)
+ // A category URL must remain scoped to that category, not silently expand
+ // into every sibling category; only the storefront root can widen scope.
+ if(new URL(rootResponse.url).pathname.replace(/\/+$/, '') === '' && categories.length)starts.push(...categories)
  const visited=new Set()
  let pagesScanned=0, listingPages=0, expectedOnRoot=null, detailFailures=0, listingFailures=0, lastListingExhausted=false
  for(const start of starts){
