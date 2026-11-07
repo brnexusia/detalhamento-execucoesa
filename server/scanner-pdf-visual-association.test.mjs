@@ -104,3 +104,21 @@ test('never re-price crowded price lists without unique positional evidence',()=
  assert.deepEqual(associateNativePricesByProximity(items,geometry),[])
  assert.deepEqual(items.map(x=>x.price),[12.5,18])
 })
+
+test('badge 04 just above price footer is retained, footer number 04 itself is not a visual marker',()=>{
+ const geometry=parsePdfVisualGeometry(page(
+  line(word('1',480,400,25)),
+  line(word('2',110,1050,25)),
+  line(word('3',140,1130,25)),
+  line(word('4',170,1190,25)),
+  line(word('01',210,1290,35),word('R$',255,1290,36),word('20,00',300,1290)),
+  line(word('02',210,1335,35),word('R$',255,1335,36),word('27,50',300,1335)),
+  line(word('03',430,1290,35),word('R$',480,1290,36),word('37,00',525,1290)),
+  line(word('04',430,1335,35),word('R$',480,1335,36),word('21,50',525,1335)),
+ ))
+ const group=[1,2,3,4].map(id=>({pdf_lookbook:true,pdf_page:1,pdf_item_number:id,images:[]}))
+ const matched=numberedPhotoRegions(group,geometry)
+ assert.deepEqual(matched.map(x=>x.candidate.pdf_item_number),[1,2,3,4])
+ assert.equal(matched[3].page,1)
+ assert.ok(matched[3].rect.bottom<=1440*.88)
+})
