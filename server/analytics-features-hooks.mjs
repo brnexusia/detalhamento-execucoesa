@@ -6,7 +6,6 @@ const { Pool } = pg
 const databaseUrl = process.env.DATABASE_URL?.trim() || ''
 const pool = databaseUrl ? new Pool({ connectionString: databaseUrl, max: 8, connectionTimeoutMillis: 5000 }) : null
 const sessionCookie = 'atacado_session'
-const visitorCookie = 'atacado_public'
 const allowedKinds = new Set(['access', 'product_view', 'product_click', 'cart_add', 'checkout_start', 'whatsapp_click'])
 
 if (pool) pool.on('error', (error) => console.error('[analytics features] pool:', error.message))
@@ -22,23 +21,26 @@ function parseCookies(req) {
   }))
 }
 
-function responseVisitor(res) {
-  const raw = res.getHeader('set-cookie')
-  const values = Array.isArray(raw) ? raw : raw ? [String(raw)] : []
-  for (const value of values) {
-    const match = /(?:^|;|,\s*)atacado_public=([^;,]+)/.exec(value)
-    if (match?.[1]) return decodeURIComponent(match[1])
-  }
-  return ''
-}
-
 function visitorKey(req, res) {
-  const token = parseCookies(req)[visitorCookie] || responseVisitor(res)
-  if (token) return hash(`visitor:${token}`).slice(0, 40)
-  return hash(`fallback:${req.ip || ''}:${req.headers['user-agent'] || ''}`).slice(0, 40)
+  const cookies = parseCookies(req)
+  // The public-catalog protection cookie expires after 24 hours and is not
+  // suitable for a stable per-day identity. Use the same persistent anonymous
+  // cookie as social post views, even when a short-lived cookie also exists.
+  let token = cookies.shopvax_visitor
+  if (!/^[A-Za-z0-9_-]{24,100}$/.test(token || '')) {
+    // Never identify unrelated users by a shared office/mobile IP address.
+    // An anonymous first-party cookie is stable across visits, without signup.
+    token = crypto.randomBytes(24).toString('base64url')
+    const secure = req.secure || req.headers['x-forwarded-proto'] === 'https'
+    res.cookie('shopvax_visitor', token, {
+      httpOnly: true, sameSite: 'lax', secure, path: '/',
+      maxAge: 365 * 24 * 60 * 60 * 1000,
+    })
+  }
+  return hash(`visitor:${token}`).slice(0, 40)
 }
 
-async function ensureSchema() {
+export async function ensureSchema() {
   if (!pool) throw new Error('DATABASE_URL não configurada.')
   await pool.query(`
     CREATE TABLE IF NOT EXISTS intent_events (
@@ -58,6 +60,12 @@ async function ensureSchema() {
     CREATE INDEX IF NOT EXISTS idx_intent_events_product ON intent_events(store_id,product_id,created_at DESC) WHERE product_id IS NOT NULL;
     CREATE INDEX IF NOT EXISTS idx_intent_events_seller ON intent_events(store_id,seller_id,created_at DESC) WHERE seller_id IS NOT NULL;
     CREATE INDEX IF NOT EXISTS idx_intent_events_catalog ON intent_events(store_id,catalog_id,created_at DESC) WHERE catalog_id IS NOT NULL;
+    -- New events have a day key, old event rows stay untouched (NULL).
+    -- The reports additionally deduplicate legacy data by local calendar date.
+    ALTER TABLE intent_events ADD COLUMN IF NOT EXISTS view_day date;
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_intent_events_daily_unique
+      ON intent_events(store_id,kind,visitor_key,view_day,COALESCE(product_id,''))
+      WHERE kind IN ('access','product_view') AND view_day IS NOT NULL;
   `)
 }
 
@@ -92,7 +100,7 @@ async function requireStore(req, res, next) {
   } catch (error) { next(error) }
 }
 
-async function recordEvents(events) {
+export async function recordEvents(events) {
   const rows = events.filter((event) => event?.storeId && allowedKinds.has(event?.kind))
   if (!rows.length) return
   const values = []
@@ -103,11 +111,14 @@ async function recordEvents(events) {
       event.productId || null, event.orderId || null, event.kind,
       event.visitorKey || '', JSON.stringify(event.metadata || {}),
     )
-    return `($${offset + 1},$${offset + 2},$${offset + 3},$${offset + 4},$${offset + 5},$${offset + 6},$${offset + 7},$${offset + 8},$${offset + 9})`
+    const parameterRefs = Array.from({ length: 9 }, (_, position) => '$' + (offset + position + 1))
+    return '(' + parameterRefs.join(',') + ", CASE WHEN $" + (offset + 7) +
+      " IN ('access','product_view') THEN (now() AT TIME ZONE 'America/Sao_Paulo')::date ELSE NULL END)"
   })
   await pool.query(
-    `INSERT INTO intent_events (id,store_id,seller_id,catalog_id,product_id,order_id,kind,visitor_key,metadata)
-     VALUES ${placeholders.join(',')}`,
+    `INSERT INTO intent_events (id,store_id,seller_id,catalog_id,product_id,order_id,kind,visitor_key,metadata,view_day)
+     VALUES ${placeholders.join(',')}
+     ON CONFLICT DO NOTHING`,
     values,
   )
 }
@@ -201,7 +212,7 @@ async function reports(req, res) {
 
   const itemsResult = await pool.query(
     `SELECT p.id,p.sku,p.name,
-       COUNT(e.id) FILTER (WHERE e.kind='product_view')::int AS views,
+       COUNT(DISTINCT (e.visitor_key,(e.created_at AT TIME ZONE 'America/Sao_Paulo')::date)) FILTER (WHERE e.kind='product_view')::int AS views,
        COUNT(e.id) FILTER (WHERE e.kind='product_click')::int AS clicks,
        COUNT(e.id) FILTER (WHERE e.kind='cart_add')::int AS cart_adds,
        COUNT(e.id) FILTER (WHERE e.kind='whatsapp_click' AND e.product_id IS NOT NULL)::int AS whatsapp,
@@ -220,7 +231,7 @@ async function reports(req, res) {
 
   const linksResult = await pool.query(
     `SELECT e.seller_id,COALESCE(s.name,'Link geral') AS name,COALESCE(s.slug,'') AS slug,
-       COUNT(*) FILTER (WHERE e.kind='access')::int AS accesses,
+       COUNT(DISTINCT (e.visitor_key,(e.created_at AT TIME ZONE 'America/Sao_Paulo')::date)) FILTER (WHERE e.kind='access')::int AS accesses,
        COUNT(*) FILTER (WHERE e.kind='cart_add')::int AS carts,
        COUNT(*) FILTER (WHERE e.kind='checkout_start')::int AS checkouts,
        COUNT(*) FILTER (WHERE e.kind='whatsapp_click' AND e.product_id IS NULL)::int AS whatsapp
@@ -236,7 +247,7 @@ async function reports(req, res) {
   try {
     const catalogsResult = await pool.query(
       `SELECT e.catalog_id,COALESCE(c.name,'Catálogo geral') AS name,COALESCE(c.kind,'geral') AS kind,COALESCE(c.slug,'geral') AS slug,
-         COUNT(*) FILTER (WHERE e.kind='product_view')::int AS views,
+         COUNT(DISTINCT (e.product_id,e.visitor_key,(e.created_at AT TIME ZONE 'America/Sao_Paulo')::date)) FILTER (WHERE e.kind='product_view')::int AS views,
          COUNT(*) FILTER (WHERE e.kind='product_click')::int AS clicks,
          COUNT(*) FILTER (WHERE e.kind='cart_add')::int AS carts,
          COUNT(*) FILTER (WHERE e.kind='whatsapp_click' AND e.product_id IS NULL)::int AS whatsapp
@@ -270,7 +281,7 @@ async function reports(req, res) {
 
   return res.json({
     periodDays: days,
-    interpretation: 'Cliques para o WhatsApp representam intenção / lead / pedido enviado ao WhatsApp. Não representam faturamento, ticket médio ou venda concluída.',
+    interpretation: 'Views de produto e acessos são contados no máximo uma vez por visitante por dia (horário de Brasília). Cliques para o WhatsApp representam intenção, não venda ou faturamento confirmado.',
     items, links, sellers, catalogs, funnel,
   })
 }
