@@ -15,7 +15,7 @@ test('corroborated neighboring board suggests types for missing numbered items',
   const pages = Array(16).fill('')
   pages[5] = 'CORES DISPONÍVEIS\nBRINCO 01\nPULSEIRA 02\nPULSEIRA 03'
   pages[8] = 'CORES DISPONÍVEIS\nBRINCO 01'
-  const items=[record(7,1),record(7,2,27.5),record(7,3,21.5)]
+  const items=[{...record(7,1),title:'Brinco · Memories · 02-01',category:'Brincos'},record(7,2,27.5),record(7,3,21.5)]
   const total=suggestMissingLookbookTypes(items,pages)
   assert.equal(total,2)
   assert.match(items[1].title,/^Pulseira ·/)
