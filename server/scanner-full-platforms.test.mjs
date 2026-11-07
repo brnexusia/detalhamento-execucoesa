@@ -183,3 +183,28 @@ test('bounded scan transparently reports a partial catalog instead of reporting 
  assert.equal(res.expectedProducts,6)
  assert.equal(res.complete,false)
 })
+
+test('FácilZap does not import images from unrelated product details',async()=>{
+ const base='https://facilzap.app.br/minhaloja'
+ const tpl=base+'/carregar_produtos/{PAGE}/{CATEGORY}/123'
+ const html='<script>window.FZCatalogoRuntime.listagem = '+
+  JSON.stringify({urlCarregarProdutosTemplate:tpl,categoria:0})+';</script>'
+ const unrelated='<script type="application/ld+json">'+JSON.stringify({
+  '@context':'https://schema.org','@type':'Product',name:'Outro Produto',sku:'OUTRO',
+  image:['https://example.com/errado.webp'],
+ })+'</script>'
+ const request=async(input,options={})=>{
+  const u=String(input)
+  if(u===base)return {ok:true,status:200,url:u,contentType:'text/html',body:html}
+  if(u.endsWith('/produto/1'))return {ok:true,status:200,url:u,contentType:'text/html',body:unrelated}
+  if(u.includes('/carregar_produtos/')){
+   const page=Number(/carregar_produtos\/(\d+)\//.exec(u)?.[1])
+   return {ok:true,status:200,url:u,contentType:'application/json',body:JSON.stringify(
+    page===1?{produtos:[{id:1,nome:'Brinco A',sku:'A1',imagens:['produtos/correto.webp']}]}:{acao:'sem_mais_produtos'})}
+  }
+  return {ok:false,status:404,url:u,contentType:'text/plain',body:''}
+ }
+ const result=await collectCatalog(base,{request,strictPlatformAdapters:true})
+ assert.equal(result.candidateCount,1)
+ assert.deepEqual(result.candidates[0].images,['https://arquivos.facilzap.app.br/produtos/correto.webp'])
+})

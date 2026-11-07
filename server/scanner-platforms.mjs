@@ -35,10 +35,10 @@ function mediaUrls(value, baseUrl) {
       return
     }
     if (typeof item !== 'object') return
-    for (const key of ['url', 'src', 'image', 'imagem', 'foto', 'arquivo', 'fallback']) {
+    for (const key of ['url', 'src', 'image', 'imagem', 'foto', 'arquivo', 'fallback', 'path', 'original', 'full', 'large', 'image_url', 'imageUrl', 'photo_url', 'photoUrl', 'media_url', 'thumbnail_url']) {
       if (typeof item[key] === 'string') visit(item[key])
     }
-    for (const key of ['normal', 'zoom', 'thumb', 'media', 'images', 'imagens', 'fotos']) {
+    for (const key of ['normal', 'zoom', 'thumb', 'thumbnail', 'media', 'images', 'imagens', 'fotos', 'gallery', 'galeria', 'photos', 'pictures']) {
       if (item[key]) visit(item[key])
     }
   }
@@ -75,10 +75,10 @@ function facilZapMediaUrls(value, baseUrl) {
       return
     }
     if (typeof item !== 'object') return
-    for (const key of ['url', 'src', 'image', 'imagem', 'foto', 'arquivo', 'fallback', 'caminho', 'path']) {
+    for (const key of ['url', 'src', 'image', 'imagem', 'foto', 'arquivo', 'fallback', 'caminho', 'path', 'original', 'full', 'large', 'image_url', 'imageUrl', 'photo_url', 'photoUrl', 'media_url']) {
       if (typeof item[key] === 'string') visit(item[key])
     }
-    for (const key of ['normal', 'zoom', 'thumb', 'media', 'images', 'imagens', 'fotos']) {
+    for (const key of ['normal', 'zoom', 'thumb', 'thumbnail', 'media', 'images', 'imagens', 'fotos', 'gallery', 'galeria', 'photos', 'pictures']) {
       if (item[key]) visit(item[key])
     }
   }
@@ -107,10 +107,14 @@ function facilZapVariantProperties(nameValue, colorValue) {
   const technicalColor = /^(?:#[0-9a-f]{3,8}|rgba?\(|hsla?\()/i.test(color)
 
   const sizeColorMatch = /^(pp|p|m|g|gg|xg|xgg|eg|egg|\d{1,3})\s*\(([^)]+)\)$/i.exec(name)
+  const namedColorSize = /^(.+?)\s+(?:tamanho|tam)\s*[:\\-]?\s*(pp|p|m|g|gg|xg|xgg|eg|egg|\d{1,3})$/i.exec(name)
   const sizeMatch = /^(?:tamanho|tam)\s*[:\-]?\s*(.+)$/i.exec(name)
   const plainSize = /^(?:pp|p|m|g|gg|xg|xgg|eg|egg|\d{1,3})$/i.test(name)
 
-  if (sizeColorMatch) {
+  if (namedColorSize) {
+    properties.push({ name: 'Cor', value: text(namedColorSize[1]) })
+    properties.push({ name: 'Tamanho', value: text(namedColorSize[2]) })
+  } else if (sizeColorMatch) {
     properties.push({ name: 'Tamanho', value: text(sizeColorMatch[1]) })
     properties.push({ name: 'Cor', value: text(sizeColorMatch[2]) })
   } else if (sizeMatch?.[1]) {
@@ -216,7 +220,7 @@ export function extractFacilZapRuntime(html) {
   return null
 }
 
-function normalizeVariation(item, fallbackId = '', parent = {}) {
+function normalizeVariation(item, fallbackId = '', parent = {}, sourceUrl = '') {
   if (!item || typeof item !== 'object') return null
   const externalId = text(item.id ?? item.idVariacao ?? item.variacao_id ?? item.variant_id ?? fallbackId)
   const title = text(item.nome ?? item.name ?? item.titulo ?? item.title)
@@ -246,6 +250,10 @@ function normalizeVariation(item, fallbackId = '', parent = {}) {
     ),
     available: explicitAvailable && (!controlled || stock == null || stock > 0),
     stock,
+    images: facilZapMediaUrls([
+      item.imagens, item.images, item.fotos, item.photos,
+      item.imagem, item.image, item.foto, item.media, item.galeria,
+    ], sourceUrl),
     properties,
   }
 }
@@ -272,14 +280,49 @@ export function facilZapProducts(payload, sourceUrl) {
       item.imagem,
       item.image,
       item.imagens_variacoes,
+      item.galeria,
+      item.gallery,
+      item.photos,
+      item.foto,
+      item.imagem_principal,
     ], sourceUrl)
 
     // Na API real `variacoes` é um objeto indexado pelo ID da variação.
     const variantSource = item.variacoes ?? item.variants ?? item.grade ?? item.grades ?? item.opcoes
     const variants = objectEntries(variantSource)
-      .map(([variantId, variant]) => normalizeVariation(variant, variantId, item))
+      .map(([variantId, variant]) => normalizeVariation(variant, variantId, item, sourceUrl))
       .filter((variant) => variant && (variant.external_id || variant.sku || variant.properties.length))
 
+    // Variant photo dictionaries are keyed by variant ID in several FácilZap
+    // storefront versions. Preserve the association rather than losing images.
+    const variationMedia = item.imagens_variacoes
+    const variationImagesById = new Map()
+    if (variationMedia && typeof variationMedia === 'object' && !Array.isArray(variationMedia)) {
+      for (const [id, media] of Object.entries(variationMedia)) {
+        const urls = facilZapMediaUrls(media, sourceUrl)
+        if (urls.length) variationImagesById.set(String(id), urls)
+      }
+    }
+    const unassignedVariationImages = Array.isArray(variationMedia)
+      ? facilZapMediaUrls(variationMedia, sourceUrl) : []
+    for (const variant of variants) {
+      variant.images = unique([
+        ...(variant.images || []),
+        ...(variationImagesById.get(variant.external_id) || []),
+      ])
+    }
+
+    // Some storefronts expose photos only under individual variations.
+    // Preserve these in the parent gallery so the product card never loses every image.
+    for (const variant of variants) {
+      variant.images = facilZapMediaUrls(variant.images, sourceUrl)
+    }
+    const allImages = unique([
+      ...images,
+      ...unassignedVariationImages,
+      ...[...variationImagesById.values()].flat(),
+      ...variants.flatMap((variant) => variant.images || []),
+    ])
     const propertyMap = new Map()
     const addProperty = (nameValue, valueValue) => {
       const name = text(nameValue)
@@ -318,7 +361,7 @@ export function facilZapProducts(payload, sourceUrl) {
       sku: text(item.sku ?? item.codigo ?? item.referencia ?? item.code),
       category: text(item.categoria_nome ?? item.categoria?.nome ?? item.categoria ?? item.category?.name ?? item.category),
       brand: text(item.marca?.nome ?? item.marca ?? item.brand?.name ?? item.brand),
-      images,
+      images: allImages,
       variants,
       properties,
       price: effectivePrice,
@@ -331,6 +374,35 @@ export function facilZapProducts(payload, sourceUrl) {
   return { end: products.length === 0, products }
 }
 
+
+/**
+ * FácilZap product pages expose a plain JSON object via `DadosProduto`.
+ * Parse the balanced object only (no evaluation of arbitrary JavaScript).
+ */
+export function extractFacilZapDetailProduct(html, sourceUrl) {
+  const source=String(html || '')
+  const match=/\b(?:const|let|var)\s+DadosProduto\s*=\s*/.exec(source)
+  if(!match)return null
+  const start=source.indexOf('{',match.index+match[0].length)
+  if(start<0 || start-(match.index+match[0].length)>5)return null
+  let depth=0, quoted=false, escaped=false, end=-1
+  for(let i=start;i<source.length && i<start+2_000_000;i++){
+    const char=source[i]
+    if(quoted){
+      if(escaped)escaped=false
+      else if(char==='\\')escaped=true
+      else if(char==='"')quoted=false
+      continue
+    }
+    if(char==='"'){quoted=true;continue}
+    if(char==='{')depth++
+    else if(char==='}'){depth--;if(depth===0){end=i+1;break}}
+  }
+  if(end<0)return null
+  let payload
+  try{payload=JSON.parse(source.slice(start,end))}catch{return null}
+  return facilZapProducts({produtos:[payload]},sourceUrl).products[0] || null
+}
 
 export function parseVestiContext(sourceUrl, html = '') {
   let url
@@ -368,6 +440,7 @@ export function vestiProducts(payload, context) {
         color,
         size,
         price: numberValue(variant.price ?? item.price),
+        images: mediaUrls([variant.media, variant.images, variant.image, variant.photos, variant.photo], context.catalogBaseUrl),
         available: (variant.qnt ?? variant.quantity ?? variant.stock ?? 1) !== 0,
         properties: [color && { name: 'Cor', value: color }, size && { name: 'Tamanho', value: size }].filter(Boolean),
       }
@@ -384,7 +457,10 @@ export function vestiProducts(payload, context) {
       sku: text(item.code ?? item.sku),
       category: text(item.category?.name ?? item.category ?? asArray(item.categories)[0]?.name),
       brand: text(item.brand?.name ?? item.brand),
-      images: mediaUrls(item.media ?? item.images, context.catalogBaseUrl),
+      images: unique([
+        ...mediaUrls([item.media, item.images, item.image, item.photos, item.photo, item.gallery], context.catalogBaseUrl),
+        ...variants.flatMap((variant) => variant.images || []),
+      ]),
       variants,
       properties,
       price,

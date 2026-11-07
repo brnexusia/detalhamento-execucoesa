@@ -5,9 +5,10 @@ import { isPublicAddress } from './network-egress-policy.mjs'
 export { isPublicAddress } from './network-egress-policy.mjs'
 import { gunzipSync } from 'node:zlib'
 import { load } from 'cheerio'
-import { detectStorefrontPlatform, extractFacilZapRuntime, facilZapProducts, parseVestiContext, vestiProducts, isZapFacilCatalogPage } from './scanner-platforms.mjs'
+import { detectStorefrontPlatform, extractFacilZapRuntime, facilZapProducts, extractFacilZapDetailProduct, parseVestiContext, vestiProducts, isZapFacilCatalogPage } from './scanner-platforms.mjs'
 import { collectDirectedSitemap, collectTrayPublic, parseVestiCompanyId, enrichVestiCandidate } from './scanner-platform-collectors.mjs'
 import { collectGopage } from './scanner-gopage.mjs'
+import { isAlexandreBijouxStorefront, collectAlexandreBijoux } from './scanner-alexandre-bijoux.mjs'
 import { collectSharedPhotos, sharedPhotoSourceKind } from './scanner-photo-albums.mjs'
 import { collectWhatsAppCatalog, whatsappCatalogPhone } from './scanner-uazapi-catalog.mjs'
 import { collectVtexPublic } from './scanner-vtex-public.mjs'
@@ -867,7 +868,7 @@ function mergeDetailIntoCandidate(candidate, detail) {
     ]).slice(0, 8)
     return variantImages.length ? { ...variant, images: variantImages } : variant
   })
-  return { ...candidate, images, variants }
+  return { ...candidate, description: candidate.description || detail.description || '', images, variants }
 }
 
 async function collectFacilZap(rootResponse, request, maxProducts, sink, onProgress) {
@@ -915,11 +916,21 @@ async function collectFacilZap(rootResponse, request, maxProducts, sink, onProgr
         const detailResponse = await request(detailUrl, { accept: 'text/html,application/xhtml+xml' })
         pagesScanned += 1
         if (!detailResponse.ok || !detailResponse.contentType.includes('html')) return candidate
+        const inlineDetail = extractFacilZapDetailProduct(detailResponse.body, detailResponse.url)
+        if (inlineDetail && inlineDetail.external_id &&
+            String(inlineDetail.external_id) === String(candidate.external_id)) {
+          return mergeDetailIntoCandidate(candidate, inlineDetail)
+        }
         const detailProducts = extractProductsFromHtml(detailResponse.body, detailResponse.url)
         const normalizedTitle = String(candidate.title || '').trim().toLowerCase()
-        const detail = detailProducts.find((product) => String(product.sku || '').trim() && String(product.sku || '').trim() === String(candidate.sku || '').trim()) ||
-          detailProducts.find((product) => String(product.title || '').trim().toLowerCase() === normalizedTitle) || detailProducts[0]
-        return mergeDetailIntoCandidate(candidate, detail)
+        // Never borrow another product's photos if a storefront redirects a
+        // product URL to a category/home page with unrelated JSON-LD.
+        const sku = String(candidate.sku || '').trim().toLowerCase()
+        const detail = (sku && detailProducts.find((product) =>
+          String(product.sku || '').trim().toLowerCase() === sku)) ||
+          (normalizedTitle && detailProducts.find((product) =>
+            String(product.title || '').trim().toLowerCase() === normalizedTitle))
+        return detail ? mergeDetailIntoCandidate(candidate, detail) : candidate
       } catch {
         return candidate
       }
@@ -1154,8 +1165,13 @@ export async function collectCatalog(sourceUrl, options = {}) {
     rootResponse = redirected
   }
 
-  const platform = detectPlatform(rootResponse.body, rootResponse.url)
+  const platform = isAlexandreBijouxStorefront(rootResponse.url) ? 'alexandre-bijoux' : detectPlatform(rootResponse.body, rootResponse.url)
   await onProgress({ progress: 10, pagesScanned: 1, candidates: 0, platform })
+
+  if (platform === 'alexandre-bijoux') {
+    const result = await collectAlexandreBijoux(rootResponse, request, maxProducts, sink, onProgress)
+    return { platform, ...result, candidates: sink.candidates }
+  }
 
   if (platform === 'gopage') {
     try {
