@@ -6,6 +6,7 @@ import { importPublishGroupHash, previewPdfPublishGroups, mergeImportParentProdu
 import { inferPdfProductCategory } from './scanner-pdf-category.mjs'
 import { fetchBestImportImage, isBraavoImageUrl, localizeImportedProductMedia } from './import-media-localizer.mjs'
 import { stageSelectedImportMedia } from './scanner-publish-media.mjs'
+import { planAlexandreRecovery } from './scanner-alexandre-recovery.mjs'
 
 const { Pool } = pg
 const databaseUrl = process.env.DATABASE_URL?.trim() || ''
@@ -657,6 +658,156 @@ async function recoverLegacyPdfJob(req, res) {
   }
 }
 
+
+async function alexandreRecoveryContext(query, jobId, storeId) {
+  const rows = await query(
+    `SELECT n.id,n.published_product_id,n.publish_result,
+       COALESCE(n.review_data,n.normalized_data) AS data,
+       c.raw_data->>'external_id' AS external_id
+     FROM import_normalized_products n
+     LEFT JOIN import_candidates c ON c.id=n.source_candidate_id
+     WHERE n.job_id=$1 AND n.store_id=$2 AND n.selected=true
+     ORDER BY n.id ASC`,
+    [jobId,storeId],
+  )
+  if (!rows.rowCount) throw new Error('Histórico das peças não encontrado. Não é seguro recuperar automaticamente.')
+  const ids=[...new Set(rows.rows.map(row=>row.published_product_id).filter(Boolean))]
+  const products = await query(
+    'SELECT id,media_url,images,active FROM products WHERE store_id=$1 AND id=ANY($2::text[])',
+    [storeId, ids],
+  )
+  const plan = planAlexandreRecovery(rows.rows,products.rows)
+  return plan
+}
+
+async function alexandreRecoveryPreview(req,res) {
+  await ensurePublisherSchema()
+  const store=await currentStore(req)
+  if(!store)return res.status(401).json({error:'Sessão necessária.'})
+  const found=await pool.query(
+    'SELECT id,platform,status,selected_count,published_count FROM import_jobs WHERE id=$1 AND store_id=$2',
+    [req.params.jobId,store.store_id],
+  )
+  const job=found.rows[0]
+  if(!job)return res.status(404).json({error:'Importação não encontrada.'})
+  if(job.platform!=='alexandre-bijoux' || job.status!=='completed')
+    return res.status(409).json({error:'Recuperação exclusiva de importações Alexandre Bijoux já concluídas.'})
+  try{
+    const plan=await alexandreRecoveryContext(pool.query.bind(pool),job.id,store.store_id)
+    return res.json({preview:{
+      selected:plan.total,
+      preserved:plan.originals,
+      missing:plan.create.length,
+      recoverable:plan.create.length>0,
+    }})
+  }catch(error){
+    return res.status(409).json({error:error instanceof Error?error.message:'Histórico insuficiente para recuperação segura.'})
+  }
+}
+
+async function recoverAlexandreJob(req,res) {
+  await ensurePublisherSchema()
+  const store=await currentStore(req)
+  if(!store)return res.status(401).json({error:'Sessão necessária.'})
+  if(req.body?.confirm!==true || !Number.isInteger(req.body?.expectedMissing))
+    return res.status(400).json({error:'Confirmação e quantidade previstas são obrigatórias.'})
+  const client=await pool.connect()
+  try {
+    await client.query('BEGIN')
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1)::bigint)",[`scanner-publish-store:${store.store_id}`])
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1)::bigint)",[`scanner-publish-job:${req.params.jobId}`])
+    const found=await client.query(
+      'SELECT * FROM import_jobs WHERE id=$1 AND store_id=$2 FOR UPDATE',
+      [req.params.jobId,store.store_id],
+    )
+    const job=found.rows[0]
+    if(!job){await client.query('ROLLBACK');return res.status(404).json({error:'Importação não encontrada.'})}
+    if(job.platform!=='alexandre-bijoux' || job.status!=='completed'){
+      await client.query('ROLLBACK')
+      return res.status(409).json({error:'A recuperação é exclusiva do Alexandre Bijoux já publicado.'})
+    }
+    const plan=await alexandreRecoveryContext(client.query.bind(client),job.id,store.store_id)
+    if(plan.total!==Number(job.selected_count||0) || plan.create.length!==req.body.expectedMissing){
+      await client.query('ROLLBACK')
+      return res.status(409).json({error:'A quantidade mudou desde a prévia. Atualize antes de recuperar.'})
+    }
+    if(plan.create.length===0){
+      await client.query('COMMIT')
+      return res.json({recovered:0,preserved_originals:plan.originals,total_published:plan.total,idempotent:true})
+    }
+    // Preserve existing product records and their IDs; never delete/recreate
+    // them or overwrite owner edits. Only add the separate missing pieces.
+    const toCreate=plan.create.map(item=>{
+      const data=item.prepared
+      return {
+        id:id(),store_id:store.store_id,sku:String(data.sku||'').slice(0,80),
+        name:String(data.name||'').slice(0,180),
+        description:String(data.description||'').slice(0,2000),
+        price:Number(data.price),category:categoryForPublication(data,'alexandre-bijoux').slice(0,80),
+        media_url:String(data.media_url||'').slice(0,1000),
+        media_type:data.media_type==='video'?'video':'image',
+        images:Array.isArray(data.images)?data.images.slice(0,40):[],
+        variant_images:Array.isArray(data.variant_images)?data.variant_images.slice(0,80):[],
+        pack:String(data.pack||'').slice(0,160),
+        variations:Array.isArray(data.variations)?data.variations:[],
+        source_row_id:item.id,group_key:item.group_key,
+      }
+    })
+    for(let offset=0;offset<toCreate.length;offset+=100){
+      const part=toCreate.slice(offset,offset+100)
+      await client.query(
+        `INSERT INTO products
+         (id,store_id,sku,name,description,price,category,media_url,media_type,images,variant_images,pack,variations,featured,active)
+         SELECT x.id,x.store_id,x.sku,x.name,x.description,x.price,x.category,x.media_url,x.media_type,x.images,x.variant_images,x.pack,x.variations,false,true
+         FROM jsonb_to_recordset($1::jsonb) AS x(
+           id text,store_id text,sku text,name text,description text,price numeric,
+           category text,media_url text,media_type text,images jsonb,variant_images jsonb,pack text,variations jsonb,source_row_id text,group_key text
+         )`,
+        [JSON.stringify(part)],
+      )
+      await client.query(
+        `UPDATE import_normalized_products n SET
+           published_product_id=x.id,publish_group_key=x.group_key,
+           publish_result='created',updated_at=now()
+         FROM jsonb_to_recordset($1::jsonb) AS x(id text,source_row_id text,group_key text)
+         WHERE n.id=x.source_row_id AND n.job_id=$2 AND n.store_id=$3`,
+        [JSON.stringify(part),job.id,store.store_id],
+      )
+    }
+    const retained=plan.retain.map(item=>({row_id:item.id,group_key:item.group_key}))
+    await client.query(
+      `UPDATE import_normalized_products n SET publish_group_key=x.group_key,updated_at=now()
+       FROM jsonb_to_recordset($1::jsonb) AS x(row_id text,group_key text)
+       WHERE n.id=x.row_id AND n.job_id=$2 AND n.store_id=$3`,
+      [JSON.stringify(retained),job.id,store.store_id],
+    )
+    const verify=await client.query(
+      `SELECT COUNT(*)::int AS rows,
+          COUNT(DISTINCT published_product_id)::int AS distinct_products
+       FROM import_normalized_products
+       WHERE job_id=$1 AND store_id=$2 AND selected=true AND published_product_id IS NOT NULL`,
+      [job.id,store.store_id],
+    )
+    if(Number(verify.rows[0]?.rows)!==plan.total ||
+       Number(verify.rows[0]?.distinct_products)!==plan.total)
+      throw new Error('A recuperação não preservou a identidade de todas as peças. Transação revertida.')
+    await client.query(
+      `UPDATE import_jobs SET published_count=$1,skipped_existing_count=0,
+         publish_mode='separate',updated_at=now()
+       WHERE id=$2 AND store_id=$3`,
+      [plan.total,job.id,store.store_id],
+    )
+    await client.query('COMMIT')
+    return res.json({recovered:toCreate.length,preserved_originals:plan.originals,total_published:plan.total,idempotent:false})
+  }catch(error){
+    try{await client.query('ROLLBACK')}catch{}
+    const message=String(error?.message||'')
+    if(/SHOPVAX_PLAN_PRODUCT_LIMIT|SHOPVAX_PLAN_|plan.*limit/i.test(message))
+      return res.status(409).json({error:'A quantidade ultrapassa o limite de produtos do plano atual. Atualize o plano antes de recuperar.'})
+    return res.status(409).json({error:message.slice(0,300)||'Não foi possível recuperar as peças com segurança.'})
+  }finally{client.release()}
+}
+
 function installPublisherRoute(app) {
   if (app.__atacadoScannerPublisherInstalled) return
   app.__atacadoScannerPublisherInstalled = true
@@ -665,6 +816,12 @@ function installPublisherRoute(app) {
   })
   app.post('/api/admin/imports/:jobId/publish', express.json({ limit: '16kb' }), (req, res, next) => {
     Promise.resolve(publishJob(req, res)).catch(next)
+  })
+  app.get('/api/admin/imports/:jobId/recover-alexandre-preview', (req,res,next)=>{
+    Promise.resolve(alexandreRecoveryPreview(req,res)).catch(next)
+  })
+  app.post('/api/admin/imports/:jobId/recover-alexandre', express.json({limit:'16kb'}), (req,res,next)=>{
+    Promise.resolve(recoverAlexandreJob(req,res)).catch(next)
   })
   app.post('/api/admin/imports/:jobId/recover-pdf', express.json({ limit: '16kb' }), (req, res, next) => {
     Promise.resolve(recoverLegacyPdfJob(req, res)).catch(next)
