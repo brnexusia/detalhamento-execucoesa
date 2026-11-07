@@ -302,6 +302,7 @@ async function socialProduct(productId) {
 }
 
 async function viewPost(productId, key) {
+  await schemaReady()
   const product = await socialProduct(productId)
   if (!product) return null
   await pool.query(dailySocialViewInsertSQL, [product.id, product.store_id, key])
