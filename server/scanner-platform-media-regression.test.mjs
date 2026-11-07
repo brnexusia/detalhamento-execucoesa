@@ -47,3 +47,21 @@ test('Vesti captures images across image, photos, gallery, and SKU media', () =>
   assert.deepEqual(result.variants[0].images, ['https://cdn.example.com/rosa.webp'])
   assert.equal(result.sku, 'REF10')
 })
+
+test('FácilZap associates dictionary variation images by ID and parses color + size',()=>{
+  const {products}=facilZapProducts({produtos:[{
+    id:'55',nome:'Conjunto',imagens:['produtos/capa.webp'],
+    imagens_variacoes:{'100':['produtos/azul.webp'],'101':[{imagem:'produtos/preto.webp'}]},
+    variacoes:{
+      '100':{id:'100',nome:'Azul Tamanho P',cor:'#0000ff'},
+      '101':{id:'101',nome:'Preto Tamanho M',cor:'#000000'},
+    },
+  }]},'https://lojista.exemplo.com/')
+  assert.deepEqual(products[0].variants.map(x=>[x.color,x.size]),[['Azul','P'],['Preto','M']])
+  assert.deepEqual(products[0].variants[0].images,['https://arquivos.facilzap.app.br/produtos/azul.webp'])
+  assert.deepEqual(products[0].images,[
+    'https://arquivos.facilzap.app.br/produtos/capa.webp',
+    'https://arquivos.facilzap.app.br/produtos/azul.webp',
+    'https://arquivos.facilzap.app.br/produtos/preto.webp',
+  ])
+})
