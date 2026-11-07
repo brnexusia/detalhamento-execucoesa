@@ -4,6 +4,7 @@ import express from 'express'
 import multer from 'multer'
 import pg from 'pg'
 import { collectPdfCatalog, MAX_PDF_BYTES } from './scanner-pdf.mjs'
+import { ensurePdfChunkSchema, installChunkedPdfRoutes, loadChunkedPdf, clearChunkedPdf } from './scanner-pdf-chunks.mjs'
 import { collectCatalog } from './scanner-collector.mjs'
 import { whatsappCatalogPhone, uazapiCatalogConfig } from './scanner-uazapi-catalog.mjs'
 import { sharedPhotoSourceKind } from './scanner-photo-albums.mjs'
@@ -171,6 +172,7 @@ export async function ensureScannerSchema() {
       ) x
       WHERE j.id=x.job_id;
     `)
+    await ensurePdfChunkSchema(pool)
   })().then(() => { schemaInitialized = true }).finally(() => { schemaPromise = null })
   return schemaPromise
 }
@@ -344,8 +346,9 @@ export async function processImportJob(jobId, collector = collectCatalog) {
     let result
     if (job.platform === 'pdf') {
       const upload = await pool.query('SELECT data FROM import_pdf_uploads WHERE job_id=$1 LIMIT 1', [job.id])
-      if (!upload.rowCount) throw new Error('Arquivo PDF temporário não encontrado. Descarte e envie o catálogo novamente.')
-      result = await collectPdfCatalog(upload.rows[0].data, collectorOptions)
+      const bytes = upload.rows[0]?.data || await loadChunkedPdf(pool, job.id, MAX_PDF_BYTES)
+      if (!bytes) throw new Error('Arquivo PDF temporário não encontrado. Descarte e envie o catálogo novamente.')
+      result = await collectPdfCatalog(bytes, collectorOptions)
     } else {
       result = await collector(job.source_url, collectorOptions)
     }
@@ -379,6 +382,7 @@ export async function processImportJob(jobId, collector = collectCatalog) {
     if (job.platform === 'pdf') {
       await pool.query('DELETE FROM import_pdf_uploads WHERE job_id=$1', [job.id]).catch((error) =>
         console.warn('[scanner] PDF cleanup:', error.message))
+      await clearChunkedPdf(pool, job.id).catch((error) => console.warn('[scanner] PDF chunks cleanup:', error.message))
     }
   }
 }
@@ -559,6 +563,11 @@ function installScannerRoutes(app) {
     }
     return result.rows[0]
   }
+
+  installChunkedPdfRoutes(router, {
+    pool, requireStore, asyncRoute, ensureSchema: ensureScannerSchema,
+    maxPdfBytes: MAX_PDF_BYTES, makeId: id, publicJob, runNextWork, workerDisabled,
+  })
 
   router.get('/', requireStore, asyncRoute(async (req, res) => {
     const result = await pool.query(`SELECT * FROM import_jobs WHERE store_id=$1 ORDER BY created_at DESC LIMIT 10`, [req.scannerStore.store_id])
