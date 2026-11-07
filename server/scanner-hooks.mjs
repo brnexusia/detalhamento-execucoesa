@@ -354,6 +354,16 @@ export async function processImportJob(jobId, collector = collectCatalog) {
       result = await collector(job.source_url, collectorOptions)
     }
 
+    // Do not progress to review as if a truncated site scan were complete.
+    // Streaming batches from an incomplete scan are discarded by the existing
+    // catch/cleanup branch so a seller can retry without importing missing items.
+    if (result?.complete === false) {
+      const explanation = Array.isArray(result.warnings)
+        ? result.warnings.map(x => String(x).slice(0, 180)).join('; ') : ''
+      throw new Error('A captura do catálogo foi parcial e não foi enviada à revisão.' +
+        (explanation ? ' ' + explanation : ' Verifique a paginação e tente novamente.'))
+    }
+
     // Compatibilidade com coletores de testes/integrações que ainda retornam array.
     if (!persistedBatches && Array.isArray(result?.candidates) && result.candidates.length) await persistBatch(result.candidates)
 
