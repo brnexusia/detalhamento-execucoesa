@@ -24,7 +24,7 @@ Data: 2026-11-07. Origem: https://www.instagram.com/reel/Dfby7sPgMPU/
 | 11 | Remover dependências inúteis | Pendente de auditoria | Verificar dependências e impacto no bundle sem remover pacotes usados |
 | 12 | Timeout externo | Parcial preexistente | Scanner tem timeout; feed usa AbortController; inventariar provedores restantes |
 | 13 | Streaming de IA | Não aplicável ao fluxo testado | Só implementar onde houver resposta generativa real, sem simular streaming |
-| 14 | UI otimista | Parcial | Verificar likes e ações reversíveis; jamais antecipar pagamento/estoque |
+| 14 | UI otimista | Implementado para curtidas | `src/SocialFeed.tsx` atualiza imediatamente e desfaz a ação se API falhar; nunca antecipa pagamento/estoque |
 | 15 | Lazy-loading de imagens | Parcial preexistente | Feed usa IntersectionObserver; confirmar imagens fora da tela nas demais rotas |
 | 16 | Requisições independentes em paralelo | Parcial | Coletor usa concorrência controlada; revisar cascatas no painel pela aba Network |
 | 17 | Índices mais comuns | Existente e reforçado | Índices de produto e índices únicos diários de views |
@@ -40,7 +40,7 @@ Data: 2026-11-07. Origem: https://www.instagram.com/reel/Dfby7sPgMPU/
 | 27 | Cache de estáticos no browser | Existente | `performance-hooks`: assets versionados immutable por 1 ano |
 | 28 | Balanceador/instâncias | Depende de infra | Teste de saturação e capacidade real antes de aumentar réplicas |
 | 29 | Fontes locais e poucos pesos | Pendente de revisão | Verificar fontes efetivamente usadas; não adicionar arquivos de fonte sem licença |
-| 30 | Monitorar velocidade real, p75 | Implementado em código | `src/real-user-performance.ts` + `server/metrics-hooks.mjs`: LCP, FCP, INP, CLS, TTFB, agregados protegidos |
+| 30 | Monitorar velocidade real, p75 | Implementado em código | `src/real-user-performance.ts` usa `web-vitals` oficial + `server/metrics-hooks.mjs`: LCP, FCP, INP, CLS, TTFB, agregados protegidos |
 | 31 | Testar celular/rede lenta | Testes existentes, rede lenta pendente | e2e responsivo; falta ensaio explícito com CPU 4x / Slow 3G após deploy |
 
 ## Entrega de métricas únicas diárias
