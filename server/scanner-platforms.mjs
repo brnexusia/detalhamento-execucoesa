@@ -107,10 +107,14 @@ function facilZapVariantProperties(nameValue, colorValue) {
   const technicalColor = /^(?:#[0-9a-f]{3,8}|rgba?\(|hsla?\()/i.test(color)
 
   const sizeColorMatch = /^(pp|p|m|g|gg|xg|xgg|eg|egg|\d{1,3})\s*\(([^)]+)\)$/i.exec(name)
+  const namedColorSize = /^(.+?)\s+(?:tamanho|tam)\s*[:\\-]?\s*(pp|p|m|g|gg|xg|xgg|eg|egg|\d{1,3})$/i.exec(name)
   const sizeMatch = /^(?:tamanho|tam)\s*[:\-]?\s*(.+)$/i.exec(name)
   const plainSize = /^(?:pp|p|m|g|gg|xg|xgg|eg|egg|\d{1,3})$/i.test(name)
 
-  if (sizeColorMatch) {
+  if (namedColorSize) {
+    properties.push({ name: 'Cor', value: text(namedColorSize[1]) })
+    properties.push({ name: 'Tamanho', value: text(namedColorSize[2]) })
+  } else if (sizeColorMatch) {
     properties.push({ name: 'Tamanho', value: text(sizeColorMatch[1]) })
     properties.push({ name: 'Cor', value: text(sizeColorMatch[2]) })
   } else if (sizeMatch?.[1]) {
@@ -289,12 +293,36 @@ export function facilZapProducts(payload, sourceUrl) {
       .map(([variantId, variant]) => normalizeVariation(variant, variantId, item, sourceUrl))
       .filter((variant) => variant && (variant.external_id || variant.sku || variant.properties.length))
 
+    // Variant photo dictionaries are keyed by variant ID in several FácilZap
+    // storefront versions. Preserve the association rather than losing images.
+    const variationMedia = item.imagens_variacoes
+    const variationImagesById = new Map()
+    if (variationMedia && typeof variationMedia === 'object' && !Array.isArray(variationMedia)) {
+      for (const [id, media] of Object.entries(variationMedia)) {
+        const urls = facilZapMediaUrls(media, sourceUrl)
+        if (urls.length) variationImagesById.set(String(id), urls)
+      }
+    }
+    const unassignedVariationImages = Array.isArray(variationMedia)
+      ? facilZapMediaUrls(variationMedia, sourceUrl) : []
+    for (const variant of variants) {
+      variant.images = unique([
+        ...(variant.images || []),
+        ...(variationImagesById.get(variant.external_id) || []),
+      ])
+    }
+
     // Some storefronts expose photos only under individual variations.
     // Preserve these in the parent gallery so the product card never loses every image.
     for (const variant of variants) {
       variant.images = facilZapMediaUrls(variant.images, sourceUrl)
     }
-    const allImages = unique([...images, ...variants.flatMap((variant) => variant.images || [])])
+    const allImages = unique([
+      ...images,
+      ...unassignedVariationImages,
+      ...[...variationImagesById.values()].flat(),
+      ...variants.flatMap((variant) => variant.images || []),
+    ])
     const propertyMap = new Map()
     const addProperty = (nameValue, valueValue) => {
       const name = text(nameValue)
