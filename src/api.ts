@@ -93,14 +93,19 @@ export async function apiRequest<T>(url: string, options: RequestInit = {}): Pro
   }
   const payload = response.status === 204 ? null : await response.json().catch(() => null)
   if (!response.ok) {
-    const uploadIssue = options.body instanceof FormData
+    const isUpload = options.body instanceof FormData
+    const pdfUpload = url === '/api/admin/imports/pdf'
+    const uploadIssue = isUpload
       ? response.status === 413
-        ? 'O servidor recusou o tamanho da foto. Tente uma imagem menor.'
-        : [502, 503, 504].includes(response.status)
-          ? 'O servidor de imagens está temporariamente indisponível. Tente novamente.'
+        ? pdfUpload ? 'O servidor recusou o tamanho do PDF (HTTP 413).' : 'O servidor recusou o tamanho da foto (HTTP 413).'
+        : [502,503,504].includes(response.status)
+          ? pdfUpload ? 'Falha na transferência do PDF (HTTP ' + response.status + ').'
+            : 'Falha no envio da mídia (HTTP ' + response.status + ').'
           : ''
       : ''
-    const error = new Error(payload?.error || uploadIssue || 'Não foi possível concluir a operação.') as Error & { status?: number; code?: string }
+    const requestId = isUpload ? response.headers.get('x-upload-request-id') : null
+    const detail = payload?.error || uploadIssue || 'Não foi possível concluir a operação.'
+    const error = new Error(requestId ? detail + ' Protocolo: ' + requestId : detail) as Error & { status?: number; code?: string }
     error.status = response.status
     if (payload?.code) error.code = String(payload.code)
     throw error
