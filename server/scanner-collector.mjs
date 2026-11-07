@@ -8,6 +8,7 @@ import { load } from 'cheerio'
 import { detectStorefrontPlatform, extractFacilZapRuntime, facilZapProducts, parseVestiContext, vestiProducts, isZapFacilCatalogPage } from './scanner-platforms.mjs'
 import { collectDirectedSitemap, collectTrayPublic, parseVestiCompanyId, enrichVestiCandidate } from './scanner-platform-collectors.mjs'
 import { collectGopage } from './scanner-gopage.mjs'
+import { isAlexandreBijouxStorefront, collectAlexandreBijoux } from './scanner-alexandre-bijoux.mjs'
 import { collectSharedPhotos, sharedPhotoSourceKind } from './scanner-photo-albums.mjs'
 import { collectWhatsAppCatalog, whatsappCatalogPhone } from './scanner-uazapi-catalog.mjs'
 import { collectVtexPublic } from './scanner-vtex-public.mjs'
@@ -1154,8 +1155,13 @@ export async function collectCatalog(sourceUrl, options = {}) {
     rootResponse = redirected
   }
 
-  const platform = detectPlatform(rootResponse.body, rootResponse.url)
+  const platform = isAlexandreBijouxStorefront(rootResponse.url) ? 'alexandre-bijoux' : detectPlatform(rootResponse.body, rootResponse.url)
   await onProgress({ progress: 10, pagesScanned: 1, candidates: 0, platform })
+
+  if (platform === 'alexandre-bijoux') {
+    const result = await collectAlexandreBijoux(rootResponse, request, maxProducts, sink, onProgress)
+    return { platform, ...result, candidates: sink.candidates }
+  }
 
   if (platform === 'gopage') {
     try {
