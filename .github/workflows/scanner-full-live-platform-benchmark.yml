@@ -1,0 +1,31 @@
+name: scanner-full-live-platform-benchmark
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'server/scanner-gopage.mjs'
+      - 'server/scanner-collector.mjs'
+      - 'scripts/benchmark-full-site-catalogs-20261107.mjs'
+      - '.github/workflows/scanner-full-live-platform-benchmark.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  real-public-stores:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Scan public stores in read-only mode
+        run: node scripts/benchmark-full-site-catalogs-20261107.mjs
+      - name: Preserve aggregated validation metrics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-catalog-site-scan-metrics
+          path: artifacts/full-site-catalogs/

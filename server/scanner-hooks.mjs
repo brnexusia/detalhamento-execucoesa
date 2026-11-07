@@ -4,6 +4,7 @@ import express from 'express'
 import multer from 'multer'
 import pg from 'pg'
 import { collectPdfCatalog, MAX_PDF_BYTES } from './scanner-pdf.mjs'
+import { requireCompleteCatalog } from './scanner-import-completeness.mjs'
 import { traceUpload } from './upload-request-logging.mjs'
 import { ensurePdfChunkSchema, installChunkedPdfRoutes, loadChunkedPdf, clearChunkedPdf } from './scanner-pdf-chunks.mjs'
 import { collectCatalog } from './scanner-collector.mjs'
@@ -353,6 +354,11 @@ export async function processImportJob(jobId, collector = collectCatalog) {
     } else {
       result = await collector(job.source_url, collectorOptions)
     }
+
+    // Do not progress to review as if a truncated site scan were complete.
+    // Streaming batches from an incomplete scan are discarded by the existing
+    // catch/cleanup branch so a seller can retry without importing missing items.
+    requireCompleteCatalog(result)
 
     // Compatibilidade com coletores de testes/integrações que ainda retornam array.
     if (!persistedBatches && Array.isArray(result?.candidates) && result.candidates.length) await persistBatch(result.candidates)

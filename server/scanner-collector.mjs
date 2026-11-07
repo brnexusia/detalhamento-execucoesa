@@ -7,6 +7,7 @@ import { gunzipSync } from 'node:zlib'
 import { load } from 'cheerio'
 import { detectStorefrontPlatform, extractFacilZapRuntime, facilZapProducts, parseVestiContext, vestiProducts, isZapFacilCatalogPage } from './scanner-platforms.mjs'
 import { collectDirectedSitemap, collectTrayPublic, parseVestiCompanyId, enrichVestiCandidate } from './scanner-platform-collectors.mjs'
+import { collectGopage } from './scanner-gopage.mjs'
 import { collectSharedPhotos, sharedPhotoSourceKind } from './scanner-photo-albums.mjs'
 import { collectWhatsAppCatalog, whatsappCatalogPhone } from './scanner-uazapi-catalog.mjs'
 import { collectVtexPublic } from './scanner-vtex-public.mjs'
@@ -876,6 +877,7 @@ async function collectFacilZap(rootResponse, request, maxProducts, sink, onProgr
   const seenPages = new Set()
   let pagesScanned = 1
   let page = 1
+  let exhausted = false
   while (sink.count < maxProducts) {
     const category = Number(runtime.categoria || 0) > 0 ? String(runtime.categoria) : 'todas'
     const endpoint = String(runtime.urlCarregarProdutosTemplate)
@@ -899,9 +901,11 @@ async function collectFacilZap(rootResponse, request, maxProducts, sink, onProgr
     let payload
     try { payload = JSON.parse(response.body || '{}') } catch { throw new Error('O FácilZap retornou uma página de catálogo em formato inesperado.') }
     const mapped = facilZapProducts(payload, rootResponse.url)
-    if (mapped.end) break
+    if (mapped.end) { exhausted = true; break }
     const signature = mapped.products.map((product) => product.external_id || product.source_url || product.title).join('|')
-    if (!signature || seenPages.has(signature)) break
+    if (!signature) throw new Error('FácilZap: a página ' + page + ' não contém identificadores reconhecíveis.')
+    if (seenPages.has(signature))
+      throw new Error('FácilZap: a paginação repetiu a página ' + page + '; a importação completa não pôde ser confirmada.')
     seenPages.add(signature)
 
     const enriched = await mapLimit(mapped.products, 6, async (candidate) => {
@@ -926,7 +930,7 @@ async function collectFacilZap(rootResponse, request, maxProducts, sink, onProgr
     page += 1
   }
   await sink.flush()
-  return { candidateCount: sink.count, pagesScanned }
+  return { candidateCount: sink.count, pagesScanned, complete: exhausted, warnings: exhausted ? [] : ['Limite de produtos atingido antes de confirmar a última página do FácilZap.'] }
 }
 
 async function collectVesti(rootResponse, request, maxProducts, sink, onProgress) {
@@ -935,6 +939,7 @@ async function collectVesti(rootResponse, request, maxProducts, sink, onProgress
   const companyId = parseVestiCompanyId(rootResponse.body)
   const pageSignatures = new Set()
   let pagesScanned = 1
+  let exhausted = false
 
   for (let page = 1; sink.count < maxProducts; page += 1) {
     const endpoint = new URL(`https://apivesti.vesti.mobi/appmarca/v2/catalogue/${encodeURIComponent(context.catalogId)}/company/${encodeURIComponent(context.schemeUrl)}/`)
@@ -955,9 +960,9 @@ async function collectVesti(rootResponse, request, maxProducts, sink, onProgress
     try { payload = JSON.parse(response.body) } catch { throw new Error('O Vesti retornou catálogo em formato inesperado.') }
     const listed = Array.isArray(payload?.products) ? payload.products : []
     const products = vestiProducts(payload, context)
-    if (!products.length) break
+    if (!products.length) { exhausted = true; break }
     const signature = `${products[0]?.external_id || ''}|${products.at(-1)?.external_id || ''}|${products.length}`
-    if (pageSignatures.has(signature)) break
+    if (pageSignatures.has(signature)) throw new Error('Vesti: a API repetiu uma página de produtos; importação incompleta.')
     pageSignatures.add(signature)
 
     let enriched = products
@@ -983,10 +988,17 @@ async function collectVesti(rootResponse, request, maxProducts, sink, onProgress
 
     await sink.push(enriched)
     await onProgress({ progress: Math.min(90, 15 + Math.floor(Math.log2(page + 1) * 8)), pagesScanned, candidates: sink.count, platform: 'vesti' })
-    if (!payload?.links?.next) break
+    const pageMeta = payload?.meta || {}
+    const pageNumber = Number(pageMeta.current_page ?? page)
+    if (Number.isInteger(pageNumber) && pageNumber !== page)
+      throw new Error('Vesti: a API retornou página ' + pageNumber + ' quando foi solicitada ' + page + '.')
+    const totalPages = Number(pageMeta.last_page ?? pageMeta.total_pages)
+    const hasMore = Boolean(payload?.links?.next || payload?.next_page_url) ||
+      (Number.isInteger(totalPages) && totalPages>page)
+    if (!hasMore) { exhausted = true; break }
   }
   await sink.flush()
-  return { candidateCount: sink.count, pagesScanned }
+  return { candidateCount: sink.count, pagesScanned, complete: exhausted, warnings: exhausted ? [] : ['Limite de produtos atingido antes da última página do Vesti.'] }
 }
 
 async function mapLimit(values, limit, mapper) {
@@ -1145,13 +1157,30 @@ export async function collectCatalog(sourceUrl, options = {}) {
   const platform = detectPlatform(rootResponse.body, rootResponse.url)
   await onProgress({ progress: 10, pagesScanned: 1, candidates: 0, platform })
 
+  if (platform === 'gopage') {
+    try {
+      const result = await collectGopage(rootResponse, request, maxProducts, maxPages, sink, onProgress)
+      if (result.candidateCount) return {
+        platform, pagesScanned: result.pagesScanned, candidateCount: sink.count,
+        candidates: sink.candidates, expectedProducts: result.expectedProducts,
+        complete: result.complete, warnings: result.warnings,
+      }
+    } catch (error) {
+      // Returning 16 featured items as a complete 288-product catalog is worse
+      // than a clear failure. Expose parser/pagination errors instead of
+      // silently falling back to a partially crawled homepage.
+      if (sink.count>0 || options.strictPlatformAdapters) throw error
+    }
+  }
+
   if (platform === 'facilzap') {
     try {
       const result = await collectFacilZap(rootResponse, request, maxProducts, sink, onProgress)
-      if (result.candidateCount) return { platform, pagesScanned: result.pagesScanned, candidateCount: sink.count, candidates: sink.candidates }
+      if (result.candidateCount) return { platform, pagesScanned: result.pagesScanned, candidateCount: sink.count, candidates: sink.candidates, complete: result.complete, warnings: result.warnings }
     } catch (error) {
-      if (options.strictPlatformAdapters) throw error
-      // A vitrine muda com frequência; o crawler genérico continua como fallback seguro.
+      if (sink.count > 0 || options.strictPlatformAdapters) throw error
+      // Generic discovery remains possible only when the platform adapter
+      // extracted nothing. Never treat 1-2 pages as a complete catalog.
     }
   }
 
@@ -1160,8 +1189,9 @@ export async function collectCatalog(sourceUrl, options = {}) {
       const result = await collectVesti(rootResponse, request, maxProducts, sink, onProgress)
       if (result.candidateCount) return { platform, pagesScanned: result.pagesScanned, candidateCount: sink.count, candidates: sink.candidates }
     } catch (error) {
-      if (options.strictPlatformAdapters) throw error
-      // Mantém fallback genérico para URLs Vesti legadas.
+      if (sink.count > 0 || options.strictPlatformAdapters) throw error
+      // Older Vesti storefront URLs may lack a discoverable catalogue ID.
+      // Only empty adapters can fall back to the generic public crawler.
     }
   }
 
