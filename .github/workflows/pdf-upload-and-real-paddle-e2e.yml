@@ -6,6 +6,10 @@ on:
       - 'server/scanner-pdf-chunks.mjs'
       - 'server/scanner-pdf-chunks.integration.test.mjs'
       - 'server/scanner-hooks.mjs'
+      - 'server/app.mjs'
+      - 'server/upload-request-logging.mjs'
+      - 'server/upload-request-logging.test.mjs'
+      - 'scripts/start-with-paddle-ocr.sh'
       - 'server/paddle-ocr.real.integration.test.mjs'
       - 'server/scanner-pdf-paddle.mjs'
       - 'server/scanner-pdf.mjs'
@@ -19,6 +23,10 @@ on:
       - 'server/scanner-pdf-chunks.mjs'
       - 'server/scanner-pdf-chunks.integration.test.mjs'
       - 'server/scanner-hooks.mjs'
+      - 'server/app.mjs'
+      - 'server/upload-request-logging.mjs'
+      - 'server/upload-request-logging.test.mjs'
+      - 'scripts/start-with-paddle-ocr.sh'
       - 'server/paddle-ocr.real.integration.test.mjs'
       - 'server/scanner-pdf-paddle.mjs'
       - 'server/scanner-pdf.mjs'
@@ -52,7 +60,9 @@ jobs:
         run: |
           node --check server/scanner-pdf-chunks.mjs
           node --check server/scanner-hooks.mjs
-          node --test server/scanner-pdf-chunks.integration.test.mjs
+          node --check server/app.mjs
+          sh -n scripts/start-with-paddle-ocr.sh
+          node --test server/upload-request-logging.test.mjs server/scanner-pdf-chunks.integration.test.mjs
         env:
           PDF_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/shopvax_chunks
       - name: Verify frontend builds with resumable PDF upload
