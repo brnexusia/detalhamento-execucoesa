@@ -62,7 +62,7 @@ function validName(input) {
   if (name.length < 4 || name.length > 150 || !/[a-záàãâéêíóôõúç]/i.test(name)) return null
   if (/^(?:cat[aá]logo|cole[cç][aã]o|tabela|consulte|pedido|total|frete|desconto|cor(?:es)?|tamanho|tecido)\b/i.test(name)) return null
   const category = inferPdfProductCategory(name)
-  if (category === 'Outros' && !PRODUCT_CLASS.test(name) && !explicit && !description) return null
+  if (category === 'Outros' && !PRODUCT_CLASS.test(name) && !explicit) return null
   // An unqualified description may be a paragraph, not a product title.
   if ((description || explicit) && name.split(/\s+/).length > 13) return null
   if (!explicit && !description && /^(?:de|com|em|para|tecido|tamanho|cores?)\s/i.test(name)) return null
