@@ -20,6 +20,7 @@ for(const target of targets){
    name:target.name,platform:data.platform,found:data.candidateCount,
    complete:data.complete,expected:data.expectedProducts,pages:data.pagesScanned,
    withImage:candidates.filter(p=>p.images?.length).length,
+   missingImages:candidates.filter(p=>!p.images?.length).slice(0,8).map(p=>({id:p.external_id,title:p.title,source:p.source_url})),
    withPrice:candidates.filter(p=>p.price!=null).length,
    withVariantImages:candidates.filter(p=>p.variants?.some(v=>v.images?.length)).length,
    variantCount:candidates.reduce((n,p)=>n+(p.variants?.length||0),0),
