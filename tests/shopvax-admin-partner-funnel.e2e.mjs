@@ -42,7 +42,9 @@ try{
     })})
   })
   await page.goto(base+'/admin')
-  await page.getByRole('button',{name:'Parceiros e indicações'}).click()
+  await page.getByRole('button',{name:'Parceiros e indicações'}).click({timeout:8000}).catch(async error=>{
+    throw new Error('Menu de parceiros inacessível: '+error.message+'; URL='+page.url()+'; body='+(await page.locator('body').innerText()).slice(0,1200))
+  })
   await page.getByRole('heading',{name:'Parceiros e indicações'}).waitFor()
   assert.equal(await page.getByText('Loja Sem Checkout').count(),0,'Não abrir detalhes sem pedido explícito')
   assert.match(await page.locator('.svx-referral-admin__funnel').innerText(),/Sem Checkout/)
