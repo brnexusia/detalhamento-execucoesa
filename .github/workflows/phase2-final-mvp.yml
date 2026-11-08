@@ -60,6 +60,8 @@ jobs:
           exit 1
       - name: Final MVP Phase 2 integration
         run: node server/phase2-final-mvp.integration.mjs
+      - name: Gold catalog, prices, minimums and PDF per category
+        run: node server/catalog-gold-gate.integration.mjs
       - name: Simulacao real de API com tres lojas e cinco compradores
         run: node server/multi-persona-ux.integration.mjs
       - name: Seguimento social exige comprador ou vendedor autenticado
