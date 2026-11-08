@@ -61,7 +61,7 @@ async function testGoogleSignup(path, noStoreExisting){
  await page.getByRole('heading',{name:'Complete os dados da sua loja.'}).waitFor()
  if(noStoreExisting) await page.getByRole('button',{name:/Ouro/}).first().click()
  await page.locator('input[placeholder="Ex.: Atacado Aurora"]').fill('Atacado Google')
- await page.getByRole('button',{name:/Criar minha loja com Google/}).click()
+ await page.getByRole('button',{name:/Prosseguir com Google e pagar/}).click()
  await page.waitForURL(/checkout\.stripe\.com\/c\/pay\//,{timeout:14000})
  assert.deepEqual(intents,['login','register'])
  assert.equal(checkout.planCode,'ouro')
