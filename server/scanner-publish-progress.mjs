@@ -38,6 +38,7 @@ export function publishProgress(row) {
     error:row.error||'',
     result:row.result||null,
     updatedAt:row.updated_at,
+    heartbeatAt:row.heartbeat_at || null,
   }
 }
 export function createPublishTaskQueue(pool) {
