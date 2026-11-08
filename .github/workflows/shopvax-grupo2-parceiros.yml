@@ -4,6 +4,8 @@ on:
     branches: [main]
     paths:
       - 'src/api.ts'
+      - 'server/app.mjs'
+      - 'server/google-auth-hooks.mjs'
       - 'server/referral-partner-hooks.mjs'
       - 'server/referral-program-core.mjs'
       - 'server/referral-program.integration.mjs'
@@ -13,6 +15,7 @@ on:
       - 'src/Auth.tsx'
       - 'src/ShopvaxStripeBilling.tsx'
       - 'src/App.tsx'
+      - 'tests/shopvax-admin-partner-funnel.e2e.mjs'
       - 'tests/shopvax-partner-portal.e2e.mjs'
       - 'tests/shopvax-signup-stripe.e2e.mjs'
       - 'tests/shopvax-google-login-payment.e2e.mjs'
@@ -43,6 +46,8 @@ jobs:
           exit 1
       - name: Portal do parceiro em celular e desktop
         run: node tests/shopvax-partner-portal.e2e.mjs
+      - name: ADM parceiros com histórico por loja em celular e desktop
+        run: node tests/shopvax-admin-partner-funnel.e2e.mjs
       - name: Cadastro de lojista inicia Checkout Stripe automaticamente
         run: node tests/shopvax-signup-stripe.e2e.mjs
       - name: Cadastro Google e entrada de lojistas sem pagamento
