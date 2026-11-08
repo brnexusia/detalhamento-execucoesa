@@ -189,7 +189,7 @@ test('perfil requer aceite obrigatório, sem segunda caixa promocional', () => {
   assert.equal(client.match(/className="buyer-consent"/g)?.length, 1, 'o formulário não pode exigir uma segunda caixa')
   assert.match(match[1], /type="checkbox"/)
   assert.match(match[1], /required/)
-  const copy = match[1].replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()
+  const copy = match[1].replace(/<input[\s\S]*?\/>/, '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()
   assert.equal(copy, 'Li e aceito a política de privacidade e o compartilhamento dos dados comerciais com lojas com as quais eu interagir.')
   assert.doesNotMatch(client, /Aceito receber comunicações promocionais/)
   assert.match(client, /href="\/politica-de-privacidade.html"/, 'o comprador deve poder consultar a política')
