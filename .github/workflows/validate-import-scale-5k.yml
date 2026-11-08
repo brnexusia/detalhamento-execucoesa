@@ -1,0 +1,53 @@
+name: validate-import-scale-5k
+on:
+  push:
+    branches: [fix/finish-import-progress-20261107]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  five-thousand:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: shopvax_scale_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d shopvax_scale_test"
+          --health-interval 5s --health-timeout 3s --health-retries 15
+    env:
+      NODE_ENV: test
+      PORT: '3000'
+      SCANNER_WORKER_DISABLED: '1'
+      SHOPVAX_PUBLISH_WORKER_DISABLED: '1'
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/shopvax_scale_test
+      SHOPVAX_PUBLIC_CURSOR_SECRET: ci-only-public-cursor-secret-over-32-chars
+      SHOPVAX_INTEGRATION_SECRET: ci-only-integration-secret-over-32-chars
+      SHOPVAX_SECURITY_RATE_LIMIT_DISABLED: '1'
+      SHOPVAX_PLAN_LIMITS_DISABLED: '1'
+      SCANNER_SCALE_TOTAL: '4100'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: npm install --no-audit --no-fund
+      - name: Start isolated ShopVax server
+        run: |
+          npm start > /tmp/shopvax-scale-server.log 2>&1 &
+          for i in $(seq 1 120); do
+            if curl -fsS http://127.0.0.1:3000/health >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          tail -100 /tmp/shopvax-scale-server.log
+          exit 1
+      - name: Import 4,100 distinct products end-to-end, including database verification
+        run: node server/scanner-scale.integration.mjs
+      - if: failure()
+        run: tail -140 /tmp/shopvax-scale-server.log || true
