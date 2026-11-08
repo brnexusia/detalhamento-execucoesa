@@ -73,6 +73,7 @@ export type ImportReviewSummary = {
 }
 
 export type AdminCatalog = Catalog & {
+  lockedByPlan?: boolean
   items: Array<{ productId: string; priceOverride: number | null; visible: boolean }>
 }
 
@@ -253,14 +254,14 @@ export const api = {
   setProductVisibility: (id: string, active: boolean) => request<{ product: { id: string; active: boolean } }>(`/api/admin/products/${encodeURIComponent(id)}/visibility`, { method: 'PATCH', body: JSON.stringify({ active }) }),
   deleteProduct: (id: string) => request(`/api/admin/products/${id}`, { method: 'DELETE' }),
   deleteProducts: (ids: string[]) => request<{ ok: true; deleted: number; ids: string[] }>('/api/admin/products/bulk-delete', { method: 'POST', body: JSON.stringify({ ids }) }),
-  downloadProductsPdf: () => requestBlob('/api/admin/products/pdf'),
+  downloadProductsPdf: (category = '') => requestBlob('/api/admin/products/pdf' + (category ? '?category=' + encodeURIComponent(category) : '')),
   updateStock: (productId: string, body: { enabled: boolean; quantity: number; variantStock: Record<string, number> }) => request<{ product: { id: string; stock_enabled: boolean; stock_quantity: number; variant_stock: Record<string, number> } }>(`/api/admin/features/products/${encodeURIComponent(productId)}/stock`, { method: 'PATCH', body: JSON.stringify(body) }),
   updateOrderStatus: (orderId: string, status: 'whatsapp' | 'em_atendimento' | 'confirmado' | 'arquivado') => request<{ order: { id: string; code: string; status: string } }>(`/api/admin/phase2/orders/${encodeURIComponent(orderId)}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   cancelOrder: (orderId: string) => request<{ order: { id: string; status: string; stock_reverted: boolean }; idempotent: boolean }>(`/api/admin/features/orders/${encodeURIComponent(orderId)}/cancel`, { method: 'POST', body: '{}' }),
-  catalogs: () => request<{ catalogs: AdminCatalog[] }>('/api/admin/catalogs'),
+  catalogs: () => request<{ catalogs: AdminCatalog[]; canCreateMultiple: boolean }>('/api/admin/catalogs'),
   createCatalog: (body: { name: string; kind: 'geral' | 'atacado' | 'varejo'; minimumOrder?: number | null }) => request<{ catalog: AdminCatalog }>('/api/admin/catalogs', { method: 'POST', body: JSON.stringify(body) }),
   updateCatalog: (catalogId: string, body: { name?: string; kind?: 'geral' | 'atacado' | 'varejo'; minimumOrder?: number | null; active?: boolean; items?: Array<{ productId: string; priceOverride: number | null; visible: boolean }> }) => request<{ catalog: Catalog }>(`/api/admin/catalogs/${encodeURIComponent(catalogId)}`, { method: 'PATCH', body: JSON.stringify(body) }),
-  downloadCatalogPdf: (catalogId: string) => requestBlob(`/api/admin/catalogs/${encodeURIComponent(catalogId)}/pdf`),
+  downloadCatalogPdf: (catalogId: string, category = '') => requestBlob(`/api/admin/catalogs/${encodeURIComponent(catalogId)}/pdf` + (category ? '?category=' + encodeURIComponent(category) : '')),
   deleteCatalog: (catalogId: string) => request<void>(`/api/admin/catalogs/${encodeURIComponent(catalogId)}`, { method: 'DELETE' }),
   createSeller: (body: Record<string, unknown>) => request('/api/admin/sellers', { method: 'POST', body: JSON.stringify(body) }),
   updateSeller: (id: string, body: Record<string, unknown>) => request(`/api/admin/sellers/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
