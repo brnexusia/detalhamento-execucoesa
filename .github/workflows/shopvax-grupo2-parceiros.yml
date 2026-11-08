@@ -72,7 +72,8 @@ jobs:
           --health-timeout 5s
           --health-retries 12
     env:
-      NODE_ENV: production
+      # Registrar loja sem Stripe apenas no ambiente isolado de teste.
+      NODE_ENV: test
       DATABASE_URL: postgresql://shopvax:shopvax@127.0.0.1:5432/partner_referrals
       PORT: 3000
       BASE_URL: http://127.0.0.1:3000
