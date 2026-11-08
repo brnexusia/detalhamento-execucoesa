@@ -38,6 +38,7 @@ type PublishProgress = {
   result: PublishResult | null
   heartbeatAt: string | null
   updatedAt?: string | null
+  attempts: number
 }
 
 async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
