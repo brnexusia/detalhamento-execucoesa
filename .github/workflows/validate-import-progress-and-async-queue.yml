@@ -1,0 +1,39 @@
+name: validate-import-progress-and-async-queue
+on:
+  push:
+    branches: [feat/import-real-progress-20261107]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: shopvax_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d shopvax_test"
+          --health-interval 5s --health-timeout 3s --health-retries 15
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/shopvax_test
+      NODE_ENV: test
+      SHOPVAX_SECURITY_RATE_LIMIT_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - run: |
+          node --check server/scanner-publish-progress.mjs
+          node --check server/scanner-publish-hooks.mjs
+          node --check server/scanner-publish-media.mjs
+          node --check server/scanner-hooks.mjs
+      - run: node --test server/scanner-publish-media.test.mjs server/scanner-publish-progress.test.mjs server/scanner-alexandre-bijoux.test.mjs
+      - run: npm run build
