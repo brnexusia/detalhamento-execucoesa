@@ -71,7 +71,8 @@ try{
  assert.equal(retailPayload.products[0].price,20,'Vitrine varejo usa preço próprio')
  // O mínimo deve ser verificado no backend, inclusive com link por catálogo.
  const underMinimum=await post('/api/business/orders',{storeSlug:gold.slug,catalogSlug:retail.slug,items:[{productId:product.id,quantity:1,selections:{}}]},'')
- assert.equal(underMinimum.status,400,'Pedido de varejo abaixo do mínimo não pode finalizar')
+ const underBody=await underMinimum.json().catch(()=>({}))
+ assert.equal(underMinimum.status,400,'Pedido de varejo abaixo do mínimo não pode finalizar: '+JSON.stringify(underBody))
  const pdf=await get('/api/admin/catalogs/'+retail.id+'/pdf?category=Bolsas',gold.cookie)
  assert.equal(pdf.status,200,'PDF por categoria disponível no catálogo correto')
  assert.match(pdf.headers.get('content-type')||'',/application\/pdf/)
