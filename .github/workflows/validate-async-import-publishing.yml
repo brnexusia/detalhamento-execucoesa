@@ -1,12 +1,14 @@
 name: validate-async-import-publishing
 on:
   push:
-    branches: [feat/import-real-progress-20261107]
+    branches: [main, fix/finish-import-progress-20261107]
     paths:
       - 'server/scanner-publish-async.integration.mjs'
       - 'server/scanner-publish-progress.mjs'
       - 'server/scanner-publish-hooks.mjs'
       - '.github/workflows/validate-async-import-publishing.yml'
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read

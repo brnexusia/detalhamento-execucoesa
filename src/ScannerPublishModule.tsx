@@ -37,6 +37,8 @@ type PublishProgress = {
   error: string
   result: PublishResult | null
   heartbeatAt: string | null
+  updatedAt?: string | null
+  attempts: number
 }
 
 async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
@@ -77,7 +79,9 @@ export default function ScannerPublishModule() {
       const payload = await request<{ jobs: Job[] }>('/api/admin/imports')
       setJobs(payload.jobs)
     } catch {
-      setJobs([])
+      // Preserve the last known jobs during temporary network errors.
+      // A publication running on the server must not disappear from the UI.
+      if (open) setError('Conexão temporariamente indisponível. A importação continua no servidor; os dados serão atualizados ao reconectar.')
     }
   }
 
@@ -151,7 +155,21 @@ export default function ScannerPublishModule() {
       )
       if (!payload.progress) return
       const progress=payload.progress
-      setPublishProgress(current=>({...current,[jobId]:progress}))
+      setPublishProgress(current=>{
+        const previous=current[jobId]
+        if(previous?.state==='finished' && progress.state!=='finished')return current
+        // Reclaimed jobs restart their measurement from the beginning.
+        // Detect a new worker attempt rather than freezing at the old percent.
+        if((previous?.attempts || 0) > progress.attempts)return current
+        const isRetry=(previous?.attempts || 0) < progress.attempts
+        const previousTime=Date.parse(previous?.updatedAt || '')
+        const nextTime=Date.parse(progress.updatedAt || '')
+        if(!isRetry && Number.isFinite(previousTime) && Number.isFinite(nextTime) && previousTime>nextTime)return current
+        if(!isRetry && previous?.state===progress.state &&
+          ['queued','running'].includes(progress.state) &&
+          previous.percent>progress.percent)return current
+        return {...current,[jobId]:progress}
+      })
       if(progress.state==='finished' && progress.result && !handledCompletion.current.has(jobId)){
         handledCompletion.current.add(jobId)
         setSuccess(progress.result)
@@ -164,14 +182,14 @@ export default function ScannerPublishModule() {
   }
 
   useEffect(()=>{
-    if(!open)return
+    if(!open || !visible)return
     const poll=()=>{
       for(const job of readyJobs) void loadPublishProgress(job.id)
     }
     poll()
     const timer=window.setInterval(poll,1600)
     return ()=>window.clearInterval(timer)
-  },[open,readyJobs])
+  },[open,visible,readyJobs])
 
   const loadPreview = async (job: Job, mode: PdfMode) => {
     setPreviews((current) => ({ ...current, [job.id]: undefined }))
@@ -217,8 +235,16 @@ export default function ScannerPublishModule() {
     } finally {setBusyId('')}
   }
 
+  const activeProgress = readyJobs
+    .map(job=>publishProgress[job.id])
+    .find(progress=>progress && ['queued','running'].includes(progress.state))
   const action = readyTotal > 0
-    ? <button type="button" className="scanner-publish-entry" onClick={show}><PackageCheck size={17} /> Ver {readyTotal} produto(s) de {readyJobs.length} importação(ões)</button>
+    ? <button type="button" className="scanner-publish-entry" onClick={show}>
+        <PackageCheck size={17} />
+        {activeProgress
+          ? `Importando catálogo · ${activeProgress.percent}%`
+          : `Ver ${readyTotal} produto(s) de ${readyJobs.length} importação(ões)`}
+      </button>
     : null
 
   return <>
@@ -269,7 +295,9 @@ export default function ScannerPublishModule() {
                     {publishProgress[job.id] && ['queued','running'].includes(publishProgress[job.id].state) && (
                       <div className="scanner-publish-progress" role="status" aria-live="polite">
                         <div className="scanner-publish-progress-label">
-                          <strong>{publishProgress[job.id].message}</strong>
+                          <strong>{publishProgress[job.id].attempts>1
+                            ? `Retomando · ${publishProgress[job.id].message}`
+                            : publishProgress[job.id].message}</strong>
                           <b>{publishProgress[job.id].percent}%</b>
                         </div>
                         <div className="scanner-publish-track" role="progressbar"

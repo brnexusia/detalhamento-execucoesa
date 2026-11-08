@@ -5,7 +5,8 @@ import { processImportJob, processNormalizationJob } from './scanner-hooks.mjs'
 const { Pool } = pg
 const base = process.env.BASE_URL || 'http://127.0.0.1:3000'
 const db = new Pool({ connectionString: process.env.DATABASE_URL })
-const TOTAL = 50_000
+// CI can set an explicit catalog size for repeatable wholesale-load tests.
+const TOTAL = Math.max(1, Math.min(50_000, Number(process.env.SCANNER_SCALE_TOTAL || 50_000)))
 const SOURCE = 'https://catalogo-50k.fixture.example/'
 
 async function register() {
@@ -80,11 +81,11 @@ try {
 
   const collected = await processImportJob(jobId, scaleCollector)
   assert.equal(collected.status, 'processing')
-  assert.equal(collected.result_count, TOTAL, 'a coleta não pode truncar 50 mil produtos')
+  assert.equal(collected.result_count, TOTAL, 'a coleta não pode truncar produtos em lotes')
 
   const normalized = await processNormalizationJob(jobId)
   assert.equal(normalized.status, 'review')
-  assert.equal(normalized.normalized_count, TOTAL, 'normalização precisa processar os 50 mil em lotes')
+  assert.equal(normalized.normalized_count, TOTAL, 'normalização precisa processar todos os lotes')
   assert.equal(normalized.selected_count, TOTAL)
   assert.equal(normalized.duplicate_count, 0)
 
@@ -107,7 +108,7 @@ try {
   assert.equal(payload.result.created, TOTAL)
 
   console.log(JSON.stringify({ products: TOTAL, elapsedMs: Date.now() - startedAt }, null, 2))
-  console.log('[scanner scale] 50k full pipeline: ok')
+  console.log(`[scanner scale] ${TOTAL} itens, pipeline completo: ok`)
 } finally {
   await db.end()
 }
