@@ -101,6 +101,7 @@ try{
  const profile=await profileResponse.json()
  assert.equal(profile.partner.status,'active')
  const codeNew=(await pool.query('SELECT code FROM shopvax_partners WHERE user_id=$1',[newUser.id])).rows[0].code
+ const partnerRowId=(await pool.query('SELECT id FROM shopvax_partners WHERE user_id=$1',[newUser.id])).rows[0].id
  assert.equal(profile.partner.code,codeNew,'Código disponível após autenticação')
  assert.equal(registeredBody.code,codeNew)
  assert.equal(registeredBody.referralPath,'/criar-conta?ref='+encodeURIComponent(codeNew),'Link associado diretamente ao parceiro')
@@ -108,6 +109,69 @@ try{
  assert.equal(resolvedHttp.status,200)
  assert.equal((await resolvedHttp.json()).type,'partner')
  assert.equal((await fetch(base+'/api/platform/referrals')).status,401,'Métricas centralizadas exigem autorização administrativa')
+ // Cadastro sem checkout já registra a loja no parceiro, sem gerar comissão.
+ const storeEmail='grp2-merchant-'+seed+'@example.test'
+ const signup=await fetch(base+'/api/auth/register',{
+   method:'POST',headers:{'content-type':'application/json'},
+   body:JSON.stringify({name:'Lojista Indicado',email:storeEmail,password:'SenhaDeTesteSegura2026',
+     storeName:'Loja indicada pelo parceiro',planCode:'bronze',referralCode:codeNew}),
+ })
+ assert.equal(signup.status,201,await signup.text().catch(()=>''),'Cadastro com código deve ser aceito')
+ const merchantUser=(await pool.query('SELECT id FROM users WHERE email=$1',[storeEmail])).rows[0]
+ users.push(merchantUser.id)
+ const registeredStore=(await pool.query('SELECT id FROM stores WHERE owner_id=$1',[merchantUser.id])).rows[0]
+ const linkedAtSignup=(await pool.query('SELECT partner_id,status,commission_cents FROM shopvax_referral_claims WHERE referred_store_id=$1',[registeredStore.id])).rows[0]
+ assert.deepEqual(linkedAtSignup,{partner_id:partnerRowId,status:'pending',commission_cents:0},'Sem checkout não concede comissão')
+ assert.equal((await pool.query('SELECT 1 FROM shopvax_stripe_billing WHERE store_id=$1',[registeredStore.id])).rowCount,0,'Sem checkout Stripe ainda')
+ const invalidEmail='grp2-invalid-'+seed+'@example.test'
+ const invalid=await fetch(base+'/api/auth/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({
+   name:'Cadastro inválido',email:invalidEmail,password:'SenhaDeTesteSegura2026',storeName:'Outra Loja',planCode:'bronze',referralCode:'SVP-INVALIDO',
+ })})
+ assert.equal(invalid.status,409,'Código inválido impede cadastro órfão')
+ assert.equal((await pool.query('SELECT id FROM users WHERE email=$1',[invalidEmail])).rowCount,0,'Transação deve reverter o usuário inválido')
+ // Apenas administradores consultam identidade e histórico paginado das lojas de cada parceiro.
+ assert.equal((await fetch(base+'/api/platform/referrals/partners/'+partnerRowId+'/referrals',{headers:{cookie}})).status,403)
+ await pool.query('INSERT INTO platform_admins(user_id,created_by) VALUES($1,$1) ON CONFLICT DO NOTHING',[newUser.id])
+ const adminReport=await fetch(base+'/api/platform/referrals',{headers:{cookie}})
+ assert.equal(adminReport.status,200)
+ const adminData=await adminReport.json()
+ const partnerStats=adminData.partners.find(p=>p.id===partnerRowId)
+ assert.equal(Number(partnerStats.registered_only),1,'ADM mostra cadastro abandonado antes de checkout')
+ assert.equal(Number(partnerStats.checkout_started),0)
+ const detailUrl=base+'/api/platform/referrals/partners/'+partnerRowId+'/referrals'
+ const firstDetailResponse=await fetch(detailUrl+'?page=1&limit=1',{headers:{cookie}})
+ assert.equal(firstDetailResponse.status,200)
+ const firstDetail=await firstDetailResponse.json()
+ assert.equal(firstDetail.total,1)
+ assert.equal(firstDetail.items[0].store_email,storeEmail)
+ assert.equal(firstDetail.items[0].checkout_started_at,null)
+ const fakeStartedAt=new Date().toISOString()
+ await pool.query('INSERT INTO shopvax_stripe_billing(store_id,checkout_started_at) VALUES($1,$2)',[registeredStore.id,fakeStartedAt])
+ const checkoutReport=await (await fetch(base+'/api/platform/referrals',{headers:{cookie}})).json()
+ const startedStats=checkoutReport.partners.find(p=>p.id===partnerRowId)
+ assert.equal(Number(startedStats.registered_only),0)
+ assert.equal(Number(startedStats.checkout_started),1,'Checkout pendente difere de cadastro sem pagamento')
+ const paidClient=await pool.connect()
+ try {
+   await paidClient.query('BEGIN')
+   await qualifyReferralOnPaidInvoice(paidClient,registeredStore.id,'in_linked_signup_'+seed)
+   await paidClient.query('COMMIT')
+ }catch(e){await paidClient.query('ROLLBACK');throw e}finally{paidClient.release()}
+ const paidReport=await (await fetch(base+'/api/platform/referrals',{headers:{cookie}})).json()
+ assert.equal(Number(paidReport.partners.find(p=>p.id===partnerRowId).paid_referrals),1)
+ const qualifiedDetail=await (await fetch(detailUrl,{headers:{cookie}})).json()
+ assert.equal(qualifiedDetail.items[0].status,'qualified')
+ assert.equal(qualifiedDetail.items[0].commission_status,'awaiting_rule','Sem comissão definida não gera dívida fictícia')
+ const reversalClient=await pool.connect()
+ try{
+   await reversalClient.query('BEGIN')
+   await reverseReferralForRefund(reversalClient,'in_linked_signup_'+seed,fakeStripe,'test')
+   await reversalClient.query('COMMIT')
+ }catch(e){await reversalClient.query('ROLLBACK');throw e}finally{reversalClient.release()}
+ const reversedReport=await (await fetch(base+'/api/platform/referrals',{headers:{cookie}})).json()
+ assert.equal(Number(reversedReport.partners.find(p=>p.id===partnerRowId).reversed_referrals),1,'ADM identifica estorno')
+ await pool.query('DELETE FROM platform_admins WHERE user_id=$1',[newUser.id])
+
  const invalidLogin=await fetch(base+'/api/partners/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:newEmail,password:'incorrect!'})})
  assert.equal(invalidLogin.status,401)
  console.log('GRUPO2_REFERRALS_STRIPE_LEDGER_OK')
