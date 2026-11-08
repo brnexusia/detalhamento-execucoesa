@@ -230,6 +230,7 @@ async function updateCatalog(req, res) {
 
 async function downloadCatalogPdf(req, res) {
   const storeId = req.catalogStore.store_id
+  const category = String(req.query?.category || '').trim().slice(0,80)
   await schemaReady()
   const catalogResult = await pool.query('SELECT * FROM catalogs WHERE id=$1 AND store_id=$2 LIMIT 1', [req.params.catalogId, storeId])
   if (!catalogResult.rowCount) return res.status(404).json({ error: 'Catálogo não encontrado.' })
@@ -246,13 +247,15 @@ async function downloadCatalogPdf(req, res) {
      JOIN catalogs c ON c.id=$2
      LEFT JOIN catalog_products cp ON cp.product_id=p.id AND cp.catalog_id=$2
      WHERE p.store_id=$1 AND p.active=true AND COALESCE(cp.visible,true)=true
-     ORDER BY p.featured DESC,p.category ASC,p.name ASC,p.id ASC`,
-    [storeId, catalog.id],
+       AND ($3::text='' OR p.category=$3)
+     ORDER BY p.category ASC,p.featured DESC,p.name ASC,p.id ASC`,
+    [storeId, catalog.id, category],
   )
   await streamCatalogPdf({
     res,
     store: storeResult.rows[0],
     catalog,
+    category,
     products: products.rows,
     imageLoader: (url, variant = 'medium') => loadCatalogMedia(pool.query.bind(pool), url, variant),
   })
@@ -260,6 +263,7 @@ async function downloadCatalogPdf(req, res) {
 
 async function downloadProductsPdf(req, res) {
   const storeId = req.catalogStore.store_id
+  const category = String(req.query?.category || '').trim().slice(0,80)
   await schemaReady()
   const storeResult = await pool.query(
     'SELECT id,slug,name,logo_url,minimum_order,whatsapp,accent,seasonal_theme FROM stores WHERE id=$1 LIMIT 1',
@@ -271,9 +275,9 @@ async function downloadProductsPdf(req, res) {
     `SELECT p.id,p.sku,p.name,p.description,p.price,p.category,p.media_url,p.media_type,p.images,p.variations,
             p.price AS public_price
      FROM products p
-     WHERE p.store_id=$1 AND p.active=true
-     ORDER BY p.featured DESC,p.category ASC,p.name ASC,p.id ASC`,
-    [storeId],
+     WHERE p.store_id=$1 AND p.active=true AND ($2::text='' OR p.category=$2)
+     ORDER BY p.category ASC,p.featured DESC,p.name ASC,p.id ASC`,
+    [storeId,category],
   )
 
   const store = storeResult.rows[0]
@@ -285,6 +289,7 @@ async function downloadProductsPdf(req, res) {
       kind: 'geral',
       minimum_order: store.minimum_order,
     },
+    category,
     products: products.rows,
     imageLoader: (url, variant = 'medium') => loadCatalogMedia(pool.query.bind(pool), url, variant),
   })
