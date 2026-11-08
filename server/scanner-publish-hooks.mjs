@@ -137,7 +137,13 @@ async function previewJob(req, res) {
   res.json({ preview, job: { id: job.id, platform: job.platform } })
 }
 
-async function assignPublishGroups(client, jobId, storeId, pdfSeparate = false, sourcePlatform = '') {
+async function assignPublishGroups(client, jobId, storeId, pdfSeparate = false, sourcePlatform = '', onProgress = async () => {}) {
+  const totalRowsResult = await client.query(
+    'SELECT COUNT(*)::int AS n FROM import_normalized_products WHERE job_id=$1 AND store_id=$2 AND selected=true',
+    [jobId,storeId])
+  const totalRows = Number(totalRowsResult.rows[0]?.n || 0)
+  let processed = 0
+  await onProgress({phase:'grouping',completed:0,total:totalRows})
   let cursorId = ''
   while (true) {
     const result = await client.query(
@@ -166,6 +172,8 @@ async function assignPublishGroups(client, jobId, storeId, pdfSeparate = false, 
        WHERE p.id=x.id AND p.job_id=$2 AND p.store_id=$3`,
       [JSON.stringify(updates), jobId, storeId],
     )
+    processed += result.rows.length
+    await onProgress({phase:'grouping',completed:processed,total:totalRows})
     cursorId = result.rows.at(-1).id
   }
 }
@@ -310,8 +318,10 @@ async function upgradeExistingBraavoMediaAssets() {
 
 async function publishJob(req, res) {
   await ensurePublisherSchema()
-  const store = await currentStore(req)
+  const store = req.__publishWorkerStore || await currentStore(req)
   if (!store) return res.status(401).json({ error: 'Sessão necessária.' })
+  const onProgress = typeof req.__publishWorkerProgress === 'function'
+    ? req.__publishWorkerProgress : async () => {}
 
   // Remote downloads must finish BEFORE a publishing transaction. Previously
   // products were committed with external URLs and fixed in the background.
@@ -320,6 +330,7 @@ async function publishJob(req, res) {
       query:pool.query.bind(pool),
       storeId:store.store_id,
       jobId:req.params.jobId,
+      onProgress,
     })
   } catch (error) {
     return res.status(409).json({ error:error instanceof Error ? error.message :
@@ -356,7 +367,8 @@ async function publishJob(req, res) {
       await client.query('ROLLBACK')
       return res.status(400).json({ error: 'Modo de importação inválido.' })
     }
-    await assignPublishGroups(client, job.id, store.store_id, job.platform === 'pdf' && mode === 'separate', job.platform)
+    await assignPublishGroups(client, job.id, store.store_id,
+      job.platform === 'pdf' && mode === 'separate', job.platform, onProgress)
 
     const groupCountResult = await client.query(
       `SELECT count(DISTINCT publish_group_key)::int AS count
@@ -381,6 +393,7 @@ async function publishJob(req, res) {
     let created = 0
     let skippedExisting = 0
     let cursorGroupKey = ''
+    await onProgress({phase:'saving',completed:0,total:selectedParentCount})
 
     while (true) {
       const keysResult = await client.query(
@@ -500,6 +513,9 @@ async function publishJob(req, res) {
         )
       }
 
+      await onProgress({
+        phase:'saving',completed:created + skippedExisting,total:selectedParentCount,
+      })
       cursorGroupKey = groupKeys.at(-1)
     }
 
@@ -516,6 +532,7 @@ async function publishJob(req, res) {
       [created, skippedExisting, mode, job.id, store.store_id],
     )
     await client.query('COMMIT')
+    await onProgress({phase:'committed',completed:selectedParentCount,total:selectedParentCount})
     // Images were localized before publication. PDF images have always been
     // embedded at scan time; no asynchronous media repair is needed here.
     return res.json({ ...publicResult(updated.rows[0], false), media: { queued: false, localizedBeforePublish: true } })
