@@ -127,6 +127,9 @@ async function ensureSchema() {
          SET photo_limit=NULL,updated_at=now()
          WHERE code='ouro' AND is_system=true AND photo_limit IS NOT NULL`,
       )
+      // Regra comercial obrigatória: todo plano diferente de Gold/Ouro tem só 1 catálogo.
+      // Não apaga catálogos anteriores se uma loja fizer downgrade.
+      await pool.query("UPDATE platform_plans SET catalog_limit=1,updated_at=now() WHERE code IN ('bronze','prata') AND catalog_limit IS DISTINCT FROM 1")
 
       await pool.query(`
         CREATE OR REPLACE FUNCTION shopvax_enforce_store_plan_limit()
@@ -143,7 +146,9 @@ async function ensureSchema() {
             SELECT seller_limit INTO max_allowed FROM platform_plans WHERE code=selected_code AND active=true LIMIT 1;
             SELECT count(*)::int INTO current_total FROM sellers WHERE store_id=NEW.store_id;
           ELSIF TG_TABLE_NAME='catalogs' THEN
-            SELECT catalog_limit INTO max_allowed FROM platform_plans WHERE code=selected_code AND active=true LIMIT 1;
+            -- Evita que cadastros simultâneos ultrapassem o limite comercial.
+            PERFORM pg_advisory_xact_lock(hashtext('shopvax:catalog:'||NEW.store_id));
+            max_allowed := CASE WHEN selected_code='ouro' THEN NULL ELSE 1 END;
             SELECT count(*)::int INTO current_total FROM catalogs WHERE store_id=NEW.store_id;
           ELSE
             RETURN NEW;
@@ -217,7 +222,7 @@ async function planFor(code) {
 
 async function limitFor(storeId, planCode, tableName, columnName) {
   const plan = await pool.query(`SELECT ${columnName} AS limit FROM platform_plans WHERE code=$1 LIMIT 1`, [planCode])
-  const max = plan.rows[0]?.limit == null ? null : Number(plan.rows[0].limit)
+  const max = columnName==='catalog_limit' ? (planCode==='ouro' ? null : 1) : plan.rows[0]?.limit == null ? null : Number(plan.rows[0].limit)
   if (max == null) return { max: null, current: 0 }
   const current = await pool.query(`SELECT count(*)::int AS total FROM ${tableName} WHERE store_id=$1`, [storeId])
   return { max, current: Number(current.rows[0]?.total || 0) }
@@ -311,7 +316,7 @@ async function planContext(req, res, next) {
         limits: {
           sellers: plan.seller_limit == null ? null : Number(plan.seller_limit),
           products: plan.product_limit == null ? null : Number(plan.product_limit),
-          catalogs: plan.catalog_limit == null ? null : Number(plan.catalog_limit),
+          catalogs: plan.code === 'ouro' ? null : 1,
           photosPerProduct: plan.photo_limit == null ? null : Number(plan.photo_limit),
           franchisees: plan.franchisee_limit == null ? null : Number(plan.franchisee_limit),
         },

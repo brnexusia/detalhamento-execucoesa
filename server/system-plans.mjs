@@ -46,7 +46,7 @@ export const systemPlans = [
     annualDiscount: 15,
     sellerLimit: 15,
     productLimit: 2000,
-    catalogLimit: 3,
+    catalogLimit: 1,
     photoLimit: 10,
     franchiseeLimit: 2,
     socialWeight: 2,

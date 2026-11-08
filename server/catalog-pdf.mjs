@@ -100,8 +100,9 @@ function drawHeader(doc, store, catalog, logo, theme) {
     .text(cleanText(store.name, 100), textLeft, top, { width: 330, lineBreak: false })
   doc.fillColor(foreground).font('Helvetica').fontSize(9)
     .text(cleanText(catalog.name, 100), textLeft, top + 23, { width: 330, lineBreak: false })
-  const kind = [kindLabel(catalog.kind), catalog.minimum_order == null ? '' :
-    `Pedido mínimo: ${money.format(Number(catalog.minimum_order))}`].filter(Boolean).join(' · ')
+  const min = catalog.minimum_order ?? store.minimum_order
+  const kind = [kindLabel(catalog.kind), min == null ? '' :
+    `Pedido mínimo: ${money.format(Number(min))}`].filter(Boolean).join(' · ')
   doc.fontSize(7.5).text(kind, textLeft, top + 36, { width: 420, lineBreak: false })
   // Texto sazonal aparece no PDF, mas nunca anuncia desconto, preço ou prazo inventado.
   if (darkTheme) doc.fontSize(8).text(theme.message, left, 70, { width: doc.page.width - 64, align: 'right', lineBreak: false })
@@ -150,7 +151,7 @@ async function drawProductCard(doc, product, x, y, w, h, imageLoader, theme) {
   doc.fillColor(theme.ink).font('Helvetica-Bold').fontSize(10)
     .text(cleanText(product.name, 100), x + padding, textY + 12, { width: imageW, height: 26, ellipsis: true })
   doc.fillColor(theme.ink).font('Helvetica-Bold').fontSize(11)
-    .text(money.format(Number(product.public_price || product.price || 0)), x + padding, textY + 41, { width: imageW, lineBreak: false })
+    .text(money.format(Number(product.public_price ?? product.price ?? 0)), x + padding, textY + 41, { width: imageW, lineBreak: false })
 
   const variations = Array.isArray(product.variations)
     ? product.variations.map((group) => `${cleanText(group?.name, 30)}: ${(Array.isArray(group?.options) ? group.options : []).map((item) => cleanText(item, 20)).join(' / ')}`).filter(Boolean).join(' · ')
@@ -162,8 +163,8 @@ async function drawProductCard(doc, product, x, y, w, h, imageLoader, theme) {
   doc.restore()
 }
 
-export async function streamCatalogPdf({ res, store, catalog, products, imageLoader, themeNow = new Date() }) {
-  const safeName = cleanText(catalog.name || 'catalogo', 80).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'catalogo'
+export async function streamCatalogPdf({ res, store, catalog, products, imageLoader, category = '', themeNow = new Date() }) {
+  const safeName = cleanText([catalog.name || 'catalogo',category].filter(Boolean).join('-'), 80).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'catalogo'
   res.status(200)
   res.setHeader('Content-Type', 'application/pdf')
   res.setHeader('Content-Disposition', `attachment; filename="${safeName}-shopvax.pdf"`)
@@ -181,8 +182,8 @@ export async function streamCatalogPdf({ res, store, catalog, products, imageLoa
   const left = 32
   const gap = 12
   const cardW = (pageWidth - left * 2 - gap) / 2
-  const cardH = 226
-  const top = 92
+  const cardH = 214
+  const top = 116
   const rowGap = 10
 
   let pageNumber = 1
@@ -201,18 +202,29 @@ export async function streamCatalogPdf({ res, store, catalog, products, imageLoa
     return
   }
 
-  for (let index = 0; index < products.length; index += 1) {
-    if (index > 0 && index % 6 === 0) {
-      doc.addPage()
-      pageNumber += 1
-      drawChrome()
+  // Seção nova por categoria, sem misturar valores ou imagens de outras categorias.
+  const grouped = new Map()
+  for (const product of products) {
+    const key = cleanText(product.category || 'Geral',80) || 'Geral'
+    if (!grouped.has(key)) grouped.set(key,[])
+    grouped.get(key).push(product)
+  }
+  let firstPage = true
+  for (const [section,rows] of [...grouped.entries()].sort(([a],[b])=>a.localeCompare(b,'pt-BR'))) {
+    for (let start = 0; start < rows.length; start += 6) {
+      if (!firstPage) { doc.addPage(); pageNumber += 1; drawChrome() }
+      firstPage = false
+      doc.save()
+      doc.font('Helvetica-Bold').fontSize(14).fillColor(theme.ink)
+        .text(section, left, 94, { width: pageWidth - 2*left, lineBreak:false })
+      doc.restore()
+      for (const [slot,product] of rows.slice(start,start+6).entries()) {
+        const col = slot % 2, row = Math.floor(slot / 2)
+        const x = left + col * (cardW + gap)
+        const y = top + row * (cardH + rowGap)
+        await drawProductCard(doc, product, x, y, cardW, cardH, (url) => imageLoader(url, 'medium'), theme)
+      }
     }
-    const slot = index % 6
-    const col = slot % 2
-    const row = Math.floor(slot / 2)
-    const x = left + col * (cardW + gap)
-    const y = top + row * (cardH + rowGap)
-    await drawProductCard(doc, products[index], x, y, cardW, cardH, (url) => imageLoader(url, 'medium'), theme)
   }
 
   doc.end()
