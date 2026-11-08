@@ -342,7 +342,7 @@ export default function PlatformAdmin() {
 }
 
 function NavButton({ active, onClick, icon, label, count }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string; count?: number }) {
-  return <button className={active ? 'is-active' : ''} onClick={onClick}>{icon}<span>{label}</span>{count != null && <b>{count}</b>}</button>
+  return <button aria-label={label} title={label} className={active ? 'is-active' : ''} onClick={onClick}>{icon}<span>{label}</span>{count != null && <b>{count}</b>}</button>
 }
 function Title({ kicker, title, copy }: { kicker: string; title: string; copy: string }) { return <div className="platform-title"><span>{kicker}</span><h1>{title}</h1><p>{copy}</p></div> }
 function Metric({ icon, label, value, note, wide = false }: { icon: React.ReactNode; label: string; value: string; note: string; wide?: boolean }) { return <div className={wide ? 'is-wide' : ''}><div>{icon}<span>{label}</span></div><strong>{value}</strong><small>{note}</small></div> }
