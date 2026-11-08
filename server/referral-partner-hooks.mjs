@@ -81,21 +81,26 @@ async function registerPartner(req,res){
   if(name.length<2||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||password.length<12||password.length>200)
     return sendError(res,400,'Informe nome, e-mail e senha de 12 a 200 caracteres.')
   const client=await pool.connect()
-  let userId=id()
+  const userId=id()
+  const partnerId=id()
+  const code='SVP-'+crypto.randomBytes(6).toString('hex').toUpperCase()
+  const token=crypto.randomBytes(32).toString('base64url')
   try {
     await client.query('BEGIN')
     if((await client.query('SELECT id FROM users WHERE email=$1',[email])).rowCount){
-      await client.query('ROLLBACK');return sendError(res,409,'Este e-mail já tem uma conta. Use outro e-mail para um perfil de parceiro independente.')
+      await client.query('ROLLBACK');return sendError(res,409,'Este e-mail já tem uma conta. Entre no portal caso já seja parceiro.')
     }
-    const partnerId=id()
-    const code='SVP-'+crypto.randomBytes(6).toString('hex').toUpperCase()
     await client.query('INSERT INTO users(id,email,name,password_hash) VALUES($1,$2,$3,$4)',[userId,email,name,passwordHash(password)])
-    await client.query("INSERT INTO shopvax_partners(id,user_id,code,status) VALUES($1,$2,$3,'pending')",[partnerId,userId,code])
+    // O código fica utilizável imediatamente. A comissão continua sob regra/aprovação administrativa.
+    await client.query("INSERT INTO shopvax_partners(id,user_id,code,status) VALUES($1,$2,$3,'active')",[partnerId,userId,code])
+    // A sessão nasce na mesma transação: evitar conta criada sem login após falha de sessão.
+    await client.query("INSERT INTO sessions(token_hash,user_id,expires_at) VALUES ($1,$2,now()+interval '30 days')",[hash(token),userId])
     await client.query('COMMIT')
   }catch(error){await client.query('ROLLBACK').catch(()=>undefined);if(error?.code==='23505')return sendError(res,409,'Conta já cadastrada.');throw error}
   finally{client.release()}
-  await createSession(req,res,userId)
-  res.status(201).json({ok:true,status:'pending',message:'Cadastro registrado. O código fica disponível após aprovação administrativa.'})
+  res.cookie(sessionCookie,token,{httpOnly:true,sameSite:'lax',secure:req.secure||req.get('x-forwarded-proto')==='https',maxAge:2592000000,path:'/'})
+  res.set('Cache-Control','private, no-store')
+  res.status(201).json({ok:true,status:'active',code,referralPath:'/criar-conta?ref='+encodeURIComponent(code),message:'Conta criada. Seu código e seu link de indicação já estão disponíveis no painel.'})
 }
 async function loginPartner(req,res){
   await ensureReferralSchema()
@@ -124,7 +129,7 @@ async function partnerDashboard(req,res) {
     pool.query('SELECT count(*)::int AS total FROM shopvax_referral_visits WHERE code=$1',[partner.code]),
   ])
   const all=claims.rows
-  res.json({partner:{name:user.name,email:user.email,code:partner.status==='active'?partner.code:null,status:partner.status,
+  res.json({partner:{name:user.name,email:user.email,code:partner.code,status:partner.status,
     commissionCents:partner.commission_cents,pixKey:partner.pix_key,createdAt:partner.created_at},
     metrics:{visits:Number(visits.rows[0].total),registered:all.length,qualified:all.filter(c=>c.status==='qualified').length,
       pending:all.filter(c=>c.status==='pending').length,
