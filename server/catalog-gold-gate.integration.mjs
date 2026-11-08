@@ -23,6 +23,7 @@ async function post(path,body,cookie,method='POST'){
 }
 try{
  const bronze=await makeStore('bronze'),silver=await makeStore('prata'),gold=await makeStore('ouro')
+ await pool.query("INSERT INTO sellers(id,store_id,slug,name,phone,is_active) VALUES($1,$2,'vendedora','Vendedora Gold','55119998887766',true)",[id(),gold.storeId])
  for(const store of [bronze,silver,gold]){
    const response=await get('/api/admin/catalogs',store.cookie)
    assert.equal(response.status,200,'Catálogo principal existe para cada plano')
@@ -73,6 +74,19 @@ try{
  const underMinimum=await post('/api/business/orders',{storeSlug:gold.slug,catalogSlug:retail.slug,items:[{productId:product.id,quantity:1,selections:{}}]},'')
  const underBody=await underMinimum.json().catch(()=>({}))
  assert.equal(underMinimum.status,400,'Pedido de varejo abaixo do mínimo não pode finalizar: '+JSON.stringify(underBody))
+ // Valores e quantidade descontada devem coincidir com a modalidade do catálogo.
+ const retailOrder=await post('/api/business/orders',{storeSlug:gold.slug,catalogSlug:retail.slug,items:[{productId:product.id,quantity:2,selections:{}}]},'')
+ const retailOrderBody=await retailOrder.json()
+ assert.equal(retailOrder.status,201,JSON.stringify(retailOrderBody))
+ const retailRow=(await pool.query('SELECT total,items FROM orders WHERE id=$1',[retailOrderBody.orderId])).rows[0]
+ assert.equal(Number(retailRow.total),40)
+ assert.equal(Number(retailRow.items[0].unitPrice),20)
+ const boxOrder=await post('/api/business/orders',{storeSlug:gold.slug,catalogSlug:def.slug,items:[{productId:product.id,quantity:1,selections:{}}]},'')
+ const boxBody=await boxOrder.json()
+ assert.equal(boxOrder.status,201,JSON.stringify(boxBody))
+ const boxRow=(await pool.query('SELECT total,items FROM orders WHERE id=$1',[boxBody.orderId])).rows[0]
+ assert.equal(Number(boxRow.total),100)
+ assert.equal(Number(boxRow.items[0].stockUnits),5,'Uma caixa representa cinco unidades de estoque')
  const pdf=await get('/api/admin/catalogs/'+retail.id+'/pdf?category=Bolsas',gold.cookie)
  assert.equal(pdf.status,200,'PDF por categoria disponível no catálogo correto')
  assert.match(pdf.headers.get('content-type')||'',/application\/pdf/)
