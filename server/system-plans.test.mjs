@@ -2,16 +2,17 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { systemPlans } from './system-plans.mjs'
+import { blackFridayPrices } from './black-friday-pricing.mjs'
 
 test('Planos aprovados: preços, equipe, produtos e catálogos', () => {
   assert.deepEqual(systemPlans.map(p => p.code), ['bronze', 'prata', 'ouro'])
   const [bronze, prata, ouro] = systemPlans
   assert.deepEqual([bronze.monthlyPrice, bronze.sellerLimit, bronze.productLimit, bronze.catalogLimit, bronze.photoLimit],
-    [49.90, 5, 500, 1, 5])
+    [blackFridayPrices.bronze.monthlyPrice, 5, 500, 1, 5])
   assert.deepEqual([prata.monthlyPrice, prata.sellerLimit, prata.productLimit, prata.catalogLimit, prata.photoLimit],
-    [94.90, 15, 2000, 1, 10])
+    [blackFridayPrices.prata.monthlyPrice, 15, 2000, 1, 10])
   assert.deepEqual([ouro.monthlyPrice, ouro.sellerLimit, ouro.productLimit, ouro.catalogLimit, ouro.photoLimit],
-    [144.90, null, null, null, null])
+    [blackFridayPrices.ouro.monthlyPrice, null, null, null, null])
   for (const plan of systemPlans) {
     assert.equal(plan.semesterDiscount, 5)
     assert.equal(plan.annualDiscount, 15)
