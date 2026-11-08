@@ -1,7 +1,9 @@
 name: validate-import-progress-and-async-queue
 on:
   push:
-    branches: [feat/import-real-progress-20261107]
+    branches: [main, fix/finish-import-progress-20261107]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
