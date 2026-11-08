@@ -151,7 +151,7 @@ async function drawProductCard(doc, product, x, y, w, h, imageLoader, theme) {
   doc.fillColor(theme.ink).font('Helvetica-Bold').fontSize(10)
     .text(cleanText(product.name, 100), x + padding, textY + 12, { width: imageW, height: 26, ellipsis: true })
   doc.fillColor(theme.ink).font('Helvetica-Bold').fontSize(11)
-    .text(money.format(Number(product.public_price || product.price || 0)), x + padding, textY + 41, { width: imageW, lineBreak: false })
+    .text(money.format(Number(product.public_price ?? product.price ?? 0)), x + padding, textY + 41, { width: imageW, lineBreak: false })
 
   const variations = Array.isArray(product.variations)
     ? product.variations.map((group) => `${cleanText(group?.name, 30)}: ${(Array.isArray(group?.options) ? group.options : []).map((item) => cleanText(item, 20)).join(' / ')}`).filter(Boolean).join(' · ')
