@@ -13,7 +13,7 @@ function mockJob(data, status='review') {
     if (sql.includes('SELECT COUNT(*)::int AS count FROM import_normalized_products')) {
       const count = rows.filter(row => [row.data?.media_url,
         ...(row.data?.images || []),
-        ...(row.data?.variant_images || []).flatMap(v=>v.images||[])].some(x=>/^https?:\\/\\//.test(String(x)))).length
+        ...(row.data?.variant_images || []).flatMap(v=>v.images||[])].some(x => String(x).startsWith('https://') || String(x).startsWith('http://'))).length
       return {rowCount:1,rows:[{count}]}
     }
     if (sql.includes('FROM import_normalized_products') && sql.includes('SELECT id,updated_at::text')) {
