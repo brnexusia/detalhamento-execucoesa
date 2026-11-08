@@ -36,6 +36,7 @@ type PublishProgress = {
   percent: number
   error: string
   result: PublishResult | null
+  heartbeatAt: string | null
 }
 
 async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
@@ -279,6 +280,11 @@ export default function ScannerPublishModule() {
                         <small>{publishProgress[job.id].total>0
                           ? `${publishProgress[job.id].completed} de ${publishProgress[job.id].total} nesta etapa`
                           : 'Preparando a próxima etapa…'} · Pode fechar esta janela</small>
+                        {publishProgress[job.id].state==='running' &&
+                          <small>{publishProgress[job.id].heartbeatAt &&
+                            Date.now()-new Date(publishProgress[job.id].heartbeatAt).getTime()<30_000
+                            ? 'Servidor ativo · trabalho continua mesmo se sair'
+                            : 'Verificando resposta do servidor… a tarefa será retomada se necessário'}</small>}
                       </div>
                     )}
                     {publishProgress[job.id]?.state==='failed' && (
