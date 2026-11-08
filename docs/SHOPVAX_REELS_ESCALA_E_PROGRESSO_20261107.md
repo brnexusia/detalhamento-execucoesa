@@ -58,3 +58,25 @@ Ver `docs/SHOPVAX_PERFORMANCE_REEL_31_20261107.md`. Melhorias existentes: mídia
 - O percentual ponderado sinaliza volume concluído por fase; não é cronômetro nem estimativa de entrega.
 - Não presumir que melhorias de performance do Reel foram todas implementadas.
 - Não afirmar que os 1.308 itens foram publicados no banco de produção apenas por terem sido escaneados e testados.
+
+## Fechamento técnico complementar
+
+- A ação principal do painel exibe `Importando catálogo · N%` quando há tarefa ativa, mesmo após fechar o modal.
+- Requisições de progresso atrasadas não fazem o marcador retroceder na **mesma tentativa**. Quando a fila retoma uma tarefa após perda de worker, o número de tentativas identifica o reinício real e libera atualização da porcentagem.
+- Falhas de internet não apagam a lista de importações em andamento; a janela volta a consultar quando visível.
+- As rotinas `validate-import-progress-and-async-queue`, `validate-async-import-publishing` e `validate-daily-unique-views` voltaram a ser executadas para mudanças na `main`.
+- Smoke com **4.100 produtos** (`SCANNER_SCALE_TOTAL=4100`): verificação de 4.100 candidatos, normalizações, publicações, contagem final e reexecução idempotente em banco isolado. Este teste é evidência de **correção funcional sob carga**, não um indicador de throughput real de produção.
+- Evitar afirmar que o ShopVax está 100% implantado até que `/health.releaseSha` corresponda à `main` e `/health.ocr.ready` seja confirmado no container do EasyPanel. A implantação não foi executada por esta alteração.
+- O teste de preços `system-plans.test.mjs` continua com contrato divergente (R$ 49,90 esperado e R$ 29,99 encontrado para Bronze). **Não mudar valores comerciais automaticamente** sem aprovação; essa pendência é independente do progresso de importações.
+
+### Verificações seguras após deploy
+
+1. Anotar commit da `main`; confirmar que o serviço ShopVax no EasyPanel usa o **Dockerfile do repositório**, branch `main` e revisão correspondente.
+2. Fazer backup restaurável do banco e mídias, verificar espaço e usuário de banco antes de permitir publicação de catálogos reais.
+3. Verificar `GET /health` com `ok=true`, `database=true`, `releaseSha` igual ao commit publicado e `ocr.ready=true` para importação de PDF escaneado.
+4. Autenticar como lojista de homologação, abrir Produtos → Importações, iniciar um catálogo de teste e observar 0–100% nas etapas de scanner, fotos, agrupamento e publicação.
+5. Fechar a janela no meio da publicação e reabrir; deve continuar do estado no servidor. Interromper a rede temporariamente e reconectar; não deve perder a lista nem duplicar registros.
+6. Confirmar que imagens estão localizadas em `/media/`, que o banco contém a quantidade esperada de produtos **distintos** e que o contador chega a 100% somente após commit.
+7. Testar o Alexandre já cadastrado por **recuperação do job original**, não por publicação duplicada; validar a contagem após recuperar.
+8. Registrar LCP/INP/CLS reais p75 antes de justificar novos gastos com réplicas, sharding, CDN ou arquitetura SSR.
+
