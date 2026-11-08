@@ -40,8 +40,9 @@ try{
  const renamed=await post('/api/admin/catalogs/'+def.id,{name:'Caixa fechada',kind:'atacado',minimumOrder:60},gold.cookie,'PATCH')
  assert.equal(renamed.status,200,await renamed.text().catch(()=>''),'Gold edita principal com mínimo')
  const created=await post('/api/admin/catalogs',{name:'Varejo',kind:'varejo',minimumOrder:30},gold.cookie)
- assert.equal(created.status,201,await created.text().catch(()=>''),'Gold cria varejo')
- const retail=(await created.json()).catalog
+ const createdBody=await created.json()
+ assert.equal(created.status,201,JSON.stringify(createdBody),'Gold cria varejo')
+ const retail=createdBody.catalog
  goldCatalogs=(await (await get('/api/admin/catalogs',gold.cookie)).json()).catalogs
  assert.equal(goldCatalogs.length,2)
  // Os três novos campos não mudam o preço principal e não duplicam produtos.
@@ -49,14 +50,15 @@ try{
    name:'Bolsa teste',sku:'B-GOLD',price:10,retailPrice:20,boxPrice:100,unitsPerBox:5,
    category:'Bolsas',active:true,variations:[],
  },gold.cookie)
- assert.equal(productRes.status,201,await productRes.text().catch(()=>''),'Cadastra produto com preços paralelos')
- const product=(await productRes.json()).product
+ const productBody=await productRes.json()
+ assert.equal(productRes.status,201,JSON.stringify(productBody),'Cadastra produto com preços paralelos')
+ const product=productBody.product
  assert.equal(Number(product.retail_price),20)
  assert.equal(Number(product.box_price),100)
  assert.equal(Number(product.units_per_box),5)
  const boxPublic=await get('/api/public/store/'+gold.slug+'?catalog='+def.slug)
- assert.equal(boxPublic.status,200,await boxPublic.text().catch(()=>''))
  const boxPayload=await boxPublic.json()
+ assert.equal(boxPublic.status,200,JSON.stringify(boxPayload).slice(0,900))
  assert.equal(boxPayload.activeCatalog.kind,'atacado')
  assert.equal(boxPayload.store.minimumOrder,60)
  assert.equal(boxPayload.products[0].price,100,'Vitrine de caixa fechada usa preço correto')
