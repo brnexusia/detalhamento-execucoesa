@@ -23,7 +23,7 @@ const money=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'})
 function number(value:number|null|undefined){return value==null?'Ilimitados':new Intl.NumberFormat('pt-BR').format(value)}
 const info:Record<string,string>={
   bronze:'Pra quem está começando a vender pelo link.',
-  prata:'Pra loja com equipe e mais de um catálogo.',
+  prata:'Pra loja com equipe e um catálogo profissional.',
   ouro:'Pra rede com franqueados e catálogo sem limite.',
 }
 type Props={plans:PlanView[];onChoose:(code:string)=>void}
