@@ -200,7 +200,7 @@ export default function BuyerWhatsappLogin({ storeSlug = '', onVerified, editOnl
         <label><span>UF (opcional)</span><input maxLength={2} autoComplete="address-level1" placeholder="BA" value={form.state} onChange={(e) => change('state',e.target.value.toUpperCase())}/></label>
       </div>
       <label className="buyer-consent"><input type="checkbox" checked={privacy} onChange={(e) => setPrivacy(e.target.checked)} required/>
-        Li e aceito a política de privacidade e o compartilhamento dos dados comerciais com lojas com as quais eu interagir.</label>
+        Li e aceito a <a className="buyer-policy-link" href="/politica-de-privacidade.html" target="_blank" rel="noopener noreferrer" aria-label="Ler a política de privacidade">política de privacidade</a> e o compartilhamento dos dados comerciais com lojas com as quais eu interagir.</label>
       <button type="submit" className="customer-submit" disabled={busy || !privacy}>{busy ? 'Salvando…' : 'Salvar perfil e continuar'}</button>
       {editOnly && <button type="button" className="buyer-secondary" onClick={() => setOpen(false)}>Cancelar</button>}
     </form>}
