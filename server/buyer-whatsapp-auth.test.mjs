@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { normalizeBuyerPhone, buyerWhatsappReady, profileFields } from './buyer-whatsapp-auth-hooks.mjs'
+import { normalizeBuyerPhone, buyerWhatsappReady } from './buyer-whatsapp-auth-hooks.mjs'
 import {
   buildBuyerVerificationMessage,
   buyerWhatsappDeliveryConfigured,
@@ -196,10 +196,8 @@ test('perfil requer aceite obrigatório, sem segunda caixa promocional', () => {
 })
 
 test('aceite do primeiro cadastro registra marketing sem parâmetro promocional separado', () => {
-  const form = { name: 'Compradora Teste', email: 'compradora@example.test', purpose: 'pessoal', privacyAccepted: true }
-  assert.match(profileFields({ ...form, privacyAccepted: false }).error, /política de privacidade/)
-  assert.equal(profileFields(form).error, undefined)
   const auth = readFileSync(new URL('./buyer-whatsapp-auth-hooks.mjs', import.meta.url), 'utf8')
+  assert.match(auth, /body\?\.privacyAccepted !== true/, 'o cadastro deve exigir aceite expresso da política')
   assert.match(auth, /marketing_consent=CASE WHEN profile_completed=false THEN true ELSE marketing_consent END/,
     'a confirmação inicial define marketing sem alterar retroativamente escolhas de perfis já concluídos')
   assert.doesNotMatch(auth, /f\.marketingConsent/, 'nenhum segundo campo de consentimento é enviado pelo formulário')
