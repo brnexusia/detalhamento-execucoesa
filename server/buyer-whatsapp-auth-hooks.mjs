@@ -172,7 +172,7 @@ async function verifyCode(req, res) {
   res.cookie(COOKIE, token, opts(req))
   return res.json({ ok: true, created: account.id === createdId, needsProfile: !account.profile_completed, buyer: publicBuyer(account) })
 }
-export function profileFields(body) {
+function profileFields(body) {
   const name = clean(body?.name, 120), email = clean(body?.email, 240).toLowerCase(), purpose = String(body?.purpose || '')
   if (name.length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !purposes.has(purpose) || body?.privacyAccepted !== true)
     return { error: 'Informe nome, e-mail, finalidade e aceite a política de privacidade.' }
