@@ -189,7 +189,6 @@ function profileFields(body) {
     businessName: personal ? '' : clean(body?.businessName, 160),
     city: clean(body?.city, 100), state: clean(body?.state, 2).toUpperCase(),
     segment: personal ? '' : clean(body?.segment, 100), instagram: personal ? '' : clean(body?.instagram, 100),
-    marketingConsent: body?.marketingConsent === true,
   }
 }
 async function saveProfile(req,res) {
@@ -199,8 +198,8 @@ async function saveProfile(req,res) {
   if (!account) return fail(res, 401, 'Verifique seu WhatsApp para continuar.')
   const f = profileFields(req.body)
   if (f.error) return fail(res, 400, f.error)
-  const updated = await pool.query('UPDATE buyer_accounts SET name=$1,email=$2,purpose=$3,business_status=$4,cnpj_status=$5,cnpj=$6,channels=$7::jsonb,business_name=$8,city=$9,state=$10,segment=$11,instagram=$12,marketing_consent=$13,profile_completed=true,privacy_accepted_at=COALESCE(privacy_accepted_at,now()),updated_at=now() WHERE id=$14 RETURNING *',
-    [f.name,f.email,f.purpose,f.businessStatus,f.cnpjStatus,f.cnpj,JSON.stringify(f.channels),f.businessName,f.city,f.state,f.segment,f.instagram,f.marketingConsent,account.id])
+  const updated = await pool.query('UPDATE buyer_accounts SET name=$1,email=$2,purpose=$3,business_status=$4,cnpj_status=$5,cnpj=$6,channels=$7::jsonb,business_name=$8,city=$9,state=$10,segment=$11,instagram=$12,marketing_consent=CASE WHEN profile_completed=false THEN true ELSE marketing_consent END,profile_completed=true,privacy_accepted_at=COALESCE(privacy_accepted_at,now()),updated_at=now() WHERE id=$13 RETURNING *',
+    [f.name,f.email,f.purpose,f.businessStatus,f.cnpjStatus,f.cnpj,JSON.stringify(f.channels),f.businessName,f.city,f.state,f.segment,f.instagram,account.id])
   await pool.query('UPDATE store_customers SET name=$1,phone=$2,updated_at=now() WHERE buyer_account_id=$3', [f.name,account.phone,account.id])
   return res.json({ ok: true, buyer: publicBuyer(updated.rows[0]) })
 }

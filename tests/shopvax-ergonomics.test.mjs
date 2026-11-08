@@ -111,7 +111,9 @@ test('comprador recebe formulario WhatsApp e perguntas comerciais, sem senha na 
   assert.match(buyer, /Você possui um negócio\?/)
   assert.match(buyer, /Onde vende ou pretende vender\?/)
   assert.match(buyer, /Possui CNPJ\?/)
-  assert.match(buyer, /marketingConsent/)
+  assert.doesNotMatch(buyer, /marketingConsent|Aceito receber comunicações promocionais/, 'o formulário deve ter apenas a caixa obrigatória')
+  assert.match(buyer, /Li e aceito a/)
+  assert.match(server, /marketing_consent=CASE WHEN profile_completed=false THEN true ELSE marketing_consent END/)
   assert.match(server, /const purposes = new Set\(\['revenda', 'negocio'/)
 })
 

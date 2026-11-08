@@ -180,3 +180,37 @@ test('resposta após OTP válido conserva o identificador do comprador fora da t
   assert.equal(handler.split('const createdId = uuid()').length - 1, 1,
     'não criar identificadores diferentes ao montar a resposta')
 })
+
+
+test('perfil requer aceite obrigatório, sem segunda caixa promocional', () => {
+  const client = readFileSync(new URL('../src/BuyerWhatsappLogin.tsx', import.meta.url), 'utf8')
+  const match = client.match(/<label className="buyer-consent">([\s\S]*?)<\/label>/)
+  assert.ok(match, 'a primeira e única caixa de aceite deve existir')
+  assert.equal(client.match(/className="buyer-consent"/g)?.length, 1, 'o formulário não pode exigir uma segunda caixa')
+  assert.match(match[1], /type="checkbox"/)
+  assert.match(match[1], /required/)
+  const copy = match[1].replace(/<input[\s\S]*?\/>/, '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()
+  assert.equal(copy, 'Li e aceito a política de privacidade e o compartilhamento dos dados comerciais com lojas com as quais eu interagir.')
+  assert.doesNotMatch(client, /Aceito receber comunicações promocionais/)
+  assert.match(client, /href="\/politica-de-privacidade.html"/, 'o comprador deve poder consultar a política')
+})
+
+test('aceite do primeiro cadastro registra marketing sem parâmetro promocional separado', () => {
+  const auth = readFileSync(new URL('./buyer-whatsapp-auth-hooks.mjs', import.meta.url), 'utf8')
+  assert.match(auth, /body\?\.privacyAccepted !== true/, 'o cadastro deve exigir aceite expresso da política')
+  assert.match(auth, /marketing_consent=CASE WHEN profile_completed=false THEN true ELSE marketing_consent END/,
+    'a confirmação inicial define marketing sem alterar retroativamente escolhas de perfis já concluídos')
+  assert.doesNotMatch(auth, /f\.marketingConsent/, 'nenhum segundo campo de consentimento é enviado pelo formulário')
+})
+
+test('documentos públicos descrevem marketing abrangido pelo aceite único', () => {
+  const terms = readFileSync(new URL('../public/termos-de-uso.html', import.meta.url), 'utf8')
+  const privacy = readFileSync(new URL('../public/politica-de-privacidade.html', import.meta.url), 'utf8')
+  for (const document of [terms, privacy]) {
+    assert.match(document, /aceite/i)
+    assert.match(document, /marketing/i)
+    assert.match(document, /WhatsApp/)
+    assert.match(document, /e-mail/)
+    assert.match(document, /promoções/)
+  }
+})

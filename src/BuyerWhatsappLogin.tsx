@@ -7,18 +7,17 @@ type Buyer = {
   phone: string; name: string; email: string; purpose: string; city: string; state: string;
   businessStatus: string; businessName: string; cnpjStatus: string; cnpj: string;
   channels: string[]; segment: string; instagram: string; profileCompleted: boolean;
-  marketingConsent: boolean;
 }
 type Stage = 'phone' | 'code' | 'profile'
 type Form = {
   name: string; email: string; purpose: string; city: string; state: string;
   businessStatus: string; businessName: string; cnpjStatus: string; cnpj: string;
-  channels: string[]; segment: string; instagram: string; marketingConsent: boolean;
+  channels: string[]; segment: string; instagram: string;
 }
 const empty: Form = {
   name: '', email: '', purpose: '', city: '', state: '',
   businessStatus: '', businessName: '', cnpjStatus: '',
-  cnpj: '', channels: [], segment: '', instagram: '', marketingConsent: false,
+  cnpj: '', channels: [], segment: '', instagram: '',
 }
 const channels = [
   ['loja', 'Loja física'], ['virtual', 'Loja virtual'], ['social', 'Instagram e redes sociais'],
@@ -51,7 +50,6 @@ export default function BuyerWhatsappLogin({ storeSlug = '', onVerified, editOnl
           city: buyer.city || '', state: buyer.state || '', businessStatus: buyer.businessStatus || '',
           businessName: buyer.businessName || '', cnpjStatus: buyer.cnpjStatus || '', cnpj: buyer.cnpj || '',
           channels: buyer.channels || [], segment: buyer.segment || '', instagram: buyer.instagram || '',
-          marketingConsent: buyer.marketingConsent === true,
         })
         if (!buyer.profileCompleted || editOnly) {
           setStage('profile')
@@ -202,9 +200,7 @@ export default function BuyerWhatsappLogin({ storeSlug = '', onVerified, editOnl
         <label><span>UF (opcional)</span><input maxLength={2} autoComplete="address-level1" placeholder="BA" value={form.state} onChange={(e) => change('state',e.target.value.toUpperCase())}/></label>
       </div>
       <label className="buyer-consent"><input type="checkbox" checked={privacy} onChange={(e) => setPrivacy(e.target.checked)} required/>
-        Li e aceito a política de privacidade e o compartilhamento dos dados comerciais com lojas com as quais eu interagir.</label>
-      <label className="buyer-consent"><input type="checkbox" checked={form.marketingConsent} onChange={(e) => change('marketingConsent',e.target.checked)}/>
-        Aceito receber comunicações promocionais (opcional).</label>
+        <span className="buyer-consent__copy">Li e aceito a <a className="buyer-policy-link" href="/politica-de-privacidade.html" target="_blank" rel="noopener noreferrer" aria-label="Ler a política de privacidade">política de privacidade</a> e o compartilhamento dos dados comerciais com lojas com as quais eu interagir.</span></label>
       <button type="submit" className="customer-submit" disabled={busy || !privacy}>{busy ? 'Salvando…' : 'Salvar perfil e continuar'}</button>
       {editOnly && <button type="button" className="buyer-secondary" onClick={() => setOpen(false)}>Cancelar</button>}
     </form>}
