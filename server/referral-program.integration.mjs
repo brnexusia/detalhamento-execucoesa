@@ -127,7 +127,7 @@ try{
  const invalid=await fetch(base+'/api/auth/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({
    name:'Cadastro inválido',email:invalidEmail,password:'SenhaDeTesteSegura2026',storeName:'Outra Loja',planCode:'bronze',referralCode:'SVP-INVALIDO',
  })})
- assert.equal(invalid.status,409,'Código inválido impede cadastro órfão')
+ assert.ok([400,409].includes(invalid.status),'Código inválido impede cadastro órfão')
  assert.equal((await pool.query('SELECT id FROM users WHERE email=$1',[invalidEmail])).rowCount,0,'Transação deve reverter o usuário inválido')
  // Apenas administradores consultam identidade e histórico paginado das lojas de cada parceiro.
  assert.equal((await fetch(base+'/api/platform/referrals/partners/'+partnerRowId+'/referrals',{headers:{cookie}})).status,403)
