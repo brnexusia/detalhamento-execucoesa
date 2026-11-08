@@ -158,11 +158,14 @@ export default function ScannerPublishModule() {
       setPublishProgress(current=>{
         const previous=current[jobId]
         if(previous?.state==='finished' && progress.state!=='finished')return current
+        // Reclaimed jobs restart their measurement from the beginning.
+        // Detect a new worker attempt rather than freezing at the old percent.
+        if((previous?.attempts || 0) > progress.attempts)return current
+        const isRetry=(previous?.attempts || 0) < progress.attempts
         const previousTime=Date.parse(previous?.updatedAt || '')
         const nextTime=Date.parse(progress.updatedAt || '')
-        if(Number.isFinite(previousTime) && Number.isFinite(nextTime) && previousTime>nextTime) return current
-        // Delayed HTTP responses must not make a progress bar jump backwards.
-        if(previous?.state===progress.state &&
+        if(!isRetry && Number.isFinite(previousTime) && Number.isFinite(nextTime) && previousTime>nextTime)return current
+        if(!isRetry && previous?.state===progress.state &&
           ['queued','running'].includes(progress.state) &&
           previous.percent>progress.percent)return current
         return {...current,[jobId]:progress}
@@ -292,7 +295,9 @@ export default function ScannerPublishModule() {
                     {publishProgress[job.id] && ['queued','running'].includes(publishProgress[job.id].state) && (
                       <div className="scanner-publish-progress" role="status" aria-live="polite">
                         <div className="scanner-publish-progress-label">
-                          <strong>{publishProgress[job.id].message}</strong>
+                          <strong>{publishProgress[job.id].attempts>1
+                            ? `Retomando · ${publishProgress[job.id].message}`
+                            : publishProgress[job.id].message}</strong>
                           <b>{publishProgress[job.id].percent}%</b>
                         </div>
                         <div className="scanner-publish-track" role="progressbar"
