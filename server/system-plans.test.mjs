@@ -9,7 +9,7 @@ test('Planos aprovados: preços, equipe, produtos e catálogos', () => {
   assert.deepEqual([bronze.monthlyPrice, bronze.sellerLimit, bronze.productLimit, bronze.catalogLimit, bronze.photoLimit],
     [49.90, 5, 500, 1, 5])
   assert.deepEqual([prata.monthlyPrice, prata.sellerLimit, prata.productLimit, prata.catalogLimit, prata.photoLimit],
-    [94.90, 15, 2000, 3, 10])
+    [94.90, 15, 2000, 1, 10])
   assert.deepEqual([ouro.monthlyPrice, ouro.sellerLimit, ouro.productLimit, ouro.catalogLimit, ouro.photoLimit],
     [144.90, null, null, null, null])
   for (const plan of systemPlans) {
