@@ -1,0 +1,59 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import crypto from 'node:crypto'
+import pg from 'pg'
+import { publicationPercent,createPublishTaskQueue } from './scanner-publish-progress.mjs'
+
+test('progress percentages correspond to completed work, never 100 until finished',()=>{
+ assert.equal(publicationPercent('queued',0,0),0)
+ assert.equal(publicationPercent('images',1,4),18)
+ assert.equal(publicationPercent('images',4,4),75)
+ assert.equal(publicationPercent('grouping',2,4),80)
+ assert.equal(publicationPercent('saving',2,4),92)
+ assert.equal(publicationPercent('saving',4,4),99)
+ assert.equal(publicationPercent('committed',4,4),99)
+ assert.equal(publicationPercent('finished',4,4),100)
+})
+test('PostgreSQL queue persists progress and claims a task only once at a time',async()=>{
+ if(!process.env.DATABASE_URL)throw new Error('DATABASE_URL required')
+ const db=new pg.Pool({connectionString:process.env.DATABASE_URL})
+ const store='store-'+crypto.randomUUID()
+ const job='job-'+crypto.randomUUID()
+ const job2='job-'+crypto.randomUUID()
+ try{
+  await db.query('CREATE TABLE IF NOT EXISTS stores(id text PRIMARY KEY)')
+  await db.query('CREATE TABLE IF NOT EXISTS import_jobs(id text PRIMARY KEY,store_id text)')
+  await db.query('INSERT INTO stores(id) VALUES($1)',[store])
+  await db.query('INSERT INTO import_jobs(id,store_id) VALUES($1,$3),($2,$3)',[job,job2,store])
+  const queue=createPublishTaskQueue(db)
+  const first=await queue.enqueue(job,store,'grouped')
+  assert.equal(first.state,'queued')
+  assert.equal((await queue.claim()).job_id,job)
+  assert.equal(await queue.claim(),null)
+  await queue.update(job,{phase:'images',completed:3,total:10})
+  assert.equal((await queue.get(job,store)).percent,22)
+  await queue.update(job,{phase:'grouping',completed:10,total:10})
+  assert.equal((await queue.get(job,store)).percent,85)
+  await queue.update(job,{phase:'saving',completed:9,total:10})
+  assert.equal((await queue.get(job,store)).percent,97)
+  await queue.finish(job,{job:{status:'completed'},result:{created:10}})
+  const done=await queue.get(job,store)
+  assert.equal(done.state,'finished')
+  assert.equal(done.percent,100)
+  assert.equal(done.result.result.created,10)
+  assert.equal((await queue.enqueue(job,store,'grouped')).state,'finished','no duplicate job')
+  await queue.enqueue(job2,store,'grouped')
+  assert.equal((await queue.claim()).job_id,job2)
+  await queue.fail(job2,'Simulated media outage')
+  assert.equal((await queue.get(job2,store)).state,'failed')
+  assert.equal((await queue.enqueue(job2,store,'grouped')).state,'queued')
+  assert.equal((await queue.claim()).job_id,job2)
+  await db.query("UPDATE import_publish_tasks SET heartbeat_at=now()-interval '6 minutes' WHERE job_id=$1",[job2])
+  assert.equal((await queue.claim()).job_id,job2,'crashed task is reclaimable')
+ }finally{
+  await db.query('DELETE FROM import_publish_tasks WHERE store_id=$1',[store]).catch(()=>{})
+  await db.query('DELETE FROM import_jobs WHERE store_id=$1',[store]).catch(()=>{})
+  await db.query('DELETE FROM stores WHERE id=$1',[store]).catch(()=>{})
+  await db.end()
+ }
+})
