@@ -359,8 +359,9 @@ function uniqueImages(row) {
   return values.map((value) => String(value || '').trim()).filter((value) => value && !seen.has(value) && seen.add(value)).slice(0, 40)
 }
 
-function publicProduct(product) {
+function publicProduct(product, catalog) {
   const images = uniqueImages(product)
+  const perBox = catalog.kind === 'atacado' ? Math.max(1, Number(product.units_per_box || 1)) : 1
   return {
     id: product.id,
     sku: product.sku,
@@ -372,12 +373,14 @@ function publicProduct(product) {
     mediaType: product.media_type,
     images,
     variantImages: Array.isArray(product.variant_images) ? product.variant_images : [],
-    pack: product.pack,
+    pack: product.pack || (perBox > 1 ? `Caixa fechada com ${perBox} unidades` : ''),
+    unitsPerBox: perBox,
     variations: Array.isArray(product.variations) ? product.variations : [],
     featured: Boolean(product.featured),
     stockEnabled: Boolean(product.stock_enabled),
-    stockQuantity: Math.max(0, Number(product.stock_quantity || 0)),
-    variantStock: product.variant_stock && typeof product.variant_stock === 'object' ? product.variant_stock : {},
+    stockQuantity: Math.floor(Math.max(0, Number(product.stock_quantity || 0)) / perBox),
+    variantStock: product.variant_stock && typeof product.variant_stock === 'object'
+      ? Object.fromEntries(Object.entries(product.variant_stock).map(([key,value])=>[key,Math.floor(Math.max(0,Number(value)||0)/perBox)])) : {},
   }
 }
 
@@ -486,7 +489,7 @@ async function protectedStore(req, res) {
     catalogs: catalogsResult.rows.map(catalogShape),
     activeCatalog: catalogShape(catalog),
     categories: categoriesResult.rows.map((row) => row.category),
-    products: pageRows.map(publicProduct),
+    products: pageRows.map((product) => publicProduct(product, catalog)),
     page: { hasMore, nextCursor, limit },
   })
 }
@@ -550,21 +553,23 @@ async function createCatalogOrder(req, res) {
       try { selections = validateProductSelections(product, requested?.selections) }
       catch (error) { await client.query('ROLLBACK'); return res.status(400).json({ error: error.message }) }
       const quantity = Math.max(1, Math.min(999, Math.floor(Number(requested?.quantity) || 1)))
+      const unitsPerBox = catalog.kind==='atacado' ? Math.max(1,Number(product.units_per_box || 1)) : 1
+      const stockUnits = quantity * unitsPerBox
       const stock = availableStock(product, selections)
-      if (stock < quantity) { await client.query('ROLLBACK'); return res.status(409).json({ error: stock <= 0 ? `${product.name} está sem estoque.` : `Restam apenas ${stock} unidade(s) de ${product.name} nessa variação.` }) }
+      if (stock < stockUnits) { await client.query('ROLLBACK'); return res.status(409).json({ error: stock <= 0 ? `${product.name} está sem estoque.` : `Restam apenas ${stock} unidade(s) de ${product.name} nessa variação.` }) }
       const unitPrice = Number(product.public_price)
       const lineTotal = toMoney(unitPrice * quantity)
       total += lineTotal
-      items.push({ productId: product.id, sku: product.sku, name: product.name, quantity, unitPrice, lineTotal, selections, stockKey: variantKey(selections), catalogId: catalog.id })
+      items.push({ productId: product.id, sku: product.sku, name: product.name, quantity, unitPrice, lineTotal, selections, stockKey: variantKey(selections), catalogId: catalog.id, stockUnits, unitsPerBox })
       if (product.stock_enabled) {
         const map = normalizeVariantStock(product.variant_stock)
         const key = variantKey(selections)
         if (key && Object.prototype.hasOwnProperty.call(map, key)) {
-          map[key] = clampStock(map[key] - quantity)
+          map[key] = clampStock(map[key] - stockUnits)
           await client.query('UPDATE products SET variant_stock=$1,updated_at=now() WHERE id=$2', [JSON.stringify(map), product.id])
           product.variant_stock = map
         } else {
-          product.stock_quantity = clampStock(product.stock_quantity - quantity)
+          product.stock_quantity = clampStock(product.stock_quantity - stockUnits)
           await client.query('UPDATE products SET stock_quantity=$1,updated_at=now() WHERE id=$2', [product.stock_quantity, product.id])
         }
       }
