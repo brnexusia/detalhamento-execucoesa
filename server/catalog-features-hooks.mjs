@@ -34,7 +34,7 @@ async function currentStore(req) {
   const token = parseCookies(req)[sessionCookie]
   if (!token || !pool) return null
   const result = await pool.query(
-    `SELECT s.id AS store_id,u.id AS user_id,u.name,u.email
+    `SELECT s.id AS store_id,s.plan_tier,u.id AS user_id,u.name,u.email
      FROM sessions se JOIN users u ON u.id=se.user_id JOIN stores s ON s.owner_id=u.id
      WHERE se.token_hash=$1 AND se.expires_at>now() LIMIT 1`,
     [hashToken(token)],
@@ -112,11 +112,13 @@ async function ensureDefaultCatalog(storeId, client = pool) {
   }
 }
 
-async function resolveCatalog(storeId, requestedSlug, client = pool) {
+async function resolveCatalog(storeId, requestedSlug, planCode, client = pool) {
   await ensureDefaultCatalog(storeId, client)
   if (requestedSlug) {
     const result = await client.query('SELECT * FROM catalogs WHERE store_id=$1 AND slug=$2 AND active=true LIMIT 1', [storeId, requestedSlug])
-    if (result.rowCount) return result.rows[0]
+    const selected = result.rows[0] || null
+    // Nunca trocar silenciosamente um link do varejo por outro catálogo: os valores divergem.
+    return selected && (planCode === 'ouro' || selected.is_default) ? selected : null
   }
   const result = await client.query('SELECT * FROM catalogs WHERE store_id=$1 AND is_default=true AND active=true LIMIT 1', [storeId])
   return result.rows[0] || null
@@ -148,12 +150,18 @@ async function listCatalogs(req, res) {
     if (!byCatalog.has(row.catalog_id)) byCatalog.set(row.catalog_id, [])
     byCatalog.get(row.catalog_id).push({ productId: row.product_id, priceOverride: row.price_override == null ? null : Number(row.price_override), visible: Boolean(row.visible) })
   }
-  return res.json({ catalogs: catalogs.rows.map((row) => ({ ...catalogShape(row), items: byCatalog.get(row.id) || [] })) })
+  return res.json({ canCreateMultiple: req.catalogStore.plan_tier === 'ouro',
+    catalogs: catalogs.rows.map((row) => ({ ...catalogShape(row),
+      lockedByPlan: req.catalogStore.plan_tier !== 'ouro' && !row.is_default,
+      items: byCatalog.get(row.id) || [] })) })
 }
 
 async function createCatalog(req, res) {
   const storeId = req.catalogStore.store_id
   await ensureDefaultCatalog(storeId)
+  if (req.catalogStore.plan_tier !== 'ouro') return res.status(403).json({
+    error: 'Catálogos adicionais são exclusivos do plano Gold.', code: 'GOLD_REQUIRED',
+  })
   const name = String(req.body?.name || '').trim().slice(0, 100)
   if (!name) return res.status(400).json({ error: 'Informe o nome do catálogo.' })
   const kind = ['atacado', 'varejo', 'geral'].includes(req.body?.kind) ? req.body.kind : 'geral'
@@ -178,6 +186,9 @@ async function updateCatalog(req, res) {
   const existing = await pool.query('SELECT * FROM catalogs WHERE id=$1 AND store_id=$2 LIMIT 1', [req.params.catalogId, storeId])
   if (!existing.rowCount) return res.status(404).json({ error: 'Catálogo não encontrado.' })
   const current = existing.rows[0]
+  if (!current.is_default && req.catalogStore.plan_tier !== 'ouro') return res.status(403).json({
+    error: 'Este catálogo adicional requer plano Gold. Faça upgrade para editar.', code: 'GOLD_REQUIRED',
+  })
   const name = req.body?.name == null ? current.name : String(req.body.name).trim().slice(0, 100)
   if (!name) return res.status(400).json({ error: 'Informe o nome do catálogo.' })
   const kind = req.body?.kind == null ? current.kind : (['atacado', 'varejo', 'geral'].includes(req.body.kind) ? req.body.kind : current.kind)
@@ -221,6 +232,9 @@ async function downloadCatalogPdf(req, res) {
   const storeResult = await pool.query('SELECT id,slug,name,logo_url,minimum_order,whatsapp,accent,seasonal_theme FROM stores WHERE id=$1 LIMIT 1', [storeId])
   if (!storeResult.rowCount) return res.status(404).json({ error: 'Loja não encontrada.' })
   const catalog = catalogResult.rows[0]
+  if (!catalog.is_default && req.catalogStore.plan_tier !== 'ouro') return res.status(403).json({
+    error: 'Exportação de catálogos adicionais disponível somente no plano Gold.', code: 'GOLD_REQUIRED',
+  })
   const products = await pool.query(
     `SELECT p.id,p.sku,p.name,p.description,p.price,p.category,p.media_url,p.media_type,p.images,p.variations,
             COALESCE(cp.price_override,p.price) AS public_price
@@ -387,7 +401,7 @@ async function protectedStore(req, res) {
   if (!storeResult.rowCount) return res.status(404).json({ error: 'Loja não encontrada.' })
   const store = storeResult.rows[0]
   const requestedCatalog = String(req.query.catalog || catalogFromReferer(req) || '').trim().slice(0, 60)
-  const catalog = await resolveCatalog(store.id, requestedCatalog)
+  const catalog = await resolveCatalog(store.id, requestedCatalog, store.plan_tier)
   if (!catalog) return res.status(404).json({ error: 'Catálogo não encontrado.' })
 
   let seller = null
@@ -459,7 +473,7 @@ async function protectedStore(req, res) {
      WHERE p.store_id=$1 AND p.active=true AND p.category<>'' AND (cp.visible IS NULL OR cp.visible=true) ORDER BY p.category ASC LIMIT 100`,
     [store.id, catalog.id],
   )
-  const catalogsResult = await pool.query('SELECT * FROM catalogs WHERE store_id=$1 AND active=true ORDER BY is_default DESC,created_at ASC', [store.id])
+  const catalogsResult = await pool.query("SELECT * FROM catalogs WHERE store_id=$1 AND active=true AND ($2::boolean OR is_default=true) ORDER BY is_default DESC,created_at ASC", [store.id,store.plan_tier==='ouro'])
   return res.json({
     store: { slug: store.slug, name: store.name, eyebrow: store.eyebrow, tagline: store.tagline, minimumOrder: catalog.minimum_order == null ? Number(store.minimum_order) : Number(catalog.minimum_order), whatsapp: store.whatsapp, logoUrl: store.logo_url, accent: store.accent, seasonalTheme: store.seasonal_theme || 'padrao' },
     seller,
@@ -505,7 +519,7 @@ async function createCatalogOrder(req, res) {
   const storeResult = await pool.query('SELECT * FROM stores WHERE slug=$1 AND is_active=true LIMIT 1', [String(req.body?.storeSlug || '')])
   if (!storeResult.rowCount) return res.status(404).json({ error: 'Loja não encontrada.' })
   const store = storeResult.rows[0]
-  const catalog = await resolveCatalog(store.id, String(req.body?.catalogSlug || '').trim())
+  const catalog = await resolveCatalog(store.id, String(req.body?.catalogSlug || '').trim(), store.plan_tier)
   if (!catalog) return res.status(404).json({ error: 'Catálogo não encontrado.' })
   const requestedItems = Array.isArray(req.body?.items) ? req.body.items : []
   if (!requestedItems.length) return res.status(400).json({ error: 'Carrinho vazio.' })
