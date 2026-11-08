@@ -88,7 +88,9 @@ try{
  const base=process.env.BASE_URL || 'http://127.0.0.1:3000'
  const newEmail='grp2-newpartner-'+seed+'@example.test'
  const registered=await fetch(base+'/api/partners/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:'Parceira Independente',email:newEmail,password:'SenhaTesteSegura2026!'})})
- assert.equal(registered.status,201,await registered.text().catch(()=>''),'Cadastro autônomo de parceiro')
+ const registeredBody=await registered.json()
+ assert.equal(registered.status,201,JSON.stringify(registeredBody))
+ assert.equal(registeredBody.status,'active','Conta ativa e link disponível no ato do cadastro')
  const cookie=String(registered.headers.get('set-cookie')||'').split(';')[0]
  assert.match(cookie,/(shopvax_session|atacado_session)=/)
  const newUser=(await pool.query('SELECT id FROM users WHERE email=$1',[newEmail])).rows[0]
@@ -97,11 +99,11 @@ try{
  const profileResponse=await fetch(base+'/api/partners/dashboard',{headers:{cookie}})
  assert.equal(profileResponse.status,200)
  const profile=await profileResponse.json()
- assert.equal(profile.partner.status,'pending')
- assert.equal(profile.partner.code,null,'Código não é público antes da aprovação')
+ assert.equal(profile.partner.status,'active')
  const codeNew=(await pool.query('SELECT code FROM shopvax_partners WHERE user_id=$1',[newUser.id])).rows[0].code
- assert.equal((await fetch(base+'/api/public/referrals/resolve?code='+codeNew)).status,404)
- await pool.query("UPDATE shopvax_partners SET status='active' WHERE user_id=$1",[newUser.id])
+ assert.equal(profile.partner.code,codeNew,'Código disponível após autenticação')
+ assert.equal(registeredBody.code,codeNew)
+ assert.equal(registeredBody.referralPath,'/criar-conta?ref='+encodeURIComponent(codeNew),'Link associado diretamente ao parceiro')
  const resolvedHttp=await fetch(base+'/api/public/referrals/resolve?code='+codeNew)
  assert.equal(resolvedHttp.status,200)
  assert.equal((await resolvedHttp.json()).type,'partner')

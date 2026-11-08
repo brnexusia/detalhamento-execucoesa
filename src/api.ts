@@ -129,7 +129,7 @@ async function performApiRequest<T>(url: string, options: RequestInit = {}): Pro
           : ''
       : ''
     const requestId = isUpload ? response.headers.get('x-upload-request-id') : null
-    const detail = payload?.error || uploadIssue || 'Não foi possível concluir a operação.'
+    const detail = payload?.error || uploadIssue || (url.startsWith('/api/partners/') ? `Serviço de parceiros indisponível (HTTP ${response.status}). Verifique se a API está publicada junto do site.` : 'Não foi possível concluir a operação.')
     const error = new Error(requestId ? detail + ' Protocolo: ' + requestId : detail) as Error & { status?: number; code?: string }
     error.status = response.status
     if (payload?.code) error.code = String(payload.code)
