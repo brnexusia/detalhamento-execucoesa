@@ -1,7 +1,7 @@
 name: validate-daily-unique-views
 on:
   push:
-    branches: [feat/daily-unique-views-performance-20261107]
+    branches: [main, fix/finish-import-progress-20261107]
     paths:
       - 'server/social-daily-views-schema.mjs'
       - 'server/social-network-hooks.mjs'
@@ -17,6 +17,8 @@ on:
       - 'src/SocialFeed.tsx'
       - 'package.json'
       - '.github/workflows/validate-daily-unique-views.yml'
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
