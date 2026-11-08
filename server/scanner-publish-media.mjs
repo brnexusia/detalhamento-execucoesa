@@ -21,6 +21,7 @@ function sourceImages(product) {
 export async function stageSelectedImportMedia({
   query, storeId, jobId, localize = localizeImportedProductMedia,
   maxSelected = 100000,
+  onProgress = async () => {},
 }) {
   if (typeof query !== 'function') throw new Error('Consulta ao banco indisponível.')
   // First verify that the job is still in review. This is also checked again
@@ -29,6 +30,16 @@ export async function stageSelectedImportMedia({
     [jobId, storeId])
   if (!found.rowCount || found.rows[0].status !== 'review') return { staged: 0, failed: 0, skipped: true }
 
+  const totals = await query(
+    `SELECT COUNT(*)::int AS count FROM import_normalized_products
+     WHERE job_id=$1 AND store_id=$2 AND selected=true
+       AND (
+         COALESCE(review_data,normalized_data)->>'media_url' ~* '^https?://'
+         OR (COALESCE(review_data,normalized_data)->'images')::text ~* 'https?://'
+         OR (COALESCE(review_data,normalized_data)->'variant_images')::text ~* 'https?://'
+       )`, [jobId,storeId])
+  const total = Number(totals.rows[0]?.count || 0)
+  await onProgress({ phase: 'images', completed:0, total })
   let staged = 0
   let failed = 0
   let cursor = ''
@@ -100,6 +111,7 @@ export async function stageSelectedImportMedia({
         'A revisão do catálogo mudou durante a preparação das fotos. Atualize a lista e tente novamente.'
       )
       staged += 1
+      await onProgress({ phase:'images', completed: examined, total })
       if (localized.failed) {
         console.warn('[scanner publish] additional images unavailable', {
           jobId, productId:row.id,failed:localized.failed,
@@ -107,5 +119,6 @@ export async function stageSelectedImportMedia({
       }
     }
   }
+  await onProgress({ phase:'images', completed:total, total })
   return { staged, failed, skipped:false }
 }
