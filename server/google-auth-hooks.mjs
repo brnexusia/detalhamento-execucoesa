@@ -4,6 +4,7 @@ import pg from 'pg'
 import { OAuth2Client } from 'google-auth-library'
 import { publicPlanCodes } from './system-plans.mjs'
 import { requiresPaymentForSignup } from './signup-billing-mode.mjs'
+import { ensureReferralSchema, captureReferral } from './referral-program-core.mjs'
 
 const { Pool } = pg
 const databaseUrl = process.env.DATABASE_URL?.trim() || ''
@@ -133,14 +134,27 @@ async function findGoogleUser(profile) {
   return user
 }
 
-async function createStoreForUser(userId, storeName, whatsapp, planCode) {
+async function createStoreForUser(userId, storeName, whatsapp, planCode, referralCode) {
   const storeId = id()
   const storeSlug = await uniqueStoreSlug(storeName)
-  await pool.query(
-    'INSERT INTO stores (id,owner_id,slug,name,whatsapp,plan_tier,billing_required,signup_plan_selected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,now())',
-    [storeId, userId, storeSlug, storeName, digits(whatsapp), planCode, requiresPaymentForSignup()],
-  )
-  return storeSlug
+  if (referralCode) await ensureReferralSchema()
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    await client.query(
+      'INSERT INTO stores (id,owner_id,slug,name,whatsapp,plan_tier,billing_required,signup_plan_selected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,now())',
+      [storeId, userId, storeSlug, storeName, digits(whatsapp), planCode, requiresPaymentForSignup()],
+    )
+    if (referralCode) {
+      const linked = await captureReferral(storeId, referralCode, client)
+      if (!linked.ok) throw Object.assign(new Error(linked.error), { code: 'REFERRAL_INVALID' })
+    }
+    await client.query('COMMIT')
+    return storeSlug
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => undefined)
+    throw error
+  } finally { client.release() }
 }
 
 async function googleAuth(req, res) {
@@ -172,7 +186,12 @@ async function googleAuth(req, res) {
       const planCode = String(req.body?.planCode || '').trim().toLowerCase()
       if (!storeName) return res.status(400).json({ error: 'Informe o nome da loja.' })
       if (!publicPlanCodes.includes(planCode)) return res.status(400).json({ error: 'Selecione Bronze, Prata ou Ouro.' })
-      storeSlug = await createStoreForUser(existing.id, storeName, req.body?.whatsapp, planCode)
+      try {
+        storeSlug = await createStoreForUser(existing.id, storeName, req.body?.whatsapp, planCode, req.body?.referralCode)
+      } catch (error) {
+        if (error?.code === 'REFERRAL_INVALID') return res.status(409).json({ error: error.message, code: error.code })
+        throw error
+      }
     }
 
     await createSession(req, res, existing.id)
@@ -193,7 +212,10 @@ async function googleAuth(req, res) {
   if (!publicPlanCodes.includes(planCode)) return res.status(400).json({ error: 'Selecione Bronze, Prata ou Ouro.' })
 
   const userId = id()
+  const storeId = id()
+  const referralCode = String(req.body?.referralCode || '').trim()
   const storeSlug = await uniqueStoreSlug(storeName)
+  if (referralCode) await ensureReferralSchema()
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
@@ -203,11 +225,16 @@ async function googleAuth(req, res) {
     )
     await client.query(
       'INSERT INTO stores (id,owner_id,slug,name,whatsapp,plan_tier,billing_required,signup_plan_selected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,now())',
-      [id(), userId, storeSlug, storeName, digits(req.body?.whatsapp), planCode, requiresPaymentForSignup()],
+      [storeId, userId, storeSlug, storeName, digits(req.body?.whatsapp), planCode, requiresPaymentForSignup()],
     )
+    if (referralCode) {
+      const linked = await captureReferral(storeId, referralCode, client)
+      if (!linked.ok) throw Object.assign(new Error(linked.error), { code: 'REFERRAL_INVALID' })
+    }
     await client.query('COMMIT')
   } catch (error) {
     try { await client.query('ROLLBACK') } catch {}
+    if (error?.code === 'REFERRAL_INVALID') return res.status(409).json({ error: error.message, code: error.code })
     if (error?.code === '23505') {
       return res.status(409).json({ error: 'Esta conta Google já está cadastrada. Tente entrar novamente.', code: 'GOOGLE_ALREADY_REGISTERED' })
     }
