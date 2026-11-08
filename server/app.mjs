@@ -1,4 +1,5 @@
 import { requiresPaymentForSignup } from './signup-billing-mode.mjs'
+import { ensureReferralSchema, captureReferral } from './referral-program-core.mjs'
 import { traceUpload } from './upload-request-logging.mjs'
 import crypto from 'node:crypto'
 import path from 'node:path'
@@ -438,6 +439,7 @@ app.post(
     const storeName = String(req.body?.storeName || '').trim()
     const whatsapp = digits(req.body?.whatsapp)
     const planCode = String(req.body?.planCode || '').trim().toLowerCase()
+    const referralCode = String(req.body?.referralCode || '').trim()
     if (!name || !email || !storeName || password.length < 8) {
       return res
         .status(400)
@@ -453,6 +455,8 @@ app.post(
     const userId = id()
     const storeId = id()
     const storeSlug = await uniqueSlug(storeName, 'stores')
+    // Pré-cria o schema fora da transação: a indicação deve ser salva com o cadastro, não no Checkout.
+    if (referralCode) await ensureReferralSchema()
     const client = await pool.connect()
     try {
       await client.query('BEGIN')
@@ -466,9 +470,14 @@ app.post(
         'INSERT INTO stores (id,owner_id,slug,name,whatsapp,plan_tier,billing_required,signup_plan_selected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,now())',
         [storeId, userId, storeSlug, storeName, whatsapp, planCode, requiresPaymentForSignup()],
       )
+      if (referralCode) {
+        const linked = await captureReferral(storeId, referralCode, client)
+        if (!linked.ok) throw Object.assign(new Error(linked.error), { code: 'REFERRAL_INVALID' })
+      }
       await client.query('COMMIT')
     } catch (error) {
       await client.query('ROLLBACK')
+      if (error?.code === 'REFERRAL_INVALID') return res.status(409).json({ error: error.message, code: error.code })
       throw error
     } finally {
       client.release()
