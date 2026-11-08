@@ -14,6 +14,7 @@ export type Catalog = {
   name: string
   kind: 'geral' | 'atacado' | 'varejo'
   minimumOrder: number | null
+  lockedByPlan?: boolean
   isDefault: boolean
   active: boolean
 }
@@ -30,6 +31,7 @@ export type Product = {
   images?: string[]
   variantImages?: VariantImageGroup[]
   pack?: string
+  unitsPerBox?: number
   variations: VariationGroup[]
   featured?: boolean
   stockEnabled?: boolean
@@ -83,6 +85,9 @@ export type AdminProduct = {
   name: string
   description: string
   price: number
+  retail_price?: number | null
+  box_price?: number | null
+  units_per_box?: number | null
   category: string
   media_url: string
   media_type: 'image' | 'video'
@@ -134,6 +139,8 @@ export type AdminOrder = {
     lineTotal: number
     selections: Record<string, string>
     stockKey?: string
+    stockUnits?: number
+    unitsPerBox?: number
     catalogId?: string
   }>
   status: string
