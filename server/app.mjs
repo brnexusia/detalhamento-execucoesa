@@ -155,6 +155,9 @@ ALTER TABLE stores ADD COLUMN IF NOT EXISTS plan_tier text NOT NULL DEFAULT 'bro
 ALTER TABLE stores ADD COLUMN IF NOT EXISTS signup_plan_selected_at timestamptz;
 ALTER TABLE stores ADD COLUMN IF NOT EXISTS onboarding_palette_selected boolean NOT NULL DEFAULT false;
 ALTER TABLE stores ADD COLUMN IF NOT EXISTS seasonal_theme text NOT NULL DEFAULT 'padrao';
+ALTER TABLE products ADD COLUMN IF NOT EXISTS retail_price numeric(12,2);
+ALTER TABLE products ADD COLUMN IF NOT EXISTS box_price numeric(12,2);
+ALTER TABLE products ADD COLUMN IF NOT EXISTS units_per_box integer;
 `
 
 async function initDb() {
@@ -754,6 +757,12 @@ app.post(
   asyncRoute(async (req, res) => {
     const store = await pool.query('SELECT id FROM stores WHERE owner_id=$1 LIMIT 1', [req.user.id])
     const price = toMoney(req.body?.price)
+    const retailPrice = req.body?.retailPrice == null || req.body.retailPrice === '' ? null : toMoney(req.body.retailPrice)
+    const boxPrice = req.body?.boxPrice == null || req.body.boxPrice === '' ? null : toMoney(req.body.boxPrice)
+    const unitsPerBox = req.body?.unitsPerBox == null || req.body.unitsPerBox === '' ? null : Number(req.body.unitsPerBox)
+    if ([retailPrice,boxPrice].some(v => v !== null && v <= 0) || (unitsPerBox !== null && (!Number.isSafeInteger(unitsPerBox) || unitsPerBox < 1 || unitsPerBox > 10000))) {
+      return res.status(400).json({ error: 'Preços adicionais devem ser positivos e unidades por caixa deve ser inteiro entre 1 e 10.000.' })
+    }
     const name = String(req.body?.name || '').trim()
     if (!store.rowCount || !name || price <= 0) {
       return res.status(400).json({ error: 'Nome e preço são obrigatórios.' })
@@ -761,8 +770,8 @@ app.post(
 
     const result = await pool.query(
       `INSERT INTO products
-       (id,store_id,sku,name,description,price,category,media_url,media_type,pack,variations,featured,active)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+       (id,store_id,sku,name,description,price,category,media_url,media_type,pack,variations,featured,active,retail_price,box_price,units_per_box)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
        RETURNING *`,
       [
         id(),
@@ -778,6 +787,9 @@ app.post(
         JSON.stringify(normalizeVariations(req.body?.variations)),
         Boolean(req.body?.featured),
         req.body?.active !== false,
+        retailPrice,
+        boxPrice,
+        unitsPerBox,
       ],
     )
     res.status(201).json({ product: { ...result.rows[0], price: Number(result.rows[0].price) } })
@@ -814,12 +826,21 @@ app.put(
     if (!store.rowCount) return res.status(404).json({ error: 'Loja não encontrada.' })
 
     const price = toMoney(req.body?.price)
+    const retailPrice = req.body?.retailPrice == null || req.body.retailPrice === '' ? null : toMoney(req.body.retailPrice)
+    const boxPrice = req.body?.boxPrice == null || req.body.boxPrice === '' ? null : toMoney(req.body.boxPrice)
+    const unitsPerBox = req.body?.unitsPerBox == null || req.body.unitsPerBox === '' ? null : Number(req.body.unitsPerBox)
+    if ([retailPrice,boxPrice].some(v => v !== null && v <= 0) || (unitsPerBox !== null && (!Number.isSafeInteger(unitsPerBox) || unitsPerBox < 1 || unitsPerBox > 10000))) {
+      return res.status(400).json({ error: 'Preços adicionais devem ser positivos e unidades por caixa deve ser inteiro entre 1 e 10.000.' })
+    }
     const name = String(req.body?.name || '').trim()
     if (!name || price <= 0) return res.status(400).json({ error: 'Nome e preço são obrigatórios.' })
 
     const result = await pool.query(
       `UPDATE products
-       SET sku=$1,name=$2,description=$3,price=$4,category=$5,media_url=$6,media_type=$7,pack=$8,variations=$9,featured=$10,active=$11,updated_at=now()
+       SET sku=$1,name=$2,description=$3,price=$4,category=$5,media_url=$6,media_type=$7,pack=$8,variations=$9,featured=$10,active=$11,
+       retail_price=CASE WHEN $14::boolean THEN $15 ELSE retail_price END,
+       box_price=CASE WHEN $16::boolean THEN $17 ELSE box_price END,
+       units_per_box=CASE WHEN $18::boolean THEN $19 ELSE units_per_box END,updated_at=now()
        WHERE id=$12 AND store_id=$13
        RETURNING *`,
       [
@@ -836,6 +857,9 @@ app.put(
         req.body?.active !== false,
         req.params.id,
         store.rows[0].id,
+        Object.hasOwn(req.body || {}, 'retailPrice'),retailPrice,
+        Object.hasOwn(req.body || {}, 'boxPrice'),boxPrice,
+        Object.hasOwn(req.body || {}, 'unitsPerBox'),unitsPerBox,
       ],
     )
     if (!result.rowCount) return res.status(404).json({ error: 'Produto não encontrado.' })
