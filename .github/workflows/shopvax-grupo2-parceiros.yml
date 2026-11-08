@@ -3,6 +3,10 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - 'src/api.ts'
+      - 'server/referral-partner-hooks.mjs'
+      - 'server/referral-program-core.mjs'
+      - 'server/referral-program.integration.mjs'
       - 'src/ShopvaxPartnerPortal.tsx'
       - 'src/PlatformReferralPanel.tsx'
       - 'src/partner-portal.css'
@@ -46,3 +50,48 @@ jobs:
       - name: Vite log em falha
         if: failure()
         run: cat /tmp/grupo2-vite.log || true
+
+  backend-referrals:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: shopvax
+          POSTGRES_PASSWORD: shopvax
+          POSTGRES_DB: partner_referrals
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U shopvax -d partner_referrals"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://shopvax:shopvax@127.0.0.1:5432/partner_referrals
+      PORT: 3000
+      BASE_URL: http://127.0.0.1:3000
+      SCANNER_WORKER_DISABLED: '1'
+      SHOPVAX_SECURITY_RATE_LIMIT_DISABLED: '1'
+      SHOPVAX_REQUIRE_PAYMENT_ON_SIGNUP: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - run: npm run build
+      - name: Start ShopVax backend with PostgreSQL
+        run: |
+          npm start > /tmp/shopvax-referral-backend.log 2>&1 &
+          for i in $(seq 1 120); do
+            curl -fsS http://127.0.0.1:3000/health | grep -q '"database":true' && exit 0
+            sleep .25
+          done
+          cat /tmp/shopvax-referral-backend.log
+          exit 1
+      - name: Verify partner registration, attribution and Stripe referral ledger
+        run: node server/referral-program.integration.mjs
+      - name: Debug backend startup
+        if: failure()
+        run: cat /tmp/shopvax-referral-backend.log || true
