@@ -282,7 +282,7 @@ export default function ScannerPublishModule() {
                           : 'Preparando a próxima etapa…'} · Pode fechar esta janela</small>
                         {publishProgress[job.id].state==='running' &&
                           <small>{publishProgress[job.id].heartbeatAt &&
-                            Date.now()-new Date(publishProgress[job.id].heartbeatAt).getTime()<30_000
+                            Date.now()-Date.parse(publishProgress[job.id].heartbeatAt || '')<30_000
                             ? 'Servidor ativo · trabalho continua mesmo se sair'
                             : 'Verificando resposta do servidor… a tarefa será retomada se necessário'}</small>}
                       </div>
