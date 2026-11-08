@@ -7,7 +7,7 @@ import { inferPdfProductCategory } from './scanner-pdf-category.mjs'
 import { fetchBestImportImage, isBraavoImageUrl, localizeImportedProductMedia } from './import-media-localizer.mjs'
 import { stageSelectedImportMedia } from './scanner-publish-media.mjs'
 import { planAlexandreRecovery } from './scanner-alexandre-recovery.mjs'
-import { createPublishTaskQueue } from './scanner-publish-progress.mjs'
+import { createPublishTaskQueue, publicationPercent } from './scanner-publish-progress.mjs'
 
 const { Pool } = pg
 const databaseUrl = process.env.DATABASE_URL?.trim() || ''
@@ -881,7 +881,6 @@ async function runPublishWorker(){
       const completed=Number(event.completed||0)
       const total=Number(event.total||0)
       const now=Date.now()
-      const {publicationPercent}=await import('./scanner-publish-progress.mjs')
       const percentage=publicationPercent(phase,completed,total)
       if(phase===lastPhase && percentage===lastPercentage && now-lastAt<1200)return
       lastPhase=phase;lastPercentage=percentage;lastAt=now
