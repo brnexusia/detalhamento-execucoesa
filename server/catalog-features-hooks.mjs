@@ -20,6 +20,7 @@ const toMoney = (value) => {
   const number = Number(value)
   return Number.isFinite(number) ? Math.round(number * 100) / 100 : 0
 }
+const effectiveCatalogPrice = "COALESCE(cp.price_override,CASE WHEN c.kind='varejo' THEN p.retail_price WHEN c.kind='atacado' THEN p.box_price END,p.price)"
 const slugify = (value) => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'catalogo'
 
 function parseCookies(req) {
@@ -78,6 +79,9 @@ async function ensureSchema() {
     );
     CREATE INDEX IF NOT EXISTS idx_catalog_products_visible ON catalog_products(catalog_id,visible,product_id);
     ALTER TABLE products ADD COLUMN IF NOT EXISTS images jsonb NOT NULL DEFAULT '[]'::jsonb;
+    ALTER TABLE products ADD COLUMN IF NOT EXISTS retail_price numeric(12,2);
+    ALTER TABLE products ADD COLUMN IF NOT EXISTS box_price numeric(12,2);
+    ALTER TABLE products ADD COLUMN IF NOT EXISTS units_per_box integer;
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS catalog_id text REFERENCES catalogs(id) ON DELETE SET NULL;
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS buyer jsonb NOT NULL DEFAULT '{}'::jsonb;
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS notes text NOT NULL DEFAULT '';
@@ -237,8 +241,9 @@ async function downloadCatalogPdf(req, res) {
   })
   const products = await pool.query(
     `SELECT p.id,p.sku,p.name,p.description,p.price,p.category,p.media_url,p.media_type,p.images,p.variations,
-            COALESCE(cp.price_override,p.price) AS public_price
+            ${effectiveCatalogPrice} AS public_price
      FROM products p
+     JOIN catalogs c ON c.id=$2
      LEFT JOIN catalog_products cp ON cp.product_id=p.id AND cp.catalog_id=$2
      WHERE p.store_id=$1 AND p.active=true AND COALESCE(cp.visible,true)=true
      ORDER BY p.featured DESC,p.category ASC,p.name ASC,p.id ASC`,
@@ -439,7 +444,7 @@ async function protectedStore(req, res) {
   const sqlParam = (index) => String.fromCharCode(36) + index
   if (category) { params.push(category); conditions.push(`p.category=${sqlParam(params.length)}`) }
   if (q) { params.push(`%${q.toLowerCase()}%`); conditions.push(`lower(p.name || ' ' || p.sku || ' ' || p.category) LIKE ${sqlParam(params.length)}`) }
-  const sortPrice = 'COALESCE(cp.price_override,p.price)'
+  const sortPrice = effectiveCatalogPrice
   if (cursor) {
     if (sort === 'newest') {
       params.push(Number(cursor.featured || 0), cursor.createdAt, cursor.id)
@@ -459,8 +464,9 @@ async function protectedStore(req, res) {
   const orderBy = sort === 'price_asc' ? `${sortPrice} ASC,p.id DESC` : sort === 'price_desc' ? `${sortPrice} DESC,p.id DESC` : 'p.featured DESC,p.created_at DESC,p.id DESC'
   params.push(limit + 1)
   const productsResult = await pool.query(
-    `SELECT p.*,p.created_at::text AS created_at_cursor,COALESCE(cp.price_override,p.price) AS public_price
-     FROM products p LEFT JOIN catalog_products cp ON cp.product_id=p.id AND cp.catalog_id=$2
+    `SELECT p.*,p.created_at::text AS created_at_cursor,${effectiveCatalogPrice} AS public_price
+     FROM products p JOIN catalogs c ON c.id=$2
+     LEFT JOIN catalog_products cp ON cp.product_id=p.id AND cp.catalog_id=$2
      WHERE ${conditions.join(' AND ')} ORDER BY ${orderBy} LIMIT ${sqlParam(params.length)}`,
     params,
   )
@@ -528,8 +534,9 @@ async function createCatalogOrder(req, res) {
   try {
     await client.query('BEGIN')
     const productsResult = await client.query(
-      `SELECT p.*,COALESCE(cp.price_override,p.price) AS public_price,COALESCE(cp.visible,true) AS catalog_visible
-       FROM products p LEFT JOIN catalog_products cp ON cp.product_id=p.id AND cp.catalog_id=$3
+      `SELECT p.*,${effectiveCatalogPrice} AS public_price,COALESCE(cp.visible,true) AS catalog_visible
+       FROM products p JOIN catalogs c ON c.id=$3
+       LEFT JOIN catalog_products cp ON cp.product_id=p.id AND cp.catalog_id=$3
        WHERE p.store_id=$1 AND p.active=true AND p.id=ANY($2::text[]) ORDER BY p.id FOR UPDATE OF p`,
       [store.id, productIds, catalog.id],
     )
