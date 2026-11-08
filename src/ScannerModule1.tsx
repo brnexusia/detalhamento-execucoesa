@@ -200,8 +200,8 @@ export default function ScannerModule1() {
 
   useEffect(() => {
     if (!open || mode !== 'scan' || !visible || !jobs.some((job) => ['queued', 'scanning', 'processing'].includes(job.status))) return
-    // Busy jobs are checked promptly at first, then with bounded backoff; no idle polling.
-    const delay = Math.min(15_000, 2_000 * Math.pow(1.5, Math.min(pollCount, 6)))
+    // Frequent progress updates while the modal is visible; no idle polling.
+    const delay = 1_800
     const timer = window.setTimeout(() => {
       void loadJobs(true)
       setPollCount((current) => current + 1)
@@ -494,7 +494,28 @@ export default function ScannerModule1() {
           <div className="scanner-jobs">
             <div><strong>Importações recentes</strong><small>{loadingJobs ? 'Atualizando…' : jobs.length ? `${jobs.length} registro(s)` : 'Nenhuma ainda'}</small></div>
             {jobs.slice(0, 5).map((job) => <article key={job.id}>
-              <div><strong>{job.source_host}</strong><small>{jobDetails(job)}</small>{job.status === 'failed' && job.error && <small className="scanner-job-error">{job.error}</small>}</div>
+              <div>
+                <strong>{job.source_host}</strong>
+                <small>{jobDetails(job)}</small>
+                {['queued','scanning','processing'].includes(job.status) && (
+                  <div className="scanner-scan-progress" role="status" aria-live="polite">
+                    <div className="scanner-scan-progress-label">
+                      <strong>{job.status==='queued'?'Aguardando scanner':
+                        job.status==='processing'?'Organizando produtos':'Lendo catálogo'}</strong>
+                      <b>{Math.max(0,Math.min(99,job.progress||0))}%</b>
+                    </div>
+                    <div className="scanner-scan-progress-track" role="progressbar"
+                      aria-label="Progresso do scanner"
+                      aria-valuemin={0} aria-valuemax={100}
+                      aria-valuenow={Math.max(0,Math.min(99,job.progress||0))}>
+                      <span style={{width:`${Math.max(0,Math.min(99,job.progress||0))}%`}} />
+                    </div>
+                    <small>{job.result_count>0?`${job.result_count} produto(s) identificado(s)`:
+                      'Iniciando descoberta de produtos…'} · Pode acompanhar aqui</small>
+                  </div>
+                )}
+                {job.status==='failed' && job.error && <small className="scanner-job-error">{job.error}</small>}
+              </div>
               <div className="scanner-job-actions">
                 {job.status === 'failed' && ['alexandrebijoux.com.br', 'www.alexandrebijoux.com.br'].includes(job.source_host) &&
                   <button type="button" className="scanner-review-open" onClick={() => {

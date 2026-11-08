@@ -367,7 +367,7 @@ export async function processImportJob(jobId, collector = collectCatalog) {
     const persistedCount = Number(countResult.rows[0]?.count || 0)
     const updated = await pool.query(
       `UPDATE import_jobs
-       SET status='processing',progress=100,result_count=$1,normalized_count=0,warning_count=0,duplicate_count=0,selected_count=0,review_changed_count=0,platform=$2,pages_scanned=$3,error='',updated_at=now()
+       SET status='processing',progress=95,result_count=$1,normalized_count=0,warning_count=0,duplicate_count=0,selected_count=0,review_changed_count=0,platform=$2,pages_scanned=$3,error='',updated_at=now()
        WHERE id=$4 RETURNING *`,
       [persistedCount, String(result?.platform || 'generic'), Number(result?.pagesScanned || 0), job.id],
     )
@@ -408,6 +408,8 @@ export async function processNormalizationJob(jobId, normalizer = normalizeCandi
     await pool.query('DELETE FROM import_normalized_products WHERE job_id=$1', [job.id])
     let cursorCreatedAt = null
     let cursorId = ''
+    const totalToNormalize = Math.max(0,Number(job.result_count || 0))
+    let normalizedInputCount = 0
 
     while (true) {
       const candidatesResult = await pool.query(
@@ -466,6 +468,12 @@ export async function processNormalizationJob(jobId, normalizer = normalizeCandi
         )
       }
 
+      normalizedInputCount += candidatesResult.rows.length
+      await pool.query(
+        `UPDATE import_jobs SET progress=LEAST(99,GREATEST(progress,$1)),updated_at=now()
+         WHERE id=$2 AND store_id=$3 AND status='processing'`,
+        [95+Math.floor(4*normalizedInputCount/Math.max(1,totalToNormalize)),job.id,job.store_id],
+      )
       const last = candidatesResult.rows.at(-1)
       cursorCreatedAt = last.cursor_created_at
       cursorId = last.id

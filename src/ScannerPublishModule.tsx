@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { CheckCircle2, PackageCheck, X } from 'lucide-react'
 import './scanner-publish.css'
@@ -26,6 +26,18 @@ type PublishResult = {
   result: { selected: number; created: number; skipped_existing: number }
   idempotent: boolean
 }
+type PublishProgress = {
+  jobId: string
+  state: 'queued' | 'running' | 'finished' | 'failed'
+  phase: string
+  message: string
+  completed: number
+  total: number
+  percent: number
+  error: string
+  result: PublishResult | null
+  heartbeatAt: string | null
+}
 
 async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(url, {
@@ -50,6 +62,9 @@ export default function ScannerPublishModule() {
   const [success, setSuccess] = useState<PublishResult | null>(null)
   const [modes, setModes] = useState<Record<string, PdfMode>>({})
   const [previews, setPreviews] = useState<Record<string, PublishPreview | undefined>>({})
+  const [publishProgress, setPublishProgress] = useState<Record<string,PublishProgress>>({})
+  const handledCompletion = useRef(new Set<string>())
+
 
   const readyJobs = useMemo(
     () => jobs.filter((job) => job.status === 'review' && Number(job.selected_count || 0) > 0),
@@ -129,6 +144,35 @@ export default function ScannerPublishModule() {
     return () => window.clearTimeout(timer)
   }, [slot, scannerOpen, visible, jobs, pollCount])
 
+  const loadPublishProgress = async (jobId: string) => {
+    try {
+      const payload = await request<{ progress: PublishProgress | null }>(
+        `/api/admin/imports/${encodeURIComponent(jobId)}/publish-progress`,
+      )
+      if (!payload.progress) return
+      const progress=payload.progress
+      setPublishProgress(current=>({...current,[jobId]:progress}))
+      if(progress.state==='finished' && progress.result && !handledCompletion.current.has(jobId)){
+        handledCompletion.current.add(jobId)
+        setSuccess(progress.result)
+        window.dispatchEvent(new Event('shopvax:catalog-changed'))
+        await load()
+      }
+    } catch {
+      // The task continues on the server when a phone/network temporarily drops.
+    }
+  }
+
+  useEffect(()=>{
+    if(!open)return
+    const poll=()=>{
+      for(const job of readyJobs) void loadPublishProgress(job.id)
+    }
+    poll()
+    const timer=window.setInterval(poll,1600)
+    return ()=>window.clearInterval(timer)
+  },[open,readyJobs])
+
   const loadPreview = async (job: Job, mode: PdfMode) => {
     setPreviews((current) => ({ ...current, [job.id]: undefined }))
     try {
@@ -160,18 +204,17 @@ export default function ScannerPublishModule() {
     setError('')
     setSuccess(null)
     try {
-      const result = await request<PublishResult>(`/api/admin/imports/${encodeURIComponent(job.id)}/publish`, {
-        method: 'POST',
-        body: JSON.stringify({ mode: job.platform === 'pdf' ? (modes[job.id] || 'separate') : 'grouped' }),
-      })
-      setSuccess(result)
-      window.dispatchEvent(new Event('shopvax:catalog-changed'))
-      await load()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Não foi possível importar os produtos.')
-    } finally {
-      setBusyId('')
-    }
+      const payload = await request<{progress:PublishProgress}>(
+        `/api/admin/imports/${encodeURIComponent(job.id)}/publish-async`,{
+          method:'POST',
+          body:JSON.stringify({mode:job.platform==='pdf' ? (modes[job.id]||'separate') : 'grouped'}),
+        })
+      setPublishProgress(current=>({...current,[job.id]:payload.progress}))
+      // Progress and final result are retrieved independently of this request.
+      void loadPublishProgress(job.id)
+    } catch(err) {
+      setError(err instanceof Error?err.message:'Não foi possível iniciar a publicação.')
+    } finally {setBusyId('')}
   }
 
   const action = readyTotal > 0
@@ -222,18 +265,49 @@ export default function ScannerPublishModule() {
                         <small>Exemplos: {previews[job.id]?.examples.map((group) => `${group.name} (${group.occurrences}x)`).join(' · ')}</small> : null}
                     </>}
                   </div>
-                  <button type="button"
-                    disabled={Boolean(busyId) || (job.platform === 'pdf' && previews[job.id]?.mode !== (modes[job.id] || 'separate'))}
-                    onClick={() => void publish(job)}>
-                    {busyId === job.id ? 'Importando…' :
-                      `Importar ${job.platform === 'pdf' ? (previews[job.id]?.publication_count ?? '…') : job.selected_count}`}
-                  </button>
+                  <div className="scanner-publish-actions">
+                    {publishProgress[job.id] && ['queued','running'].includes(publishProgress[job.id].state) && (
+                      <div className="scanner-publish-progress" role="status" aria-live="polite">
+                        <div className="scanner-publish-progress-label">
+                          <strong>{publishProgress[job.id].message}</strong>
+                          <b>{publishProgress[job.id].percent}%</b>
+                        </div>
+                        <div className="scanner-publish-track" role="progressbar"
+                          aria-label="Progresso da publicação"
+                          aria-valuenow={publishProgress[job.id].percent} aria-valuemin={0} aria-valuemax={100}>
+                          <span style={{width:`${publishProgress[job.id].percent}%`}}/>
+                        </div>
+                        <small>{publishProgress[job.id].total>0
+                          ? `${publishProgress[job.id].completed} de ${publishProgress[job.id].total} nesta etapa`
+                          : 'Preparando a próxima etapa…'} · Pode fechar esta janela</small>
+                        {publishProgress[job.id].state==='running' &&
+                          <small>{publishProgress[job.id].heartbeatAt &&
+                            Date.now()-Date.parse(publishProgress[job.id].heartbeatAt || '')<30_000
+                            ? 'Servidor ativo · trabalho continua mesmo se sair'
+                            : 'Verificando resposta do servidor… a tarefa será retomada se necessário'}</small>}
+                      </div>
+                    )}
+                    {publishProgress[job.id]?.state==='failed' && (
+                      <small className="scanner-publish-progress-error">
+                        {publishProgress[job.id].error} · Você pode tentar novamente.
+                      </small>
+                    )}
+                    <button type="button"
+                      disabled={Boolean(busyId) ||
+                        ['queued','running'].includes(publishProgress[job.id]?.state||'') ||
+                        (job.platform === 'pdf' && previews[job.id]?.mode !== (modes[job.id] || 'separate'))}
+                      onClick={() => void publish(job)}>
+                      {busyId === job.id ? 'Iniciando…' :
+                        ['queued','running'].includes(publishProgress[job.id]?.state||'') ? 'Importação em andamento' :
+                        `Importar ${job.platform === 'pdf' ? (previews[job.id]?.publication_count ?? '…') : job.selected_count}`}
+                    </button>
+                  </div>
                 </article>
               })}
             </div>
           </div>
           <footer>
-            <span>Publicação transacional: repetir a ação não duplica produtos.</span>
+            <span>Progresso salvo no servidor. Você pode sair e voltar; a publicação é transacional.</span>
             {success && <button type="button" className="scanner-publish-refresh" onClick={() => window.location.reload()}>Ver produtos cadastrados</button>}
           </footer>
         </section>

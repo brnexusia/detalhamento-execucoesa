@@ -498,3 +498,12 @@
   .scanner-source-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .scanner-source-tabs button { font-size: 12px; }
 }
+
+.scanner-scan-progress { display:grid; gap:5px; width:min(330px,100%); margin-top:10px }
+.scanner-scan-progress-label { display:flex; align-items:center; justify-content:space-between; gap:10px }
+.scanner-jobs .scanner-scan-progress-label strong { font-size:11px; font-weight:700; color:#27211e; }
+.scanner-scan-progress-label b { font-size:12px; color:#14785b; font-variant-numeric:tabular-nums; }
+.scanner-scan-progress-track { background:#ded8cb; height:8px; border-radius:20px; overflow:hidden }
+.scanner-scan-progress-track span { display:block; height:100%; background:#18876b; transition:width 250ms ease }
+.scanner-jobs .scanner-scan-progress small { white-space:normal; overflow:visible; font-size:10px; color:#69645d }
+@media (prefers-reduced-motion:reduce) { .scanner-scan-progress-track span { transition:none } }

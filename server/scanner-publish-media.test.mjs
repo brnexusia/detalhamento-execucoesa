@@ -10,6 +10,12 @@ function mockJob(data, status='review') {
   const updates=[]
   const query=async (sql,params)=>{
     if (sql.startsWith('SELECT status FROM import_jobs')) return {rowCount:1,rows:[{status}]}
+    if (sql.includes('SELECT COUNT(*)::int AS count FROM import_normalized_products')) {
+      const count = rows.filter(row => [row.data?.media_url,
+        ...(row.data?.images || []),
+        ...(row.data?.variant_images || []).flatMap(v=>v.images||[])].some(x => String(x).startsWith('https://') || String(x).startsWith('http://'))).length
+      return {rowCount:1,rows:[{count}]}
+    }
     if (sql.includes('FROM import_normalized_products') && sql.includes('SELECT id,updated_at::text')) {
       const next=rows.filter(row=>row.id>params[2]).slice(0,25)
       return {rowCount:next.length,rows:next}
@@ -76,4 +82,24 @@ test('does not stage a job already published',async()=>{
     localize:async()=>{throw new Error('Should not localize')},
   })
   assert.equal(result.skipped,true)
+})
+
+test('reports real media progress and does not invent total from elapsed time',async()=>{
+ const state=mockJob([
+  {name:'Peça 1',price:25,media_url:'https://cdn.example/1.webp',images:['https://cdn.example/1.webp']},
+  {name:'Peça 2',price:30,media_url:'https://cdn.example/2.webp',images:['https://cdn.example/2.webp']},
+ ])
+ const events=[]
+ await stageSelectedImportMedia({
+   query:state.query,storeId:'store-1',jobId:'job-1',
+   onProgress:async event=>events.push(event),
+   localize:async({product})=>({
+     mediaUrl:product.media_url.includes('1.webp')?'/media/one':'/media/two',
+     images:[product.media_url.includes('1.webp')?'/media/one':'/media/two'],
+     variantImages:[],failed:0,
+   }),
+ })
+ assert.deepEqual(events.map(e=>[e.phase,e.completed,e.total]),[
+   ['images',0,2],['images',1,2],['images',2,2],['images',2,2],
+ ])
 })
