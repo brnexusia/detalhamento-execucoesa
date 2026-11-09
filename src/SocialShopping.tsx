@@ -55,6 +55,9 @@ export default function SocialShopping({storeSlug,storeName,productId,initialCar
   const total=(activeCart?.items||[]).reduce((sum,line)=>sum+line.price*line.quantity,0)
   const minimum=activeCart?.catalog.minimumOrder||0
   const catalogOptions=storedCarts.map(x=>x.catalog)
+  useEffect(()=>{
+    if(storedCarts.length && !storedCarts.some(c=>c.catalog.slug===catalogSlug))setCatalogSlug(storedCarts[0].catalog.slug)
+  },[storedCarts,catalogSlug])
   const reloadCart=useCallback(()=>{setCartRevision(n=>n+1);onCartChanged?.()},[onCartChanged])
 
   const load=useCallback(async():Promise<boolean>=>{
