@@ -42,6 +42,7 @@ export default function SocialShopping({storeSlug,storeName,productId,initialCar
   const [offerData,setOfferData]=useState<OfferPayload|null>(null)
   const [offer,setOffer]=useState<Offer|null>(null)
   const [buyer,setBuyer]=useState<Buyer|null>(null)
+  const [seller,setSeller]=useState<{slug:string;name:string}|null>(null)
   const [catalogSlug,setCatalogSlug]=useState('')
   const [cartRevision,setCartRevision]=useState(0)
   const [selections,setSelections]=useState<Record<string,string>>({})
@@ -68,6 +69,10 @@ export default function SocialShopping({storeSlug,storeName,productId,initialCar
       const body=await parseJson(session)
       if(!body?.buyer?.profileCompleted){setStep('auth');return false}
       setBuyer(body.buyer)
+      fetch('/api/social/stores/'+encodeURIComponent(storeSlug)+'/seller-route',{credentials:'include'})
+        .then(async r=>r.ok?parseJson(r):null)
+        .then(result=>{if(result?.seller)setSeller(result.seller)})
+        .catch(()=>undefined)
       if(productId){
         const response=await fetch(`/api/social/stores/${encodeURIComponent(storeSlug)}/products/${encodeURIComponent(productId)}/offers`,{credentials:'include',cache:'no-store'})
         if(response.status===401){setStep('auth');return false}
@@ -141,7 +146,7 @@ export default function SocialShopping({storeSlug,storeName,productId,initialCar
         throw Error('Os preços foram atualizados. Confira novamente o carrinho antes de continuar.')
       }
       const response=await fetch('/api/social/orders',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-        storeSlug,catalogSlug:activeCart.catalog.slug,items:activeCart.items.map(i=>({productId:i.productId,quantity:i.quantity,selections:i.selections})),
+        storeSlug,catalogSlug:activeCart.catalog.slug,sellerSlug:seller?.slug||'',items:activeCart.items.map(i=>({productId:i.productId,quantity:i.quantity,selections:i.selections})),
         buyer:{name:buyer?.name||'',phone:buyer?.phone||'',city:buyer?.city||''},notes
       })})
       const data=await parseJson(response)
@@ -192,7 +197,7 @@ export default function SocialShopping({storeSlug,storeName,productId,initialCar
         </>}
         {step==='review'&&activeCart&&<>
           <button className="svx-social-shop-back" onClick={()=>setStep('cart')}><ArrowLeft size={16}/> Voltar ao carrinho</button>
-          <p>Revise os produtos da {storeName||storeSlug} antes de abrir o WhatsApp.</p>
+          <p>Revise os produtos da {storeName||storeSlug}{seller?.name?' com atendimento de '+seller.name:''} antes de abrir o WhatsApp.</p>
           {activeCart.items.map(i=><div className="svx-social-review-line" key={i.key}><span>{i.quantity}× {i.name}</span><b>{money.format(i.price*i.quantity)}</b></div>)}
           <div className="svx-social-cart-totals"><div><span>Total</span><strong>{money.format(total)}</strong></div></div>
           <label className="svx-social-shop-field"><strong>Observações (opcional)</strong><textarea maxLength={500} rows={3} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Informações para a vendedora"/></label>
