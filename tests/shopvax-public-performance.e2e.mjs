@@ -94,14 +94,22 @@ try {
     assert(last.cards <= 6, `Feed mantém ${last.cards} cards; a janela deve ter no máximo seis`)
     assert(last.sessionBytes <= 750_000, `Cache da sessão ultrapassou o orçamento: ${last.sessionBytes}`)
   }
-  const countBefore = await page.evaluate(() => {
-    const key = 'shopvax-cart-v1:loja-teste'
-    return JSON.parse(localStorage.getItem(key) || '[]').length
-  })
   const addButton = page.locator('.social-feed-card .social-feed-add').last()
-  await addButton.click()
-  const countAfter = await page.evaluate(() => JSON.parse(localStorage.getItem('shopvax-cart-v1:loja-teste') || '[]').length)
-  assert.equal(countAfter, countBefore + 1, 'Montar pedido precisa manter gravação do carrinho')
+  if(mode==='candidate'){
+    // Novo UX: visitante consulta valores somente após WhatsApp e perfil comercial.
+    // O clique não deve montar um pedido sem identificação nem deixar o feed.
+    await addButton.click()
+    await page.locator('.svx-social-shop[role="dialog"]').waitFor({timeout:30000})
+    const modalTitle=await page.locator('#svx-social-shop-title').innerText()
+    assert.match(modalTitle,/Ver preços/, 'Interesse comercial abre cadastro sem navegação ao catálogo')
+    assert.equal(new URL(page.url()).pathname,'/feed','Compra permanece no feed social')
+    await page.locator('.svx-social-shop-head button[aria-label="Fechar"]').click()
+  } else {
+    const countBefore = await page.evaluate(() => JSON.parse(localStorage.getItem('shopvax-cart-v1:loja-teste') || '[]').length)
+    await addButton.click()
+    const countAfter = await page.evaluate(() => JSON.parse(localStorage.getItem('shopvax-cart-v1:loja-teste') || '[]').length)
+    assert.equal(countAfter,countBefore+1,'Baseline mantém carrinho anterior')
+  }
   const beforeNavigation = await page.locator('.social-feed-list').evaluate((list) =>
     list.scrollTop / Math.max(1, list.clientHeight))
   if (mode === 'candidate') {
