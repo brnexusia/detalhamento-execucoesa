@@ -123,7 +123,7 @@ export default function SocialStoreProfile() {
   }, [publications])
 
   useEffect(()=>{
-    if(viewMode!=='feed')return
+    if(viewMode!=='feed'||Boolean(socialPurchase)||Boolean(selected))return
     const container=profileFeedRef.current
     if(!container)return
     const videos=Array.from(container.querySelectorAll('video'))
@@ -138,7 +138,7 @@ export default function SocialStoreProfile() {
     },{root:container,threshold:[0,.65,1]})
     videos.forEach(video=>observer.observe(video))
     return()=>{observer.disconnect();videos.forEach(video=>video.pause())}
-  },[viewMode,publications])
+  },[viewMode,publications,socialPurchase,selected])
 
   const openPublication = (publication: Publication) => {
     setSelected(publication)
