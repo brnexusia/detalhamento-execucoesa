@@ -4,6 +4,7 @@ import BuyerWhatsappLogin from './BuyerWhatsappLogin'
 import { apiRequest } from './api'
 import { buyerGo } from './BuyerAppNav'
 import { resetSocialSaveSession } from './social-saves'
+import { useOwnerSession } from './owner-session'
 import './customer-account.css'
 import './buyer-app.css'
 
@@ -31,6 +32,24 @@ function safeNext():string{
  if(/^\/(?:perfil|cliente)\/[a-z0-9_-]+(?:\?produto=[a-z0-9_-]+)?$/i.test(value))return value
  return ''
 }
+function SellerAccess(){
+ const ownerSession=useOwnerSession()
+ const isOwner=ownerSession==='authenticated'
+ return <section className="buyer-seller-section" aria-labelledby="buyer-seller-title">
+   <span className="buyer-seller-section__eyebrow">PARA QUEM VENDE</span>
+   <div className="buyer-seller-section__card">
+     <div className="buyer-seller-section__intro"><span className="buyer-seller-section__icon"><Store size={23} aria-hidden="true"/></span>
+       <div><h2 id="buyer-seller-title">{isOwner?'Minha loja':'Venda com a ShopVax'}</h2>
+         <p>{isOwner?'Acesse seu painel e gerencie sua loja.':'Crie sua loja digital e receba pedidos pelo WhatsApp.'}</p></div></div>
+     {isOwner?<a className="buyer-seller-section__primary" href="/painel">Gerenciar minha loja <ChevronRight size={17} aria-hidden="true"/></a>
+       :<div className="buyer-seller-section__actions">
+          <a className="buyer-seller-section__primary" href="/para-lojas">Conhecer e criar minha loja <ChevronRight size={17} aria-hidden="true"/></a>
+          <a className="buyer-seller-section__secondary" href="/entrar">Já sou lojista · Entrar</a>
+        </div>}
+   </div>
+ </section>
+}
+
 export default function GlobalBuyerAccount(){
  const [buyer,setBuyer]=useState<GlobalBuyer|null>(null)
  const [orders,setOrders]=useState<BuyerOrder[]>([])
@@ -104,5 +123,6 @@ export default function GlobalBuyerAccount(){
       <div className="buyer-section"><button type="button" className="buyer-secondary-button" disabled={busy} onClick={()=>void logout()}><LogOut size={16}/>{busy?'Saindo…':'Sair da conta'}</button></div>
     </div>:<section className="buyer-section"><div className="buyer-profile-identity"><span className="buyer-profile-identity__avatar"><UserRound size={27}/></span><div><h2>Bem-vindo ao ShopVax</h2><p>Explore sem cadastro. Entre com WhatsApp para consultar preços e acompanhar pedidos.</p></div></div><BuyerWhatsappLogin onVerified={refresh}/></section>}
    {error&&<p role="alert" className="buyer-state">{error}</p>}
+   <SellerAccess/>
  </div></main>
 }
