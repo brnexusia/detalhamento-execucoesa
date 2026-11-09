@@ -5,7 +5,7 @@ import type { AdminProduct } from './types'
 import { confirmAction } from './ui-dialogs'
 import './catalog-manager.css'
 
-type Kind = 'geral'|'atacado'|'varejo'
+type Kind = 'varejo'|'atacado'|'caixa_fechada'|'personalizado'
 type Pane = 'create'|'settings'|'add'|null
 type Props = {
  storeSlug:string
@@ -13,7 +13,7 @@ type Props = {
  onSelect:(catalog:AdminCatalog|null)=>void
  onChanged:()=>void
 }
-const kindLabel=(kind:Kind)=>kind==='atacado'?'Caixa fechada':kind==='varejo'?'Varejo':'Geral'
+const kindLabel=(catalog:AdminCatalog)=>catalog.kind==='personalizado'?catalog.customLabel||'Personalizado':catalog.kind==='caixa_fechada'?'Caixa fechada':catalog.kind==='atacado'?'Atacado':catalog.kind==='varejo'?'Varejo':'Catálogo geral'
 function download(blob:Blob,filename:string){
  const url=URL.createObjectURL(blob),a=document.createElement('a')
  a.href=url;a.download=filename;document.body.append(a);a.click();a.remove()
@@ -26,6 +26,8 @@ export default function CatalogManager({storeSlug,categories,onSelect,onChanged}
  const [pane,setPane]=useState<Pane>(null)
  const [name,setName]=useState('')
  const [kind,setKind]=useState<Kind>('varejo')
+ const [customLabel,setCustomLabel]=useState('')
+ const [priceMode,setPriceMode]=useState<'base'|'varejo'|'atacado'|'caixa_fechada'>('base')
  const [minimum,setMinimum]=useState('')
  const [active,setActive]=useState(true)
  const [pdfCategory,setPdfCategory]=useState('')
@@ -52,7 +54,9 @@ export default function CatalogManager({storeSlug,categories,onSelect,onChanged}
  useEffect(()=>{
    if(!selected)return
    setName(selected.name)
-   setKind(selected.kind)
+   setKind(selected.kind==='geral'?'personalizado':selected.kind)
+   setCustomLabel(selected.kind==='geral'?selected.name:selected.customLabel||'')
+   setPriceMode(selected.priceMode||'base')
    setMinimum(selected.minimumOrder==null?'':String(selected.minimumOrder))
    setActive(selected.active)
  },[selected?.id])
@@ -128,11 +132,11 @@ export default function CatalogManager({storeSlug,categories,onSelect,onChanged}
  return <div className="svx-catalog-inline" aria-label="Catálogos da loja">
    <nav className="svx-catalog-inline__tabs" aria-label="Catálogo atual">
      {catalogs.map(c=><button key={c.id} type="button" aria-pressed={selected?.id===c.id} className={selected?.id===c.id?'is-active':''}
-       disabled={busy} title={c.lockedByPlan?'Este catálogo requer o plano Gold':kindLabel(c.kind)}
+       disabled={busy} title={c.lockedByPlan?'Este catálogo requer o plano Gold':kindLabel(c)}
        onClick={()=>choose(c)}>{c.name}{c.lockedByPlan?' · Gold':''}</button>)}
    </nav>
    <div className="svx-catalog-inline__buttons">
-     {gold&&<button type="button" className="svx-catalog-inline__create" onClick={()=>{setName('');setKind('varejo');setMinimum('');show('create')}}><Plus size={15}/> Criar catálogo</button>}
+     {gold&&<button type="button" className="svx-catalog-inline__create" onClick={()=>{setName('');setKind('varejo');setCustomLabel('');setPriceMode('base');setMinimum('');show('create')}}><Plus size={15}/> Criar catálogo</button>}
      <button type="button" className="svx-catalog-inline__more" disabled={!selected} aria-label="Opções do catálogo" onClick={()=>show('settings')}><MoreHorizontal size={20}/></button>
    </div>
    {error&&!pane&&<p className="svx-catalog-inline__error" role="alert">{error}</p>}
