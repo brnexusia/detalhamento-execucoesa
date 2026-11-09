@@ -21,7 +21,27 @@ const toMoney = (value) => {
   const number = Number(value)
   return Number.isFinite(number) ? Math.round(number * 100) / 100 : 0
 }
-const effectiveCatalogPrice = "COALESCE(cp.price_override,CASE WHEN c.kind='varejo' THEN p.retail_price WHEN c.kind='atacado' THEN p.box_price END,p.price)"
+// Atacado vende por unidade (preço base); caixa fechada usa preço da caixa.
+// Os catálogos personalizados escolhem explicitamente qual tabela utilizar.
+const effectiveCatalogPrice = "COALESCE(cp.price_override,CASE WHEN c.kind='varejo' OR (c.kind='personalizado' AND c.price_mode='varejo') THEN p.retail_price WHEN c.kind='caixa_fechada' OR (c.kind='personalizado' AND c.price_mode='caixa_fechada') THEN p.box_price ELSE p.price END,p.price)"
+const isBoxCatalog = (catalog) => catalog.kind === 'caixa_fechada' || (catalog.kind === 'personalizado' && catalog.price_mode === 'caixa_fechada')
+const catalogKinds = new Set(['varejo','atacado','caixa_fechada','personalizado'])
+const pricingModes = new Set(['base','varejo','atacado','caixa_fechada'])
+function catalogConfiguration(body, previous = null) {
+  const kind = body?.kind === undefined ? previous?.kind || 'varejo' : String(body.kind || '')
+  if (!catalogKinds.has(kind) && !(kind === 'geral' && previous?.kind === 'geral')) {
+    return { error: 'Escolha Varejo, Atacado, Caixa fechada ou Personalizado.' }
+  }
+  const customLabel = kind === 'personalizado'
+    ? String(body?.customLabel === undefined ? previous?.custom_label || '' : body.customLabel || '').trim().slice(0,60)
+    : ''
+  if (kind === 'personalizado' && !customLabel) return { error: 'Defina o nome do tipo personalizado.' }
+  const priceMode = kind === 'personalizado'
+    ? String(body?.priceMode === undefined ? previous?.price_mode || 'base' : body.priceMode || '')
+    : 'base'
+  if (!pricingModes.has(priceMode)) return { error: 'Regra de preço personalizado inválida.' }
+  return { kind, customLabel, priceMode }
+}
 const slugify = (value) => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'catalogo'
 
 function parseCookies(req) {
@@ -71,6 +91,17 @@ async function ensureSchema() {
       UNIQUE(store_id,slug)
     );
     ALTER TABLE catalogs ADD COLUMN IF NOT EXISTS explicit_membership boolean NOT NULL DEFAULT false;
+    ALTER TABLE catalogs ADD COLUMN IF NOT EXISTS custom_label text NOT NULL DEFAULT '';
+    ALTER TABLE catalogs ADD COLUMN IF NOT EXISTS price_mode text NOT NULL DEFAULT 'base';
+    -- Migração única: o código antigo chamava de atacado aquilo que o usuário
+    -- via como "Caixa fechada". Preservar preço, estoque e pedidos antigos.
+    ALTER TABLE catalogs ADD COLUMN IF NOT EXISTS kind_schema_version integer;
+    UPDATE catalogs
+       SET kind=CASE WHEN kind='atacado' THEN 'caixa_fechada' ELSE kind END,
+           kind_schema_version=2
+     WHERE kind_schema_version IS NULL;
+    ALTER TABLE catalogs ALTER COLUMN kind_schema_version SET DEFAULT 2;
+    ALTER TABLE catalogs ALTER COLUMN kind_schema_version SET NOT NULL;
     CREATE UNIQUE INDEX IF NOT EXISTS idx_catalog_default_per_store ON catalogs(store_id) WHERE is_default=true;
     CREATE TABLE IF NOT EXISTS catalog_products (
       catalog_id text NOT NULL REFERENCES catalogs(id) ON DELETE CASCADE,
@@ -137,6 +168,8 @@ function catalogShape(row) {
     slug: row.slug,
     name: row.name,
     kind: row.kind,
+    customLabel: row.custom_label || '',
+    priceMode: row.price_mode || 'base',
     minimumOrder: row.minimum_order == null ? null : Number(row.minimum_order),
     isDefault: Boolean(row.is_default),
     active: Boolean(row.active),
@@ -174,7 +207,9 @@ async function createCatalog(req, res) {
   })
   const name = String(req.body?.name || '').trim().slice(0, 100)
   if (!name) return res.status(400).json({ error: 'Informe o nome do catálogo.' })
-  const kind = ['atacado', 'varejo', 'geral'].includes(req.body?.kind) ? req.body.kind : 'geral'
+  const configuration = catalogConfiguration(req.body)
+  if (configuration.error) return res.status(400).json({ error: configuration.error })
+  const {kind, customLabel, priceMode} = configuration
   const minimumOrder = req.body?.minimumOrder === '' || req.body?.minimumOrder == null ? null : Math.max(0, toMoney(req.body.minimumOrder))
   const baseSlug = slugify(req.body?.slug || name)
   let slug = baseSlug
@@ -184,9 +219,9 @@ async function createCatalog(req, res) {
     slug = `${baseSlug}-${attempt}`.slice(0, 60)
   }
   const result = await pool.query(
-    `INSERT INTO catalogs (id,store_id,slug,name,kind,minimum_order,is_default,active,explicit_membership)
-     VALUES ($1,$2,$3,$4,$5,$6,false,true,true) RETURNING *`,
-    [id(), storeId, slug, name, kind, minimumOrder],
+    `INSERT INTO catalogs (id,store_id,slug,name,kind,custom_label,price_mode,minimum_order,is_default,active,explicit_membership)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,false,true,true) RETURNING *`,
+    [id(), storeId, slug, name, kind, customLabel, priceMode, minimumOrder],
   )
   return res.status(201).json({ catalog: { ...catalogShape(result.rows[0]), items: [] } })
 }
@@ -201,15 +236,17 @@ async function updateCatalog(req, res) {
   })
   const name = req.body?.name == null ? current.name : String(req.body.name).trim().slice(0, 100)
   if (!name) return res.status(400).json({ error: 'Informe o nome do catálogo.' })
-  const kind = req.body?.kind == null ? current.kind : (['atacado', 'varejo', 'geral'].includes(req.body.kind) ? req.body.kind : current.kind)
+  const configuration = catalogConfiguration(req.body, current)
+  if (configuration.error) return res.status(400).json({ error: configuration.error })
+  const {kind, customLabel, priceMode} = configuration
   const minimumOrder = req.body?.minimumOrder === undefined ? current.minimum_order : (req.body.minimumOrder === '' || req.body.minimumOrder == null ? null : Math.max(0, toMoney(req.body.minimumOrder)))
   const active = current.is_default ? true : req.body?.active !== false
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
     const updated = await client.query(
-      'UPDATE catalogs SET name=$1,kind=$2,minimum_order=$3,active=$4,updated_at=now() WHERE id=$5 AND store_id=$6 RETURNING *',
-      [name, kind, minimumOrder, active, current.id, storeId],
+      'UPDATE catalogs SET name=$1,kind=$2,custom_label=$3,price_mode=$4,minimum_order=$5,active=$6,updated_at=now() WHERE id=$7 AND store_id=$8 RETURNING *',
+      [name, kind, customLabel, priceMode, minimumOrder, active, current.id, storeId],
     )
     if (Array.isArray(req.body?.items)) {
       for (const item of req.body.items.slice(0, 10000)) {
@@ -410,7 +447,7 @@ function uniqueImages(row) {
 
 function publicProduct(product, catalog) {
   const images = uniqueImages(product)
-  const perBox = catalog.kind === 'atacado' ? Math.max(1, Number(product.units_per_box || 1)) : 1
+  const perBox = isBoxCatalog(catalog) ? Math.max(1, Number(product.units_per_box || 1)) : 1
   return {
     id: product.id,
     sku: product.sku,
@@ -560,7 +597,7 @@ async function socialProductOffers(req, res) {
   if (!found.rowCount) return res.status(404).json({ error: 'Produto indisponível.' })
   const p = found.rows[0]
   await ensureDefaultCatalog(p.store_id)
-  const available = await pool.query(`SELECT c.id,c.slug,c.name,c.kind,c.is_default,c.minimum_order,
+  const available = await pool.query(`SELECT c.id,c.slug,c.name,c.kind,c.custom_label,c.price_mode,c.is_default,c.minimum_order,
     ${effectiveCatalogPrice} AS public_price
     FROM catalogs c JOIN products p ON p.id=$2
     LEFT JOIN catalog_products cp ON cp.catalog_id=c.id AND cp.product_id=p.id
@@ -573,9 +610,9 @@ async function socialProductOffers(req, res) {
       images:Array.isArray(p.images)?p.images:[], mediaUrl:p.media_url||'', mediaType:p.media_type==='video'?'video':'image', variations:Array.isArray(p.variations)?p.variations:[] },
     buyerPurpose: buyer.purpose,
     offers: available.rows.map(c => ({
-      id:c.id, slug:c.slug, name:c.name, kind:c.kind,
+      id:c.id, slug:c.slug, name:c.name, kind:c.kind, customLabel:c.custom_label||'', priceMode:c.price_mode||'base',
       price:Number(c.public_price), minimumOrder:c.minimum_order == null ? Number(p.store_minimum_order || 0) : Number(c.minimum_order),
-      unitsPerBox:c.kind==='atacado' ? Math.max(1,Number(p.units_per_box || 1)) : 1
+      unitsPerBox:isBoxCatalog(c) ? Math.max(1,Number(p.units_per_box || 1)) : 1
     }))
   })
 }
@@ -657,7 +694,7 @@ async function createCatalogOrder(req, res) {
       try { selections = validateProductSelections(product, requested?.selections) }
       catch (error) { await client.query('ROLLBACK'); return res.status(400).json({ error: error.message }) }
       const quantity = Math.max(1, Math.min(999, Math.floor(Number(requested?.quantity) || 1)))
-      const unitsPerBox = catalog.kind==='atacado' ? Math.max(1,Number(product.units_per_box || 1)) : 1
+      const unitsPerBox = isBoxCatalog(catalog) ? Math.max(1,Number(product.units_per_box || 1)) : 1
       const stockUnits = quantity * unitsPerBox
       const stock = availableStock(product, selections)
       if (stock < stockUnits) { await client.query('ROLLBACK'); return res.status(409).json({ error: stock <= 0 ? `${product.name} está sem estoque.` : `Restam apenas ${stock} unidade(s) de ${product.name} nessa variação.` }) }
