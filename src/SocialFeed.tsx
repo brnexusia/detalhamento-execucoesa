@@ -5,7 +5,7 @@ import { useOwnerSession } from './owner-session'
 import { useBuyerSession } from './buyer-session'
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { showToast } from './ui-dialogs'
-import { ChevronRight, Eye, Heart, MessageCircleQuestion, Minus, Play, Plus, Share2, ShoppingBag, Store, Volume2, VolumeX, X } from 'lucide-react'
+import { Eye, Heart, MessageCircleQuestion, Play, Plus, Share2, ShoppingBag, Store, Volume2, VolumeX } from 'lucide-react'
 import './social-feed.css'
 import './shopvax-social-official.css'
 import './shopvax-social-feed-layout.css'
@@ -36,10 +36,6 @@ type SocialPost = {
 }
 type FeedPayload = { posts: SocialPost[]; page: { hasMore: boolean; nextCursor: string | null } }
 type FeedSession = { posts: SocialPost[]; cursor: string | null; hasMore: boolean; scrollTop: number; savedAt: number; activePostId?: string }
-type FeedCartItem = { key: string; product: FeedProduct; quantity: number; selections: Record<string, string> }
-type PickerState = { post: SocialPost; selections: Record<string, string>; quantity: number }
-
-const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 const feedSessionKey = 'shopvax_social_feed_state_v3'
 const feedSessionTtl = 5 * 60 * 1000
 const maxFeedSessionPosts = 320
@@ -47,13 +43,9 @@ const maxFeedSessionBytes = 750_000
 const renderNeighbors = 2
 
 function compact(value: number) { return new Intl.NumberFormat('pt-BR', { notation: 'compact', maximumFractionDigits: 1 }).format(value || 0) }
-function cartStorageKey(slug: string) { return `shopvax-cart-v1:${encodeURIComponent(slug)}` }
 function profilePath(slug: string, productId?: string) {
   const base = `/perfil/${encodeURIComponent(slug)}`
   return productId ? `${base}?produto=${encodeURIComponent(productId)}` : base
-}
-function commercialStorePath(slug: string, sellerSlug?: string) {
-  return sellerSlug ? `/${encodeURIComponent(slug)}/${encodeURIComponent(sellerSlug)}` : `/${encodeURIComponent(slug)}`
 }
 function go(path: string) {
   window.history.pushState({}, '', path)
@@ -88,22 +80,6 @@ function saveFeedSession(posts: SocialPost[], cursor: string | null, hasMore: bo
   } catch { /* cache opcional indisponível; carrinho permanece independente */ }
 }
 
-function readCart(slug: string): FeedCartItem[] {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(cartStorageKey(slug)) || '[]')
-    return Array.isArray(parsed) ? parsed : []
-  } catch { return [] }
-}
-
-function writeCart(slug: string, items: FeedCartItem[]) {
-  try { localStorage.setItem(cartStorageKey(slug), JSON.stringify(items)); window.dispatchEvent(new CustomEvent('shopvax:cart-change', { detail: { storeSlug: slug } })) }
-  catch { /* armazenamento indisponível */ }
-}
-
-function cartItemKey(product: FeedProduct, selections: Record<string, string>) {
-  return `${product.id}:${Object.entries(selections).sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => `${key}=${value}`).join('|')}`
-}
-
 function productMediaCandidates(product: FeedProduct) {
   return Array.from(new Set([product.mediaUrl, ...(Array.isArray(product.images) ? product.images : [])].map((value) => String(value || '').trim()).filter(Boolean)))
 }
@@ -134,14 +110,6 @@ async function copyText(value: string) {
     textarea.remove()
     return copied
   } catch { return false }
-}
-
-async function sellerSlugForStore(slug: string) {
-  try {
-    const response = await fetch(`/api/social/stores/${encodeURIComponent(slug)}/seller-route`, { credentials: 'include' })
-    const body = await response.json().catch(() => null)
-    return response.ok ? String(body?.seller?.slug || '') : ''
-  } catch { return '' }
 }
 
 const SocialPostCard = memo(function SocialPostCard({ post, cartCount, active, saveData, onProfile, onAdd, onCart, onFollow }: { post: SocialPost; cartCount: number; active: boolean; saveData: boolean; onProfile: (slug: string) => void; onAdd: (post: SocialPost) => void; onCart: (store: SocialPost['store']) => void; onFollow: (post: SocialPost) => void }) {
@@ -324,9 +292,6 @@ export default function SocialFeed() {
   const [socialPurchase,setSocialPurchase] = useState<{storeSlug:string;storeName:string;productId?:string;initialCart?:boolean}|null>(null)
   const ownerSession = useOwnerSession()
   const buyerSession = useBuyerSession()
-  const [picker, setPicker] = useState<PickerState | null>(null)
-  const [pickerError, setPickerError] = useState('')
-  const [activeCart, setActiveCart] = useState<SocialPost['store'] | null>(null)
   const [cartVersion, setCartVersion] = useState(0)
   const [activeIndex, setActiveIndex] = useState(() => restoredIndex.current)
   const [restoreEpoch, setRestoreEpoch] = useState(0)
@@ -501,43 +466,9 @@ export default function SocialFeed() {
   const windowEnd = Math.min(posts.length, visibleIndex + renderNeighbors + 2)
   const visiblePosts = posts.slice(windowStart, windowEnd)
 
-  const addCartItem = useCallback((post: SocialPost, selections: Record<string, string>, quantity: number) => {
-    const items = readCart(post.store.slug)
-    const key = cartItemKey(post.product, selections)
-    const existing = items.find((item) => item.key === key)
-    const next = existing
-      ? items.map((item) => item.key === key ? { ...item, quantity: item.quantity + quantity } : item)
-      : [...items, { key, product: post.product, quantity, selections }]
-    writeCart(post.store.slug, next)
-  }, [])
-
   const requestAdd = useCallback((post: SocialPost) => {
     setSocialPurchase({storeSlug:post.store.slug,storeName:post.store.name,productId:post.product.id})
   }, [])
-
-  const legacyRequestAdd = useCallback((post: SocialPost) => {
-    const groups = Array.isArray(post.product.variations) ? post.product.variations : []
-    if (!groups.length) { addCartItem(post, {}, 1); return }
-    const defaults: Record<string, string> = {}
-    groups.forEach((group) => { if (group.options.length === 1) defaults[group.name] = group.options[0] })
-    setPicker({ post, selections: defaults, quantity: 1 })
-    setPickerError('')
-  }, [addCartItem])
-
-  const confirmPicker = () => {
-    if (!picker) return
-    const missing = picker.post.product.variations.find((group) => !picker.selections[group.name])
-    if (missing) { setPickerError(`Escolha ${missing.name.toLowerCase()}.`); return }
-    addCartItem(picker.post, picker.selections, picker.quantity)
-    setPicker(null)
-    setPickerError('')
-  }
-
-  const changeCartQuantity = (key: string, delta: number) => {
-    if (!activeCart) return
-    const next = readCart(activeCart.slug).map((item) => item.key === key ? { ...item, quantity: Math.max(0, item.quantity + delta) } : item).filter((item) => item.quantity > 0)
-    writeCart(activeCart.slug, next)
-  }
 
   const openProfile = useCallback((slug: string) => { persist(); go(profilePath(slug)) }, [persist])
   const requestFollow = useCallback((post: SocialPost) => {
@@ -550,10 +481,6 @@ export default function SocialFeed() {
         ? { ...post, interactions: { ...post.interactions, following: result.following, followers: result.followers } }
         : post))
   }, [])
-  const openCommercialStore = async (slug: string) => { persist(); const seller = await sellerSlugForStore(slug); go(commercialStorePath(slug, seller)) }
-  const cartItems = activeCart ? readCart(activeCart.slug) : []
-  const cartTotal = cartItems.reduce((sum, item) => sum + Number(item.product.price || 0) * Number(item.quantity || 0), 0)
-
   const releaseRestoredAnchor = () => { restoredAnchorLockRef.current = false }
   const repairRestoredAnchor = (list: HTMLElement) => {
     const desired = restoredIndex.current * Math.max(1, list.clientHeight)
@@ -603,32 +530,6 @@ export default function SocialFeed() {
     {accountChoice && <SocialAccountChoice storeSlug={accountChoice.storeSlug} storeId={accountChoice.storeId} reason={accountChoice.reason}
       onFollowed={(result) => { if (accountChoice.storeId) updateFollow(accountChoice.storeId,result) }}
       onClose={() => setAccountChoice(null)}/>} 
-    {picker && <div className="feed-sheet-layer">
-      <button className="feed-sheet-backdrop" onClick={() => setPicker(null)} aria-label="Fechar seleção"/>
-      <section className="feed-sheet feed-picker-sheet">
-        <header><div><span>{picker.post.store.name}</span><h2>{picker.post.product.name}</h2></div><button onClick={() => setPicker(null)}><X size={20}/></button></header>
-        <div className="feed-sheet-body">
-          {picker.post.product.variations.map((group) => <div className="feed-variant" key={group.name}><strong>{group.name}</strong><div>{group.options.map((option) => <button key={option} className={picker.selections[group.name] === option ? 'is-active' : ''} onClick={() => { setPicker((current) => current ? { ...current, selections: { ...current.selections, [group.name]: option } } : current); setPickerError('') }}>{option}</button>)}</div></div>)}
-          <div className="feed-picker-qty"><span>Quantidade</span><div><button onClick={() => setPicker((current) => current ? { ...current, quantity: Math.max(1, current.quantity - 1) } : current)}><Minus size={15}/></button><b>{picker.quantity}</b><button onClick={() => setPicker((current) => current ? { ...current, quantity: current.quantity + 1 } : current)}><Plus size={15}/></button></div></div>
-          {pickerError && <p className="feed-sheet-error">{pickerError}</p>}
-        </div>
-        <footer><strong>{money.format(Number(picker.post.product.price||0) * picker.quantity)}</strong><button onClick={confirmPicker}><ShoppingBag size={17}/> Adicionar ao carrinho</button></footer>
-      </section>
-    </div>}
 
-    {activeCart && <div className="feed-sheet-layer">
-      <button className="feed-sheet-backdrop" onClick={() => setActiveCart(null)} aria-label="Fechar carrinho"/>
-      <section className="feed-sheet feed-cart-sheet">
-        <header><div><span>Carrinho</span><h2>{activeCart.name}</h2></div><button onClick={() => setActiveCart(null)}><X size={20}/></button></header>
-        <div className="feed-sheet-body">
-          {cartItems.length ? cartItems.map((item) => <article className="feed-cart-item" key={item.key}>
-            <div className="feed-cart-thumb">{item.product.mediaType === 'image' && productMediaCandidates(item.product).length ? <FeedImage product={item.product}/> : <Play size={18}/>}</div>
-            <div><strong>{item.product.name}</strong><small>{Object.entries(item.selections).map(([key, value]) => `${key}: ${value}`).join(' · ') || 'Sem variação'}</small><span>{money.format(Number(item.product.price||0))}</span></div>
-            <div className="feed-cart-qty"><button onClick={() => changeCartQuantity(item.key, -1)}><Minus size={14}/></button><b>{item.quantity}</b><button onClick={() => changeCartQuantity(item.key, 1)}><Plus size={14}/></button></div>
-          </article>) : <div className="feed-cart-empty">Seu carrinho desta loja está vazio.</div>}
-        </div>
-        <footer><strong>{money.format(cartTotal)}</strong><button disabled={!cartItems.length} onClick={() => void openCommercialStore(activeCart.slug)}>Ir para a loja finalizar <ChevronRight size={17}/></button></footer>
-      </section>
-    </div>}
   </div>
 }
