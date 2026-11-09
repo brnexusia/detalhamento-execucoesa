@@ -1,6 +1,7 @@
-import { Play, Search, SlidersHorizontal, Store, X } from 'lucide-react'
+import { Play, Search, SlidersHorizontal, Store } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { buyerGo } from './BuyerAppNav'
+import BuyerSearchAutocomplete from './BuyerSearchAutocomplete'
 import './buyer-app.css'
 
 type ResultProduct={id:string;name:string;sku:string;category:string;mediaUrl:string;thumbnailUrl?:string;mediaType:'image'|'video';price?:number;priceFrom?:boolean;store:{id:string;slug:string;name:string;logoUrl?:string}}
@@ -19,6 +20,8 @@ export default function SocialDiscover(){
  const [error,setError]=useState('')
  const [needsLogin,setNeedsLogin]=useState(false)
  const [retry,setRetry]=useState(0)
+ const [loadedKey,setLoadedKey]=useState('')
+ const currentKey=[query.trim(),category,mode,minPrice,maxPrice].join('\u001f')
  useEffect(()=>{
   const params=new URLSearchParams()
   if(query.trim())params.set('q',query.trim())
@@ -33,12 +36,16 @@ export default function SocialDiscover(){
    setLoading(true);setError('');setNeedsLogin(false)
    try{
     const r=await fetch('/api/social/discover'+(suffix?'?'+suffix:''),{signal:controller.signal,credentials:'include'})
-    const body=await r.json().catch(()=>({}))
+    const contentType=r.headers.get('content-type')||''
+    if(!contentType.toLowerCase().includes('application/json'))throw Error('O servidor retornou uma página em vez dos dados de pesquisa.')
+    const body=await r.json().catch(()=>{throw Error('O servidor retornou uma resposta inválida para a pesquisa.')})
     if(r.status===401){
       setNeedsLogin(true);setError('Entre com WhatsApp para filtrar por preços.');return
     }
     if(!r.ok)throw Error(body.error||'Não foi possível buscar produtos.')
-    setResults({products:Array.isArray(body.products)?body.products:[],stores:Array.isArray(body.stores)?body.stores:[],categories:Array.isArray(body.categories)?body.categories:[]})
+    if(!Array.isArray(body.products)||!Array.isArray(body.stores))throw Error('A pesquisa não retornou listas válidas de produtos e lojas.')
+    setResults({products:body.products,stores:body.stores,categories:Array.isArray(body.categories)?body.categories:[]})
+    setLoadedKey([query.trim(),category,mode,minPrice,maxPrice].join('\u001f'))
    }catch(e){
     if(!controller.signal.aborted)setError(e instanceof Error?e.message:'Não foi possível buscar.')
    }finally{if(!controller.signal.aborted)setLoading(false)}
@@ -50,9 +57,8 @@ export default function SocialDiscover(){
  return <main className="buyer-screen">
    <div className="buyer-screen__inner">
      <header className="buyer-screen__head"><div><small>Explorar ShopVax</small><h1>O que você procura?</h1></div><Search size={23}/></header>
-     <label className="buyer-search-input"><Search size={21}/><input autoFocus={false} type="search" enterKeyHint="search"
-       value={query} maxLength={100} onChange={e=>setQuery(e.target.value)} placeholder="Produto, referência ou loja…" aria-label="Pesquisar produtos e lojas"/>
-       {query&&<button type="button" onClick={()=>setQuery('')} aria-label="Limpar pesquisa"><X size={18}/></button>}</label>
+     <BuyerSearchAutocomplete query={query} onQuery={setQuery} products={results.products} stores={results.stores}
+       ready={!loading&&!error&&!needsLogin&&currentKey===loadedKey}/>
      <div className="buyer-chips" aria-label="Categorias">
        <button type="button" aria-pressed={!category} onClick={()=>setCategory('')}>Tudo</button>
        {results.categories.map(c=><button type="button" key={c} aria-pressed={category===c} onClick={()=>setCategory(v=>v===c?'':c)}>{c}</button>)}
@@ -79,6 +85,7 @@ export default function SocialDiscover(){
      {error&&!needsLogin&&<div className="buyer-empty" role="alert"><p>{error}</p><button type="button" className="buyer-primary-button" onClick={()=>setRetry(value=>value+1)}>Tentar novamente</button></div>}
      {loading&&<p className="buyer-state" role="status">Buscando produtos e lojas…</p>}
      {!loading&&!needsLogin&&!error&&<>
+       {query.trim()&&<p className="buyer-search-count" role="status">{results.stores.length} {results.stores.length===1?'loja':'lojas'} e {results.products.length} {results.products.length===1?'produto':'produtos'} encontrados para “{query.trim()}”</p>}
        {results.stores.length>0&&<section className="buyer-section"><h2 className="buyer-section__heading">Lojas</h2>
          <div className="buyer-stores">{results.stores.map(store=><a className="buyer-store-card" key={store.id} href={'/perfil/'+encodeURIComponent(store.slug)} onClick={e=>navTo('/perfil/'+encodeURIComponent(store.slug),e)}>
            <span className="buyer-store-card__avatar">{store.logoUrl?<img src={store.logoUrl} alt="" loading="lazy"/>:<Store size={22}/>}</span>

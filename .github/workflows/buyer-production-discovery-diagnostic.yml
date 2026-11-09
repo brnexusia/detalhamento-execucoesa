@@ -1,0 +1,41 @@
+name: ShopVax - diagnostico publico de descoberta
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/buyer-production-discovery-diagnostic.yml'
+      - 'src/canvas.css'
+      - 'src/buyer-app.css'
+      - 'server/buyer-discovery-hooks.mjs'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  public-readonly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Verificar contagens publicas sem dados pessoais
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,urllib.request
+          base='https://shopvax.com.br'
+          for path in ['/health','/api/social/health','/api/social/discover','/api/social/feed']:
+              print('CHECK',path,flush=True)
+              try:
+                  req=urllib.request.Request(base+path,headers={'User-Agent':'ShopvaxBuyerDiagnostic/1.0','Cache-Control':'no-cache'})
+                  with urllib.request.urlopen(req,timeout=18) as resp:
+                      print('HTTP',resp.status,flush=True)
+                      data=json.load(resp)
+                      if path=='/health':
+                          print(json.dumps({k:data.get(k) for k in ['ok','database','releaseSha','uiRevision']},ensure_ascii=False),flush=True)
+                      elif path=='/api/social/health':
+                          print(json.dumps({k:data.get(k) for k in ['ok','stores','products']},ensure_ascii=False),flush=True)
+                      elif path=='/api/social/discover':
+                          print('RESULTS',json.dumps({k:len(data.get(k) or []) for k in ['stores','products','categories']},ensure_ascii=False),flush=True)
+                      else:
+                          print('POST_COUNT',len(data.get('posts') or []),flush=True)
+              except Exception as e:
+                  print('FAILED',type(e).__name__,str(e)[:180],flush=True)
+          PY

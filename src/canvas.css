@@ -47,7 +47,7 @@ select {
   padding-right: max(var(--canvas-gutter), env(safe-area-inset-right));
 }
 
-main:not(.feed-shell) {
+.app > main:not(.feed-shell) {
   width: min(100%, var(--canvas-wide));
   max-width: none;
   padding-inline: var(--canvas-gutter);
@@ -285,7 +285,7 @@ main:not(.feed-shell) {
     min-height: 62px;
   }
 
-  main:not(.feed-shell) {
+  .app > main:not(.feed-shell) {
     padding-inline: var(--canvas-gutter);
   }
 
