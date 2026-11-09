@@ -590,42 +590,50 @@ app.get(
   }),
 )
 
-// Tenant-scoped, bounded listing: store identity always comes from the session.
+// Tenant-scoped, bounded listing. Product count and filters apply to the
+// selected catalog (including unloaded pages); never trust client store IDs.
 app.get(
   '/api/admin/products',
   auth,
   asyncRoute(async (req, res) => {
-    const ownerStore = await pool.query('SELECT id FROM stores WHERE owner_id=$1 LIMIT 1', [req.user.id])
+    const ownerStore = await pool.query('SELECT id,plan_tier FROM stores WHERE owner_id=$1 LIMIT 1', [req.user.id])
     if (!ownerStore.rowCount) return res.status(404).json({ error: 'Loja não encontrada.' })
-
+    const store=ownerStore.rows[0]
     const limit = Math.min(100, Math.max(1, Number.parseInt(String(req.query.limit || '18'), 10) || 18))
     const page = Math.min(1000000, Math.max(1, Number.parseInt(String(req.query.page || '1'), 10) || 1))
     const query = String(req.query.q || '').trim().toLowerCase().slice(0, 120)
     const category = String(req.query.category || '').trim().slice(0, 80)
-    const params = [ownerStore.rows[0].id]
-    const filters = ['store_id=$1']
+    const catalogId=String(req.query.catalogId||'').trim().slice(0,100)
+    const params=[store.id]
+    const filters=['p.store_id=$1']
+    if(catalogId){
+      const found=await pool.query('SELECT id,is_default,explicit_membership FROM catalogs WHERE id=$1 AND store_id=$2 LIMIT 1',[catalogId,store.id])
+      if(!found.rowCount)return res.status(404).json({error:'Catálogo não encontrado.'})
+      if(!found.rows[0].is_default&&store.plan_tier!=='ouro')
+        return res.status(403).json({error:'Este catálogo requer o plano Gold.',code:'GOLD_REQUIRED'})
+      params.push(catalogId)
+      const idx='$'+params.length
+      filters.push(found.rows[0].explicit_membership
+        ? `EXISTS (SELECT 1 FROM catalog_products cp WHERE cp.catalog_id=${idx} AND cp.product_id=p.id AND cp.visible=true)`
+        : `NOT EXISTS (SELECT 1 FROM catalog_products cp WHERE cp.catalog_id=${idx} AND cp.product_id=p.id AND cp.visible=false)`)
+    }
     if (category && category !== 'Todas') {
       params.push(category)
-      filters.push('category=$' + params.length)
+      filters.push('p.category=$' + params.length)
     }
     if (query) {
       params.push(query)
-      filters.push('position($' + params.length + " IN lower(name || ' ' || sku || ' ' || category)) > 0")
+      filters.push('position($' + params.length + " IN lower(p.name || ' ' || p.sku || ' ' || p.category)) > 0")
     }
     const where = filters.join(' AND ')
-    const limitBind = '$' + (params.length + 1)
-    const offsetBind = '$' + (params.length + 2)
-    const offset = (page - 1) * limit
-    const [count, found] = await Promise.all([
-      pool.query('SELECT count(*)::int AS total FROM products WHERE ' + where, params),
-      pool.query(
-        'SELECT * FROM products WHERE ' + where + ' ORDER BY created_at DESC, id DESC LIMIT ' + limitBind + ' OFFSET ' + offsetBind,
-        [...params, limit, offset],
-      ),
+    const offset=(page-1)*limit
+    const [count,found] = await Promise.all([
+      pool.query('SELECT count(*)::int AS total FROM products p WHERE '+where,params),
+      pool.query('SELECT p.* FROM products p WHERE '+where+' ORDER BY p.created_at DESC,p.id DESC LIMIT $'+(params.length+1)+' OFFSET $'+(params.length+2),[...params,limit,offset]),
     ])
     res.json({
-      products: found.rows.map((item) => ({ ...item, price: Number(item.price) })),
-      pagination: { page, limit, total: Number(count.rows[0]?.total || 0) },
+      products:found.rows.map(item=>({...item,price:Number(item.price)})),
+      pagination:{page,limit,total:Number(count.rows[0]?.total||0)},
     })
   }),
 )
