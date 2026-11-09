@@ -1,3 +1,4 @@
+import { installProductBulkJobs } from './product-bulk-jobs.mjs'
 import { requiresPaymentForSignup } from './signup-billing-mode.mjs'
 import { ensureReferralSchema, captureReferral } from './referral-program-core.mjs'
 import { traceUpload } from './upload-request-logging.mjs'
@@ -825,6 +826,8 @@ app.post(
     res.json({ ok: true, deleted: deleted.rowCount, ids: deleted.rows.map((row) => row.id) })
   }),
 )
+
+installProductBulkJobs(app,pool,auth,asyncRoute)
 
 app.put(
   '/api/admin/products/:id',
