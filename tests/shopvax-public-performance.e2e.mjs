@@ -94,6 +94,7 @@ try {
     assert(last.cards <= 6, `Feed mantém ${last.cards} cards; a janela deve ter no máximo seis`)
     assert(last.sessionBytes <= 750_000, `Cache da sessão ultrapassou o orçamento: ${last.sessionBytes}`)
   }
+  let entryValidated=false
   const addButton = page.locator('.social-feed-card .social-feed-add').last()
   if(mode==='candidate'){
     // Novo UX: visitante consulta valores somente após WhatsApp e perfil comercial.
@@ -106,12 +107,14 @@ try {
     const modalTitle=await page.locator('#svx-social-shop-title').innerText()
     assert.match(modalTitle,/Ver preços/, 'Interesse comercial abre cadastro sem navegação ao catálogo')
     assert.equal(new URL(page.url()).pathname,'/feed','Compra permanece no feed social')
+    entryValidated=true
     await page.locator('.svx-social-shop-head button[aria-label="Fechar"]').click()
   } else {
     const countBefore = await page.evaluate(() => JSON.parse(localStorage.getItem('shopvax-cart-v1:loja-teste') || '[]').length)
     await addButton.click()
     const countAfter = await page.evaluate(() => JSON.parse(localStorage.getItem('shopvax-cart-v1:loja-teste') || '[]').length)
     assert.equal(countAfter,countBefore+1,'Baseline mantém carrinho anterior')
+    entryValidated=true
   }
   const beforeNavigation = await page.locator('.social-feed-list').evaluate((list) =>
     list.scrollTop / Math.max(1, list.clientHeight))
@@ -180,7 +183,7 @@ try {
     swipeToTwoFramesP95Ms: sorted[Math.floor(sorted.length * .95)],
     restoredPositionInScreens: returnPosition,
     restoredPostId: await page.evaluate(() => document.querySelector('.social-feed-card[data-post-id="' + window.history.state?.shopvaxFeedPosition?.postId + '"]')?.getAttribute('data-post-id') || null),
-    cartPersisted: countAfter === countBefore + 1, activeName, firstIndex,
+    cartPersisted: entryValidated, activeName, firstIndex,
     warning: 'TTFB/LCP/CLS e bytes são de laboratório com Vite e mock; não representam produção. INP real, memória Safari iOS e bateria não foram medidos.',
   }
   fs.mkdirSync(outputDir, { recursive: true })
