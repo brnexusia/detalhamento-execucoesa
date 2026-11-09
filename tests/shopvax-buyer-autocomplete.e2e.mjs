@@ -43,7 +43,7 @@ try{
  assert.match(await page.locator('.buyer-search-count').innerText(),/1 produto/)
  await box.fill('Loja')
  await page.getByRole('listbox',{name:'Sugestões de produtos e lojas'}).waitFor({timeout:15000})
- await page.getByRole('option',{name:/Loja Avenida/}).click()
+ await page.locator('.buyer-suggestion-list button').filter({has:page.locator('strong',{hasText:'Loja Avenida'})}).click()
  assert.equal(await box.inputValue(),'Loja Avenida','Sugestão de loja não completou a pesquisa')
  await page.getByRole('link',{name:/Loja Avenida/}).first().waitFor()
  nonJson=true

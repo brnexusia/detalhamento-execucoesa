@@ -38,7 +38,7 @@ try{
  assert.equal(await page.locator('.buyer-app-nav a').count(),5,'Cinco abas reais na navegação mobile')
  await page.getByRole('link',{name:'Buscar'}).click()
  await page.waitForURL('**/buscar')
- await page.getByRole('searchbox',{name:'Pesquisar produtos e lojas'}).fill('Bolsa')
+ await page.getByRole('combobox',{name:'Pesquisar produtos e lojas'}).fill('Bolsa')
  await page.getByText('Bolsa de Teste UX').first().waitFor({timeout:30000})
  await page.getByRole('link',{name:/Bolsa de Teste UX/}).first().click()
  await page.waitForURL('**/perfil/loja-ux?produto=product-ux')
