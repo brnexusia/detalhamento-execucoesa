@@ -622,7 +622,7 @@ export default function SocialFeed() {
         <div className="feed-sheet-body">
           {cartItems.length ? cartItems.map((item) => <article className="feed-cart-item" key={item.key}>
             <div className="feed-cart-thumb">{item.product.mediaType === 'image' && productMediaCandidates(item.product).length ? <FeedImage product={item.product}/> : <Play size={18}/>}</div>
-            <div><strong>{item.product.name}</strong><small>{Object.entries(item.selections).map(([key, value]) => `${key}: ${value}`).join(' · ') || 'Sem variação'}</small><span>{money.format(item.product.price)}</span></div>
+            <div><strong>{item.product.name}</strong><small>{Object.entries(item.selections).map(([key, value]) => `${key}: ${value}`).join(' · ') || 'Sem variação'}</small><span>{money.format(Number(item.product.price||0))}</span></div>
             <div className="feed-cart-qty"><button onClick={() => changeCartQuantity(item.key, -1)}><Minus size={14}/></button><b>{item.quantity}</b><button onClick={() => changeCartQuantity(item.key, 1)}><Plus size={14}/></button></div>
           </article>) : <div className="feed-cart-empty">Seu carrinho desta loja está vazio.</div>}
         </div>
