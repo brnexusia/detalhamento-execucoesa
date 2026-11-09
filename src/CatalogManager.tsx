@@ -85,7 +85,7 @@ export default function CatalogManager({storeSlug,categories,onSelect,onChanged}
    if(!gold||busy||!name.trim())return
    setBusy(true);setError('')
    try{
-     const r=await api.createCatalog({name:name.trim(),kind,minimumOrder:minimum===''?null:Number(minimum)})
+     const r=await api.createCatalog({name:name.trim(),kind,customLabel:kind==='personalizado'?customLabel.trim():'',priceMode:kind==='personalizado'?priceMode:'base',minimumOrder:minimum===''?null:Number(minimum)})
      await load(r.catalog.id);setPane(null);onChanged()
    }catch(e){setError(e instanceof Error?e.message:'Erro ao criar o catálogo.')}
    finally{setBusy(false)}
@@ -95,7 +95,7 @@ export default function CatalogManager({storeSlug,categories,onSelect,onChanged}
    if(!selected||selected.lockedByPlan||busy)return
    setBusy(true);setError('')
    try{
-     await api.updateCatalog(selected.id,{name:name.trim(),kind,minimumOrder:minimum===''?null:Number(minimum),active})
+     await api.updateCatalog(selected.id,{name:name.trim(),kind,customLabel:kind==='personalizado'?customLabel.trim():'',priceMode:kind==='personalizado'?priceMode:'base',minimumOrder:minimum===''?null:Number(minimum),active})
      await load(selected.id);setPane(null);onChanged()
    }catch(e){setError(e instanceof Error?e.message:'Não foi possível salvar.')}
    finally{setBusy(false)}
@@ -155,7 +155,21 @@ export default function CatalogManager({storeSlug,categories,onSelect,onChanged}
          <footer><button type="button" onClick={()=>void addProducts()} disabled={!addChecked.length||busy}><Plus size={16}/> Incluir {addChecked.length} produto(s)</button></footer>
        </div>:<form onSubmit={pane==='create'?create:save}>
          <label>Nome<input maxLength={100} required autoFocus value={name} onChange={e=>setName(e.target.value)} disabled={busy||Boolean(selected?.lockedByPlan)&&pane==='settings'}/></label>
-         <label>Tipo<select value={kind} onChange={e=>setKind(e.target.value as Kind)} disabled={busy||Boolean(selected?.lockedByPlan)&&pane==='settings'}><option value="geral">Geral</option><option value="varejo">Varejo</option><option value="atacado">Caixa fechada</option></select></label>
+         <label>Tipo<select value={kind} onChange={e=>setKind(e.target.value as Kind)} disabled={busy||Boolean(selected?.lockedByPlan)&&pane==='settings'}>
+           <option value="varejo">Varejo</option>
+           <option value="atacado">Atacado</option>
+           <option value="caixa_fechada">Caixa fechada</option>
+           <option value="personalizado">Personalizado</option>
+         </select></label>
+         {kind==='personalizado'&&<>
+           <label>Nome do tipo personalizado<input maxLength={60} required value={customLabel} onChange={e=>setCustomLabel(e.target.value)} placeholder="Ex.: Consignado ou Sob encomenda" disabled={busy||Boolean(selected?.lockedByPlan)&&pane==='settings'}/></label>
+           <label>Qual preço utilizar?<select value={priceMode} onChange={e=>setPriceMode(e.target.value as typeof priceMode)} disabled={busy||Boolean(selected?.lockedByPlan)&&pane==='settings'}>
+             <option value="base">Preço principal do produto</option>
+             <option value="varejo">Preço de varejo</option>
+             <option value="atacado">Preço de atacado (principal)</option>
+             <option value="caixa_fechada">Preço por caixa fechada</option>
+           </select></label>
+         </>}
          <label>Pedido mínimo (R$)<input type="number" min="0" step="0.01" placeholder="Usar mínimo da loja" value={minimum} onChange={e=>setMinimum(e.target.value)} disabled={busy||Boolean(selected?.lockedByPlan)&&pane==='settings'}/></label>
          {pane==='settings'&&selected&&!selected.isDefault&&<label className="svx-catalog-dialog__check"><input type="checkbox" checked={active} onChange={e=>setActive(e.target.checked)} disabled={busy||selected.lockedByPlan}/> Catálogo publicado</label>}
          {pane==='settings'&&selected&&!selected.lockedByPlan&&<>
@@ -168,7 +182,7 @@ export default function CatalogManager({storeSlug,categories,onSelect,onChanged}
          </>}
          <footer>
            {pane==='settings'&&selected&&!selected.isDefault&&!selected.lockedByPlan&&<button type="button" className="danger" disabled={busy} onClick={()=>void remove()}><Trash2 size={15}/> Excluir catálogo</button>}
-           <button type="submit" disabled={busy||Boolean(selected?.lockedByPlan)&&pane==='settings'||!name.trim()}>{busy?'Salvando…':pane==='create'?'Criar catálogo':'Salvar alterações'}</button>
+           <button type="submit" disabled={busy||Boolean(selected?.lockedByPlan)&&pane==='settings'||!name.trim()||(kind==='personalizado'&&!customLabel.trim())}>{busy?'Salvando…':pane==='create'?'Criar catálogo':'Salvar alterações'}</button>
          </footer>
        </form>}
      </section>
