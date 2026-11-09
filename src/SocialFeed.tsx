@@ -239,7 +239,8 @@ const SocialPostCard = memo(function SocialPostCard({ post, cartCount, active, s
     try {
       const response = await fetch(`/api/social/posts/${post.id}/ask`, { method: 'POST' })
       const body = await response.json().catch(() => null)
-      if (response.ok && body?.whatsappUrl) window.open(body.whatsappUrl, '_blank', 'noopener,noreferrer')
+      if (response.status===401) onAdd(post)
+      else if (response.ok && body?.whatsappUrl) window.open(body.whatsappUrl, '_blank', 'noopener,noreferrer')
       else if (body?.error) showToast(body.error, 'error')
     } finally { setAsking(false) }
   }
