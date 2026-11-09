@@ -764,7 +764,7 @@ app.post(
   '/api/admin/products',
   auth,
   asyncRoute(async (req, res) => {
-    const store = await pool.query('SELECT id FROM stores WHERE owner_id=$1 LIMIT 1', [req.user.id])
+    const store = await pool.query('SELECT id,plan_tier FROM stores WHERE owner_id=$1 LIMIT 1', [req.user.id])
     const price = toMoney(req.body?.price)
     const retailPrice = req.body?.retailPrice == null || req.body.retailPrice === '' ? null : toMoney(req.body.retailPrice)
     const boxPrice = req.body?.boxPrice == null || req.body.boxPrice === '' ? null : toMoney(req.body.boxPrice)
@@ -777,7 +777,16 @@ app.post(
       return res.status(400).json({ error: 'Nome e preço são obrigatórios.' })
     }
 
-    const result = await pool.query(
+    const catalogId=String(req.body?.catalogId||'').trim().slice(0,100)
+    if(catalogId){
+      const existing=await pool.query('SELECT id,is_default FROM catalogs WHERE id=$1 AND store_id=$2',[catalogId,store.rows[0].id])
+      if(!existing.rowCount)return res.status(404).json({error:'Catálogo não encontrado.'})
+      if(!existing.rows[0].is_default&&store.rows[0].plan_tier!=='ouro')return res.status(403).json({error:'Catálogo adicional requer Gold.'})
+    }
+    const client=await pool.connect()
+    try{
+      await client.query('BEGIN')
+      const result = await client.query(
       `INSERT INTO products
        (id,store_id,sku,name,description,price,category,media_url,media_type,pack,variations,featured,active,retail_price,box_price,units_per_box)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
@@ -801,7 +810,16 @@ app.post(
         unitsPerBox,
       ],
     )
+    if(catalogId){
+      await client.query(`INSERT INTO catalog_products(catalog_id,product_id,visible)
+        SELECT c.id,$2,true FROM catalogs c WHERE c.id=$1 AND c.store_id=$3
+        ON CONFLICT(catalog_id,product_id) DO UPDATE SET visible=true,updated_at=now()`,
+        [catalogId,result.rows[0].id,store.rows[0].id])
+    }
+    await client.query('COMMIT')
     res.status(201).json({ product: { ...result.rows[0], price: Number(result.rows[0].price) } })
+    }catch(error){await client.query('ROLLBACK').catch(()=>{});throw error}
+    finally{client.release()}
   }),
 )
 
