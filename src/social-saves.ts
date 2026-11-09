@@ -1,5 +1,5 @@
 export type SocialSavedProduct={
- id:string;name:string;sku:string;category:string;mediaUrl:string;mediaType?:'image'|'video';
+ id:string;name:string;sku:string;category:string;mediaUrl:string;thumbnailUrl?:string;mediaType?:'image'|'video';
  store:{id?:string;slug:string;name:string;logoUrl?:string}
 }
 const KEY='shopvax-social-saves-v1'
