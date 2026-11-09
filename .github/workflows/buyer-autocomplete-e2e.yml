@@ -1,0 +1,50 @@
+name: ShopVax - autocomplete real mobile E2E
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/SocialDiscover.tsx'
+      - 'src/BuyerSearchAutocomplete.tsx'
+      - 'src/buyer-app.css'
+      - 'src/canvas.css'
+      - 'tests/shopvax-buyer-autocomplete.e2e.mjs'
+      - '.github/workflows/buyer-autocomplete-e2e.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/SocialDiscover.tsx'
+      - 'src/BuyerSearchAutocomplete.tsx'
+      - 'src/buyer-app.css'
+      - 'src/canvas.css'
+      - 'tests/shopvax-buyer-autocomplete.e2e.mjs'
+      - '.github/workflows/buyer-autocomplete-e2e.yml'
+permissions:
+  contents: read
+jobs:
+  autocomplete-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install app and Chromium for UI regression
+        run: |
+          npm install
+          npm install --no-save --no-audit --no-fund playwright@1.58.2
+          npx playwright install --with-deps chromium
+      - name: Start local frontend
+        run: |
+          npm run dev -- --host 127.0.0.1 > /tmp/shopvax-vite.log 2>&1 &
+          for i in {1..50}; do
+            if curl -fsS http://127.0.0.1:5173/buscar >/dev/null; then exit 0; fi
+            sleep .2
+          done
+          cat /tmp/shopvax-vite.log
+          exit 1
+      - name: Exercise real recommendations and Safari-like viewport
+        run: node tests/shopvax-buyer-autocomplete.e2e.mjs
+      - name: Print server log on failure
+        if: failure()
+        run: cat /tmp/shopvax-vite.log || true
