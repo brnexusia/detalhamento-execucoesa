@@ -60,6 +60,8 @@ try{
  // Catálogo recém-criado começa vazio; só mostra itens associados.
  const emptyRetail=await get('/api/public/store/'+gold.slug+'?catalog='+retail.slug)
  assert.equal((await emptyRetail.json()).products.length,0,'Catálogo Gold recém-criado não herda a base toda')
+ const notMember=await post('/api/business/orders',{storeSlug:gold.slug,catalogSlug:retail.slug,items:[{productId:product.id,quantity:2,selections:{}}]},'')
+ assert.equal(notMember.status,400,'Pedido direto não aceita produto que não pertence ao catálogo')
  const addRetail=await post('/api/admin/catalogs/'+retail.id+'/members',{ids:[product.id],action:'add'},gold.cookie)
  assert.equal(addRetail.status,200,'Produto associado explicitamente ao catálogo Varejo')
  const boxPublic=await get('/api/public/store/'+gold.slug+'?catalog='+def.slug)
