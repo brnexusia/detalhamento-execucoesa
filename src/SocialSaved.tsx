@@ -10,7 +10,7 @@ function go(path:string,e:React.MouseEvent<HTMLAnchorElement>){
  e.preventDefault();buyerGo(path)
 }
 export default function SocialSaved(){
- const [tab,setTab]=useState<'products'|'stores'>('products')
+ const [tab,setTab]=useState<'products'|'stores'>(()=>new URLSearchParams(location.search).get('aba')==='lojas'?'stores':'products')
  const [products,setProducts]=useState<SocialSavedProduct[]>(localSocialSaved)
  const [stores,setStores]=useState<SocialFollowedStore[]>([])
  const [authenticated,setAuthenticated]=useState(false)
