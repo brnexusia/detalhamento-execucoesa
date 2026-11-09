@@ -1,4 +1,4 @@
-export type SocialOffer = { id: string; slug: string; name: string; kind: 'varejo'|'atacado'|'geral'; price: number; minimumOrder: number; unitsPerBox: number }
+export type SocialOffer = { id: string; slug: string; name: string; kind: 'varejo'|'atacado'|'geral'|'caixa_fechada'|'personalizado'; customLabel?: string; priceMode?: 'base'|'varejo'|'atacado'|'caixa_fechada'; price: number; minimumOrder: number; unitsPerBox: number }
 export type SocialCartLine = { key: string; productId: string; name: string; sku: string; quantity: number; price: number; selections: Record<string,string>; image: string; unitsPerBox: number }
 export type SocialCart = { catalog: SocialOffer; items: SocialCartLine[] }
 
