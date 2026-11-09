@@ -64,6 +64,12 @@ try{
  assert.equal(boxPayload.store.minimumOrder,60)
  assert.equal(boxPayload.products[0].price,100,'Vitrine de caixa fechada usa preço correto')
  assert.equal(boxPayload.products[0].unitsPerBox,5)
+ // Quem chega pelo link de catálogo compra normalmente, sem login social.
+ const offersGuest=await get('/api/social/stores/'+gold.slug+'/products/'+product.id+'/offers')
+ assert.equal(offersGuest.status,401,'Preços do ambiente social só aparecem após identificação')
+ assert.equal((await offersGuest.json()).code,'BUYER_PROFILE_REQUIRED')
+ const socialGuest=await post('/api/social/orders',{storeSlug:gold.slug,catalogSlug:retail.slug,items:[{productId:product.id,quantity:2,selections:{}}]},'')
+ assert.equal(socialGuest.status,401,'Pedido social não pode ignorar o cadastro do comprador')
  const retailPublic=await get('/api/public/store/'+gold.slug+'?catalog='+retail.slug)
  assert.equal(retailPublic.status,200)
  const retailPayload=await retailPublic.json()
