@@ -161,6 +161,8 @@ jobs:
         run: node --check server/onboarding-growth-hooks.mjs
       - name: Build original product tour video (B02)
         run: node scripts/generate-shopvax-tour.mjs
+      - name: Comprador mobile e busca - regressão sem banco
+        run: node --test server/buyer-discovery-search.test.mjs tests/buyer-mobile-contract.test.mjs
       - name: Build
         run: npm run build
       - name: Show production bundles
