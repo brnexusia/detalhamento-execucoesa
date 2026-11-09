@@ -4,8 +4,18 @@ import { dirname } from 'node:path'
 
 /* Impressão digital do conteúdo realmente empacotado.
    Não depende de .git, variáveis do EasyPanel nem SHA informado manualmente. */
-export const uiRevision = 'shopvax-mobile-safari-20261101-v3'
+export const uiRevision = 'shopvax-buyer-layout-search-20261109-v4'
 export const sourceFiles = [
+  'src/App.tsx',
+  'src/SocialDiscover.tsx',
+  'src/SocialSaved.tsx',
+  'src/SocialCarts.tsx',
+  'src/GlobalBuyerAccount.tsx',
+  'src/buyer-app.css',
+  'src/canvas.css',
+  'src/styles.css',
+  'server/buyer-discovery-hooks.mjs',
+  'server/buyer-discovery-search.mjs',
   'src/SocialFeed.tsx',
   'src/shopvax-social-feed-layout.css',
   'src/PublicStoreV2.tsx',

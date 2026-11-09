@@ -353,12 +353,25 @@
 }
 
 /* Layout móvel do comprador: isola o catálogo clássico e respeita a área segura. */
+/* Mesmo fundo para overscroll no Safari e área fora do conteúdo. */
+html:has(body.shopvax-buyer-page),
 body.shopvax-buyer-page,
 body.shopvax-buyer-page #root {background:var(--svx-paper,#F3F0E8)}
 body.shopvax-buyer-page {overscroll-behavior-y:none}
-body.shopvax-buyer-page #root {min-height:100dvh}
-main.buyer-screen {width:100%;max-width:none;min-height:100dvh;overflow-x:clip}
-.buyer-screen__inner {width:100%;min-width:0}
+body.shopvax-buyer-page #root {min-height:100svh}
+main.buyer-screen {
+  width:100%;
+  max-width:none;
+  min-height:100svh;
+  margin:0;
+  padding-top:clamp(20px,4vw,28px);
+  padding-right:max(18px,env(safe-area-inset-right));
+  padding-bottom:calc(84px + env(safe-area-inset-bottom));
+  padding-left:max(18px,env(safe-area-inset-left));
+  overflow-x:clip;
+  background:var(--svx-paper,#F3F0E8);
+}
+.buyer-screen__inner {width:100%;min-width:0;max-width:920px;margin:0 auto}
 .buyer-filters {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:16px 0 24px;align-items:end}
 .buyer-filters__title {grid-column:1/-1;display:flex;align-items:center;gap:8px;font:500 11px/1.2 var(--svx-font-mono,'Fragment Mono',monospace);color:var(--svx-muted-strong,#4D4943);text-transform:uppercase}
 .buyer-filter-field {display:flex;flex-direction:column;gap:7px;min-width:0}

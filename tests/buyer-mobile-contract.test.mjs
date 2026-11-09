@@ -6,7 +6,7 @@ test('CSS global não interfere nas margens do comprador',()=>{
  const css=read('src/styles.css')
  assert.equal(css.match(/main:not\(\.feed-shell\):not\(\.social-feed-list\):not\(\.buyer-screen\)/g)?.length,2)
  const buyer=read('src/buyer-app.css')
- assert.match(buyer,/main\.buyer-screen \{width:100%;max-width:none;min-height:100dvh/)
+ assert.match(buyer,/main\.buyer-screen \{[\s\S]*min-height:100svh/)
  assert.match(buyer,/body\.shopvax-buyer-page #root/)
 })
 test('ajuda flutuante não aparece no perfil do comprador',()=>{
@@ -20,4 +20,19 @@ test('filtros responsivos e botão de tentar novamente',()=>{
  assert.match(discover,/className="buyer-filter-field buyer-filter-field--mode"/)
  assert.match(discover,/htmlFor="svx-max"/)
  assert.match(discover,/setRetry/)
+})
+
+test('canvas storefront padding cannot override buyer page geometry',()=>{
+ const canvas=read('src/canvas.css')
+ assert.match(canvas,/\.app > main:not\(\.feed-shell\)/)
+ assert.doesNotMatch(canvas,/(?:^|\n)\s*main:not\(\.feed-shell\)\s*\{/)
+ const buyer=read('src/buyer-app.css')
+ assert.match(buyer,/html:has\(body\.shopvax-buyer-page\)/)
+ assert.match(buyer,/padding-bottom:calc\(84px \+ env\(safe-area-inset-bottom\)\)/)
+})
+test('UI build revision covers buyer and search source',()=>{
+ const file=read('scripts/build-ui-version.mjs')
+ for(const path of ['src/App.tsx','src/SocialDiscover.tsx','src/buyer-app.css','src/canvas.css','server/buyer-discovery-hooks.mjs']) {
+   assert.ok(file.includes("'"+path+"'"),path+' excluded from build identity')
+ }
 })
