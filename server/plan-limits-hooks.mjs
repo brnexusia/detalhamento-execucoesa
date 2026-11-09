@@ -63,10 +63,12 @@ async function ensureSchema() {
           minimum_order numeric(12,2),
           is_default boolean NOT NULL DEFAULT false,
           active boolean NOT NULL DEFAULT true,
+          explicit_membership boolean NOT NULL DEFAULT false,
           created_at timestamptz NOT NULL DEFAULT now(),
           updated_at timestamptz NOT NULL DEFAULT now(),
           UNIQUE(store_id,slug)
         );
+        ALTER TABLE catalogs ADD COLUMN IF NOT EXISTS explicit_membership boolean NOT NULL DEFAULT false;
         CREATE UNIQUE INDEX IF NOT EXISTS idx_catalog_default_per_store ON catalogs(store_id) WHERE is_default=true;
         CREATE TABLE IF NOT EXISTS catalog_products (
           catalog_id text NOT NULL REFERENCES catalogs(id) ON DELETE CASCADE,

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowRight, Boxes, Check, ChevronLeft, ChevronRight, Clipboard, CreditCard, Download, Eye, EyeOff, ExternalLink, ImagePlus, Link2, LogOut, Menu, MoreHorizontal, Package, Pencil, Plus, ReceiptText, Search, Settings, Store as StoreIcon, Trash2, TrendingUp, Upload, Users, X } from 'lucide-react'
-import { api } from './api'
+import { api, type AdminCatalog } from './api'
 import { isCatalogPhoto } from './catalog-photo-upload'
 import { listenAuthChanges } from './auth-session-sync'
 import ShopvaxDashboard from './ShopvaxDashboard'
@@ -78,6 +78,7 @@ export default function AdminApp() {
   const [sellerModal, setSellerModal] = useState<Partial<AdminSeller> | null>(null)
   const [query, setQuery] = useState('')
   const [productsVersion, setProductsVersion] = useState(0)
+  const [createInCatalogId,setCreateInCatalogId] = useState('')
   const [visitedProducts, setVisitedProducts] = useState(section === 'produtos')
   const [storeDirty, setStoreDirty] = useState(false)
   const loadVersion = useRef(0)
@@ -157,10 +158,10 @@ export default function AdminApp() {
       setError('Não foi possível encerrar a sessão. Tente novamente.')
     }
   }
-  const deleteProductsBulk = async (ids: string[]) => {
+  const deleteProductsBulk = async (ids: string[],confirmed=false) => {
     if (!ids.length) return false
     const label = countLabel(ids.length, 'produto selecionado', 'produtos selecionados')
-    if (!(await confirmAction(`Excluir ${label}? Esta ação não pode ser desfeita.`, 'Excluir produtos em massa', 'Excluir selecionados'))) return false
+    if (!confirmed && !(await confirmAction(`Excluir ${label}? Esta ação não pode ser desfeita.`, 'Excluir produtos em massa', 'Excluir selecionados'))) return false
     setError('')
     try {
       const result = await api.deleteProducts(ids)
@@ -210,13 +211,13 @@ export default function AdminApp() {
         {notice && <div className="toast"><Check size={16} /> {notice}</div>}
         {error && <div className="panel-error">{error}</div>}
         {section === 'inicio' && (data.store.onboarding_palette_selected === false && !totalProducts && !skipFirstRun && sessionStorage.getItem('shopvax:firstrun-skip:' + data.store.id) !== '1' ? <ShopvaxFirstRun storeName={data.store.name} initialAccent={data.store.accent} onSave={async (accent) => { await api.updateStore({ accent, completePaletteSetup: true }); await load() }} onSkip={() => { sessionStorage.setItem('shopvax:firstrun-skip:' + data.store.id, '1'); setSkipFirstRun(true) }} onOpenThemes={() => { sessionStorage.setItem('shopvax:firstrun-skip:' + data.store.id, '1'); setSkipFirstRun(true); void changeSection('temas') }} /> : <Dashboard data={data} incomplete={incomplete} storeUrl={storeUrl} onSection={changeSection} onCopy={copy} />)}
-        {(section === 'produtos' || visitedProducts) && <div hidden={section !== 'produtos'}>{section==='produtos'&&<CatalogManager storeSlug={data.store.slug} categories={(data.productCategories||[]).map(x=>x.category)} />}<Products data={data} revision={productsVersion} query={query} setQuery={setQuery} onCreate={() => setProductModal({ ...blankProduct })} onEdit={(product) => setProductModal(productDraft(product))} onVisibility={async (product) => { await api.setProductVisibility(product.id, !product.active); flash(product.active ? 'Produto escondido da loja e do feed.' : 'Produto publicado novamente.'); refreshCatalog() }} onDelete={async (product) => { if (!(await confirmAction(`Excluir ${product.name}? Esta ação não pode ser desfeita.`, 'Excluir produto', 'Excluir'))) return; await api.deleteProduct(product.id); flash('Produto excluído.'); refreshCatalog() }} onBulkDelete={deleteProductsBulk} onDownloadPdf={downloadProductsPdf} /></div>}
+        {(section === 'produtos' || visitedProducts) && <div hidden={section !== 'produtos'}><Products data={data} revision={productsVersion} query={query} setQuery={setQuery} onCreate={() => setProductModal({ ...blankProduct })} onCatalogChange={(catalog)=>setCreateInCatalogId(catalog?.id||'')} onRefreshed={refreshCatalog} onEdit={(product) => setProductModal(productDraft(product))} onVisibility={async (product) => { await api.setProductVisibility(product.id, !product.active); flash(product.active ? 'Produto escondido da loja e do feed.' : 'Produto publicado novamente.'); refreshCatalog() }} onDelete={async (product) => { if (!(await confirmAction(`Excluir ${product.name}? Esta ação não pode ser desfeita.`, 'Excluir produto', 'Excluir'))) return; await api.deleteProduct(product.id); flash('Produto excluído.'); refreshCatalog() }} onBulkDelete={deleteProductsBulk} onDownloadPdf={downloadProductsPdf} /></div>}
         {section === 'pedidos' && <Orders data={data} onUpdated={load} />}
         {section === 'vendedoras' && <Sellers data={data} baseUrl={baseUrl} onCopy={copy} onCreate={() => setSellerModal({ name: '', phone: '', slug: '', is_active: true })} onEdit={(seller) => setSellerModal({ ...seller })} onDelete={async (seller) => { if (!(await confirmAction(`Excluir ${seller.name}? O link individual deixará de funcionar.`, 'Excluir vendedora', 'Excluir'))) return; await api.deleteSeller(seller.id); flash('Vendedora excluída.'); load() }} />}
         {section === 'temas' && <ShopvaxThemesPanel data={data} onSaved={() => { flash('Tema e paleta atualizados.'); void load(true) }} />}
          {section === 'loja' && <><StoreSettings data={data} onSaved={() => { flash('Loja atualizada.'); load() }} onCopy={copy} onDirtyChange={setStoreDirty} /><CommercialSettingsPanel embedded/><StoreTools data={data}/></>}
       </main>
-      {productModal && <ProductEditor draft={productModal} setDraft={setProductModal} onClose={() => setProductModal(null)} onSaved={() => { setProductModal(null); flash(productModal.id ? 'Produto atualizado.' : 'Produto cadastrado.'); refreshCatalog() }} />}
+      {productModal && <ProductEditor targetCatalogId={createInCatalogId} draft={productModal} setDraft={setProductModal} onClose={() => setProductModal(null)} onSaved={() => { setProductModal(null); flash(productModal.id ? 'Produto atualizado.' : 'Produto cadastrado.'); refreshCatalog() }} />}
       {sellerModal && <SellerEditor draft={sellerModal} setDraft={setSellerModal} storeSlug={data.store.slug} onClose={() => setSellerModal(null)} onSaved={() => { setSellerModal(null); flash(sellerModal.id ? 'Vendedora atualizada.' : 'Vendedora cadastrada.'); load() }} />}
     </div>
   )
@@ -226,11 +227,20 @@ function Dashboard({ data, incomplete, storeUrl, onSection, onCopy }: { data: Ad
   return <ShopvaxDashboard data={data} incomplete={incomplete} storeUrl={storeUrl} onSection={onSection} onCopy={onCopy}/>
 }
 
-function Products({ data, revision, query, setQuery, onCreate, onEdit, onVisibility, onDelete, onBulkDelete, onDownloadPdf }: { data: AdminBootstrap; revision: number; query: string; setQuery: (value: string) => void; onCreate: () => void; onEdit: (p: AdminProduct) => void; onVisibility: (p: AdminProduct) => void | Promise<void>; onDelete: (p: AdminProduct) => void; onBulkDelete: (ids: string[]) => Promise<boolean>; onDownloadPdf: () => Promise<void> }) {
+function Products({ data, revision, query, setQuery, onCreate, onEdit, onVisibility, onDelete, onBulkDelete, onDownloadPdf, onCatalogChange, onRefreshed }: { data: AdminBootstrap; revision: number; query: string; setQuery: (value: string) => void; onCreate: () => void; onEdit: (p: AdminProduct) => void; onVisibility: (p: AdminProduct) => void | Promise<void>; onDelete: (p: AdminProduct) => void; onBulkDelete: (ids: string[],confirmed?:boolean) => Promise<boolean>; onDownloadPdf: () => Promise<void>; onCatalogChange:(c:AdminCatalog|null)=>void; onRefreshed:()=>void }) {
   const [page, setPage] = useState(1)
   const [activeCategory, setActiveCategory] = useState('Todas')
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [activeCatalog,setActiveCatalog]=useState<AdminCatalog|null>(null)
+  const [allMatching,setAllMatching]=useState(false)
+  const [excludedIds,setExcludedIds]=useState<string[]>([])
+  const [intent,setIntent]=useState<{scope:'selected'|'matching'|'store'|'catalog';count:number}|null>(null)
+  const [confirmation,setConfirmation]=useState('')
+  const [bulkJobId,setBulkJobId]=useState(()=>{try{return localStorage.getItem('shopvax:product-bulk-job:'+data.store.id)||''}catch{return ''}})
+  const [jobProgress,setJobProgress]=useState<{total:number;processed:number;status:string}|null>(null)
+  const [jobError,setJobError]=useState('')
+
   const [bulkBusy, setBulkBusy] = useState(false)
   const [pdfBusy, setPdfBusy] = useState(false)
   const [visibilityBusy, setVisibilityBusy] = useState<string | null>(null)
@@ -246,10 +256,12 @@ function Products({ data, revision, query, setQuery, onCreate, onEdit, onVisibil
   const categories = data.productCategories || []
   const visible = query !== searchTerm || pageError ? [] : products
   const selected = new Set(selectedIds)
-  const allLoadedSelected = visible.length > 0 && visible.every((product) => selected.has(product.id))
+  const effectiveSelected=allMatching?Math.max(0,total-excludedIds.length):selectedIds.length
+  const isSelected=(id:string)=>allMatching?!excludedIds.includes(id):selected.has(id)
+  const allLoadedSelected=visible.length>0&&visible.every(product=>isSelected(product.id))
 
   useEffect(() => { window.dispatchEvent(new Event('shopvax:products-ready')) }, [])
-  useEffect(() => { setPage(1); setProducts([]); setSelectedIds([]) }, [query, activeCategory, revision])
+  useEffect(() => { setPage(1); setProducts([]); setSelectedIds([]); setAllMatching(false);setExcludedIds([]) }, [query, activeCategory, activeCatalog?.id, revision])
   useEffect(() => {
     const timeout = window.setTimeout(() => setSearchTerm(query), 250)
     return () => window.clearTimeout(timeout)
@@ -258,7 +270,7 @@ function Products({ data, revision, query, setQuery, onCreate, onEdit, onVisibil
     let active = true
     setPageBusy(true)
     setPageError('')
-    void api.listAdminProducts({ page, limit: pageSize, q: searchTerm, category: activeCategory })
+    void api.listAdminProducts({ page, limit: pageSize, q: searchTerm, category: activeCategory, catalogId: activeCatalog?.id })
       .then((response) => {
         if (!active) return
         setProducts((previous) => page === 1 ? response.products : [
@@ -270,22 +282,96 @@ function Products({ data, revision, query, setQuery, onCreate, onEdit, onVisibil
       .catch((err) => { if (active) setPageError(err instanceof Error ? err.message : 'Falha ao carregar produtos.') })
       .finally(() => { if (active) setPageBusy(false) })
     return () => { active = false }
-  }, [page, searchTerm, activeCategory, revision, data.store.id, retry])
+  }, [page, searchTerm, activeCategory, activeCatalog?.id, revision, data.store.id, retry])
 
-  const toggleSelectionMode = () => { setSelectionMode((current) => !current); setSelectedIds([]) }
-  const toggleProduct = (id: string) => setSelectedIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])
-  const toggleLoaded = () => {
-    const ids = visible.map((item) => item.id)
-    setSelectedIds((current) => allLoadedSelected ? current.filter((id) => !ids.includes(id)) : Array.from(new Set([...current, ...ids])))
+  const toggleSelectionMode=()=>{setSelectionMode(v=>!v);setSelectedIds([]);setAllMatching(false);setExcludedIds([])}
+  const toggleProduct=(id:string)=>{
+    if(allMatching)setExcludedIds(list=>list.includes(id)?list.filter(x=>x!==id):[...list,id])
+    else setSelectedIds(list=>list.includes(id)?list.filter(x=>x!==id):[...list,id])
   }
-  const removeSelected = async () => {
-    if (!selectedIds.length || bulkBusy || selectedIds.length > 5000) return
+  const toggleLoaded=()=>{
+    const ids=visible.map(item=>item.id)
+    if(allMatching)setExcludedIds(list=>allLoadedSelected?Array.from(new Set([...list,...ids])):list.filter(id=>!ids.includes(id)))
+    else setSelectedIds(list=>allLoadedSelected?list.filter(id=>!ids.includes(id)):Array.from(new Set([...list,...ids])))
+  }
+  const ask=(scope:'selected'|'matching'|'store'|'catalog',count:number)=>{
+    if(!count||bulkBusy||bulkJobId)return
+    setIntent({scope,count});setConfirmation('');setActionError('')
+  }
+  const askEmptyCatalog=async()=>{
+    if(!activeCatalog||activeCatalog.isDefault)return
     setBulkBusy(true)
-    try {
-      const deleted = await onBulkDelete(selectedIds)
-      if (deleted) { setSelectedIds([]); setSelectionMode(false) }
-    } finally { setBulkBusy(false) }
+    try{
+      const r=await api.listAdminProducts({page:1,limit:1,catalogId:activeCatalog.id})
+      ask('catalog',r.pagination.total)
+    }catch(e){setActionError(e instanceof Error?e.message:'Não foi possível verificar o catálogo.')}
+    finally{setBulkBusy(false)}
   }
+  const confirmPhrase=(scope:'selected'|'matching'|'store'|'catalog')=>
+    scope==='store'?'EXCLUIR TUDO':activeCatalog&&!activeCatalog.isDefault?'ESVAZIAR CATÁLOGO':'EXCLUIR SELEÇÃO'
+  const executeBulk=async()=>{
+    if(!intent||confirmation!==confirmPhrase(intent.scope)||bulkBusy)return
+    setBulkBusy(true);setActionError('')
+    try{
+      if(intent.scope==='selected'&&!allMatching){
+        if(!selectedIds.length)return
+        if(activeCatalog&&!activeCatalog.isDefault){
+          for(let i=0;i<selectedIds.length;i+=500)
+            await api.updateCatalogMembers(activeCatalog.id,selectedIds.slice(i,i+500),'remove')
+          onRefreshed()
+        }else{
+          const success=await onBulkDelete(selectedIds,true)
+          if(!success)return
+        }
+        setSelectedIds([]);setSelectionMode(false);setIntent(null)
+      }else{
+        const scope=intent.scope
+        const remove=scope!=='store'&&Boolean(activeCatalog&&!activeCatalog.isDefault)
+        const filtered=scope==='matching'
+        const response=await api.startProductBulkJob({
+          mode:remove?'remove-members':'delete-products',
+          catalogId:scope==='store'?null:activeCatalog?.id||null,
+          q:filtered?searchTerm:'',
+          category:filtered&&activeCategory!=='Todas'?activeCategory:'',
+          excludeIds:filtered?excludedIds:[],
+          expectedTotal:intent.count,
+          confirmation:confirmPhrase(scope),
+        })
+        const id=response.job.id
+        try{localStorage.setItem('shopvax:product-bulk-job:'+data.store.id,id)}catch{}
+        setBulkJobId(id);setJobProgress({total:response.job.total,processed:0,status:'queued'})
+        setIntent(null);setSelectionMode(false);setAllMatching(false);setSelectedIds([]);setExcludedIds([])
+      }
+    }catch(e){setActionError(e instanceof Error?e.message:'Não foi possível iniciar a operação.')}
+    finally{setBulkBusy(false)}
+  }
+  const removeOne=async(product:AdminProduct)=>{
+    if(!activeCatalog||activeCatalog.isDefault)return onDelete(product)
+    if(!(await confirmAction('Remover '+product.name+' deste catálogo? Ele continuará na base da loja.','Remover do catálogo','Remover')))return
+    try{await api.updateCatalogMembers(activeCatalog.id,[product.id],'remove');onRefreshed()}
+    catch(e){setActionError(e instanceof Error?e.message:'Não foi possível remover do catálogo.')}
+  }
+  useEffect(()=>{
+    if(!bulkJobId)return
+    let valid=true
+    const key='shopvax:product-bulk-job:'+data.store.id
+    const tick=async()=>{
+      try{
+        const response=await api.productBulkJob(bulkJobId)
+        if(!valid)return
+        setJobProgress(response.job)
+        if(response.job.status==='completed'||response.job.status==='failed'){
+          try{localStorage.removeItem(key)}catch{}
+          setBulkJobId('')
+          if(response.job.status==='failed')setJobError(response.job.error||'Operação interrompida. Confira o que foi processado.')
+          else {setJobError('');onRefreshed()}
+        }
+      }catch(e){if(valid)setJobError(e instanceof Error?e.message:'Erro ao acompanhar exclusão.')}
+    }
+    void tick()
+    const timer=window.setInterval(()=>void tick(),1800)
+    return()=>{valid=false;window.clearInterval(timer)}
+  },[bulkJobId,data.store.id])
   const generatePdf = async () => {
     if (pdfBusy || !storeTotal) return
     setPdfBusy(true)
@@ -318,33 +404,81 @@ function Products({ data, revision, query, setQuery, onCreate, onEdit, onVisibil
   return <div className="panel-page svx-products">
     <header className="page-title svx-products__hero">
       <div className="svx-products__intro">
-        <span className="svx-products__eyebrow">{storeTotal} PRODUTOS{data.activeProductCount == null ? '' : ' · ' + data.activeProductCount + ' APARECEM NA LOJA'}</span>
-        <h1>Produtos</h1>
+        <span className="svx-products__eyebrow">{storeTotal} PRODUTOS NA BASE{data.activeProductCount == null ? '' : ' · ' + data.activeProductCount + ' APARECEM NA LOJA'}</span>
+        <div className="svx-products__catalog-heading"><h1>Produtos</h1>
+          <CatalogManager storeSlug={data.store.slug} categories={(data.productCategories||[]).map(x=>x.category)}
+            onSelect={(catalog)=>{setActiveCatalog(catalog);onCatalogChange(catalog)}}
+            onChanged={onRefreshed}/>
+        </div>
       </div>
       <div className="page-title-actions svx-products__top-actions">
-        <button type="button" className="svx-products__text-action" disabled={!storeTotal || pdfBusy} onClick={() => void generatePdf()}><Download size={15} />{pdfBusy ? 'Gerando PDF…' : 'Catálogo em PDF'}</button>
         <button type="button" className="primary-action" onClick={onCreate}>Novo produto <ArrowRight size={18} /></button>
       </div>
     </header>
     <div className="svx-products__toolbar">
       <nav className="svx-products__categories" aria-label="Filtrar produtos por categoria">
         <button type="button" aria-pressed={activeCategory === 'Todas'} className={activeCategory === 'Todas' ? 'is-active' : ''} onClick={() => setActiveCategory('Todas')}>Todos <small>{storeTotal}</small></button>
-        {categories.map((item) => <button type="button" key={item.category} aria-pressed={activeCategory === item.category} className={activeCategory === item.category ? 'is-active' : ''} onClick={() => setActiveCategory(item.category)}>{item.category} <small>{item.count}</small></button>)}
+        {categories.map((item) => <button type="button" key={item.category} aria-pressed={activeCategory === item.category} className={activeCategory === item.category ? 'is-active' : ''} onClick={() => setActiveCategory(item.category)}>{item.category} {(!activeCatalog||activeCatalog.isDefault)&&<small>{item.count}</small>}</button>)}
       </nav>
       <label className="svx-products__search"><Search size={16} aria-hidden="true" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nome ou referência" aria-label="Buscar produto por nome, referência ou categoria" /></label>
     </div>
-    {selectionMode && <div className="product-bulk-toolbar">
-      <label><input type="checkbox" checked={allLoadedSelected} onChange={toggleLoaded} disabled={!visible.length} /><span>Selecionar os {visible.length} produtos carregados</span></label>
-      <div><span>{countLabel(selectedIds.length, 'selecionado')}</span><button type="button" className="secondary-action danger" disabled={!selectedIds.length || bulkBusy || selectedIds.length > 5000} onClick={() => void removeSelected()}><Trash2 size={15}/>{bulkBusy ? 'Excluindo…' : 'Excluir selecionados'}</button></div>
+    <div className="product-bulk-toolbar product-bulk-toolbar--sticky" aria-label="Ações em produtos">
+      <div className="product-bulk-toolbar__primary">
+        <button type="button" className="svx-products__select" disabled={bulkBusy||Boolean(bulkJobId)} onClick={toggleSelectionMode}>
+          {selectionMode?'Cancelar seleção':'Selecionar produtos'}
+        </button>
+        {selectionMode&&<>
+          <label><input type="checkbox" checked={allLoadedSelected} onChange={toggleLoaded} disabled={!visible.length||Boolean(bulkJobId)}/>
+            <span>{allMatching?'Produtos desta página':'Selecionar '+visible.length+' carregados'}</span></label>
+          <span>{effectiveSelected.toLocaleString('pt-BR')} selecionado(s)</span>
+          {!allMatching&&total>visible.length&&<button type="button" className="svx-products__all-results" onClick={()=>{setAllMatching(true);setSelectedIds([]);setExcludedIds([])}}>
+            Selecionar todos os {total.toLocaleString('pt-BR')} resultados
+          </button>}
+          {allMatching&&<button type="button" className="svx-products__all-results" onClick={()=>{setAllMatching(false);setExcludedIds([]);setSelectedIds([])}}>Selecionar apenas carregados</button>}
+          <button type="button" className="secondary-action danger" disabled={!effectiveSelected||bulkBusy||Boolean(bulkJobId)} onClick={()=>ask(allMatching?'matching':'selected',effectiveSelected)}>
+            <Trash2 size={15}/>{activeCatalog&&!activeCatalog.isDefault?'Remover do catálogo':'Excluir selecionados'}
+          </button>
+        </>}
+      </div>
+      <div className="product-bulk-toolbar__destructive">
+        {activeCatalog&&!activeCatalog.isDefault
+          ? <button type="button" className="svx-products__erase" disabled={bulkBusy||Boolean(bulkJobId)||!total&&!storeTotal} onClick={()=>void askEmptyCatalog()}>
+              Esvaziar catálogo
+            </button>
+          : <button type="button" className="svx-products__erase" disabled={bulkBusy||Boolean(bulkJobId)||!storeTotal} onClick={()=>ask('store',storeTotal)}>
+              Excluir tudo da loja
+            </button>}
+      </div>
+    </div>
+    {bulkJobId&&jobProgress&&<div className="svx-products__job" role="status">
+      <strong>{jobProgress.status==='queued'?'Preparando operação…':'Processando produtos…'}</strong>
+      <span>{jobProgress.processed.toLocaleString('pt-BR')} de {jobProgress.total.toLocaleString('pt-BR')}</span>
+      <progress max={Math.max(1,jobProgress.total)} value={jobProgress.processed}/>
+      <small>Você pode sair da página. A operação continua no servidor.</small>
     </div>}
+    {jobError&&<div className="panel-error" role="alert">{jobError}<button type="button" onClick={()=>setJobError('')}>Fechar</button></div>}
     {actionError && <div className="panel-error" role="alert">{actionError}<button type="button" onClick={() => setActionError('')}>Fechar</button></div>}
+    {intent&&<div className="svx-products__confirm-layer">
+      <button type="button" className="svx-products__confirm-backdrop" aria-label="Fechar confirmação" onClick={()=>!bulkBusy&&setIntent(null)}/>
+      <section role="dialog" aria-modal="true" aria-labelledby="svx-bulk-title" className="svx-products__confirm-card">
+        <h2 id="svx-bulk-title">{intent.scope==='store'?'Excluir todos os produtos da loja?':activeCatalog&&!activeCatalog.isDefault?'Remover produtos do catálogo?':'Excluir produtos?'}</h2>
+        <p><strong>{intent.count.toLocaleString('pt-BR')} produto(s)</strong> {intent.scope==='store'?'serão apagados de toda a loja, de todos os catálogos.':activeCatalog&&!activeCatalog.isDefault?'serão retirados apenas do catálogo '+activeCatalog.name+'. A base da loja será preservada.':'serão excluídos da base da loja e de todos os catálogos.'}</p>
+        {intent.scope==='store'&&<p className="svx-products__confirm-warning">Esta ação é irreversível. Pedidos anteriores permanecem registrados, mas os produtos serão removidos.</p>}
+        <label>Digite <strong>{confirmPhrase(intent.scope)}</strong> para confirmar
+          <input autoFocus autoComplete="off" value={confirmation} onChange={e=>setConfirmation(e.target.value)} aria-label="Frase de confirmação"/>
+        </label>
+        <footer><button type="button" onClick={()=>setIntent(null)} disabled={bulkBusy}>Cancelar</button>
+          <button type="button" className="danger" disabled={bulkBusy||confirmation!==confirmPhrase(intent.scope)} onClick={()=>void executeBulk()}>{bulkBusy?'Processando…':'Confirmar operação'}</button></footer>
+      </section>
+    </div>}
+
     <div className="svx-products__table" role="table" aria-label="Produtos cadastrados" aria-busy={pageBusy}>
       <div className="svx-products__headings" role="row">
         <span role="columnheader">Produto</span><span role="columnheader">Categoria</span><span role="columnheader">Grade</span><span role="columnheader">Preço</span><span role="columnheader">Na loja</span><span role="columnheader">Ações</span>
       </div>
-      {visible.map((product) => <article role="row" className={'product-admin-card' + (selected.has(product.id) ? ' is-selected' : '')} key={product.id}>
+      {visible.map((product) => <article role="row" className={'product-admin-card' + (isSelected(product.id)&&selectionMode ? ' is-selected' : '')} key={product.id}>
         <div className="svx-products__product" role="cell">
-          {selectionMode && <label className="product-select-control"><input type="checkbox" checked={selected.has(product.id)} onChange={() => toggleProduct(product.id)} /><span className="sr-only">Selecionar {product.name}</span></label>}
+          {selectionMode && <label className="product-select-control"><input type="checkbox" checked={isSelected(product.id)} onChange={() => toggleProduct(product.id)} /><span className="sr-only">Selecionar {product.name}</span></label>}
           <div className="product-admin-card__media"><AdminProductMedia product={product}/></div>
           <div className="svx-products__name-ref"><div className="svx-products__name-line"><strong>{product.name}</strong>{product.featured && <span className="svx-products__featured">Destaque</span>}</div><small>{product.sku ? 'REF ' + product.sku : 'SEM REFERÊNCIA'}</small></div>
         </div>
@@ -352,13 +486,13 @@ function Products({ data, revision, query, setQuery, onCreate, onEdit, onVisibil
         <div className="svx-products__grade" role="cell"><span className="svx-products__mobile-label">Grade</span>{gradeLabel(product)}</div>
         <div className="svx-products__price" role="cell"><span className="svx-products__mobile-label">Preço</span><small>R$</small><strong>{numberPrice.format(product.price)}</strong></div>
         <div className="svx-products__visibility" role="cell"><button type="button" className="svx-products__switch" role="switch" aria-checked={product.active} aria-label={(product.active ? 'Ocultar ' : 'Mostrar ') + product.name + ' na loja'} disabled={visibilityBusy !== null} onClick={() => void toggleVisibility(product)}><span className="svx-products__track" aria-hidden="true"><span /></span><span>{visibilityBusy === product.id ? 'Salvando…' : product.active ? 'Visível' : 'Oculto'}</span></button></div>
-        <div className="svx-products__actions" role="cell"><button type="button" className="svx-products__edit" onClick={() => onEdit(product)}>Editar</button><details className="svx-products__more"><summary aria-label={'Mais ações de ' + product.name} title="Mais ações"><MoreHorizontal size={18} aria-hidden="true" /></summary><button type="button" className="svx-products__delete" onClick={() => onDelete(product)}><Trash2 size={14} /> Excluir</button></details></div>
+        <div className="svx-products__actions" role="cell"><button type="button" className="svx-products__edit" onClick={() => onEdit(product)}>Editar</button><details className="svx-products__more"><summary aria-label={'Mais ações de ' + product.name} title="Mais ações"><MoreHorizontal size={18} aria-hidden="true" /></summary><button type="button" className="svx-products__delete" onClick={() => void removeOne(product)}><Trash2 size={14} /> {activeCatalog&&!activeCatalog.isDefault?'Remover do catálogo':'Excluir'}</button></details></div>
       </article>)}
     </div>
     {pageError && <div className="panel-error" role="alert">{pageError}<button type="button" onClick={() => setRetry((value) => value + 1)}>Tentar novamente</button></div>}
     {(pageBusy || query !== searchTerm) && !visible.length && <ShopvaxLoading compact label="Carregando produtos…" />}
-    {!pageBusy && query === searchTerm && !pageError && !visible.length && <div className="admin-empty"><Package size={30}/><h2>{storeTotal ? 'Nenhum produto encontrado.' : 'Cadastre seu primeiro produto.'}</h2><p>Você pode usar fotos ou vídeo, criar variações e controlar estoque na mesma edição.</p><button className="primary-action" onClick={onCreate}><Plus size={18} /> Cadastrar produto</button></div>}
-    {(total > 0 || storeTotal > 0) && <footer className="svx-products__footer"><span>{visible.length} DE {total} PRODUTOS</span><div><button type="button" className="svx-products__select" disabled={!visible.length || bulkBusy} onClick={toggleSelectionMode}>{selectionMode ? 'Cancelar seleção' : 'Selecionar produtos'}</button>{visible.length < total && <button type="button" className="svx-products__load-more" disabled={pageBusy || !!pageError} onClick={() => setPage((value) => value + 1)}>{pageBusy ? 'Carregando…' : 'Ver mais produtos'}</button>}</div></footer>}
+    {!pageBusy && query === searchTerm && !pageError && !visible.length && <div className="admin-empty"><Package size={30}/><h2>{activeCatalog&&!activeCatalog.isDefault?'Nenhum produto neste catálogo.':storeTotal?'Nenhum produto encontrado.':'Cadastre seu primeiro produto.'}</h2><p>Você pode usar fotos ou vídeo, criar variações e controlar estoque na mesma edição.</p><button className="primary-action" onClick={onCreate}><Plus size={18} /> Cadastrar produto</button></div>}
+    {(total > 0 || storeTotal > 0) && <footer className="svx-products__footer"><span>{visible.length} DE {total} PRODUTOS</span><div>{visible.length < total && <button type="button" className="svx-products__load-more" disabled={pageBusy || !!pageError} onClick={() => setPage((value) => value + 1)}>{pageBusy ? 'Carregando…' : 'Ver mais produtos'}</button>}</div></footer>}
   </div>
 }
 
@@ -431,7 +565,7 @@ function StoreTools({ data }: { data: AdminBootstrap }) {
   </div>{!prataPlus && <div className="plan-context-note"><strong>Plano Bronze</strong><span>Recursos do Prata e Ouro aparecem aqui quando o plano da loja for alterado.</span></div>}</div>
 }
 
-function ProductEditor({ draft, setDraft, onClose, onSaved }: { draft: ProductDraft; setDraft: (draft: ProductDraft | null) => void; onClose: () => void; onSaved: () => void }) {
+function ProductEditor({ draft, setDraft, onClose, onSaved, targetCatalogId }: { targetCatalogId:string; draft: ProductDraft; setDraft: (draft: ProductDraft | null) => void; onClose: () => void; onSaved: () => void }) {
   const initialSnapshot = useState(() => JSON.stringify(draft))[0]
   const [busy, setBusy] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -527,7 +661,7 @@ function ProductEditor({ draft, setDraft, onClose, onSaved }: { draft: ProductDr
     // A ordem das fotos é a fonte de verdade: troca, remoção e capa permanecem consistentes.
     const galleryToSave = Array.from(new Set(gallery.filter(Boolean)))
     const cover = draft.mediaType === 'video' ? draft.mediaUrl : (galleryToSave[0] || '')
-    const body = { name: draft.name, sku: draft.sku, description: draft.description, price: Number(draft.price), retailPrice: draft.retailPrice === '' ? null : Number(draft.retailPrice), boxPrice: draft.boxPrice === '' ? null : Number(draft.boxPrice), unitsPerBox: draft.unitsPerBox === '' ? null : Number(draft.unitsPerBox), category: draft.category, pack: draft.pack, mediaUrl: cover, mediaType: draft.mediaType, variations: parseVariations(draft.variationsText), featured: draft.featured, active: draft.active }
+    const body = { name: draft.name, sku: draft.sku, description: draft.description, price: Number(draft.price), retailPrice: draft.retailPrice === '' ? null : Number(draft.retailPrice), boxPrice: draft.boxPrice === '' ? null : Number(draft.boxPrice), unitsPerBox: draft.unitsPerBox === '' ? null : Number(draft.unitsPerBox), category: draft.category, pack: draft.pack, mediaUrl: cover, mediaType: draft.mediaType, variations: parseVariations(draft.variationsText), featured: draft.featured, active: draft.active, catalogId: draft.id?undefined:targetCatalogId||undefined }
     try {
       let productId = draft.id
       if (productId) await api.updateProduct(productId, body)

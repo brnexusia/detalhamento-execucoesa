@@ -65,10 +65,12 @@ async function ensureSchema() {
       minimum_order numeric(12,2),
       is_default boolean NOT NULL DEFAULT false,
       active boolean NOT NULL DEFAULT true,
+      explicit_membership boolean NOT NULL DEFAULT false,
       created_at timestamptz NOT NULL DEFAULT now(),
       updated_at timestamptz NOT NULL DEFAULT now(),
       UNIQUE(store_id,slug)
     );
+    ALTER TABLE catalogs ADD COLUMN IF NOT EXISTS explicit_membership boolean NOT NULL DEFAULT false;
     CREATE UNIQUE INDEX IF NOT EXISTS idx_catalog_default_per_store ON catalogs(store_id) WHERE is_default=true;
     CREATE TABLE IF NOT EXISTS catalog_products (
       catalog_id text NOT NULL REFERENCES catalogs(id) ON DELETE CASCADE,
@@ -138,6 +140,7 @@ function catalogShape(row) {
     minimumOrder: row.minimum_order == null ? null : Number(row.minimum_order),
     isDefault: Boolean(row.is_default),
     active: Boolean(row.active),
+    explicitMembership: Boolean(row.explicit_membership),
   }
 }
 
@@ -145,11 +148,13 @@ async function listCatalogs(req, res) {
   const storeId = req.catalogStore.store_id
   await ensureDefaultCatalog(storeId)
   const catalogs = await pool.query('SELECT * FROM catalogs WHERE store_id=$1 ORDER BY is_default DESC,created_at ASC', [storeId])
-  const mappings = await pool.query(
-    `SELECT cp.catalog_id,cp.product_id,cp.price_override,cp.visible
-     FROM catalog_products cp JOIN catalogs c ON c.id=cp.catalog_id WHERE c.store_id=$1`,
-    [storeId],
-  )
+  const mappings = req.query?.includeItems==='1'
+    ? await pool.query(
+      `SELECT cp.catalog_id,cp.product_id,cp.price_override,cp.visible
+       FROM catalog_products cp JOIN catalogs c ON c.id=cp.catalog_id WHERE c.store_id=$1`,
+      [storeId],
+    )
+    : { rows: [] }
   const byCatalog = new Map()
   for (const row of mappings.rows) {
     if (!byCatalog.has(row.catalog_id)) byCatalog.set(row.catalog_id, [])
@@ -179,8 +184,8 @@ async function createCatalog(req, res) {
     slug = `${baseSlug}-${attempt}`.slice(0, 60)
   }
   const result = await pool.query(
-    `INSERT INTO catalogs (id,store_id,slug,name,kind,minimum_order,is_default,active)
-     VALUES ($1,$2,$3,$4,$5,$6,false,true) RETURNING *`,
+    `INSERT INTO catalogs (id,store_id,slug,name,kind,minimum_order,is_default,active,explicit_membership)
+     VALUES ($1,$2,$3,$4,$5,$6,false,true,true) RETURNING *`,
     [id(), storeId, slug, name, kind, minimumOrder],
   )
   return res.status(201).json({ catalog: { ...catalogShape(result.rows[0]), items: [] } })
@@ -229,6 +234,44 @@ async function updateCatalog(req, res) {
   } finally { client.release() }
 }
 
+
+/* Edição leve da participação no catálogo: não duplica registros de produto.
+   Catálogos legados seguem em modo inclusivo até o dono organizá-los; os
+   novos começam vazios (associação explícita). */
+async function setCatalogMembers(req,res) {
+ const storeId=req.catalogStore.store_id
+ await ensureSchema()
+ const found=await pool.query('SELECT * FROM catalogs WHERE id=$1 AND store_id=$2',[req.params.catalogId,storeId])
+ if(!found.rowCount)return res.status(404).json({error:'Catálogo não encontrado.'})
+ const catalog=found.rows[0]
+ if(catalog.is_default)return res.status(400).json({error:'O catálogo geral reúne a base da loja.'})
+ if(req.catalogStore.plan_tier!=='ouro')return res.status(403).json({error:'Catálogos adicionais requerem Gold.',code:'GOLD_REQUIRED'})
+ const ids=[...new Set((Array.isArray(req.body?.ids)?req.body.ids:[]).map(x=>String(x||'').trim()).filter(Boolean))]
+ if(!ids.length||ids.length>500)return res.status(400).json({error:'Escolha entre 1 e 500 produtos por operação.'})
+ const action=req.body?.action
+ if(!['add','remove'].includes(action))return res.status(400).json({error:'Operação inválida.'})
+ if(action==='add'){
+   const result=await pool.query(`
+     INSERT INTO catalog_products (catalog_id,product_id,visible)
+     SELECT $1,p.id,true FROM products p WHERE p.store_id=$2 AND p.id=ANY($3::text[])
+     ON CONFLICT(catalog_id,product_id) DO UPDATE SET visible=true,updated_at=now()
+     RETURNING product_id`,[catalog.id,storeId,ids])
+   return res.json({ok:true,changed:result.rowCount})
+ }
+ if(catalog.explicit_membership){
+   const result=await pool.query(`
+     DELETE FROM catalog_products cp USING products p
+     WHERE cp.catalog_id=$1 AND cp.product_id=p.id AND p.store_id=$2 AND p.id=ANY($3::text[])
+     RETURNING cp.product_id`,[catalog.id,storeId,ids])
+   return res.json({ok:true,changed:result.rowCount})
+ }
+ const result=await pool.query(`
+   INSERT INTO catalog_products(catalog_id,product_id,visible)
+   SELECT $1,p.id,false FROM products p WHERE p.store_id=$2 AND p.id=ANY($3::text[])
+   ON CONFLICT(catalog_id,product_id) DO UPDATE SET visible=false,updated_at=now()
+   RETURNING product_id`,[catalog.id,storeId,ids])
+ return res.json({ok:true,changed:result.rowCount})
+}
 async function downloadCatalogPdf(req, res) {
   const storeId = req.catalogStore.store_id
   const category = String(req.query?.category || '').trim().slice(0,80)
@@ -247,7 +290,7 @@ async function downloadCatalogPdf(req, res) {
      FROM products p
      JOIN catalogs c ON c.id=$2
      LEFT JOIN catalog_products cp ON cp.product_id=p.id AND cp.catalog_id=$2
-     WHERE p.store_id=$1 AND p.active=true AND COALESCE(cp.visible,true)=true
+     WHERE p.store_id=$1 AND p.active=true AND (CASE WHEN c.explicit_membership THEN cp.visible=true ELSE COALESCE(cp.visible,true)=true END)
        AND ($3::text='' OR p.category=$3)
      ORDER BY p.category ASC,p.featured DESC,p.name ASC,p.id ASC`,
     [storeId, catalog.id, category],
@@ -449,7 +492,7 @@ async function protectedStore(req, res) {
   }
 
   const params = [store.id, catalog.id]
-  const conditions = ['p.store_id=$1', 'p.active=true', '(cp.visible IS NULL OR cp.visible=true)']
+  const conditions = ['p.store_id=$1', 'p.active=true', '(CASE WHEN c.explicit_membership THEN cp.visible=true ELSE COALESCE(cp.visible,true)=true END)']
   const sqlParam = (index) => String.fromCharCode(36) + index
   if (category) { params.push(category); conditions.push(`p.category=${sqlParam(params.length)}`) }
   if (q) { params.push(`%${q.toLowerCase()}%`); conditions.push(`lower(p.name || ' ' || p.sku || ' ' || p.category) LIKE ${sqlParam(params.length)}`) }
@@ -485,7 +528,7 @@ async function protectedStore(req, res) {
   const nextCursor = hasMore && last ? encodeCursor({ storeId: store.id, visitor, sellerSlug: String(req.params.sellerSlug || ''), q, category, catalogSlug: catalog.slug, sort, price: Number(last.public_price), featured: last.featured ? 1 : 0, createdAt: last.created_at_cursor, id: last.id, expiresAt: Date.now() + 30 * 60_000 }) : null
   const categoriesResult = await pool.query(
     `SELECT DISTINCT p.category FROM products p LEFT JOIN catalog_products cp ON cp.product_id=p.id AND cp.catalog_id=$2
-     WHERE p.store_id=$1 AND p.active=true AND p.category<>'' AND (cp.visible IS NULL OR cp.visible=true) ORDER BY p.category ASC LIMIT 100`,
+     WHERE p.store_id=$1 AND p.active=true AND p.category<>'' AND EXISTS (SELECT 1 FROM catalogs c WHERE c.id=$2 AND (CASE WHEN c.explicit_membership THEN cp.visible=true ELSE COALESCE(cp.visible,true)=true END)) ORDER BY p.category ASC LIMIT 100`,
     [store.id, catalog.id],
   )
   const catalogsResult = await pool.query("SELECT * FROM catalogs WHERE store_id=$1 AND active=true AND ($2::boolean OR is_default=true) ORDER BY is_default DESC,created_at ASC", [store.id,store.plan_tier==='ouro'])
@@ -522,7 +565,7 @@ async function socialProductOffers(req, res) {
     FROM catalogs c JOIN products p ON p.id=$2
     LEFT JOIN catalog_products cp ON cp.catalog_id=c.id AND cp.product_id=p.id
     WHERE c.store_id=$1 AND c.active=true AND ($3::boolean OR c.is_default)
-      AND (cp.visible IS NULL OR cp.visible=true)
+      AND (CASE WHEN c.explicit_membership THEN cp.visible=true ELSE COALESCE(cp.visible,true)=true END)
     ORDER BY c.is_default DESC,c.created_at ASC`, [p.store_id, p.id, p.plan_tier==='ouro'])
   if (!available.rowCount) return res.status(404).json({ error: 'Produto indisponível nos catálogos da loja.' })
   return res.json({
@@ -598,7 +641,7 @@ async function createCatalogOrder(req, res) {
   try {
     await client.query('BEGIN')
     const productsResult = await client.query(
-      `SELECT p.*,${effectiveCatalogPrice} AS public_price,COALESCE(cp.visible,true) AS catalog_visible
+      `SELECT p.*,${effectiveCatalogPrice} AS public_price,(CASE WHEN c.explicit_membership THEN cp.visible=true ELSE COALESCE(cp.visible,true) END) AS catalog_visible
        FROM products p JOIN catalogs c ON c.id=$3
        LEFT JOIN catalog_products cp ON cp.product_id=p.id AND cp.catalog_id=$3
        WHERE p.store_id=$1 AND p.active=true AND p.id=ANY($2::text[]) ORDER BY p.id FOR UPDATE OF p`,
@@ -698,6 +741,7 @@ function install(app) {
   app.post('/api/admin/catalogs', express.json({ limit: '64kb' }), requireStore, (req, res, next) => Promise.resolve(createCatalog(req, res)).catch(next))
   app.patch('/api/admin/catalogs/:catalogId', express.json({ limit: '2mb' }), requireStore, (req, res, next) => Promise.resolve(updateCatalog(req, res)).catch(next))
   app.get('/api/admin/catalogs/:catalogId/pdf', requireStore, (req, res, next) => Promise.resolve(downloadCatalogPdf(req, res)).catch(next))
+  app.post('/api/admin/catalogs/:catalogId/members', express.json({limit:'32kb'}), requireStore, (req,res,next)=>Promise.resolve(setCatalogMembers(req,res)).catch(next))
   app.delete('/api/admin/catalogs/:catalogId', requireStore, (req, res, next) => Promise.resolve(deleteCatalog(req, res)).catch(next))
   app.get('/api/social/stores/:storeSlug/products/:productId/offers', (req,res,next) => Promise.resolve(socialProductOffers(req,res)).catch(next))
   app.post('/api/social/orders', express.json({ limit:'256kb' }), (req,res,next) => Promise.resolve(socialCreateOrder(req,res)).catch(next))
