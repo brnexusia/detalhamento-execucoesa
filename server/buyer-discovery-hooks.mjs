@@ -37,7 +37,8 @@ async function discover(req,res){
  const minimum=min===''?null:Number(min),maximum=max===''?null:Number(max)
  if(priceFilter && ([minimum,maximum].some(x=>x!==null&&(!Number.isFinite(x)||x<0||x>100000000))||(minimum!==null&&maximum!==null&&minimum>maximum)))
    return res.status(400).json({error:'Confira a faixa de preço.'})
- if(priceFilter && !await currentSocialBuyer(req))return failure(res)
+ const account=await currentSocialBuyer(req)
+ if(priceFilter && !account)return failure(res)
  const term=like(q)
  const args=[term,category,mode]
  let priceWhere=''
@@ -75,11 +76,28 @@ async function discover(req,res){
      WHERE p.active=true AND p.social_published=true AND s.is_active=true AND s.social_enabled=true
      GROUP BY category ORDER BY count(*) DESC,category ASC LIMIT 24`)
  ])
- if(priceFilter){noCache(res);res.set('Vary','Cookie')}
+ if(account){noCache(res);res.set('Vary','Cookie')}
  else res.set('Cache-Control','public, max-age=30')
- return res.json({products:products.rows.map(productShape),
+ let priceMap=new Map()
+ if(account&&products.rows.length){
+   const offers=await pool.query(`
+    SELECT p.id AS product_id,MIN(COALESCE(cp.price_override,
+       CASE WHEN c.kind='varejo' THEN p.retail_price WHEN c.kind='atacado' THEN p.box_price END,p.price))::numeric AS display_price,
+       COUNT(*)::int AS catalog_count
+    FROM products p JOIN stores s ON s.id=p.store_id
+      JOIN catalogs c ON c.store_id=s.id AND c.active=true AND (c.is_default OR s.plan_tier='ouro')
+      LEFT JOIN catalog_products cp ON cp.catalog_id=c.id AND cp.product_id=p.id
+    WHERE p.id=ANY($1::text[]) AND (cp.visible IS NULL OR cp.visible=true)
+      AND ($2::text='' OR c.kind=$2)
+    GROUP BY p.id`,[products.rows.map(x=>x.id),mode])
+   priceMap=new Map(offers.rows.map(x=>[x.product_id,{price:Number(x.display_price),multiple:Number(x.catalog_count)>1}]))
+ }
+ return res.json({products:products.rows.map(row=>{
+   const shape=productShape(row),quote=priceMap.get(row.id)
+   return quote?{...shape,price:quote.price,priceFrom:quote.multiple}:shape
+ }),
    stores:stores.rows.map(x=>({id:x.id,slug:x.slug,name:x.name,logoUrl:x.logo_url||'',tagline:x.tagline||'',productCount:Number(x.product_count||0)})),
-   categories:categories.rows.map(x=>x.category),pricesVisible:Boolean(priceFilter)})
+   categories:categories.rows.map(x=>x.category),pricesVisible:Boolean(account)})
 }
 async function saved(req,res){
  noCache(res)
