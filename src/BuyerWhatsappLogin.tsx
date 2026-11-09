@@ -157,17 +157,19 @@ export default function BuyerWhatsappLogin({ storeSlug = '', onVerified, editOnl
       <label><span>Qual é a finalidade das suas compras? *</span>
         <select value={form.purpose} required onChange={(e) => change('purpose',e.target.value)}>
           <option value="" disabled>Selecione uma opção</option>
-          <option value="revenda">Comprar para revender</option>
-          <option value="negocio">Comprar para minha empresa ou negócio</option>
-          <option value="pessoal">Comprar para uso pessoal</option>
-          <option value="ambos">Revenda e uso pessoal</option>
-          <option value="futuro">Estou começando a vender</option>
+          <option value="pessoal">Varejo — comprar para mim</option>
+          <option value="revenda">Atacado — empresa, MEI ou revenda</option>
+          <option value="ambos">Ambos — varejo e atacado</option>
+          {form.purpose==='negocio'&&<option value="negocio">Atacado — minha empresa</option>}
+          {form.purpose==='futuro'&&<option value="futuro">Atacado — começando a vender</option>}
         </select>
       </label>
-      {Boolean(form.purpose) && form.purpose !== 'pessoal' && <>
+      {Boolean(form.purpose) && form.purpose !== 'pessoal' && <details className="buyer-business-details">
+        <summary>Adicionar informações do negócio (opcional)</summary>
+        <p>Se você é MEI, empresa ou revendedor autônomo, pode completar esses dados agora ou depois.</p>
         <label><span>Você possui um negócio?</span>
-          <select value={form.businessStatus} required onChange={(e) => change('businessStatus',e.target.value)}>
-            <option value="" disabled>Selecione uma opção</option>
+          <select value={form.businessStatus} onChange={(e) => change('businessStatus',e.target.value)}>
+            <option value="">Informar depois</option>
             <option value="sim">Sim, já tenho negócio</option><option value="nao">Sou revendedor(a) autônomo(a)</option><option value="abrindo">Estou começando</option>
           </select>
         </label>
@@ -180,8 +182,8 @@ export default function BuyerWhatsappLogin({ storeSlug = '', onVerified, editOnl
         </fieldset>
         <label><span>Nome da loja ou empresa (opcional)</span><input maxLength={160} value={form.businessName} onChange={(e) => change('businessName',e.target.value)}/></label>
         <label><span>Possui CNPJ?</span>
-          <select value={form.cnpjStatus} required onChange={(e) => change('cnpjStatus',e.target.value)}>
-            <option value="" disabled>Selecione uma opção</option>
+          <select value={form.cnpjStatus} onChange={(e) => change('cnpjStatus',e.target.value)}>
+            <option value="">Informar depois</option>
             <option value="nao">Não</option><option value="sim">Sim</option><option value="processo">Em processo de abertura</option>
           </select>
         </label>
@@ -194,7 +196,7 @@ export default function BuyerWhatsappLogin({ storeSlug = '', onVerified, editOnl
           <option value="Eletrônicos">Eletrônicos</option><option value="Variedades">Variedades</option><option value="Outros">Outros</option>
         </select></label>
         <label><span>Instagram comercial (opcional)</span><input maxLength={100} value={form.instagram} onChange={(e) => change('instagram',e.target.value)}/></label>
-      </>}
+      </details>}
       <div className="buyer-two-columns">
         <label><span>Cidade (opcional)</span><input autoComplete="address-level2" value={form.city} onChange={(e) => change('city',e.target.value)}/></label>
         <label><span>UF (opcional)</span><input maxLength={2} autoComplete="address-level1" placeholder="BA" value={form.state} onChange={(e) => change('state',e.target.value.toUpperCase())}/></label>

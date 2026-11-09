@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import express from 'express'
 import pg from 'pg'
+import { currentSocialBuyer } from './buyer-whatsapp-auth-hooks.mjs'
 
 const { Pool } = pg
 const databaseUrl = process.env.DATABASE_URL?.trim() || ''
@@ -201,6 +202,8 @@ function install(app) {
 
   app.post('/api/social/posts/:productId/ask', async (req, res, next) => {
     try {
+      const buyer = await currentSocialBuyer(req)
+      if (!buyer) return res.status(401).json({code:'BUYER_PROFILE_REQUIRED',error:'Entre como comprador antes de falar com a vendedora.'})
       const result = await askAboutProduct(String(req.params.productId || ''), visitorKey(req, res))
       if (!result) return res.status(404).json({ error: 'Publicação não encontrada.' })
       return res.json(result)

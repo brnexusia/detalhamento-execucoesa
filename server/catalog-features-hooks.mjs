@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 import express from 'express'
 import pg from 'pg'
 import { loadCatalogMedia, streamCatalogPdf } from './catalog-pdf.mjs'
+import { currentSocialBuyer, currentBuyerCustomer } from './buyer-whatsapp-auth-hooks.mjs'
 
 const { Pool } = pg
 const databaseUrl = process.env.DATABASE_URL?.trim() || ''
@@ -499,6 +500,55 @@ async function protectedStore(req, res) {
   })
 }
 
+// Catálogos comerciais continuam públicos pelo link. Só a consulta iniciada
+// no ambiente social exige identificação; o feed não entrega preços.
+async function socialProductOffers(req, res) {
+  res.setHeader('Cache-Control', 'private, no-store')
+  res.setHeader('Vary', 'Cookie')
+  const buyer = await currentSocialBuyer(req)
+  if (!buyer) return res.status(401).json({ code: 'BUYER_PROFILE_REQUIRED', error: 'Entre com WhatsApp e escolha seu perfil de compra para ver preços.' })
+  await schemaReady()
+  const slug = String(req.params.storeSlug || '').trim().slice(0, 80)
+  const productId = String(req.params.productId || '').trim().slice(0, 100)
+  const found = await pool.query(`SELECT p.*,s.plan_tier,s.minimum_order AS store_minimum_order
+    FROM products p JOIN stores s ON s.id=p.store_id
+    WHERE s.slug=$1 AND s.is_active=true AND s.social_enabled=true AND p.id=$2
+      AND p.active=true AND p.social_published=true LIMIT 1`, [slug, productId])
+  if (!found.rowCount) return res.status(404).json({ error: 'Produto indisponível.' })
+  const p = found.rows[0]
+  await ensureDefaultCatalog(p.store_id)
+  const available = await pool.query(`SELECT c.id,c.slug,c.name,c.kind,c.is_default,c.minimum_order,
+    ${effectiveCatalogPrice} AS public_price
+    FROM catalogs c JOIN products p ON p.id=$2
+    LEFT JOIN catalog_products cp ON cp.catalog_id=c.id AND cp.product_id=p.id
+    WHERE c.store_id=$1 AND c.active=true AND ($3::boolean OR c.is_default)
+      AND (cp.visible IS NULL OR cp.visible=true)
+    ORDER BY c.is_default DESC,c.created_at ASC`, [p.store_id, p.id, p.plan_tier==='ouro'])
+  if (!available.rowCount) return res.status(404).json({ error: 'Produto indisponível nos catálogos da loja.' })
+  return res.json({
+    product: { id:p.id, sku:p.sku, name:p.name, description:p.description, category:p.category,
+      images:Array.isArray(p.images)?p.images:[], variations:Array.isArray(p.variations)?p.variations:[] },
+    buyerPurpose: buyer.purpose,
+    offers: available.rows.map(c => ({
+      id:c.id, slug:c.slug, name:c.name, kind:c.kind,
+      price:Number(c.public_price), minimumOrder:c.minimum_order == null ? Number(p.store_minimum_order || 0) : Number(c.minimum_order),
+      unitsPerBox:c.kind==='atacado' ? Math.max(1,Number(p.units_per_box || 1)) : 1
+    }))
+  })
+}
+
+async function socialCreateOrder(req, res) {
+  res.setHeader('Cache-Control', 'private, no-store')
+  const buyer = await currentSocialBuyer(req)
+  if (!buyer) return res.status(401).json({ code:'BUYER_PROFILE_REQUIRED', error:'Confirme seu perfil de comprador antes de enviar o pedido.' })
+  const slug = String(req.body?.storeSlug || '').trim().slice(0, 80)
+  const store = await pool.query('SELECT id FROM stores WHERE slug=$1 AND is_active=true AND social_enabled=true LIMIT 1', [slug])
+  if (!store.rowCount) return res.status(404).json({ error: 'Loja não encontrada.' })
+  const customer = await currentBuyerCustomer(req, store.rows[0].id)
+  req.shopvaxCustomerId = customer?.id || null
+  return createCatalogOrder(req, res)
+}
+
 function normalizeSelections(value) {
   return Object.fromEntries(Object.entries(value && typeof value === 'object' ? value : {}).map(([key, option]) => [String(key).trim().slice(0, 40), String(option).trim().slice(0, 60)]).filter(([key, option]) => key && option).sort(([a], [b]) => a.localeCompare(b, 'pt-BR')))
 }
@@ -643,6 +693,8 @@ function install(app) {
   app.patch('/api/admin/catalogs/:catalogId', express.json({ limit: '2mb' }), requireStore, (req, res, next) => Promise.resolve(updateCatalog(req, res)).catch(next))
   app.get('/api/admin/catalogs/:catalogId/pdf', requireStore, (req, res, next) => Promise.resolve(downloadCatalogPdf(req, res)).catch(next))
   app.delete('/api/admin/catalogs/:catalogId', requireStore, (req, res, next) => Promise.resolve(deleteCatalog(req, res)).catch(next))
+  app.get('/api/social/stores/:storeSlug/products/:productId/offers', (req,res,next) => Promise.resolve(socialProductOffers(req,res)).catch(next))
+  app.post('/api/social/orders', express.json({ limit:'256kb' }), (req,res,next) => Promise.resolve(socialCreateOrder(req,res)).catch(next))
   app.get('/api/public/store/:storeSlug/:sellerSlug?', (req, res, next) => Promise.resolve(protectedStore(req, res)).catch(next))
   app.post('/api/business/orders', express.json({ limit: '256kb' }), (req, res, next) => Promise.resolve(createCatalogOrder(req, res)).catch(next))
 }

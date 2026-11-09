@@ -115,7 +115,8 @@ function publication(row) {
       sku: row.sku,
       name: row.name,
       description: row.description,
-      price: Number(row.price),
+      // Mesmo feed público priorizado por plano, sem preço antes da escolha de compra.
+      price: null,
       category: row.category,
       mediaUrl: row.media_url || (Array.isArray(row.images) ? row.images[0] || '' : ''),
       mediaType: row.media_type === 'video' ? 'video' : 'image',

@@ -105,9 +105,10 @@ test('comprador recebe formulario WhatsApp e perguntas comerciais, sem senha na 
   assert.match(buyer, /Receber código no WhatsApp/)
   assert.doesNotMatch(buyer, /disabled=\{!enabled/)
   assert.doesNotMatch(buyer, /if \(!enabled\)/)
-  for (const option of ['Comprar para revender','Comprar para minha empresa ou negócio','Comprar para uso pessoal','Revenda e uso pessoal','Estou começando a vender']) {
+  for (const option of ['Varejo — comprar para mim','Atacado — empresa, MEI ou revenda','Ambos — varejo e atacado']) {
     assert(buyer.includes(option), 'Finalidade ausente: '+option)
   }
+  assert.match(buyer, /<details className="buyer-business-details">/, 'dados comerciais devem ser progressivos')
   assert.match(buyer, /Você possui um negócio\?/)
   assert.match(buyer, /Onde vende ou pretende vender\?/)
   assert.match(buyer, /Possui CNPJ\?/)
@@ -128,4 +129,25 @@ test('Safari mobile só aprova quando a mesma revisão da main está publicada',
   assert.doesNotMatch(workflow, /continue-on-error:\s*true/)
   assert.match(workflow, /src\/\*\*\/\*\.css/)
   assert.match(workflow, /src\/\*\*\/\*\.tsx/)
+})
+
+test('comprador social fica no feed e o catálogo direto permanece independente', () => {
+  const feed = read('src/SocialFeed.tsx')
+  const profile = read('src/SocialStoreProfile.tsx')
+  const checkout = read('src/SocialShopping.tsx')
+  const catalog = read('server/catalog-features-hooks.mjs')
+  const standardFeed = read('server/social-network-hooks.mjs')
+  const rankedFeed = read('server/social-feed-ranking-hooks.mjs')
+  assert.match(feed, /<SocialShopping/)
+  assert.doesNotMatch(feed, /Ir para a loja finalizar|openCommercialStore/, 'o carrinho social não redireciona ao catálogo')
+  assert.match(profile, /social-profile-view-switch/)
+  assert.match(profile, /setViewMode\('grade'\)/)
+  assert.match(profile, /setViewMode\('feed'\)/)
+  assert.match(checkout, /<BuyerWhatsappLogin/)
+  assert.match(checkout, /\/api\/social\/orders/)
+  assert.match(standardFeed, /price: null/)
+  assert.match(rankedFeed, /price: null/)
+  assert.match(catalog, /BUYER_PROFILE_REQUIRED/)
+  assert.match(catalog, /app\.get\('\/api\/public\/store\/\:storeSlug/, 'link direto preservado')
+  assert.match(catalog, /createCatalogOrder\(req, res\)/, 'mesmo motor de preço, estoque e pedido')
 })

@@ -179,8 +179,9 @@ function profileFields(body) {
   const personal = purpose === 'pessoal'
   const businessStatus = personal ? '' : String(body?.businessStatus || '')
   const cnpjStatus = personal ? '' : String(body?.cnpjStatus || '')
-  if (!personal && (!businesses.has(businessStatus) || !cnpjStatuses.has(cnpjStatus)))
-    return { error: 'Informe a situação do negócio e do CNPJ.' }
+  // Empresa/MEI e CNPJ são dados complementares; a pessoa pode informar depois.
+  if (!personal && ((businessStatus && !businesses.has(businessStatus)) || (cnpjStatus && !cnpjStatuses.has(cnpjStatus))))
+    return { error: 'Confira a situação do negócio e do CNPJ.' }
   const channels = personal ? [] : Array.isArray(body?.channels) ? [...new Set(body.channels)].filter(v => channelsAllowed.has(v)).slice(0, 7) : []
   const cnpj = cnpjStatus === 'sim' ? digits(body?.cnpj).slice(0, 14) : ''
   if (cnpj && cnpj.length !== 14) return { error: 'CNPJ deve ter 14 dígitos.' }
@@ -203,6 +204,14 @@ async function saveProfile(req,res) {
   await pool.query('UPDATE store_customers SET name=$1,phone=$2,updated_at=now() WHERE buyer_account_id=$3', [f.name,account.phone,account.id])
   return res.json({ ok: true, buyer: publicBuyer(updated.rows[0]) })
 }
+// A frente social exige uma sessão de comprador com perfil completo.
+export async function currentSocialBuyer(req) {
+  if (!pool || !buyerWhatsappReady() || !cookies(req)[COOKIE]) return null
+  await schema()
+  const account = await buyer(req)
+  return account?.profile_completed ? publicBuyer(account) : null
+}
+
 export async function currentBuyerCustomer(req,storeId,{createIfMissing=true}={}) {
   if (!buyerWhatsappReady() || !storeId || !cookies(req)[COOKIE]) return null
   await schema()

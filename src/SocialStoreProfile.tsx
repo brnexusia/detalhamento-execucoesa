@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
-import { ArrowLeft, ExternalLink, Grid2X2, Play, Store, X } from 'lucide-react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { ArrowLeft, Grid2X2, Play, ShoppingBag, Store, X } from 'lucide-react'
+const SocialShopping = lazy(() => import('./SocialShopping'))
 import './social-profile.css'
 import './shopvax-social-official.css'
 import { shopvaxAccentTextColor } from './ShopvaxDesignSystem'
@@ -13,10 +14,11 @@ type Publication = {
   sku: string
   name: string
   description: string
-  price: number
+  price: number | null
   category: string
   mediaUrl: string
   mediaType: 'image' | 'video'
+  images?: string[]
   pack?: string
   variations: VariationGroup[]
   publishedAt: string
@@ -25,8 +27,6 @@ type ProfilePayload = {
   store: { id: string; slug: string; name: string; tagline: string; eyebrow: string; logoUrl: string; accent: string; planTier: 'bronze' | 'prata' | 'ouro'; productCount: number }
   stats: { followers: number; views: number; following: boolean }
 }
-
-const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
 function routeSlug() {
   const parts = window.location.pathname.split('/').filter(Boolean)
@@ -42,23 +42,15 @@ function go(path: string) {
   window.dispatchEvent(new PopStateEvent('popstate'))
 }
 
-async function commercialStorePath(slug: string, productId?: string) {
-  let sellerSlug = ''
-  try {
-    const response = await fetch(`/api/social/stores/${encodeURIComponent(slug)}/seller-route`, { credentials: 'include' })
-    const body = await response.json().catch(() => null)
-    if (response.ok) sellerSlug = String(body?.seller?.slug || '')
-  } catch { /* usa atendimento padrão */ }
-  const base = sellerSlug ? `/${encodeURIComponent(slug)}/${encodeURIComponent(sellerSlug)}` : `/${encodeURIComponent(slug)}`
-  return productId ? `${base}?produto=${encodeURIComponent(productId)}` : base
-}
-
 export default function SocialStoreProfile() {
   const [slug, setSlug] = useState(routeSlug)
   const [profile, setProfile] = useState<ProfilePayload | null>(null)
   const [publications, setPublications] = useState<Publication[]>([])
   const [publicationsLoading, setPublicationsLoading] = useState(true)
   const [selected, setSelected] = useState<Publication | null>(null)
+  const [viewMode,setViewMode] = useState<'feed'|'grade'>('grade')
+  const profileFeedRef=useRef<HTMLElement|null>(null)
+  const [socialPurchase,setSocialPurchase] = useState<{productId?:string;initialCart?:boolean}|null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [accountChoice, setAccountChoice] = useState<'login' | 'follow' | null>(null)
@@ -79,6 +71,8 @@ export default function SocialStoreProfile() {
     setProfile(null)
     setPublications([])
     setSelected(null)
+    setViewMode('grade')
+    setSocialPurchase(null)
     setAccountChoice(null)
     setError('')
     setLoading(true)
@@ -129,6 +123,24 @@ export default function SocialStoreProfile() {
     return () => window.removeEventListener('popstate', onPop)
   }, [publications])
 
+  useEffect(()=>{
+    if(viewMode!=='feed'||Boolean(socialPurchase)||Boolean(selected))return
+    const container=profileFeedRef.current
+    if(!container)return
+    const videos=Array.from(container.querySelectorAll('video'))
+    const reduceMotion=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    const observer=new IntersectionObserver((entries)=>{
+      entries.forEach(entry=>{
+        const video=entry.target as HTMLVideoElement
+        if(!reduceMotion&&entry.isIntersecting&&entry.intersectionRatio>=.65)
+          void video.play().catch(()=>undefined)
+        else video.pause()
+      })
+    },{root:container,threshold:[0,.65,1]})
+    videos.forEach(video=>observer.observe(video))
+    return()=>{observer.disconnect();videos.forEach(video=>video.pause())}
+  },[viewMode,publications,socialPurchase,selected])
+
   const openPublication = (publication: Publication) => {
     setSelected(publication)
     window.history.pushState({}, '', `/perfil/${encodeURIComponent(slug)}?produto=${encodeURIComponent(publication.id)}`)
@@ -138,8 +150,6 @@ export default function SocialStoreProfile() {
     setSelected(null)
     window.history.replaceState({}, '', `/perfil/${encodeURIComponent(slug)}`)
   }
-
-  const openStore = async (productId?: string) => go(await commercialStorePath(slug, productId))
 
   const follow = () => setAccountChoice('follow')
 
@@ -165,7 +175,7 @@ export default function SocialStoreProfile() {
             <p>{store.tagline}</p>
             <div className="social-profile-actions">
               <button className={stats.following ? 'is-following' : ''} onClick={follow}>{stats.following ? 'Seguindo' : 'Seguir'}</button>
-              <button className="is-store" onClick={() => void openStore()}><Store size={16}/> Loja</button>
+              <button className="is-store" onClick={() => setViewMode('grade')}><Store size={16}/> Loja</button>
             </div>
           </div>
         </div>
@@ -174,20 +184,35 @@ export default function SocialStoreProfile() {
           <div><strong>{stats.followers}</strong><span>seguidores</span></div>
           <div><strong>{stats.views}</strong><span>views</span></div>
         </div>
-        <div className="social-profile-tabs"><span><Grid2X2 size={16}/> Publicações</span></div>
+        <div className="social-profile-tabs social-profile-view-switch" aria-label="Visualização dos produtos"><button type="button" className={viewMode==='feed'?'is-active':''} aria-pressed={viewMode==='feed'} onClick={()=>setViewMode('feed')}><Play size={16}/> Feed</button><button type="button" className={viewMode==='grade'?'is-active':''} aria-pressed={viewMode==='grade'} onClick={()=>setViewMode('grade')}><Grid2X2 size={16}/> Loja</button><button type="button" className="social-profile-cart-action" onClick={()=>setSocialPurchase({initialCart:true})}><ShoppingBag size={16}/> Carrinho</button></div>
       </section>
 
-      <section className="social-profile-grid" aria-label={`Publicações de ${store.name}`}>
-        {publications.map((publication) => <button key={publication.id} onClick={() => openPublication(publication)}>
-          {publication.mediaType === 'video'
-            ? <><video src={publication.mediaUrl} muted playsInline preload="metadata"/><span className="social-profile-video"><Play size={18} fill="currentColor"/></span></>
-            : publication.mediaUrl ? <img src={publication.mediaUrl} alt={publication.name} loading="lazy" decoding="async"/> : <span className="social-profile-empty"><Store size={22}/></span>}
-          <span className="social-profile-grid__name">{publication.name}</span>
-        </button>)}
-      </section>
+      {viewMode==='feed'
+        ? <section ref={profileFeedRef} className="social-profile-feed" aria-label={`Feed de produtos de ${store.name}`}>
+          {publications.map(publication=><article key={publication.id} className="social-profile-feed-post">
+            <button className="social-profile-feed-post__media" type="button" onClick={()=>openPublication(publication)} aria-label={`Abrir ${publication.name}`}>
+              {publication.mediaType==='video'
+                ? <video src={publication.mediaUrl} poster={publication.images?.[0]||undefined} muted playsInline loop preload="none" aria-hidden="true"/>
+                : publication.mediaUrl
+                  ? <img src={publication.mediaUrl} alt="" loading="lazy" decoding="async"/>
+                  : <span className="social-profile-empty"><Store size={26}/></span>}
+              <span className="social-profile-feed-post__title">{publication.name}</span>
+            </button>
+            <button className="social-profile-feed-post__buy" type="button" onClick={()=>setSocialPurchase({productId:publication.id})}><ShoppingBag size={17}/> Ver preço / Comprar</button>
+          </article>)}
+        </section>
+        : <section className="social-profile-grid" aria-label={`Produtos de ${store.name} em grade`}>
+          {publications.map((publication) => <button key={publication.id} onClick={() => openPublication(publication)}>
+            {publication.mediaType === 'video'
+              ? <><video src={publication.mediaUrl} poster={publication.images?.[0]||undefined} muted playsInline preload="none"/><span className="social-profile-video"><Play size={18} fill="currentColor"/></span></>
+              : publication.mediaUrl ? <img src={publication.mediaUrl} alt={publication.name} loading="lazy" decoding="async"/> : <span className="social-profile-empty"><Store size={22}/></span>}
+            <span className="social-profile-grid__name">{publication.name}</span>
+          </button>)}
+        </section>}
       {!publications.length && <div className="social-profile-empty-state" role={error ? "alert" : undefined}>{publicationsLoading ? "Carregando publicações…" : error || "Esta loja ainda não publicou produtos."}</div>}
     </main>
 
+    {socialPurchase&&<Suspense fallback={null}><SocialShopping storeSlug={slug} storeName={store.name} {...socialPurchase} onClose={()=>setSocialPurchase(null)}/></Suspense>}
     {accountChoice && <SocialAccountChoice storeSlug={slug} storeId={profile.store.id} reason={accountChoice}
       onFollowed={(result) => setProfile((current) => current ? { ...current, stats: { ...current.stats, following: result.following, followers: result.followers } } : current)}
       onClose={() => setAccountChoice(null)}/>} 
@@ -196,14 +221,13 @@ export default function SocialStoreProfile() {
       <article>
         <button className="social-profile-viewer__close" onClick={closePublication}><X size={21}/></button>
         <div className="social-profile-viewer__media">
-          {selected.mediaType === 'video' ? <video src={selected.mediaUrl} autoPlay controls playsInline/> : <img src={selected.mediaUrl} alt={selected.name}/>} 
+          {selected.mediaType === 'video' ? <video src={selected.mediaUrl} poster={selected.images?.[0]||undefined} autoPlay controls playsInline/> : <img src={selected.mediaUrl} alt={selected.name}/>} 
         </div>
         <div className="social-profile-viewer__copy">
           <span>{selected.category}</span>
           <h2>{selected.name}</h2>
           {selected.description && <p>{selected.description}</p>}
-          <strong>{money.format(selected.price)}</strong>
-          <button onClick={() => void openStore(selected.id)}>Abrir na loja <ExternalLink size={16}/></button>
+          <button onClick={() => setSocialPurchase({productId:selected.id})}><ShoppingBag size={16}/> Ver preço / Comprar</button>
         </div>
       </article>
     </div>}
