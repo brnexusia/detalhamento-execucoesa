@@ -405,3 +405,19 @@ main.buyer-screen {
 .buyer-quick-searches button {display:flex;align-items:center;gap:6px;white-space:nowrap;min-height:40px;padding:9px 11px;border:1px solid var(--svx-line,#D9D3C6);background:var(--svx-paper,#F3F0E8);color:var(--svx-ink,#161514);font:600 12px/1.2 var(--svx-font-body,'Archivo',sans-serif);cursor:pointer;flex:none}
 .buyer-quick-searches button:hover,.buyer-quick-searches button:focus-visible {border-color:var(--svx-ink,#161514);outline-offset:2px}
 .buyer-search-count {font:500 11px/1.5 var(--svx-font-mono,monospace);color:var(--svx-muted-strong,#4D4943);margin:16px 0 7px}
+
+
+/* Entrada de lojistas integrada ao Perfil do comprador, sem alterar a barra inferior. */
+.buyer-seller-section{margin-top:30px;padding-bottom:10px}
+.buyer-seller-section__eyebrow{display:block;margin-bottom:10px;font:600 11px/1.4 var(--svx-font-mono,'Fragment Mono',monospace);letter-spacing:.07em;color:var(--svx-muted-strong,#4D4943)}
+.buyer-seller-section__card{padding:18px;border:1px solid var(--svx-line,#D9D3C6);background:var(--svx-paper,#F3F0E8)}
+.buyer-seller-section__intro{display:flex;align-items:center;gap:13px;margin-bottom:18px}
+.buyer-seller-section__icon{flex:none;display:grid;place-items:center;width:46px;height:46px;background:var(--svx-board,#E7E3DA);border:1px solid var(--svx-line,#D9D3C6)}
+.buyer-seller-section__intro h2{font:800 clamp(20px,3vw,25px)/1.05 var(--svx-font-display,'Archivo Narrow',sans-serif);text-transform:uppercase;letter-spacing:-.025em;margin:0 0 6px}
+.buyer-seller-section__intro p{font:400 13px/1.5 var(--svx-font-body,'Archivo',sans-serif);color:var(--svx-muted-strong,#4D4943);margin:0}
+.buyer-seller-section__actions{display:grid;gap:9px}
+.buyer-seller-section__primary,.buyer-seller-section__secondary{display:flex;align-items:center;justify-content:center;gap:8px;min-height:46px;padding:11px 14px;border:1px solid var(--svx-ink,#161514);font:700 13px/1.3 var(--svx-font-body,'Archivo',sans-serif);text-decoration:none;text-align:center}
+.buyer-seller-section__primary{background:var(--svx-orange,#F25C05);color:var(--svx-ink,#161514)}
+.buyer-seller-section__secondary{background:transparent;color:var(--svx-ink,#161514)}
+@media(min-width:720px){.buyer-seller-section__card{padding:23px}.buyer-seller-section__actions{grid-template-columns:1fr 1fr}}
+@media(max-width:540px){.buyer-seller-section__intro{align-items:flex-start}.buyer-seller-section__primary,.buyer-seller-section__secondary{width:100%}}
