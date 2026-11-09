@@ -165,7 +165,7 @@ export default function SocialStoreProfile() {
     <header className="social-profile-nav">
       <button onClick={() => go('/')}><ArrowLeft size={18}/> Feed</button>
       <strong className="svx-social-brand"><img src="/brand/shopvax-symbol-dark.svg" className="svx-brand-symbol" alt="" aria-hidden="true" /><img src="/brand/shopvax-wordmark-light.svg" className="svx-brand-wordmark" alt="Shopvax" /></strong>
-      <button type="button" onClick={() => ownerSession === 'authenticated' ? go('/painel') : buyerSession === 'authenticated' ? go('/comprador') : setAccountChoice('login')}>{ownerSession === 'authenticated' ? 'Minha loja' : buyerSession === 'authenticated' ? 'Minha conta' : 'Entrar'}</button>
+      {ownerSession === 'authenticated' && <button type="button" onClick={() => go('/painel')}>Minha loja</button>}
     </header>
 
     <main className="social-profile-shell">

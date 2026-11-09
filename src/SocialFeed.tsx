@@ -497,11 +497,7 @@ export default function SocialFeed() {
   }
 
   return <div className="social-feed-page">
-    <header className="social-feed-nav"><strong className="svx-social-brand"><img src="/brand/shopvax-symbol-dark.svg" className="svx-brand-symbol" alt="" aria-hidden="true" /><img src="/brand/shopvax-wordmark-light.svg" className="svx-brand-wordmark" alt="Shopvax" /></strong><span></span><div className="social-feed-nav__right"><button type="button" onClick={() => ownerSession === 'authenticated'
-      ? go('/painel')
-      : buyerSession === 'authenticated'
-        ? go('/comprador')
-        : setAccountChoice({reason:'login',storeSlug:posts[activeIndex]?.store.slug || posts[0]?.store.slug})}>{ownerSession === 'authenticated' ? 'Minha loja' : buyerSession === 'authenticated' ? 'Minha conta' : 'Entrar'}</button></div></header>
+    <header className="social-feed-nav"><strong className="svx-social-brand"><img src="/brand/shopvax-symbol-dark.svg" className="svx-brand-symbol" alt="" aria-hidden="true" /><img src="/brand/shopvax-wordmark-light.svg" className="svx-brand-wordmark" alt="Shopvax" /></strong><span></span><div className="social-feed-nav__right">{ownerSession === 'authenticated' && <button type="button" onClick={() => go('/painel')}>Minha loja</button>}</div></header>
     <main className="social-feed-list" ref={listRef}
       data-feed-initial-posts={initialSession?.posts.length || 0}
       data-feed-restored-index={restoredIndex.current}
