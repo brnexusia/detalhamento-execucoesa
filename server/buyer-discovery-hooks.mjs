@@ -24,6 +24,7 @@ async function ensureSaved() {
 const productShape = row => ({
  id:row.id,name:row.name,sku:row.sku,category:row.category,
  mediaUrl:row.media_url||((Array.isArray(row.images)?row.images:[])[0]||''),
+ thumbnailUrl:row.media_type==='video'?((Array.isArray(row.images)?row.images:[])[0]||''):row.media_url||((Array.isArray(row.images)?row.images:[])[0]||''),
  mediaType:row.media_type==='video'?'video':'image',
  store:{id:row.store_id,slug:row.store_slug,name:row.store_name,logoUrl:row.logo_url||''}
 })
