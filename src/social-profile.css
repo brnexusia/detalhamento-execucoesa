@@ -18,3 +18,13 @@
   line-height:1.45;
 }
 .social-profile-page .social-profile-actions button:disabled{opacity:.6;cursor:wait;}
+
+/* Um perfil social, duas visualizações: nada abre o catálogo comercial. */
+.social-profile-view-switch{gap:4px;align-items:center;justify-content:center;flex-wrap:wrap;padding:6px 8px}
+.social-profile-view-switch>button{display:flex;align-items:center;justify-content:center;gap:6px;border:0;border-bottom:2px solid transparent;background:transparent;color:#5f6963;padding:11px 14px;font-size:13px;font-weight:800;cursor:pointer}
+.social-profile-view-switch>button.is-active{border-color:#F25C05;color:#161514}
+.social-profile-view-switch>button.social-profile-cart-action{margin-left:auto;border:1px solid #e0e4dc;border-radius:10px;padding:9px 12px}
+.social-profile-grid.is-feed-view{grid-template-columns:minmax(0,1fr);max-width:520px;margin:16px auto;gap:14px}
+.social-profile-grid.is-feed-view>button{aspect-ratio:9/13;border-radius:14px}
+.social-profile-grid.is-feed-view .social-profile-grid__name{font-size:16px;padding:50px 16px 18px;white-space:normal}
+@media(max-width:720px){.social-profile-view-switch>button{padding:10px 8px;font-size:12px}.social-profile-grid.is-feed-view{margin:10px auto;gap:10px}.social-profile-grid.is-feed-view>button{border-radius:0}}
