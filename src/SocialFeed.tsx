@@ -1,5 +1,6 @@
 import ShopvaxLoading from './ShopvaxLoading'
 import SocialAccountChoice from './SocialAccountChoice'
+import SocialShopping, { socialCartCount } from './SocialShopping'
 import { useOwnerSession } from './owner-session'
 import { useBuyerSession } from './buyer-session'
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -17,7 +18,7 @@ type FeedProduct = {
   sku: string
   name: string
   description: string
-  price: number
+  price: number | null
   category: string
   mediaUrl: string
   mediaType: 'image' | 'video'
@@ -281,9 +282,9 @@ const SocialPostCard = memo(function SocialPostCard({ post, cartCount, active, s
         {descriptionCanExpand && <button type="button" aria-expanded={descriptionExpanded} onClick={() => setDescriptionExpanded((value) => !value)}>{descriptionExpanded ? 'Menos' : 'Mais'}</button>}
       </div>}
       <div className="social-feed-buyline">
-        <strong>{money.format(post.product.price)}</strong>
+        <strong>Ver valores e condições</strong>
         <div>
-          <button className="social-feed-add" onClick={() => onAdd(post)}><Plus size={17}/> Montar pedido</button>
+          <button className="social-feed-add" onClick={() => onAdd(post)}><Plus size={17}/> Ver preço / Comprar</button>
           {cartCount > 0 && <button className="social-feed-cart" onClick={() => onCart(post.store)} aria-label={`Abrir carrinho da ${post.store.name}`}><ShoppingBag size={17}/><b>{cartCount}</b></button>}
         </div>
       </div>
@@ -319,6 +320,7 @@ export default function SocialFeed() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [accountChoice, setAccountChoice] = useState<{reason:'login'|'follow'; storeSlug?:string; storeId?:string} | null>(null)
+  const [socialPurchase,setSocialPurchase] = useState<{storeSlug:string;storeName:string;productId?:string;initialCart?:boolean}|null>(null)
   const ownerSession = useOwnerSession()
   const buyerSession = useBuyerSession()
   const [picker, setPicker] = useState<PickerState | null>(null)
@@ -477,17 +479,18 @@ export default function SocialFeed() {
   useEffect(() => {
     const syncCart = () => setCartVersion((value) => value + 1)
     const onChange = (event: Event) => { if ((event as CustomEvent<{ storeSlug?: string }>).detail?.storeSlug) syncCart() }
-    const onStorage = (event: StorageEvent) => { if (event.key?.startsWith('shopvax-cart-v1:') || event.key === null) syncCart() }
+    const onStorage = (event: StorageEvent) => { if (event.key?.startsWith('shopvax-social-cart-v1:') || event.key === null) syncCart() }
     window.addEventListener('shopvax:cart-change', onChange)
+    window.addEventListener('shopvax:social-cart-change', onChange)
     window.addEventListener('storage', onStorage)
     window.addEventListener('focus', syncCart)
-    return () => { window.removeEventListener('shopvax:cart-change', onChange); window.removeEventListener('storage', onStorage); window.removeEventListener('focus', syncCart) }
+    return () => { window.removeEventListener('shopvax:cart-change', onChange); window.removeEventListener('shopvax:social-cart-change', onChange); window.removeEventListener('storage', onStorage); window.removeEventListener('focus', syncCart) }
   }, [])
   const cartCounts = useMemo(() => {
     const counts = new Map<string, number>()
     for (const post of posts) {
       if (counts.has(post.store.slug)) continue
-      counts.set(post.store.slug, readCart(post.store.slug).reduce((sum, item) => sum + Math.max(1, Number(item.quantity || 1)), 0))
+      counts.set(post.store.slug, socialCartCount(post.store.slug))
     }
     return counts
   }, [posts, cartVersion])
@@ -508,6 +511,10 @@ export default function SocialFeed() {
   }, [])
 
   const requestAdd = useCallback((post: SocialPost) => {
+    setSocialPurchase({storeSlug:post.store.slug,storeName:post.store.name,productId:post.product.id})
+  }, [])
+
+  const legacyRequestAdd = useCallback((post: SocialPost) => {
     const groups = Array.isArray(post.product.variations) ? post.product.variations : []
     if (!groups.length) { addCartItem(post, {}, 1); return }
     const defaults: Record<string, string> = {}
@@ -583,7 +590,7 @@ export default function SocialFeed() {
         })
       }}>
       {windowStart > 0 && <div className="social-feed-spacer" aria-hidden="true" style={{ height: `${windowStart * 100}dvh` }}/>}
-      {visiblePosts.map((post, index) => <SocialPostCard post={post} key={post.id} active={windowStart + index === visibleIndex} saveData={saveData} cartCount={cartCount(post.store.slug)} onProfile={openProfile} onAdd={requestAdd} onCart={setActiveCart} onFollow={requestFollow}/>)}
+      {visiblePosts.map((post, index) => <SocialPostCard post={post} key={post.id} active={windowStart + index === visibleIndex} saveData={saveData} cartCount={cartCount(post.store.slug)} onProfile={openProfile} onAdd={requestAdd} onCart={(store)=>setSocialPurchase({storeSlug:store.slug,storeName:store.name,initialCart:true})} onFollow={requestFollow}/>)}
       {windowEnd < posts.length && <div className="social-feed-spacer" aria-hidden="true" style={{ height: `${(posts.length - windowEnd) * 100}dvh` }}/>}
       {!posts.length && !loading && !error && <div className="social-feed-state"><h1>O feed está começando.</h1><p>As publicações das lojas aparecerão aqui.</p></div>}
       {error && <div className="social-feed-state"><p>{error}</p><button onClick={() => void load(cursor)}>Tentar novamente</button></div>}
@@ -591,6 +598,7 @@ export default function SocialFeed() {
       <div ref={sentinel} className="social-feed-sentinel" />
     </main>
 
+    {socialPurchase&&<SocialShopping key={socialPurchase.storeSlug+':'+(socialPurchase.productId||'cart')} {...socialPurchase} onClose={()=>setSocialPurchase(null)} onCartChanged={()=>setCartVersion(v=>v+1)}/>}
     {accountChoice && <SocialAccountChoice storeSlug={accountChoice.storeSlug} storeId={accountChoice.storeId} reason={accountChoice.reason}
       onFollowed={(result) => { if (accountChoice.storeId) updateFollow(accountChoice.storeId,result) }}
       onClose={() => setAccountChoice(null)}/>} 
@@ -603,7 +611,7 @@ export default function SocialFeed() {
           <div className="feed-picker-qty"><span>Quantidade</span><div><button onClick={() => setPicker((current) => current ? { ...current, quantity: Math.max(1, current.quantity - 1) } : current)}><Minus size={15}/></button><b>{picker.quantity}</b><button onClick={() => setPicker((current) => current ? { ...current, quantity: current.quantity + 1 } : current)}><Plus size={15}/></button></div></div>
           {pickerError && <p className="feed-sheet-error">{pickerError}</p>}
         </div>
-        <footer><strong>{money.format(picker.post.product.price * picker.quantity)}</strong><button onClick={confirmPicker}><ShoppingBag size={17}/> Adicionar ao carrinho</button></footer>
+        <footer><strong>{money.format(Number(picker.post.product.price||0) * picker.quantity)}</strong><button onClick={confirmPicker}><ShoppingBag size={17}/> Adicionar ao carrinho</button></footer>
       </section>
     </div>}
 
