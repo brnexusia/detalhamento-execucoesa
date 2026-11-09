@@ -74,7 +74,8 @@ async function discover(req,res){
      WHERE p.active=true AND p.social_published=true AND s.is_active=true AND s.social_enabled=true
      GROUP BY category ORDER BY count(*) DESC,category ASC LIMIT 24`)
  ])
- res.set('Cache-Control','public, max-age=30')
+ if(priceFilter){noCache(res);res.set('Vary','Cookie')}
+ else res.set('Cache-Control','public, max-age=30')
  return res.json({products:products.rows.map(productShape),
    stores:stores.rows.map(x=>({id:x.id,slug:x.slug,name:x.name,logoUrl:x.logo_url||'',tagline:x.tagline||'',productCount:Number(x.product_count||0)})),
    categories:categories.rows.map(x=>x.category),pricesVisible:Boolean(priceFilter)})
