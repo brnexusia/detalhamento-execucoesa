@@ -404,33 +404,81 @@ function Products({ data, revision, query, setQuery, onCreate, onEdit, onVisibil
   return <div className="panel-page svx-products">
     <header className="page-title svx-products__hero">
       <div className="svx-products__intro">
-        <span className="svx-products__eyebrow">{storeTotal} PRODUTOS{data.activeProductCount == null ? '' : ' · ' + data.activeProductCount + ' APARECEM NA LOJA'}</span>
-        <h1>Produtos</h1>
+        <span className="svx-products__eyebrow">{storeTotal} PRODUTOS NA BASE{data.activeProductCount == null ? '' : ' · ' + data.activeProductCount + ' APARECEM NA LOJA'}</span>
+        <div className="svx-products__catalog-heading"><h1>Produtos</h1>
+          <CatalogManager storeSlug={data.store.slug} categories={(data.productCategories||[]).map(x=>x.category)}
+            onSelect={(catalog)=>{setActiveCatalog(catalog);onCatalogChange(catalog)}}
+            onChanged={onRefreshed}/>
+        </div>
       </div>
       <div className="page-title-actions svx-products__top-actions">
-        <button type="button" className="svx-products__text-action" disabled={!storeTotal || pdfBusy} onClick={() => void generatePdf()}><Download size={15} />{pdfBusy ? 'Gerando PDF…' : 'Catálogo em PDF'}</button>
         <button type="button" className="primary-action" onClick={onCreate}>Novo produto <ArrowRight size={18} /></button>
       </div>
     </header>
     <div className="svx-products__toolbar">
       <nav className="svx-products__categories" aria-label="Filtrar produtos por categoria">
         <button type="button" aria-pressed={activeCategory === 'Todas'} className={activeCategory === 'Todas' ? 'is-active' : ''} onClick={() => setActiveCategory('Todas')}>Todos <small>{storeTotal}</small></button>
-        {categories.map((item) => <button type="button" key={item.category} aria-pressed={activeCategory === item.category} className={activeCategory === item.category ? 'is-active' : ''} onClick={() => setActiveCategory(item.category)}>{item.category} <small>{item.count}</small></button>)}
+        {categories.map((item) => <button type="button" key={item.category} aria-pressed={activeCategory === item.category} className={activeCategory === item.category ? 'is-active' : ''} onClick={() => setActiveCategory(item.category)}>{item.category} {(!activeCatalog||activeCatalog.isDefault)&&<small>{item.count}</small>}</button>)}
       </nav>
       <label className="svx-products__search"><Search size={16} aria-hidden="true" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nome ou referência" aria-label="Buscar produto por nome, referência ou categoria" /></label>
     </div>
-    {selectionMode && <div className="product-bulk-toolbar">
-      <label><input type="checkbox" checked={allLoadedSelected} onChange={toggleLoaded} disabled={!visible.length} /><span>Selecionar os {visible.length} produtos carregados</span></label>
-      <div><span>{countLabel(selectedIds.length, 'selecionado')}</span><button type="button" className="secondary-action danger" disabled={!selectedIds.length || bulkBusy || selectedIds.length > 5000} onClick={() => void removeSelected()}><Trash2 size={15}/>{bulkBusy ? 'Excluindo…' : 'Excluir selecionados'}</button></div>
+    <div className="product-bulk-toolbar product-bulk-toolbar--sticky" aria-label="Ações em produtos">
+      <div className="product-bulk-toolbar__primary">
+        <button type="button" className="svx-products__select" disabled={bulkBusy||Boolean(bulkJobId)} onClick={toggleSelectionMode}>
+          {selectionMode?'Cancelar seleção':'Selecionar produtos'}
+        </button>
+        {selectionMode&&<>
+          <label><input type="checkbox" checked={allLoadedSelected} onChange={toggleLoaded} disabled={!visible.length||Boolean(bulkJobId)}/>
+            <span>{allMatching?'Produtos desta página':'Selecionar '+visible.length+' carregados'}</span></label>
+          <span>{effectiveSelected.toLocaleString('pt-BR')} selecionado(s)</span>
+          {!allMatching&&total>visible.length&&<button type="button" className="svx-products__all-results" onClick={()=>{setAllMatching(true);setSelectedIds([]);setExcludedIds([])}}>
+            Selecionar todos os {total.toLocaleString('pt-BR')} resultados
+          </button>}
+          {allMatching&&<button type="button" className="svx-products__all-results" onClick={()=>{setAllMatching(false);setExcludedIds([]);setSelectedIds([])}}>Selecionar apenas carregados</button>}
+          <button type="button" className="secondary-action danger" disabled={!effectiveSelected||bulkBusy||Boolean(bulkJobId)} onClick={()=>ask(allMatching?'matching':'selected',effectiveSelected)}>
+            <Trash2 size={15}/>{activeCatalog&&!activeCatalog.isDefault?'Remover do catálogo':'Excluir selecionados'}
+          </button>
+        </>}
+      </div>
+      <div className="product-bulk-toolbar__destructive">
+        {activeCatalog&&!activeCatalog.isDefault
+          ? <button type="button" className="svx-products__erase" disabled={bulkBusy||Boolean(bulkJobId)||!total&&!storeTotal} onClick={()=>void askEmptyCatalog()}>
+              Esvaziar catálogo
+            </button>
+          : <button type="button" className="svx-products__erase" disabled={bulkBusy||Boolean(bulkJobId)||!storeTotal} onClick={()=>ask('store',storeTotal)}>
+              Excluir tudo da loja
+            </button>}
+      </div>
+    </div>
+    {bulkJobId&&jobProgress&&<div className="svx-products__job" role="status">
+      <strong>{jobProgress.status==='queued'?'Preparando operação…':'Processando produtos…'}</strong>
+      <span>{jobProgress.processed.toLocaleString('pt-BR')} de {jobProgress.total.toLocaleString('pt-BR')}</span>
+      <progress max={Math.max(1,jobProgress.total)} value={jobProgress.processed}/>
+      <small>Você pode sair da página. A operação continua no servidor.</small>
     </div>}
+    {jobError&&<div className="panel-error" role="alert">{jobError}<button type="button" onClick={()=>setJobError('')}>Fechar</button></div>}
     {actionError && <div className="panel-error" role="alert">{actionError}<button type="button" onClick={() => setActionError('')}>Fechar</button></div>}
+    {intent&&<div className="svx-products__confirm-layer">
+      <button type="button" className="svx-products__confirm-backdrop" aria-label="Fechar confirmação" onClick={()=>!bulkBusy&&setIntent(null)}/>
+      <section role="dialog" aria-modal="true" aria-labelledby="svx-bulk-title" className="svx-products__confirm-card">
+        <h2 id="svx-bulk-title">{intent.scope==='store'?'Excluir todos os produtos da loja?':activeCatalog&&!activeCatalog.isDefault?'Remover produtos do catálogo?':'Excluir produtos?'}</h2>
+        <p><strong>{intent.count.toLocaleString('pt-BR')} produto(s)</strong> {intent.scope==='store'?'serão apagados de toda a loja, de todos os catálogos.':activeCatalog&&!activeCatalog.isDefault?'serão retirados apenas do catálogo '+activeCatalog.name+'. A base da loja será preservada.':'serão excluídos da base da loja e de todos os catálogos.'}</p>
+        {intent.scope==='store'&&<p className="svx-products__confirm-warning">Esta ação é irreversível. Pedidos anteriores permanecem registrados, mas os produtos serão removidos.</p>}
+        <label>Digite <strong>{confirmPhrase(intent.scope)}</strong> para confirmar
+          <input autoFocus autoComplete="off" value={confirmation} onChange={e=>setConfirmation(e.target.value)} aria-label="Frase de confirmação"/>
+        </label>
+        <footer><button type="button" onClick={()=>setIntent(null)} disabled={bulkBusy}>Cancelar</button>
+          <button type="button" className="danger" disabled={bulkBusy||confirmation!==confirmPhrase(intent.scope)} onClick={()=>void executeBulk()}>{bulkBusy?'Processando…':'Confirmar operação'}</button></footer>
+      </section>
+    </div>}
+
     <div className="svx-products__table" role="table" aria-label="Produtos cadastrados" aria-busy={pageBusy}>
       <div className="svx-products__headings" role="row">
         <span role="columnheader">Produto</span><span role="columnheader">Categoria</span><span role="columnheader">Grade</span><span role="columnheader">Preço</span><span role="columnheader">Na loja</span><span role="columnheader">Ações</span>
       </div>
-      {visible.map((product) => <article role="row" className={'product-admin-card' + (selected.has(product.id) ? ' is-selected' : '')} key={product.id}>
+      {visible.map((product) => <article role="row" className={'product-admin-card' + (isSelected(product.id)&&selectionMode ? ' is-selected' : '')} key={product.id}>
         <div className="svx-products__product" role="cell">
-          {selectionMode && <label className="product-select-control"><input type="checkbox" checked={selected.has(product.id)} onChange={() => toggleProduct(product.id)} /><span className="sr-only">Selecionar {product.name}</span></label>}
+          {selectionMode && <label className="product-select-control"><input type="checkbox" checked={isSelected(product.id)} onChange={() => toggleProduct(product.id)} /><span className="sr-only">Selecionar {product.name}</span></label>}
           <div className="product-admin-card__media"><AdminProductMedia product={product}/></div>
           <div className="svx-products__name-ref"><div className="svx-products__name-line"><strong>{product.name}</strong>{product.featured && <span className="svx-products__featured">Destaque</span>}</div><small>{product.sku ? 'REF ' + product.sku : 'SEM REFERÊNCIA'}</small></div>
         </div>
@@ -438,13 +486,13 @@ function Products({ data, revision, query, setQuery, onCreate, onEdit, onVisibil
         <div className="svx-products__grade" role="cell"><span className="svx-products__mobile-label">Grade</span>{gradeLabel(product)}</div>
         <div className="svx-products__price" role="cell"><span className="svx-products__mobile-label">Preço</span><small>R$</small><strong>{numberPrice.format(product.price)}</strong></div>
         <div className="svx-products__visibility" role="cell"><button type="button" className="svx-products__switch" role="switch" aria-checked={product.active} aria-label={(product.active ? 'Ocultar ' : 'Mostrar ') + product.name + ' na loja'} disabled={visibilityBusy !== null} onClick={() => void toggleVisibility(product)}><span className="svx-products__track" aria-hidden="true"><span /></span><span>{visibilityBusy === product.id ? 'Salvando…' : product.active ? 'Visível' : 'Oculto'}</span></button></div>
-        <div className="svx-products__actions" role="cell"><button type="button" className="svx-products__edit" onClick={() => onEdit(product)}>Editar</button><details className="svx-products__more"><summary aria-label={'Mais ações de ' + product.name} title="Mais ações"><MoreHorizontal size={18} aria-hidden="true" /></summary><button type="button" className="svx-products__delete" onClick={() => onDelete(product)}><Trash2 size={14} /> Excluir</button></details></div>
+        <div className="svx-products__actions" role="cell"><button type="button" className="svx-products__edit" onClick={() => onEdit(product)}>Editar</button><details className="svx-products__more"><summary aria-label={'Mais ações de ' + product.name} title="Mais ações"><MoreHorizontal size={18} aria-hidden="true" /></summary><button type="button" className="svx-products__delete" onClick={() => void removeOne(product)}><Trash2 size={14} /> {activeCatalog&&!activeCatalog.isDefault?'Remover do catálogo':'Excluir'}</button></details></div>
       </article>)}
     </div>
     {pageError && <div className="panel-error" role="alert">{pageError}<button type="button" onClick={() => setRetry((value) => value + 1)}>Tentar novamente</button></div>}
     {(pageBusy || query !== searchTerm) && !visible.length && <ShopvaxLoading compact label="Carregando produtos…" />}
-    {!pageBusy && query === searchTerm && !pageError && !visible.length && <div className="admin-empty"><Package size={30}/><h2>{storeTotal ? 'Nenhum produto encontrado.' : 'Cadastre seu primeiro produto.'}</h2><p>Você pode usar fotos ou vídeo, criar variações e controlar estoque na mesma edição.</p><button className="primary-action" onClick={onCreate}><Plus size={18} /> Cadastrar produto</button></div>}
-    {(total > 0 || storeTotal > 0) && <footer className="svx-products__footer"><span>{visible.length} DE {total} PRODUTOS</span><div><button type="button" className="svx-products__select" disabled={!visible.length || bulkBusy} onClick={toggleSelectionMode}>{selectionMode ? 'Cancelar seleção' : 'Selecionar produtos'}</button>{visible.length < total && <button type="button" className="svx-products__load-more" disabled={pageBusy || !!pageError} onClick={() => setPage((value) => value + 1)}>{pageBusy ? 'Carregando…' : 'Ver mais produtos'}</button>}</div></footer>}
+    {!pageBusy && query === searchTerm && !pageError && !visible.length && <div className="admin-empty"><Package size={30}/><h2>{activeCatalog&&!activeCatalog.isDefault?'Nenhum produto neste catálogo.':storeTotal?'Nenhum produto encontrado.':'Cadastre seu primeiro produto.'}</h2><p>Você pode usar fotos ou vídeo, criar variações e controlar estoque na mesma edição.</p><button className="primary-action" onClick={onCreate}><Plus size={18} /> Cadastrar produto</button></div>}
+    {(total > 0 || storeTotal > 0) && <footer className="svx-products__footer"><span>{visible.length} DE {total} PRODUTOS</span><div>{visible.length < total && <button type="button" className="svx-products__load-more" disabled={pageBusy || !!pageError} onClick={() => setPage((value) => value + 1)}>{pageBusy ? 'Carregando…' : 'Ver mais produtos'}</button>}</div></footer>}
   </div>
 }
 
