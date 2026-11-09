@@ -148,11 +148,13 @@ async function listCatalogs(req, res) {
   const storeId = req.catalogStore.store_id
   await ensureDefaultCatalog(storeId)
   const catalogs = await pool.query('SELECT * FROM catalogs WHERE store_id=$1 ORDER BY is_default DESC,created_at ASC', [storeId])
-  const mappings = await pool.query(
-    `SELECT cp.catalog_id,cp.product_id,cp.price_override,cp.visible
-     FROM catalog_products cp JOIN catalogs c ON c.id=cp.catalog_id WHERE c.store_id=$1`,
-    [storeId],
-  )
+  const mappings = req.query?.includeItems==='1'
+    ? await pool.query(
+      `SELECT cp.catalog_id,cp.product_id,cp.price_override,cp.visible
+       FROM catalog_products cp JOIN catalogs c ON c.id=cp.catalog_id WHERE c.store_id=$1`,
+      [storeId],
+    )
+    : { rows: [] }
   const byCatalog = new Map()
   for (const row of mappings.rows) {
     if (!byCatalog.has(row.catalog_id)) byCatalog.set(row.catalog_id, [])
