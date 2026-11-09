@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { ArrowLeft, Grid2X2, Play, ShoppingBag, Store, X } from 'lucide-react'
 const SocialShopping = lazy(() => import('./SocialShopping'))
 import './social-profile.css'
@@ -48,6 +48,7 @@ export default function SocialStoreProfile() {
   const [publicationsLoading, setPublicationsLoading] = useState(true)
   const [selected, setSelected] = useState<Publication | null>(null)
   const [viewMode,setViewMode] = useState<'feed'|'grade'>('grade')
+  const profileFeedRef=useRef<HTMLElement|null>(null)
   const [socialPurchase,setSocialPurchase] = useState<{productId?:string;initialCart?:boolean}|null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -121,6 +122,24 @@ export default function SocialStoreProfile() {
     return () => window.removeEventListener('popstate', onPop)
   }, [publications])
 
+  useEffect(()=>{
+    if(viewMode!=='feed')return
+    const container=profileFeedRef.current
+    if(!container)return
+    const videos=Array.from(container.querySelectorAll('video'))
+    const reduceMotion=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    const observer=new IntersectionObserver((entries)=>{
+      entries.forEach(entry=>{
+        const video=entry.target as HTMLVideoElement
+        if(!reduceMotion&&entry.isIntersecting&&entry.intersectionRatio>=.65)
+          void video.play().catch(()=>undefined)
+        else video.pause()
+      })
+    },{root:container,threshold:[0,.65,1]})
+    videos.forEach(video=>observer.observe(video))
+    return()=>{observer.disconnect();videos.forEach(video=>video.pause())}
+  },[viewMode,publications])
+
   const openPublication = (publication: Publication) => {
     setSelected(publication)
     window.history.pushState({}, '', `/perfil/${encodeURIComponent(slug)}?produto=${encodeURIComponent(publication.id)}`)
@@ -167,14 +186,28 @@ export default function SocialStoreProfile() {
         <div className="social-profile-tabs social-profile-view-switch" aria-label="Visualização dos produtos"><button type="button" className={viewMode==='feed'?'is-active':''} aria-pressed={viewMode==='feed'} onClick={()=>setViewMode('feed')}><Play size={16}/> Feed</button><button type="button" className={viewMode==='grade'?'is-active':''} aria-pressed={viewMode==='grade'} onClick={()=>setViewMode('grade')}><Grid2X2 size={16}/> Loja</button><button type="button" className="social-profile-cart-action" onClick={()=>setSocialPurchase({initialCart:true})}><ShoppingBag size={16}/> Carrinho</button></div>
       </section>
 
-      <section className={`social-profile-grid ${viewMode==='feed'?'is-feed-view':''}`} aria-label={`Produtos de ${store.name} em ${viewMode==='feed'?'feed':'grade'}`}>
-        {publications.map((publication) => <button key={publication.id} onClick={() => openPublication(publication)}>
-          {publication.mediaType === 'video'
-            ? <><video src={publication.mediaUrl} muted playsInline preload="metadata"/><span className="social-profile-video"><Play size={18} fill="currentColor"/></span></>
-            : publication.mediaUrl ? <img src={publication.mediaUrl} alt={publication.name} loading="lazy" decoding="async"/> : <span className="social-profile-empty"><Store size={22}/></span>}
-          <span className="social-profile-grid__name">{publication.name}</span>
-        </button>)}
-      </section>
+      {viewMode==='feed'
+        ? <section ref={profileFeedRef} className="social-profile-feed" aria-label={`Feed de produtos de ${store.name}`}>
+          {publications.map(publication=><article key={publication.id} className="social-profile-feed-post">
+            <button className="social-profile-feed-post__media" type="button" onClick={()=>openPublication(publication)} aria-label={`Abrir ${publication.name}`}>
+              {publication.mediaType==='video'
+                ? <video src={publication.mediaUrl} muted playsInline loop preload="none" aria-hidden="true"/>
+                : publication.mediaUrl
+                  ? <img src={publication.mediaUrl} alt="" loading="lazy" decoding="async"/>
+                  : <span className="social-profile-empty"><Store size={26}/></span>}
+              <span className="social-profile-feed-post__title">{publication.name}</span>
+            </button>
+            <button className="social-profile-feed-post__buy" type="button" onClick={()=>setSocialPurchase({productId:publication.id})}><ShoppingBag size={17}/> Ver preço / Comprar</button>
+          </article>)}
+        </section>
+        : <section className="social-profile-grid" aria-label={`Produtos de ${store.name} em grade`}>
+          {publications.map((publication) => <button key={publication.id} onClick={() => openPublication(publication)}>
+            {publication.mediaType === 'video'
+              ? <><video src={publication.mediaUrl} muted playsInline preload="none"/><span className="social-profile-video"><Play size={18} fill="currentColor"/></span></>
+              : publication.mediaUrl ? <img src={publication.mediaUrl} alt={publication.name} loading="lazy" decoding="async"/> : <span className="social-profile-empty"><Store size={22}/></span>}
+            <span className="social-profile-grid__name">{publication.name}</span>
+          </button>)}
+        </section>}
       {!publications.length && <div className="social-profile-empty-state" role={error ? "alert" : undefined}>{publicationsLoading ? "Carregando publicações…" : error || "Esta loja ainda não publicou produtos."}</div>}
     </main>
 
