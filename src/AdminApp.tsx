@@ -158,10 +158,10 @@ export default function AdminApp() {
       setError('Não foi possível encerrar a sessão. Tente novamente.')
     }
   }
-  const deleteProductsBulk = async (ids: string[]) => {
+  const deleteProductsBulk = async (ids: string[],confirmed=false) => {
     if (!ids.length) return false
     const label = countLabel(ids.length, 'produto selecionado', 'produtos selecionados')
-    if (!(await confirmAction(`Excluir ${label}? Esta ação não pode ser desfeita.`, 'Excluir produtos em massa', 'Excluir selecionados'))) return false
+    if (!confirmed && !(await confirmAction(`Excluir ${label}? Esta ação não pode ser desfeita.`, 'Excluir produtos em massa', 'Excluir selecionados'))) return false
     setError('')
     try {
       const result = await api.deleteProducts(ids)
@@ -227,7 +227,7 @@ function Dashboard({ data, incomplete, storeUrl, onSection, onCopy }: { data: Ad
   return <ShopvaxDashboard data={data} incomplete={incomplete} storeUrl={storeUrl} onSection={onSection} onCopy={onCopy}/>
 }
 
-function Products({ data, revision, query, setQuery, onCreate, onEdit, onVisibility, onDelete, onBulkDelete, onDownloadPdf, onCatalogChange, onRefreshed }: { data: AdminBootstrap; revision: number; query: string; setQuery: (value: string) => void; onCreate: () => void; onEdit: (p: AdminProduct) => void; onVisibility: (p: AdminProduct) => void | Promise<void>; onDelete: (p: AdminProduct) => void; onBulkDelete: (ids: string[]) => Promise<boolean>; onDownloadPdf: () => Promise<void>; onCatalogChange:(c:AdminCatalog|null)=>void; onRefreshed:()=>void }) {
+function Products({ data, revision, query, setQuery, onCreate, onEdit, onVisibility, onDelete, onBulkDelete, onDownloadPdf, onCatalogChange, onRefreshed }: { data: AdminBootstrap; revision: number; query: string; setQuery: (value: string) => void; onCreate: () => void; onEdit: (p: AdminProduct) => void; onVisibility: (p: AdminProduct) => void | Promise<void>; onDelete: (p: AdminProduct) => void; onBulkDelete: (ids: string[],confirmed?:boolean) => Promise<boolean>; onDownloadPdf: () => Promise<void>; onCatalogChange:(c:AdminCatalog|null)=>void; onRefreshed:()=>void }) {
   const [page, setPage] = useState(1)
   const [activeCategory, setActiveCategory] = useState('Todas')
   const [selectionMode, setSelectionMode] = useState(false)
@@ -320,7 +320,7 @@ function Products({ data, revision, query, setQuery, onCreate, onEdit, onVisibil
             await api.updateCatalogMembers(activeCatalog.id,selectedIds.slice(i,i+500),'remove')
           onRefreshed()
         }else{
-          const success=await onBulkDelete(selectedIds)
+          const success=await onBulkDelete(selectedIds,true)
           if(!success)return
         }
         setSelectedIds([]);setSelectionMode(false);setIntent(null)
