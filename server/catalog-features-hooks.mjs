@@ -527,7 +527,7 @@ async function socialProductOffers(req, res) {
   if (!available.rowCount) return res.status(404).json({ error: 'Produto indisponível nos catálogos da loja.' })
   return res.json({
     product: { id:p.id, sku:p.sku, name:p.name, description:p.description, category:p.category,
-      images:Array.isArray(p.images)?p.images:[], variations:Array.isArray(p.variations)?p.variations:[] },
+      images:Array.isArray(p.images)?p.images:[], mediaUrl:p.media_url||'', mediaType:p.media_type==='video'?'video':'image', variations:Array.isArray(p.variations)?p.variations:[] },
     buyerPurpose: buyer.purpose,
     offers: available.rows.map(c => ({
       id:c.id, slug:c.slug, name:c.name, kind:c.kind,
