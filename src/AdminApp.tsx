@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowRight, Boxes, Check, ChevronLeft, ChevronRight, Clipboard, CreditCard, Download, Eye, EyeOff, ExternalLink, ImagePlus, Link2, LogOut, Menu, MoreHorizontal, Package, Pencil, Plus, ReceiptText, Search, Settings, Store as StoreIcon, Trash2, TrendingUp, Upload, Users, X } from 'lucide-react'
-import { api } from './api'
+import { api, type AdminCatalog } from './api'
 import { isCatalogPhoto } from './catalog-photo-upload'
 import { listenAuthChanges } from './auth-session-sync'
 import ShopvaxDashboard from './ShopvaxDashboard'
@@ -78,6 +78,7 @@ export default function AdminApp() {
   const [sellerModal, setSellerModal] = useState<Partial<AdminSeller> | null>(null)
   const [query, setQuery] = useState('')
   const [productsVersion, setProductsVersion] = useState(0)
+  const [createInCatalogId,setCreateInCatalogId] = useState('')
   const [visitedProducts, setVisitedProducts] = useState(section === 'produtos')
   const [storeDirty, setStoreDirty] = useState(false)
   const loadVersion = useRef(0)
@@ -210,13 +211,13 @@ export default function AdminApp() {
         {notice && <div className="toast"><Check size={16} /> {notice}</div>}
         {error && <div className="panel-error">{error}</div>}
         {section === 'inicio' && (data.store.onboarding_palette_selected === false && !totalProducts && !skipFirstRun && sessionStorage.getItem('shopvax:firstrun-skip:' + data.store.id) !== '1' ? <ShopvaxFirstRun storeName={data.store.name} initialAccent={data.store.accent} onSave={async (accent) => { await api.updateStore({ accent, completePaletteSetup: true }); await load() }} onSkip={() => { sessionStorage.setItem('shopvax:firstrun-skip:' + data.store.id, '1'); setSkipFirstRun(true) }} onOpenThemes={() => { sessionStorage.setItem('shopvax:firstrun-skip:' + data.store.id, '1'); setSkipFirstRun(true); void changeSection('temas') }} /> : <Dashboard data={data} incomplete={incomplete} storeUrl={storeUrl} onSection={changeSection} onCopy={copy} />)}
-        {(section === 'produtos' || visitedProducts) && <div hidden={section !== 'produtos'}>{section==='produtos'&&<CatalogManager storeSlug={data.store.slug} categories={(data.productCategories||[]).map(x=>x.category)} />}<Products data={data} revision={productsVersion} query={query} setQuery={setQuery} onCreate={() => setProductModal({ ...blankProduct })} onEdit={(product) => setProductModal(productDraft(product))} onVisibility={async (product) => { await api.setProductVisibility(product.id, !product.active); flash(product.active ? 'Produto escondido da loja e do feed.' : 'Produto publicado novamente.'); refreshCatalog() }} onDelete={async (product) => { if (!(await confirmAction(`Excluir ${product.name}? Esta ação não pode ser desfeita.`, 'Excluir produto', 'Excluir'))) return; await api.deleteProduct(product.id); flash('Produto excluído.'); refreshCatalog() }} onBulkDelete={deleteProductsBulk} onDownloadPdf={downloadProductsPdf} /></div>}
+        {(section === 'produtos' || visitedProducts) && <div hidden={section !== 'produtos'}><Products data={data} revision={productsVersion} query={query} setQuery={setQuery} onCreate={() => setProductModal({ ...blankProduct })} onCatalogChange={(catalog)=>setCreateInCatalogId(catalog?.id||'')} onRefreshed={refreshCatalog} onEdit={(product) => setProductModal(productDraft(product))} onVisibility={async (product) => { await api.setProductVisibility(product.id, !product.active); flash(product.active ? 'Produto escondido da loja e do feed.' : 'Produto publicado novamente.'); refreshCatalog() }} onDelete={async (product) => { if (!(await confirmAction(`Excluir ${product.name}? Esta ação não pode ser desfeita.`, 'Excluir produto', 'Excluir'))) return; await api.deleteProduct(product.id); flash('Produto excluído.'); refreshCatalog() }} onBulkDelete={deleteProductsBulk} onDownloadPdf={downloadProductsPdf} /></div>}
         {section === 'pedidos' && <Orders data={data} onUpdated={load} />}
         {section === 'vendedoras' && <Sellers data={data} baseUrl={baseUrl} onCopy={copy} onCreate={() => setSellerModal({ name: '', phone: '', slug: '', is_active: true })} onEdit={(seller) => setSellerModal({ ...seller })} onDelete={async (seller) => { if (!(await confirmAction(`Excluir ${seller.name}? O link individual deixará de funcionar.`, 'Excluir vendedora', 'Excluir'))) return; await api.deleteSeller(seller.id); flash('Vendedora excluída.'); load() }} />}
         {section === 'temas' && <ShopvaxThemesPanel data={data} onSaved={() => { flash('Tema e paleta atualizados.'); void load(true) }} />}
          {section === 'loja' && <><StoreSettings data={data} onSaved={() => { flash('Loja atualizada.'); load() }} onCopy={copy} onDirtyChange={setStoreDirty} /><CommercialSettingsPanel embedded/><StoreTools data={data}/></>}
       </main>
-      {productModal && <ProductEditor draft={productModal} setDraft={setProductModal} onClose={() => setProductModal(null)} onSaved={() => { setProductModal(null); flash(productModal.id ? 'Produto atualizado.' : 'Produto cadastrado.'); refreshCatalog() }} />}
+      {productModal && <ProductEditor targetCatalogId={createInCatalogId} draft={productModal} setDraft={setProductModal} onClose={() => setProductModal(null)} onSaved={() => { setProductModal(null); flash(productModal.id ? 'Produto atualizado.' : 'Produto cadastrado.'); refreshCatalog() }} />}
       {sellerModal && <SellerEditor draft={sellerModal} setDraft={setSellerModal} storeSlug={data.store.slug} onClose={() => setSellerModal(null)} onSaved={() => { setSellerModal(null); flash(sellerModal.id ? 'Vendedora atualizada.' : 'Vendedora cadastrada.'); load() }} />}
     </div>
   )
@@ -431,7 +432,7 @@ function StoreTools({ data }: { data: AdminBootstrap }) {
   </div>{!prataPlus && <div className="plan-context-note"><strong>Plano Bronze</strong><span>Recursos do Prata e Ouro aparecem aqui quando o plano da loja for alterado.</span></div>}</div>
 }
 
-function ProductEditor({ draft, setDraft, onClose, onSaved }: { draft: ProductDraft; setDraft: (draft: ProductDraft | null) => void; onClose: () => void; onSaved: () => void }) {
+function ProductEditor({ draft, setDraft, onClose, onSaved, targetCatalogId }: { targetCatalogId:string; draft: ProductDraft; setDraft: (draft: ProductDraft | null) => void; onClose: () => void; onSaved: () => void }) {
   const initialSnapshot = useState(() => JSON.stringify(draft))[0]
   const [busy, setBusy] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -527,7 +528,7 @@ function ProductEditor({ draft, setDraft, onClose, onSaved }: { draft: ProductDr
     // A ordem das fotos é a fonte de verdade: troca, remoção e capa permanecem consistentes.
     const galleryToSave = Array.from(new Set(gallery.filter(Boolean)))
     const cover = draft.mediaType === 'video' ? draft.mediaUrl : (galleryToSave[0] || '')
-    const body = { name: draft.name, sku: draft.sku, description: draft.description, price: Number(draft.price), retailPrice: draft.retailPrice === '' ? null : Number(draft.retailPrice), boxPrice: draft.boxPrice === '' ? null : Number(draft.boxPrice), unitsPerBox: draft.unitsPerBox === '' ? null : Number(draft.unitsPerBox), category: draft.category, pack: draft.pack, mediaUrl: cover, mediaType: draft.mediaType, variations: parseVariations(draft.variationsText), featured: draft.featured, active: draft.active }
+    const body = { name: draft.name, sku: draft.sku, description: draft.description, price: Number(draft.price), retailPrice: draft.retailPrice === '' ? null : Number(draft.retailPrice), boxPrice: draft.boxPrice === '' ? null : Number(draft.boxPrice), unitsPerBox: draft.unitsPerBox === '' ? null : Number(draft.unitsPerBox), category: draft.category, pack: draft.pack, mediaUrl: cover, mediaType: draft.mediaType, variations: parseVariations(draft.variationsText), featured: draft.featured, active: draft.active, catalogId: draft.id?undefined:targetCatalogId||undefined }
     try {
       let productId = draft.id
       if (productId) await api.updateProduct(productId, body)
