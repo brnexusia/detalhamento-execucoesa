@@ -1,9 +1,10 @@
 import ShopvaxLoading from './ShopvaxLoading'
 import SocialAccountChoice from './SocialAccountChoice'
-import SocialShopping, { socialCartCount } from './SocialShopping'
+import { socialCartCount } from './social-cart'
+const SocialShopping = lazy(() => import('./SocialShopping'))
 import { useOwnerSession } from './owner-session'
 import { useBuyerSession } from './buyer-session'
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { lazy, memo, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { showToast } from './ui-dialogs'
 import { Eye, Heart, MessageCircleQuestion, Play, Plus, Share2, ShoppingBag, Store, Volume2, VolumeX } from 'lucide-react'
 import './social-feed.css'
@@ -526,7 +527,7 @@ export default function SocialFeed() {
       <div ref={sentinel} className="social-feed-sentinel" />
     </main>
 
-    {socialPurchase&&<SocialShopping key={socialPurchase.storeSlug+':'+(socialPurchase.productId||'cart')} {...socialPurchase} onClose={()=>setSocialPurchase(null)} onCartChanged={()=>setCartVersion(v=>v+1)}/>}
+    {socialPurchase&&<Suspense fallback={<ShopvaxLoading compact label="Abrindo compra…"/>}><SocialShopping key={socialPurchase.storeSlug+':'+(socialPurchase.productId||'cart')} {...socialPurchase} onClose={()=>setSocialPurchase(null)} onCartChanged={()=>setCartVersion(v=>v+1)}/></Suspense>}
     {accountChoice && <SocialAccountChoice storeSlug={accountChoice.storeSlug} storeId={accountChoice.storeId} reason={accountChoice.reason}
       onFollowed={(result) => { if (accountChoice.storeId) updateFollow(accountChoice.storeId,result) }}
       onClose={() => setAccountChoice(null)}/>} 
