@@ -1,40 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, Check, Minus, Plus, ShoppingBag, X } from 'lucide-react'
 import BuyerWhatsappLogin from './BuyerWhatsappLogin'
+import { allSocialCarts as allCarts, readSocialCart as readCart, persistSocialCart as persistCart, socialReadyKey as readyKey } from './social-cart'
+import type { SocialOffer as Offer, SocialCartLine as CartLine } from './social-cart'
 import './customer-account.css'
 import './social-shopping.css'
 
 type Variant = { name: string; options: string[] }
-type Offer = { id: string; slug: string; name: string; kind: 'varejo' | 'atacado' | 'geral'; price: number; minimumOrder: number; unitsPerBox: number }
 type Product = { id: string; sku: string; name: string; description: string; category: string; variations: Variant[]; images: string[] }
 type OfferPayload = { product: Product; offers: Offer[]; buyerPurpose: string }
 type Buyer = { id: string; name: string; phone: string; city: string; profileCompleted: boolean }
-type CartLine = { key: string; productId: string; name: string; sku: string; quantity: number; price: number; selections: Record<string,string>; image: string; unitsPerBox: number }
-type Cart = { catalog: Offer; items: CartLine[] }
 type Props = { storeSlug: string; storeName?: string; productId?: string; initialCart?: boolean; onClose: () => void; onCartChanged?: () => void }
 const money = new Intl.NumberFormat('pt-BR', { style:'currency', currency:'BRL' })
-const prefix = (slug:string) => `shopvax-social-cart-v1:${encodeURIComponent(slug)}:`
-const keyFor = (slug:string, catalog:string) => prefix(slug)+encodeURIComponent(catalog)
-const readyKey = (slug:string,catalog:string) => 'shopvax-social-ready-v1:'+encodeURIComponent(slug)+':'+encodeURIComponent(catalog)
-const readCart = (slug:string,catalog:string): Cart | null => {
-  try { const raw=localStorage.getItem(keyFor(slug,catalog)); if(!raw)return null; const data=JSON.parse(raw) as Cart
-    return Array.isArray(data.items)&&data.catalog?.slug===catalog?data:null } catch { return null }
-}
-function allCarts(slug:string):Cart[] {
-  const list:Cart[]=[]
-  try { for(let i=0;i<localStorage.length;i++){const key=localStorage.key(i)||'';if(!key.startsWith(prefix(slug)))continue
-    const cart=readCart(slug,decodeURIComponent(key.slice(prefix(slug).length)));if(cart&&cart.items.length)list.push(cart)
-  }}catch{ /* storage is optional */ }
-  return list
-}
-export function socialCartCount(slug:string):number { return allCarts(slug).reduce((n,c)=>n+c.items.reduce((t,i)=>t+i.quantity,0),0) }
-function persistCart(slug:string, cart:Cart):void {
-  try { const key=keyFor(slug,cart.catalog.slug)
-    if(cart.items.length)localStorage.setItem(key,JSON.stringify(cart));else localStorage.removeItem(key)
-    sessionStorage.removeItem(readyKey(slug,cart.catalog.slug))
-    window.dispatchEvent(new CustomEvent('shopvax:social-cart-change',{detail:{storeSlug:slug}}))
-  }catch{ /* no persistent storage */ }
-}
 const parseJson = async (r:Response):Promise<any> => r.json().catch(()=>({}))
 const lineKey = (id:string,options:Record<string,string>) => id+':'+Object.entries(options).sort(([a],[b])=>a.localeCompare(b)).map(([k,v])=>k+'='+v).join('|')
 const preferred = (offers:Offer[],purpose:string) => offers.find(x=>purpose==='pessoal'?x.kind==='varejo':purpose==='ambos'?x.kind==='varejo':x.kind==='atacado')||offers[0]
