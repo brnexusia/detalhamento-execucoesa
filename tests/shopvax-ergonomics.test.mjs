@@ -151,3 +151,36 @@ test('comprador social fica no feed e o catálogo direto permanece independente'
   assert.match(catalog, /app\.get\('\/api\/public\/store\/\:storeSlug/, 'link direto preservado')
   assert.match(catalog, /createCatalogOrder\(req, res\)/, 'mesmo motor de preço, estoque e pedido')
 })
+
+test('experiência do comprador possui navegação social completa sem entrar no catálogo comercial',()=>{
+ const app=read('src/App.tsx')
+ const nav=read('src/BuyerAppNav.tsx')
+ const feed=read('src/SocialFeed.tsx')
+ const profile=read('src/SocialStoreProfile.tsx')
+ const discover=read('src/SocialDiscover.tsx')
+ const saved=read('src/SocialSaved.tsx')
+ const carts=read('src/SocialCarts.tsx')
+ const buyer=read('src/GlobalBuyerAccount.tsx')
+ const service=read('server/buyer-discovery-hooks.mjs')
+ const catalog=read('server/catalog-features-hooks.mjs')
+ for(const route of ['/feed','/buscar','/salvos','/carrinhos','/comprador']){
+   assert(nav.includes(route),route+' precisa existir na barra inferior')
+ }
+ for(const page of ['explore','saved','carts']){
+   assert(app.includes("page === '"+page+"'"),'Rota do comprador ausente: '+page)
+ }
+ assert.match(app, /<BuyerAppNav/)
+ assert.match(discover, /\/api\/social\/discover/)
+ assert.match(discover, /result.*products|results\.products/)
+ assert.match(saved, /listSocialSaved/)
+ assert.match(carts, /allStoredSocialCarts/)
+ assert.match(buyer, /\/api\/social\/buyer\/orders/)
+ assert.match(feed, /shopvax:save-feed-position/)
+ assert.match(feed, /toggleSocialSaved/)
+ assert.doesNotMatch(feed, /Ir para a loja finalizar/)
+ assert.match(profile, /social-profile-view-switch/)
+ assert.doesNotMatch(profile, /className="is-store"/)
+ assert.match(service, /BUYER_PROFILE_REQUIRED/)
+ assert.match(service, /buyer_saved_products/)
+ assert.match(catalog, /\/api\/business\/orders/, 'Catálogo por link mantém seu pedido independente')
+})
