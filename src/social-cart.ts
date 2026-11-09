@@ -11,7 +11,13 @@ export function readSocialCart(slug:string,catalog:string): SocialCart | null {
     const raw=localStorage.getItem(keyFor(slug,catalog))
     if(!raw)return null
     const data=JSON.parse(raw) as SocialCart
-    return Array.isArray(data.items)&&data.catalog?.slug===catalog?data:null
+    if(!Array.isArray(data.items)||data.catalog?.slug!==catalog)return null
+    // Carrinhos salvos antes da migração usavam kind='atacado' para caixas.
+    // O preço e as quantidades do carrinho permanecem intactos.
+    if(data.catalog.kind==='atacado'&&data.items.some(item=>item.unitsPerBox>1)){
+      data.catalog={...data.catalog,kind:'caixa_fechada'}
+    }
+    return data
   } catch { return null }
 }
 export function allSocialCarts(slug:string):SocialCart[] {
