@@ -227,11 +227,20 @@ function Dashboard({ data, incomplete, storeUrl, onSection, onCopy }: { data: Ad
   return <ShopvaxDashboard data={data} incomplete={incomplete} storeUrl={storeUrl} onSection={onSection} onCopy={onCopy}/>
 }
 
-function Products({ data, revision, query, setQuery, onCreate, onEdit, onVisibility, onDelete, onBulkDelete, onDownloadPdf }: { data: AdminBootstrap; revision: number; query: string; setQuery: (value: string) => void; onCreate: () => void; onEdit: (p: AdminProduct) => void; onVisibility: (p: AdminProduct) => void | Promise<void>; onDelete: (p: AdminProduct) => void; onBulkDelete: (ids: string[]) => Promise<boolean>; onDownloadPdf: () => Promise<void> }) {
+function Products({ data, revision, query, setQuery, onCreate, onEdit, onVisibility, onDelete, onBulkDelete, onDownloadPdf, onCatalogChange, onRefreshed }: { data: AdminBootstrap; revision: number; query: string; setQuery: (value: string) => void; onCreate: () => void; onEdit: (p: AdminProduct) => void; onVisibility: (p: AdminProduct) => void | Promise<void>; onDelete: (p: AdminProduct) => void; onBulkDelete: (ids: string[]) => Promise<boolean>; onDownloadPdf: () => Promise<void>; onCatalogChange:(c:AdminCatalog|null)=>void; onRefreshed:()=>void }) {
   const [page, setPage] = useState(1)
   const [activeCategory, setActiveCategory] = useState('Todas')
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [activeCatalog,setActiveCatalog]=useState<AdminCatalog|null>(null)
+  const [allMatching,setAllMatching]=useState(false)
+  const [excludedIds,setExcludedIds]=useState<string[]>([])
+  const [intent,setIntent]=useState<{scope:'selected'|'matching'|'store'|'catalog';count:number}|null>(null)
+  const [confirmation,setConfirmation]=useState('')
+  const [bulkJobId,setBulkJobId]=useState(()=>{try{return localStorage.getItem('shopvax:product-bulk-job:'+data.store.id)||''}catch{return ''}})
+  const [jobProgress,setJobProgress]=useState<{total:number;processed:number;status:string}|null>(null)
+  const [jobError,setJobError]=useState('')
+
   const [bulkBusy, setBulkBusy] = useState(false)
   const [pdfBusy, setPdfBusy] = useState(false)
   const [visibilityBusy, setVisibilityBusy] = useState<string | null>(null)
@@ -247,10 +256,12 @@ function Products({ data, revision, query, setQuery, onCreate, onEdit, onVisibil
   const categories = data.productCategories || []
   const visible = query !== searchTerm || pageError ? [] : products
   const selected = new Set(selectedIds)
-  const allLoadedSelected = visible.length > 0 && visible.every((product) => selected.has(product.id))
+  const effectiveSelected=allMatching?Math.max(0,total-excludedIds.length):selectedIds.length
+  const isSelected=(id:string)=>allMatching?!excludedIds.includes(id):selected.has(id)
+  const allLoadedSelected=visible.length>0&&visible.every(product=>isSelected(product.id))
 
   useEffect(() => { window.dispatchEvent(new Event('shopvax:products-ready')) }, [])
-  useEffect(() => { setPage(1); setProducts([]); setSelectedIds([]) }, [query, activeCategory, revision])
+  useEffect(() => { setPage(1); setProducts([]); setSelectedIds([]); setAllMatching(false);setExcludedIds([]) }, [query, activeCategory, activeCatalog?.id, revision])
   useEffect(() => {
     const timeout = window.setTimeout(() => setSearchTerm(query), 250)
     return () => window.clearTimeout(timeout)
@@ -259,7 +270,7 @@ function Products({ data, revision, query, setQuery, onCreate, onEdit, onVisibil
     let active = true
     setPageBusy(true)
     setPageError('')
-    void api.listAdminProducts({ page, limit: pageSize, q: searchTerm, category: activeCategory })
+    void api.listAdminProducts({ page, limit: pageSize, q: searchTerm, category: activeCategory, catalogId: activeCatalog?.id })
       .then((response) => {
         if (!active) return
         setProducts((previous) => page === 1 ? response.products : [
@@ -271,22 +282,96 @@ function Products({ data, revision, query, setQuery, onCreate, onEdit, onVisibil
       .catch((err) => { if (active) setPageError(err instanceof Error ? err.message : 'Falha ao carregar produtos.') })
       .finally(() => { if (active) setPageBusy(false) })
     return () => { active = false }
-  }, [page, searchTerm, activeCategory, revision, data.store.id, retry])
+  }, [page, searchTerm, activeCategory, activeCatalog?.id, revision, data.store.id, retry])
 
-  const toggleSelectionMode = () => { setSelectionMode((current) => !current); setSelectedIds([]) }
-  const toggleProduct = (id: string) => setSelectedIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])
-  const toggleLoaded = () => {
-    const ids = visible.map((item) => item.id)
-    setSelectedIds((current) => allLoadedSelected ? current.filter((id) => !ids.includes(id)) : Array.from(new Set([...current, ...ids])))
+  const toggleSelectionMode=()=>{setSelectionMode(v=>!v);setSelectedIds([]);setAllMatching(false);setExcludedIds([])}
+  const toggleProduct=(id:string)=>{
+    if(allMatching)setExcludedIds(list=>list.includes(id)?list.filter(x=>x!==id):[...list,id])
+    else setSelectedIds(list=>list.includes(id)?list.filter(x=>x!==id):[...list,id])
   }
-  const removeSelected = async () => {
-    if (!selectedIds.length || bulkBusy || selectedIds.length > 5000) return
+  const toggleLoaded=()=>{
+    const ids=visible.map(item=>item.id)
+    if(allMatching)setExcludedIds(list=>allLoadedSelected?Array.from(new Set([...list,...ids])):list.filter(id=>!ids.includes(id)))
+    else setSelectedIds(list=>allLoadedSelected?list.filter(id=>!ids.includes(id)):Array.from(new Set([...list,...ids])))
+  }
+  const ask=(scope:'selected'|'matching'|'store'|'catalog',count:number)=>{
+    if(!count||bulkBusy||bulkJobId)return
+    setIntent({scope,count});setConfirmation('');setActionError('')
+  }
+  const askEmptyCatalog=async()=>{
+    if(!activeCatalog||activeCatalog.isDefault)return
     setBulkBusy(true)
-    try {
-      const deleted = await onBulkDelete(selectedIds)
-      if (deleted) { setSelectedIds([]); setSelectionMode(false) }
-    } finally { setBulkBusy(false) }
+    try{
+      const r=await api.listAdminProducts({page:1,limit:1,catalogId:activeCatalog.id})
+      ask('catalog',r.pagination.total)
+    }catch(e){setActionError(e instanceof Error?e.message:'Não foi possível verificar o catálogo.')}
+    finally{setBulkBusy(false)}
   }
+  const confirmPhrase=(scope:'selected'|'matching'|'store'|'catalog')=>
+    scope==='store'?'EXCLUIR TUDO':activeCatalog&&!activeCatalog.isDefault?'ESVAZIAR CATÁLOGO':'EXCLUIR SELEÇÃO'
+  const executeBulk=async()=>{
+    if(!intent||confirmation!==confirmPhrase(intent.scope)||bulkBusy)return
+    setBulkBusy(true);setActionError('')
+    try{
+      if(intent.scope==='selected'&&!allMatching){
+        if(!selectedIds.length)return
+        if(activeCatalog&&!activeCatalog.isDefault){
+          for(let i=0;i<selectedIds.length;i+=500)
+            await api.updateCatalogMembers(activeCatalog.id,selectedIds.slice(i,i+500),'remove')
+          onRefreshed()
+        }else{
+          const success=await onBulkDelete(selectedIds)
+          if(!success)return
+        }
+        setSelectedIds([]);setSelectionMode(false);setIntent(null)
+      }else{
+        const scope=intent.scope
+        const remove=scope!=='store'&&Boolean(activeCatalog&&!activeCatalog.isDefault)
+        const filtered=scope==='matching'
+        const response=await api.startProductBulkJob({
+          mode:remove?'remove-members':'delete-products',
+          catalogId:scope==='store'?null:activeCatalog?.id||null,
+          q:filtered?searchTerm:'',
+          category:filtered&&activeCategory!=='Todas'?activeCategory:'',
+          excludeIds:filtered?excludedIds:[],
+          expectedTotal:intent.count,
+          confirmation:confirmPhrase(scope),
+        })
+        const id=response.job.id
+        try{localStorage.setItem('shopvax:product-bulk-job:'+data.store.id,id)}catch{}
+        setBulkJobId(id);setJobProgress({total:response.job.total,processed:0,status:'queued'})
+        setIntent(null);setSelectionMode(false);setAllMatching(false);setSelectedIds([]);setExcludedIds([])
+      }
+    }catch(e){setActionError(e instanceof Error?e.message:'Não foi possível iniciar a operação.')}
+    finally{setBulkBusy(false)}
+  }
+  const removeOne=async(product:AdminProduct)=>{
+    if(!activeCatalog||activeCatalog.isDefault)return onDelete(product)
+    if(!(await confirmAction('Remover '+product.name+' deste catálogo? Ele continuará na base da loja.','Remover do catálogo','Remover')))return
+    try{await api.updateCatalogMembers(activeCatalog.id,[product.id],'remove');onRefreshed()}
+    catch(e){setActionError(e instanceof Error?e.message:'Não foi possível remover do catálogo.')}
+  }
+  useEffect(()=>{
+    if(!bulkJobId)return
+    let valid=true
+    const key='shopvax:product-bulk-job:'+data.store.id
+    const tick=async()=>{
+      try{
+        const response=await api.productBulkJob(bulkJobId)
+        if(!valid)return
+        setJobProgress(response.job)
+        if(response.job.status==='completed'||response.job.status==='failed'){
+          try{localStorage.removeItem(key)}catch{}
+          setBulkJobId('')
+          if(response.job.status==='failed')setJobError(response.job.error||'Operação interrompida. Confira o que foi processado.')
+          else {setJobError('');onRefreshed()}
+        }
+      }catch(e){if(valid)setJobError(e instanceof Error?e.message:'Erro ao acompanhar exclusão.')}
+    }
+    void tick()
+    const timer=window.setInterval(()=>void tick(),1800)
+    return()=>{valid=false;window.clearInterval(timer)}
+  },[bulkJobId,data.store.id])
   const generatePdf = async () => {
     if (pdfBusy || !storeTotal) return
     setPdfBusy(true)
