@@ -1,0 +1,50 @@
+.svx-social-shop-layer{position:fixed;inset:0;z-index:1700;display:flex;align-items:center;justify-content:center;padding:18px}
+.svx-social-shop-backdrop{position:absolute;inset:0;border:0;background:rgba(5,9,17,.76)}
+.svx-social-shop{position:relative;width:min(100%,540px);max-height:min(92dvh,850px);overflow:hidden;display:flex;flex-direction:column;border-radius:20px;background:#fff;color:#19212e;box-shadow:0 24px 90px #0005}
+.svx-social-shop-head{display:flex;gap:12px;justify-content:space-between;align-items:start;padding:18px 20px;border-bottom:1px solid #e5e7eb}
+.svx-social-shop-head small{display:block;color:#687384;font-size:12px}
+.svx-social-shop-head h2{font-size:20px;line-height:1.25;margin:4px 0}
+.svx-social-shop-head button{border:0;background:#f0f2f4;border-radius:50%;width:34px;height:34px;display:grid;place-items:center}
+.svx-social-shop-body{overflow-y:auto;min-height:0;overscroll-behavior:contain;padding:20px;display:flex;flex-direction:column;gap:15px}
+.svx-social-shop-body button{cursor:pointer}
+.svx-social-shop-description{margin:0;color:#485468;line-height:1.5}
+.svx-social-shop-primary{display:flex;align-items:center;justify-content:center;gap:8px;min-height:47px;width:100%;padding:11px 16px;border:0;border-radius:12px;background:#ef5b17;color:#fff;font-size:15px;font-weight:700;text-align:center;text-decoration:none}
+.svx-social-shop-primary:disabled{opacity:.5;cursor:not-allowed}
+.svx-social-shop-secondary{padding:11px;border:1px solid #d5d9de;border-radius:10px;background:transparent;color:#263443;font-weight:600}
+.svx-social-shop-label{font-size:13px;font-weight:700;margin:0}
+.svx-social-offers{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:8px}
+.svx-social-offers button{border:1px solid #d8dce4;background:#fff;border-radius:12px;padding:11px;text-align:left;display:flex;flex-direction:column;gap:8px}
+.svx-social-offers button.is-selected,.svx-social-options button.is-selected,.svx-social-shop-tabs button.is-selected{border-color:#ef5b17;background:#fff4ec}
+.svx-social-offers button span{display:flex;flex-direction:column;gap:2px}
+.svx-social-offers button small{color:#687384}
+.svx-social-offers button b{color:#d14e15;font-size:16px}
+.svx-social-shop-hint{font-size:12px;color:#657083;line-height:1.5;margin:0}
+.svx-social-shop-field{display:flex;flex-direction:column;gap:9px}
+.svx-social-shop-field strong{font-size:14px}
+.svx-social-shop-field textarea{width:100%;padding:12px;border:1px solid #d4d8df;border-radius:10px;font:inherit;resize:vertical}
+.svx-social-options{display:flex;gap:8px;flex-wrap:wrap}
+.svx-social-options button,.svx-social-shop-tabs button{border:1px solid #d8dce4;border-radius:8px;padding:8px 11px;background:#fff;color:#202b39}
+.svx-social-qty{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.svx-social-qty>div,.svx-social-cart-qty{display:flex;align-items:center;gap:10px}
+.svx-social-qty button,.svx-social-cart-qty button{display:grid;place-items:center;width:31px;height:31px;border:1px solid #dde1e5;background:#fff;border-radius:8px}
+.svx-social-shop-tabs{display:flex;flex-wrap:wrap;gap:8px}
+.svx-social-cart-line{display:flex;align-items:center;gap:11px;padding:11px 0;border-bottom:1px solid #ebedf0}
+.svx-social-cart-line img{width:56px;height:68px;object-fit:cover;border-radius:8px;flex:none}
+.svx-social-cart-line>div:nth-child(2){min-width:0;flex:1;display:flex;flex-direction:column;gap:4px}
+.svx-social-cart-line strong{font-size:13px}
+.svx-social-cart-line small{font-size:11px;color:#647083}
+.svx-social-cart-line b{font-size:13px}
+.svx-social-cart-qty{gap:5px}
+.svx-social-cart-totals{padding:14px;border-radius:10px;background:#f5f6f8;display:flex;flex-direction:column;gap:8px}
+.svx-social-cart-totals>div,.svx-social-review-line{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.svx-social-cart-totals p,.svx-social-shop-error{margin:0;font-size:13px;color:#b83422}
+.svx-social-shop-back{display:flex;gap:6px;align-items:center;border:0;background:none;align-self:flex-start}
+.svx-social-review-line{padding:8px 0;border-bottom:1px solid #eee;font-size:13px}
+.svx-social-ready{display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px}
+.svx-social-ready h3,.svx-social-ready p{margin:0}
+.svx-social-ready svg{color:#1e9d63}
+.svx-social-shop .customer-card{width:100%;max-width:none;box-shadow:none;margin:0;padding:0;border:0;background:transparent}
+.svx-social-shop .customer-auth h1{font-size:21px}
+.svx-social-shop .buyer-whatsapp-title{margin:0}
+@media(max-width:600px){.svx-social-shop-layer{padding:0;align-items:flex-end}.svx-social-shop{width:100%;max-height:94dvh;border-radius:18px 18px 0 0;padding-bottom:env(safe-area-inset-bottom)}.svx-social-shop-body{padding:16px}.svx-social-shop-head{padding:14px 16px}}
+@media(prefers-reduced-motion:reduce){.svx-social-shop *{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
