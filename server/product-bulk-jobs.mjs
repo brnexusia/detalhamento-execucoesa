@@ -100,7 +100,7 @@ export function installProductBulkJobs(app,pool,auth,asyncRoute){
           result=await client.query(`
             WITH todo AS (SELECT p.id FROM products p WHERE ${where} ORDER BY p.id LIMIT 300)
             INSERT INTO catalog_products(catalog_id,product_id,visible)
-            SELECT $6,todo.id,false FROM todo
+            SELECT $6,todo.id,false FROM todo WHERE true
             ON CONFLICT(catalog_id,product_id)
             DO UPDATE SET visible=false,updated_at=now()
             RETURNING product_id`,params)
