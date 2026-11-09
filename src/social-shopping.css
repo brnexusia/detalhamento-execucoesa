@@ -48,3 +48,10 @@
 .svx-social-shop .buyer-whatsapp-title{margin:0}
 @media(max-width:600px){.svx-social-shop-layer{padding:0;align-items:flex-end}.svx-social-shop{width:100%;max-height:94dvh;border-radius:18px 18px 0 0;padding-bottom:env(safe-area-inset-bottom)}.svx-social-shop-body{padding:16px}.svx-social-shop-head{padding:14px 16px}}
 @media(prefers-reduced-motion:reduce){.svx-social-shop *{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
+
+.svx-social-gallery{width:100%;display:flex;flex-direction:column;gap:8px}
+.svx-social-gallery__hero{width:100%;height:clamp(160px,31dvh,310px);background:#f5f4f0;object-fit:contain;border-radius:12px;display:block}
+.svx-social-gallery__thumbs{display:flex;gap:8px;overflow-x:auto;padding-bottom:3px}
+.svx-social-gallery__thumbs button{padding:2px;border:2px solid #e3e0db;background:#fff;border-radius:9px;flex:none;width:52px;height:60px}
+.svx-social-gallery__thumbs button.is-active{border-color:#F25C05}
+.svx-social-gallery__thumbs img{width:100%;height:100%;object-fit:cover;border-radius:5px}
