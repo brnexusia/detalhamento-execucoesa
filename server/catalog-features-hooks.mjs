@@ -128,6 +128,8 @@ function schemaReady() {
   if (!schemaPromise) schemaPromise = ensureSchema().catch((error) => { schemaPromise = null; throw error })
   return schemaPromise
 }
+export async function ensureCatalogSchema() { return schemaReady() }
+
 if (pool) {
   const timer = setTimeout(() => void schemaReady().catch((error) => console.error('[catalog features] schema:', error.message)), 800)
   timer.unref()
