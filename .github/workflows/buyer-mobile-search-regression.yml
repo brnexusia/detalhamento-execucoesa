@@ -1,0 +1,42 @@
+name: buyer-mobile-search-regression
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/App.tsx'
+      - 'src/styles.css'
+      - 'src/buyer-app.css'
+      - 'src/SocialDiscover.tsx'
+      - 'server/buyer-discovery*'
+      - 'tests/buyer-mobile-contract.test.mjs'
+      - '.github/workflows/buyer-mobile-search-regression.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/App.tsx'
+      - 'src/styles.css'
+      - 'src/buyer-app.css'
+      - 'src/SocialDiscover.tsx'
+      - 'server/buyer-discovery*'
+      - 'tests/buyer-mobile-contract.test.mjs'
+      - '.github/workflows/buyer-mobile-search-regression.yml'
+
+jobs:
+  buyer-mobile-search:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check backend syntax
+        run: |
+          node --check server/buyer-discovery-hooks.mjs
+          node --check server/buyer-discovery-search.mjs
+      - name: Check buyer search and layout contracts
+        run: node --test server/buyer-discovery-search.test.mjs tests/buyer-mobile-contract.test.mjs
+      - name: Install dependencies
+        run: npm install
+      - name: Typecheck and production UI build
+        run: npm run build
