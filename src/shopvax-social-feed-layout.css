@@ -295,3 +295,27 @@
   .social-feed-page .social-feed-actions__metric{min-height:39px;}
   .social-feed-page .social-feed-copy{max-height:calc(100dvh - 82px);}
 }
+
+/* A barra social ocupa a área inferior: nunca sobrepor o CTA de compra.
+   Estas regras ficam por último para sobrepor os antigos breakpoints do feed. */
+.social-feed-page .social-feed-copy,
+.social-feed-page .social-feed-card:has(.social-feed-description.is-expanded) .social-feed-copy{
+ bottom:calc(97px + env(safe-area-inset-bottom));
+ max-height:calc(100dvh - 178px);
+}
+.social-feed-page .social-feed-actions{
+ bottom:calc(205px + env(safe-area-inset-bottom));
+}
+@media(max-width:390px){
+ .social-feed-page .social-feed-copy,
+ .social-feed-page .social-feed-card:has(.social-feed-description.is-expanded) .social-feed-copy{
+   bottom:calc(96px + env(safe-area-inset-bottom));
+   max-height:calc(100dvh - 170px);
+ }
+ .social-feed-page .social-feed-actions{bottom:calc(182px + env(safe-area-inset-bottom));gap:4px}
+}
+@media(max-height:620px) and (max-width:799px){
+ .social-feed-page .social-feed-copy{bottom:calc(92px + env(safe-area-inset-bottom));max-height:calc(100dvh - 158px)}
+ .social-feed-page .social-feed-actions{bottom:calc(160px + env(safe-area-inset-bottom));gap:2px}
+ .social-feed-page .social-feed-actions button{min-height:34px}
+}

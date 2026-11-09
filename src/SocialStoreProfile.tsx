@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
-import { ArrowLeft, Grid2X2, Play, ShoppingBag, Store, X } from 'lucide-react'
+import { ArrowLeft, Bookmark, Grid2X2, Play, ShoppingBag, Store, X } from 'lucide-react'
+import { isSocialSaved, socialSaveEvent, toggleSocialSaved } from './social-saves'
 const SocialShopping = lazy(() => import('./SocialShopping'))
 import './social-profile.css'
 import './shopvax-social-official.css'
@@ -48,6 +49,8 @@ export default function SocialStoreProfile() {
   const [publications, setPublications] = useState<Publication[]>([])
   const [publicationsLoading, setPublicationsLoading] = useState(true)
   const [selected, setSelected] = useState<Publication | null>(null)
+  const [selectedSaved,setSelectedSaved]=useState(false)
+  useEffect(()=>{const update=()=>setSelectedSaved(Boolean(selected&&isSocialSaved(selected.id)));update();window.addEventListener(socialSaveEvent,update);return()=>window.removeEventListener(socialSaveEvent,update)},[selected?.id])
   const [viewMode,setViewMode] = useState<'feed'|'grade'>('grade')
   const profileFeedRef=useRef<HTMLElement|null>(null)
   const [socialPurchase,setSocialPurchase] = useState<{productId?:string;initialCart?:boolean}|null>(null)
@@ -175,7 +178,7 @@ export default function SocialStoreProfile() {
             <p>{store.tagline}</p>
             <div className="social-profile-actions">
               <button className={stats.following ? 'is-following' : ''} onClick={follow}>{stats.following ? 'Seguindo' : 'Seguir'}</button>
-              <button className="is-store" onClick={() => setViewMode('grade')}><Store size={16}/> Loja</button>
+
             </div>
           </div>
         </div>
@@ -184,7 +187,7 @@ export default function SocialStoreProfile() {
           <div><strong>{stats.followers}</strong><span>seguidores</span></div>
           <div><strong>{stats.views}</strong><span>views</span></div>
         </div>
-        <div className="social-profile-tabs social-profile-view-switch" aria-label="Visualização dos produtos"><button type="button" className={viewMode==='feed'?'is-active':''} aria-pressed={viewMode==='feed'} onClick={()=>setViewMode('feed')}><Play size={16}/> Feed</button><button type="button" className={viewMode==='grade'?'is-active':''} aria-pressed={viewMode==='grade'} onClick={()=>setViewMode('grade')}><Grid2X2 size={16}/> Loja</button><button type="button" className="social-profile-cart-action" onClick={()=>setSocialPurchase({initialCart:true})}><ShoppingBag size={16}/> Carrinho</button></div>
+        <div className="social-profile-tabs social-profile-view-switch" aria-label="Visualização dos produtos"><button type="button" className={viewMode==='feed'?'is-active':''} aria-pressed={viewMode==='feed'} onClick={()=>setViewMode('feed')}><Play size={16}/> Feed</button><button type="button" className={viewMode==='grade'?'is-active':''} aria-pressed={viewMode==='grade'} onClick={()=>setViewMode('grade')}><Grid2X2 size={16}/> Loja</button></div>
       </section>
 
       {viewMode==='feed'
@@ -227,6 +230,7 @@ export default function SocialStoreProfile() {
           <span>{selected.category}</span>
           <h2>{selected.name}</h2>
           {selected.description && <p>{selected.description}</p>}
+          <button type="button" onClick={()=>void toggleSocialSaved({id:selected.id,name:selected.name,sku:selected.sku,category:selected.category,mediaUrl:selected.mediaUrl,thumbnailUrl:selected.images?.[0]||'',mediaType:selected.mediaType,store:{id:store.id,slug:store.slug,name:store.name,logoUrl:store.logoUrl}})}><Bookmark size={16} fill={selectedSaved?'currentColor':'none'}/> {selectedSaved?'Salvo':'Salvar produto'}</button>
           <button onClick={() => setSocialPurchase({productId:selected.id})}><ShoppingBag size={16}/> Ver preço / Comprar</button>
         </div>
       </article>

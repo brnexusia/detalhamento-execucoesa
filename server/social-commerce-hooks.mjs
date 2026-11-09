@@ -196,7 +196,10 @@ function install(app) {
     try {
       const product = await productForStore(String(req.params.storeSlug || '').trim().slice(0, 80), String(req.params.productId || '').trim().slice(0, 100))
       if (!product) return res.status(404).json({ error: 'Produto não encontrado nesta loja.' })
-      return res.json({ product })
+      // O detalhamento social público não libera preço antes do cadastro.
+      // Condições comerciais são obtidas na rota /offers com comprador verificado.
+      res.set('Cache-Control','private, no-store')
+      return res.json({ product: { ...product, price: null } })
     } catch (error) { next(error) }
   })
 

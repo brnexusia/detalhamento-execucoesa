@@ -527,7 +527,7 @@ async function socialProductOffers(req, res) {
   if (!available.rowCount) return res.status(404).json({ error: 'Produto indisponível nos catálogos da loja.' })
   return res.json({
     product: { id:p.id, sku:p.sku, name:p.name, description:p.description, category:p.category,
-      images:Array.isArray(p.images)?p.images:[], variations:Array.isArray(p.variations)?p.variations:[] },
+      images:Array.isArray(p.images)?p.images:[], mediaUrl:p.media_url||'', mediaType:p.media_type==='video'?'video':'image', variations:Array.isArray(p.variations)?p.variations:[] },
     buyerPurpose: buyer.purpose,
     offers: available.rows.map(c => ({
       id:c.id, slug:c.slug, name:c.name, kind:c.kind,
@@ -583,6 +583,12 @@ async function createCatalogOrder(req, res) {
   const storeResult = await pool.query('SELECT * FROM stores WHERE slug=$1 AND is_active=true LIMIT 1', [String(req.body?.storeSlug || '')])
   if (!storeResult.rowCount) return res.status(404).json({ error: 'Loja não encontrada.' })
   const store = storeResult.rows[0]
+  // O catálogo por link permanece aberto a visitantes. Quando há sessão
+  // verificada, vincula-se o pedido à conta global para o histórico.
+  if (!req.shopvaxCustomerId && await currentSocialBuyer(req)) {
+    const customer = await currentBuyerCustomer(req,store.id)
+    req.shopvaxCustomerId = customer?.id || null
+  }
   const catalog = await resolveCatalog(store.id, String(req.body?.catalogSlug || '').trim(), store.plan_tier)
   if (!catalog) return res.status(404).json({ error: 'Catálogo não encontrado.' })
   const requestedItems = Array.isArray(req.body?.items) ? req.body.items : []

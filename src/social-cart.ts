@@ -38,3 +38,19 @@ export function persistSocialCart(slug:string,cart:SocialCart):void {
   try { sessionStorage.removeItem(socialReadyKey(slug,cart.catalog.slug)) } catch {}
   window.dispatchEvent(new CustomEvent('shopvax:social-cart-change',{detail:{storeSlug:slug}}))
 }
+
+export function allStoredSocialCarts():Array<{storeSlug:string,cart:SocialCart}>{
+ const result:Array<{storeSlug:string,cart:SocialCart}>=[]
+ try{
+  for(let i=0;i<localStorage.length;i++){
+   const key=localStorage.key(i)||''
+   if(!key.startsWith('shopvax-social-cart-v1:'))continue
+   const parts=key.slice('shopvax-social-cart-v1:'.length).split(':')
+   if(parts.length!==2)continue
+   const storeSlug=decodeURIComponent(parts[0]),catalogSlug=decodeURIComponent(parts[1])
+   const cart=readSocialCart(storeSlug,catalogSlug)
+   if(cart?.items.length)result.push({storeSlug,cart})
+  }
+ }catch{}
+ return result.sort((a,b)=>a.storeSlug.localeCompare(b.storeSlug)||a.cart.catalog.name.localeCompare(b.cart.catalog.name))
+}

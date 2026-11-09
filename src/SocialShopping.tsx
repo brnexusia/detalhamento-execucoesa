@@ -7,16 +7,16 @@ import './customer-account.css'
 import './social-shopping.css'
 
 type Variant = { name: string; options: string[] }
-type Product = { id: string; sku: string; name: string; description: string; category: string; variations: Variant[]; images: string[] }
+type Product = { id: string; sku: string; name: string; description: string; category: string; variations: Variant[]; images: string[]; mediaUrl?:string;mediaType?:'image'|'video' }
 type OfferPayload = { product: Product; offers: Offer[]; buyerPurpose: string }
 type Buyer = { id: string; name: string; phone: string; city: string; profileCompleted: boolean }
-type Props = { storeSlug: string; storeName?: string; productId?: string; initialCart?: boolean; onClose: () => void; onCartChanged?: () => void }
+type Props = { storeSlug: string; storeName?: string; productId?: string; initialCart?: boolean; initialCatalogSlug?: string; onClose: () => void; onCartChanged?: () => void }
 const money = new Intl.NumberFormat('pt-BR', { style:'currency', currency:'BRL' })
 const parseJson = async (r:Response):Promise<any> => r.json().catch(()=>({}))
 const lineKey = (id:string,options:Record<string,string>) => id+':'+Object.entries(options).sort(([a],[b])=>a.localeCompare(b)).map(([k,v])=>k+'='+v).join('|')
 const preferred = (offers:Offer[],purpose:string) => offers.find(x=>purpose==='pessoal'?x.kind==='varejo':purpose==='ambos'?x.kind==='varejo':x.kind==='atacado')||offers[0]
 
-export default function SocialShopping({storeSlug,storeName,productId,initialCart=false,onClose,onCartChanged}:Props){
+export default function SocialShopping({storeSlug,storeName,productId,initialCart=false,initialCatalogSlug,onClose,onCartChanged}:Props){
   const [step,setStep]=useState<'loading'|'auth'|'item'|'cart'|'review'|'ready'|'error'>('loading')
   const [offerData,setOfferData]=useState<OfferPayload|null>(null)
   const [offer,setOffer]=useState<Offer|null>(null)
@@ -26,6 +26,8 @@ export default function SocialShopping({storeSlug,storeName,productId,initialCar
   const [cartRevision,setCartRevision]=useState(0)
   const [selections,setSelections]=useState<Record<string,string>>({})
   const [quantity,setQuantity]=useState(1)
+  const [imageIndex,setImageIndex]=useState(0)
+  const photos=useMemo(()=>offerData?Array.from(new Set([...(offerData.product.images||[]),...(offerData.product.mediaType==='image'&&offerData.product.mediaUrl?[offerData.product.mediaUrl]:[])].filter(Boolean))).slice(0,8):[],[offerData])
   const [notes,setNotes]=useState('')
   const [error,setError]=useState('')
   const [busy,setBusy]=useState(false)
@@ -59,17 +61,17 @@ export default function SocialShopping({storeSlug,storeName,productId,initialCar
         if(!response.ok)throw Error(data.error||'Produto indisponível.')
         if(!Array.isArray(data.offers)||!data.offers.length)throw Error('Não há modalidade disponível para este produto.')
         const first=preferred(data.offers,data.buyerPurpose)
-        setOfferData(data);setOffer(first);setCatalogSlug(first.slug)
+        setOfferData(data);setOffer(first);setCatalogSlug(first.slug);setImageIndex(0)
         setSelections(Object.fromEntries((data.product.variations||[]).filter((v:Variant)=>v.options.length===1).map((v:Variant)=>[v.name,v.options[0]])))
         setStep(initialCart?'cart':'item')
       }else{
         const carts=allCarts(storeSlug)
-        if(carts.length)setCatalogSlug(carts[0].catalog.slug)
+        if(carts.length)setCatalogSlug(carts.find(c=>c.catalog.slug===initialCatalogSlug)?.catalog.slug||carts[0].catalog.slug)
         setStep('cart')
       }
       return true
     }catch(e){setError(e instanceof Error?e.message:'Falha ao abrir o pedido.');setStep('error');return false}
-  },[storeSlug,productId,initialCart])
+  },[storeSlug,productId,initialCart,initialCatalogSlug])
 
   useEffect(()=>{void load()},[load])
   useEffect(()=>{const onKey=(e:KeyboardEvent)=>{if(e.key==='Escape'&&!busy)onClose()};document.addEventListener('keydown',onKey)
@@ -156,6 +158,13 @@ export default function SocialShopping({storeSlug,storeName,productId,initialCar
         {step==='error'&&<><p role="alert">{error}</p><button className="svx-social-shop-primary" onClick={()=>void load()}>Tentar novamente</button></>}
         {step==='auth'&&<><p className="svx-social-shop-description">Para ver valores e comprar, confirme seu WhatsApp e informe se compra no varejo, atacado ou em ambos. Você volta ao mesmo produto.</p><BuyerWhatsappLogin storeSlug={storeSlug} onVerified={load}/></>}
         {step==='item'&&offerData&&offer&&<>
+          {photos.length>0&&<div className="svx-social-gallery">
+            <img className="svx-social-gallery__hero" src={photos[Math.min(imageIndex,photos.length-1)]} alt={offerData.product.name} loading="eager"/>
+            {photos.length>1&&<div className="svx-social-gallery__thumbs" aria-label="Fotos do produto">{photos.map((src,i)=><button type="button" className={imageIndex===i?'is-active':''} key={i} aria-label={'Ver foto '+(i+1)} onClick={()=>setImageIndex(i)}><img src={src} alt="" loading="lazy"/></button>)}</div>}
+          </div>}
+          {!photos.length&&offerData.product.mediaType==='video'&&offerData.product.mediaUrl&&
+            <video className="svx-social-gallery__hero" src={offerData.product.mediaUrl} controls playsInline preload="metadata" aria-label={'Vídeo de '+offerData.product.name}/>}
+
           {offerData.product.description&&<p className="svx-social-shop-description">{offerData.product.description}</p>}
           <p className="svx-social-shop-label">Como deseja comprar?</p>
           <div className="svx-social-offers">{offerData.offers.map(x=><button type="button" key={x.id} className={offer.slug===x.slug?'is-selected':''} onClick={()=>selectOffer(x)}>

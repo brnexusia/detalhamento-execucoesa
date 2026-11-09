@@ -1,4 +1,5 @@
 import ShopvaxLoading from './ShopvaxLoading'
+import BuyerAppNav from './BuyerAppNav'
 import ShopvaxLoginTransition from './ShopvaxLoginTransition'
 import { Fragment, lazy, Suspense, useEffect, useState } from 'react'
 import './intent-tracker'
@@ -15,12 +16,18 @@ const PlatformRoute = lazy(() => import('./PlatformRoute'))
 const AdminRoute = lazy(() => import('./AdminRoute'))
 const SocialFeed = lazy(() => import('./SocialFeed'))
 const SocialStoreProfile = lazy(() => import('./SocialStoreProfile'))
+const SocialDiscover = lazy(() => import('./SocialDiscover'))
+const SocialSaved = lazy(() => import('./SocialSaved'))
+const SocialCarts = lazy(() => import('./SocialCarts'))
 const CustomerAccountRoute = lazy(() => import('./CustomerAccountRoute'))
 const GlobalBuyerAccount = lazy(() => import('./GlobalBuyerAccount'))
 const ShopvaxPartnerPortal = lazy(() => import('./ShopvaxPartnerPortal'))
 
 function pageFor(pathname: string) {
   if (pathname === '/' || pathname === '' || pathname === '/feed' || pathname === '/descobrir') return 'social'
+  if (pathname === '/buscar') return 'explore'
+  if (pathname === '/salvos') return 'saved'
+  if (pathname === '/carrinhos') return 'carts'
   if (pathname === '/para-lojas') return 'home'
   if (pathname === '/entrar' || pathname === '/login') return 'login'
   if (pathname === '/criar-conta') return 'register'
@@ -89,6 +96,9 @@ export default function App() {
             : page === 'partners' ? 'Portal de parceiros'
             : page === 'customer' || page === 'buyer' ? 'Minha conta'
               : page === 'social' ? 'Descobrir'
+                : page === 'explore' ? 'Buscar'
+                  : page === 'saved' ? 'Salvos'
+                    : page === 'carts' ? 'Carrinhos'
                 : 'Shopvax'
     document.title = `${title} · Shopvax`
   }, [page])
@@ -97,6 +107,9 @@ export default function App() {
   if (page === 'store') content = <Fragment key={pathname}><PublicRoute /><Phase3PublicRuntime /><Phase4PublicRuntime /></Fragment>
   else if (page === 'social') content = <SocialFeed />
   else if (page === 'profile') content = <SocialStoreProfile key={pathname} />
+  else if (page === 'explore') content = <SocialDiscover />
+  else if (page === 'saved') content = <SocialSaved />
+  else if (page === 'carts') content = <SocialCarts />
   else if (page === 'home') content = <HomeRoute />
   else if (page === 'login') content = <AuthRoute mode="login" />
   else if (page === 'register') content = <AuthRoute mode="register" />
@@ -106,5 +119,5 @@ export default function App() {
   else if (page === 'platform') content = <PlatformRoute />
   else content = <AdminRoute />
 
-  return <><Suspense fallback={<RouteFallback />}><Fragment key={authRevision}>{content}</Fragment></Suspense><Suspense fallback={null}>{helpAllowed && <ShopvaxSupport />}</Suspense><ShopvaxLoginTransition /></>
+  return <><Suspense fallback={<RouteFallback />}><Fragment key={authRevision}>{content}</Fragment></Suspense>{['social','profile','explore','saved','carts','buyer'].includes(page)&&<BuyerAppNav pathname={pathname}/>}<Suspense fallback={null}>{helpAllowed && <ShopvaxSupport />}</Suspense><ShopvaxLoginTransition /></>
 }
