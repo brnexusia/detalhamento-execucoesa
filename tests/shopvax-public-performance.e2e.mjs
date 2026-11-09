@@ -100,6 +100,9 @@ try {
     // O clique não deve montar um pedido sem identificação nem deixar o feed.
     await addButton.click()
     await page.locator('.svx-social-shop[role="dialog"]').waitFor({timeout:30000})
+    // O componente é carregado sob demanda: aguarde a verificação de sessão
+    // antes de avaliar o estado final, não o título transitório "Seu pedido".
+    await page.waitForFunction(() => document.querySelector('#svx-social-shop-title')?.textContent?.includes('Ver preços'), null, {timeout:30000})
     const modalTitle=await page.locator('#svx-social-shop-title').innerText()
     assert.match(modalTitle,/Ver preços/, 'Interesse comercial abre cadastro sem navegação ao catálogo')
     assert.equal(new URL(page.url()).pathname,'/feed','Compra permanece no feed social')
