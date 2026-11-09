@@ -48,7 +48,7 @@ export default function App() {
   const [pathname, setPathname] = useState(() => window.location.pathname)
   const [authRevision, setAuthRevision] = useState(0)
   const page = pageFor(pathname)
-  const helpAllowed = page === 'register' || page === 'customer' || page === 'buyer' ||
+  const helpAllowed = page === 'register' || page === 'customer' ||
     (page === 'admin' && ['/painel','/painel/loja','/painel/temas','/painel/assinatura','/painel/integracoes','/painel/recursos','/painel/crescimento'].includes(pathname))
 
   useEffect(() => {
@@ -101,6 +101,13 @@ export default function App() {
                     : page === 'carts' ? 'Carrinhos'
                 : 'Shopvax'
     document.title = `${title} · Shopvax`
+  }, [page])
+
+  // Mantém o fundo de papel também durante a rolagem elástica no Safari.
+  useEffect(() => {
+    const buyerSurface = ['explore','saved','carts','buyer'].includes(page)
+    document.body.classList.toggle('shopvax-buyer-page', buyerSurface)
+    return () => document.body.classList.remove('shopvax-buyer-page')
   }, [page])
 
   let content

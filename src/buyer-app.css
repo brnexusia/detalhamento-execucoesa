@@ -7,7 +7,7 @@
 .buyer-app-nav__icon{position:relative;display:grid;place-items:center}
 .buyer-app-nav__icon b{position:absolute;top:-7px;right:-13px;min-width:17px;height:17px;border-radius:99px;background:#F25C05;color:#161514;display:grid;place-items:center;font-size:10px;padding:0 3px}
 .buyer-app-nav a:focus-visible{outline:2px solid #F25C05;outline-offset:-2px}
-.buyer-screen{min-height:100dvh;background:#faf9f5;color:#1c1b19;padding:24px max(16px,env(safe-area-inset-left)) calc(98px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-right));font-family:Arial,Helvetica,sans-serif}
+.buyer-screen{min-height:100dvh;background:#faf9f5;color:#1c1b19;padding:24px max(16px,calc(16px + env(safe-area-inset-right))) calc(82px + env(safe-area-inset-bottom)) max(16px,calc(16px + env(safe-area-inset-left)));font-family:Arial,Helvetica,sans-serif}
 .buyer-screen__inner{max-width:920px;margin:auto}
 .buyer-screen__head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:0 0 18px}
 .buyer-screen__head h1{font-size:clamp(24px,4vw,32px);margin:0;letter-spacing:-.04em;line-height:1.15}
@@ -350,4 +350,26 @@
 .buyer-filters select,
 .buyer-filters input {
   font-family:var(--svx-font-body,'Archivo',sans-serif);
+}
+
+/* Layout móvel do comprador: isola o catálogo clássico e respeita a área segura. */
+body.shopvax-buyer-page,
+body.shopvax-buyer-page #root {background:var(--svx-paper,#F3F0E8)}
+body.shopvax-buyer-page {overscroll-behavior-y:none}
+body.shopvax-buyer-page #root {min-height:100dvh}
+main.buyer-screen {width:100%;max-width:none;min-height:100dvh;overflow-x:clip}
+.buyer-screen__inner {width:100%;min-width:0}
+.buyer-filters {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:16px 0 24px;align-items:end}
+.buyer-filters__title {grid-column:1/-1;display:flex;align-items:center;gap:8px;font:500 11px/1.2 var(--svx-font-mono,'Fragment Mono',monospace);color:var(--svx-muted-strong,#4D4943);text-transform:uppercase}
+.buyer-filter-field {display:flex;flex-direction:column;gap:7px;min-width:0}
+.buyer-filter-field select,.buyer-filter-field input {width:100%;min-width:0;max-width:none;min-height:44px}
+.buyer-tabs {max-width:100%;flex-wrap:wrap}
+.buyer-tabs button {min-height:44px}
+.buyer-empty {overflow-wrap:anywhere}
+@media(max-width:540px) {
+ .buyer-filters {grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+ .buyer-filter-field--mode {grid-column:1/-1}
+ .buyer-screen__head h1 {font-size:clamp(30px,8vw,40px)}
+ .buyer-screen__head {align-items:flex-start}
+ .buyer-screen__hint {line-height:1.55}
 }
