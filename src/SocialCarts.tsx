@@ -42,7 +42,7 @@ export default function SocialCarts(){
    entries.map(e=>{
     const total=sum(e.cart),min=e.cart.catalog.minimumOrder,hasMin=total>=min
     return <section className="buyer-cart-group" key={e.storeSlug+':'+e.cart.catalog.slug}>
-     <div className="buyer-cart-group__head"><div><h2>{names[e.storeSlug]||e.storeSlug}</h2><small>{e.cart.catalog.name} · {e.cart.catalog.kind==='atacado'?'Atacado':e.cart.catalog.kind==='varejo'?'Varejo':'Compra'}</small></div>
+     <div className="buyer-cart-group__head"><div><h2>{names[e.storeSlug]||e.storeSlug}</h2><small>{e.cart.catalog.name} · {e.cart.catalog.kind==='caixa_fechada'?'Caixa fechada':e.cart.catalog.kind==='atacado'?'Atacado':e.cart.catalog.kind==='varejo'?'Varejo':e.cart.catalog.kind==='personalizado'?e.cart.catalog.customLabel||'Personalizado':'Compra'}</small></div>
        <button className="buyer-secondary-button" onClick={()=>buyerGo('/perfil/'+encodeURIComponent(e.storeSlug))}><Store size={16}/> Ver loja</button></div>
      {e.cart.items.map(item=><div className="buyer-cart-line" key={item.key}>
        {item.image?<img src={item.image} alt="" loading="lazy"/>:<span><ShoppingBag size={24}/></span>}
