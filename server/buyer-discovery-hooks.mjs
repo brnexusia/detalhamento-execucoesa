@@ -2,6 +2,7 @@ import express from 'express'
 import pg from 'pg'
 import { currentSocialBuyer } from './buyer-whatsapp-auth-hooks.mjs'
 import { ensureCatalogSchema } from './catalog-features-hooks.mjs'
+import { buyerSearchPattern } from './buyer-discovery-search.mjs'
 
 // Leitura pública limitada à descoberta social. Preço comercial continua
 // protegido pela identificação do comprador e pela modalidade do catálogo.
@@ -9,7 +10,6 @@ const pool = process.env.DATABASE_URL ? new pg.Pool({connectionString:process.en
 const wrap = fn => (req,res,next)=>Promise.resolve(fn(req,res,next)).catch(next)
 const noCache = res => res.set('Cache-Control','private, no-store')
 const clean = (x,max=100)=>String(x??'').trim().slice(0,max)
-const like = value => '%'+value.replace(/[\\%_]/g, x=>'\\'+x)+'%'
 const failure = (res,code=401)=>res.status(code).json({code:'BUYER_PROFILE_REQUIRED',error:'Entre com WhatsApp e conclua seu perfil de comprador.'})
 let schemaReady
 async function ensureSaved() {
@@ -41,7 +41,7 @@ async function discover(req,res){
    return res.status(400).json({error:'Confira a faixa de preço.'})
  const account=await currentSocialBuyer(req)
  if(priceFilter && !account)return failure(res)
- const term=like(q)
+ const term=buyerSearchPattern(q)
  const args=[term,category,mode]
  let priceWhere=''
  if(priceFilter){
@@ -59,7 +59,7 @@ async function discover(req,res){
  }
  const base=`FROM products p JOIN stores s ON s.id=p.store_id
    WHERE p.active=true AND p.social_published=true AND s.is_active=true AND s.social_enabled=true
-     AND ($1::text='%%' OR p.name ILIKE $1 ESCAPE '\\' OR p.sku ILIKE $1 ESCAPE '\\' OR p.category ILIKE $1 ESCAPE '\\' OR s.name ILIKE $1 ESCAPE '\\')
+     AND ($1::text='%%' OR p.name ILIKE $1 ESCAPE '\\' OR p.sku ILIKE $1 ESCAPE '\\' OR p.category ILIKE $1 ESCAPE '\\' OR s.name ILIKE $1 ESCAPE '\\' OR s.slug ILIKE $1 ESCAPE '\\' OR COALESCE(s.tagline,'') ILIKE $1 ESCAPE '\\')
      AND ($2::text='' OR p.category=$2)
      AND ($3::text='' OR EXISTS (SELECT 1 FROM catalogs c LEFT JOIN catalog_products cp ON cp.catalog_id=c.id AND cp.product_id=p.id
        WHERE c.store_id=s.id AND c.active=true AND (c.is_default OR s.plan_tier='ouro')
@@ -72,7 +72,7 @@ async function discover(req,res){
    pool.query(`SELECT s.id,s.slug,s.name,s.logo_url,s.tagline,
      (SELECT count(*)::int FROM products p WHERE p.store_id=s.id AND p.active=true AND p.social_published=true) AS product_count
      FROM stores s WHERE s.is_active=true AND s.social_enabled=true
-       AND ($1::text='%%' OR s.name ILIKE $1 ESCAPE '\\' OR s.slug ILIKE $1 ESCAPE '\\')
+       AND ($1::text='%%' OR s.name ILIKE $1 ESCAPE '\\' OR s.slug ILIKE $1 ESCAPE '\\' OR COALESCE(s.tagline,'') ILIKE $1 ESCAPE '\\')
      ORDER BY s.name ASC LIMIT 12`,[term]),
    pool.query(`SELECT category FROM products p JOIN stores s ON s.id=p.store_id
      WHERE p.active=true AND p.social_published=true AND s.is_active=true AND s.social_enabled=true
