@@ -230,7 +230,7 @@ export default function SocialStoreProfile() {
           <span>{selected.category}</span>
           <h2>{selected.name}</h2>
           {selected.description && <p>{selected.description}</p>}
-          <button type="button" onClick={()=>void toggleSocialSaved({id:selected.id,name:selected.name,sku:selected.sku,category:selected.category,mediaUrl:selected.mediaUrl,mediaType:selected.mediaType,store:{id:store.id,slug:store.slug,name:store.name,logoUrl:store.logoUrl}})}><Bookmark size={16} fill={selectedSaved?'currentColor':'none'}/> {selectedSaved?'Salvo':'Salvar produto'}</button>
+          <button type="button" onClick={()=>void toggleSocialSaved({id:selected.id,name:selected.name,sku:selected.sku,category:selected.category,mediaUrl:selected.mediaUrl,thumbnailUrl:selected.images?.[0]||'',mediaType:selected.mediaType,store:{id:store.id,slug:store.slug,name:store.name,logoUrl:store.logoUrl}})}><Bookmark size={16} fill={selectedSaved?'currentColor':'none'}/> {selectedSaved?'Salvo':'Salvar produto'}</button>
           <button onClick={() => setSocialPurchase({productId:selected.id})}><ShoppingBag size={16}/> Ver preço / Comprar</button>
         </div>
       </article>
