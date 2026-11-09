@@ -203,6 +203,14 @@ async function saveProfile(req,res) {
   await pool.query('UPDATE store_customers SET name=$1,phone=$2,updated_at=now() WHERE buyer_account_id=$3', [f.name,account.phone,account.id])
   return res.json({ ok: true, buyer: publicBuyer(updated.rows[0]) })
 }
+// A frente social exige uma sessão de comprador com perfil completo.
+export async function currentSocialBuyer(req) {
+  if (!pool || !buyerWhatsappReady() || !cookies(req)[COOKIE]) return null
+  await schema()
+  const account = await buyer(req)
+  return account?.profile_completed ? publicBuyer(account) : null
+}
+
 export async function currentBuyerCustomer(req,storeId,{createIfMissing=true}={}) {
   if (!buyerWhatsappReady() || !storeId || !cookies(req)[COOKIE]) return null
   await schema()
