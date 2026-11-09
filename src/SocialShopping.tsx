@@ -14,7 +14,7 @@ type Props = { storeSlug: string; storeName?: string; productId?: string; initia
 const money = new Intl.NumberFormat('pt-BR', { style:'currency', currency:'BRL' })
 const parseJson = async (r:Response):Promise<any> => r.json().catch(()=>({}))
 const lineKey = (id:string,options:Record<string,string>) => id+':'+Object.entries(options).sort(([a],[b])=>a.localeCompare(b)).map(([k,v])=>k+'='+v).join('|')
-const preferred = (offers:Offer[],purpose:string) => offers.find(x=>purpose==='pessoal'?x.kind==='varejo':purpose==='ambos'?x.kind==='varejo':x.kind==='atacado')||offers[0]
+const preferred = (offers:Offer[],purpose:string) => offers.find(x=>purpose==='pessoal'?x.kind==='varejo':purpose==='ambos'?x.kind==='varejo':x.kind==='atacado')||offers.find(x=>purpose!=='pessoal'&&x.kind==='caixa_fechada')||offers[0]
 
 export default function SocialShopping({storeSlug,storeName,productId,initialCart=false,initialCatalogSlug,onClose,onCartChanged}:Props){
   const [step,setStep]=useState<'loading'|'auth'|'item'|'cart'|'review'|'ready'|'error'>('loading')
@@ -168,7 +168,7 @@ export default function SocialShopping({storeSlug,storeName,productId,initialCar
           {offerData.product.description&&<p className="svx-social-shop-description">{offerData.product.description}</p>}
           <p className="svx-social-shop-label">Como deseja comprar?</p>
           <div className="svx-social-offers">{offerData.offers.map(x=><button type="button" key={x.id} className={offer.slug===x.slug?'is-selected':''} onClick={()=>selectOffer(x)}>
-            <span><strong>{x.name}</strong><small>{x.kind==='atacado'?'Atacado':x.kind==='varejo'?'Varejo':'Catálogo da loja'}</small></span><b>{money.format(x.price)}</b>
+            <span><strong>{x.name}</strong><small>{x.kind==='caixa_fechada'?'Caixa fechada':x.kind==='atacado'?'Atacado':x.kind==='varejo'?'Varejo':x.kind==='personalizado'?x.customLabel||'Personalizado':'Catálogo da loja'}</small></span><b>{money.format(x.price)}</b>
           </button>)}</div>
           {offer.unitsPerBox>1&&<p className="svx-social-shop-hint">1 caixa contém {offer.unitsPerBox} unidades. O preço exibido é por caixa.</p>}
           <p className="svx-social-shop-hint">Pedido mínimo neste catálogo: {money.format(offer.minimumOrder)}</p>
