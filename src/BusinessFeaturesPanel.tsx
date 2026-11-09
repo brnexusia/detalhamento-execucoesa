@@ -7,7 +7,7 @@ import type { AdminBootstrap, AdminProduct, VariationGroup } from './types'
 import './business-features.css'
 
 type StockDraft = { enabled: boolean; quantity: number; variantStock: Record<string, number> }
-type CatalogDraft = { name: string; kind: 'geral' | 'atacado' | 'varejo'; minimumOrder: string; active: boolean; items: Record<string, { visible: boolean; priceOverride: string }> }
+type CatalogDraft = { name: string; kind: 'varejo' | 'atacado' | 'caixa_fechada' | 'personalizado'; customLabel: string; priceMode: 'base'|'varejo'|'atacado'|'caixa_fechada'; minimumOrder: string; active: boolean; items: Record<string, { visible: boolean; priceOverride: string }> }
 
 function go(path: string) {
   window.history.pushState({}, '', path)
@@ -34,7 +34,9 @@ function catalogDraft(catalog: AdminCatalog, products: AdminProduct[]): CatalogD
   const mapped = new Map(catalog.items.map((item) => [item.productId, item]))
   return {
     name: catalog.name,
-    kind: catalog.kind,
+    kind: catalog.kind==='geral'?'personalizado':catalog.kind,
+    customLabel: catalog.kind==='geral'?catalog.name:catalog.customLabel||'',
+    priceMode: catalog.priceMode||'base',
     minimumOrder: catalog.minimumOrder == null ? '' : String(catalog.minimumOrder),
     active: catalog.active,
     items: Object.fromEntries(products.map((product) => {
@@ -49,7 +51,7 @@ export default function BusinessFeaturesPanel() {
   const [catalogs, setCatalogs] = useState<AdminCatalog[]>([])
   const [drafts, setDrafts] = useState<Record<string, StockDraft>>({})
   const [catalogDrafts, setCatalogDrafts] = useState<Record<string, CatalogDraft>>({})
-  const [newCatalog, setNewCatalog] = useState({ name: '', kind: 'atacado' as 'atacado' | 'varejo' | 'geral', minimumOrder: '' })
+  const [newCatalog, setNewCatalog] = useState({ name: '', kind: 'varejo' as CatalogDraft['kind'], customLabel:'', priceMode:'base' as CatalogDraft['priceMode'], minimumOrder: '' })
   const [saving, setSaving] = useState('')
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
@@ -88,10 +90,11 @@ export default function BusinessFeaturesPanel() {
 
   const createCatalog = async () => {
     if (!newCatalog.name.trim()) return setError('Informe o nome do catálogo.')
+    if (newCatalog.kind==='personalizado'&&!newCatalog.customLabel.trim())return setError('Defina o nome do tipo personalizado.')
     setSaving('new-catalog'); setError('')
     try {
-      await api.createCatalog({ name: newCatalog.name.trim(), kind: newCatalog.kind, minimumOrder: newCatalog.minimumOrder === '' ? null : Number(newCatalog.minimumOrder) })
-      setNewCatalog({ name: '', kind: 'atacado', minimumOrder: '' })
+      await api.createCatalog({ name: newCatalog.name.trim(), kind: newCatalog.kind, customLabel:newCatalog.kind==='personalizado'?newCatalog.customLabel.trim():'', priceMode:newCatalog.kind==='personalizado'?newCatalog.priceMode:'base', minimumOrder: newCatalog.minimumOrder === '' ? null : Number(newCatalog.minimumOrder) })
+      setNewCatalog({ name: '', kind: 'varejo', customLabel:'',priceMode:'base', minimumOrder: '' })
       flash('Catálogo criado.'); await load()
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível criar o catálogo.') }
     finally { setSaving('') }
@@ -105,6 +108,8 @@ export default function BusinessFeaturesPanel() {
       await api.updateCatalog(catalog.id, {
         name: draft.name,
         kind: draft.kind,
+        customLabel:draft.kind==='personalizado'?draft.customLabel:'',
+        priceMode:draft.kind==='personalizado'?draft.priceMode:'base',
         minimumOrder: draft.minimumOrder === '' ? null : Number(draft.minimumOrder),
         active: draft.active,
         items: Object.entries(draft.items).map(([productId, item]) => ({ productId, visible: item.visible, priceOverride: item.priceOverride === '' ? null : Number(item.priceOverride) })),
