@@ -105,9 +105,10 @@ test('comprador recebe formulario WhatsApp e perguntas comerciais, sem senha na 
   assert.match(buyer, /Receber código no WhatsApp/)
   assert.doesNotMatch(buyer, /disabled=\{!enabled/)
   assert.doesNotMatch(buyer, /if \(!enabled\)/)
-  for (const option of ['Comprar para revender','Comprar para minha empresa ou negócio','Comprar para uso pessoal','Revenda e uso pessoal','Estou começando a vender']) {
+  for (const option of ['Varejo — comprar para mim','Atacado — empresa, MEI ou revenda','Ambos — varejo e atacado']) {
     assert(buyer.includes(option), 'Finalidade ausente: '+option)
   }
+  assert.match(buyer, /<details className="buyer-business-details">/, 'dados comerciais devem ser progressivos')
   assert.match(buyer, /Você possui um negócio\?/)
   assert.match(buyer, /Onde vende ou pretende vender\?/)
   assert.match(buyer, /Possui CNPJ\?/)
