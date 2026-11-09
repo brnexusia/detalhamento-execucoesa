@@ -1,12 +1,13 @@
 import ShopvaxLoading from './ShopvaxLoading'
 import SocialAccountChoice from './SocialAccountChoice'
 import { socialCartCount } from './social-cart'
+import { isSocialSaved, listSocialSaved, socialSaveEvent, toggleSocialSaved } from './social-saves'
 const SocialShopping = lazy(() => import('./SocialShopping'))
 import { useOwnerSession } from './owner-session'
 import { useBuyerSession } from './buyer-session'
 import { lazy, memo, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { showToast } from './ui-dialogs'
-import { Eye, Heart, MessageCircleQuestion, Play, Plus, Share2, ShoppingBag, Store, Volume2, VolumeX } from 'lucide-react'
+import { Bookmark, Heart, MessageCircleQuestion, Play, Plus, Share2, ShoppingBag, Store, Volume2, VolumeX } from 'lucide-react'
 import './social-feed.css'
 import './shopvax-social-official.css'
 import './shopvax-social-feed-layout.css'
@@ -123,6 +124,8 @@ const SocialPostCard = memo(function SocialPostCard({ post, cartCount, active, s
     setInteractions((current) => ({ ...current, following: post.interactions.following, followers: post.interactions.followers }))
   }, [post.interactions.following, post.interactions.followers])
   const [asking, setAsking] = useState(false)
+  const [bookmarked,setBookmarked]=useState(()=>isSocialSaved(post.product.id))
+  useEffect(()=>{const update=()=>setBookmarked(isSocialSaved(post.product.id));window.addEventListener(socialSaveEvent,update);return()=>window.removeEventListener(socialSaveEvent,update)},[post.product.id])
   const [muted, setMuted] = useState(true)
   const descriptionRef = useRef<HTMLParagraphElement | null>(null)
   const [descriptionExpanded, setDescriptionExpanded] = useState(false)
@@ -232,7 +235,7 @@ const SocialPostCard = memo(function SocialPostCard({ post, cartCount, active, s
         <span className="social-feed-store__avatar">{post.store.logoUrl ? <img src={post.store.logoUrl} alt=""/> : <Store size={19}/>}</span>
       </button>
       <button aria-label={interactions.liked ? 'Descurtir produto' : 'Curtir produto'} className={interactions.liked ? 'is-active' : ''} onClick={like}><Heart size={25} fill={interactions.liked ? 'currentColor' : 'none'}/><span>{compact(interactions.likes)}</span></button>
-      <div className="social-feed-actions__metric" aria-label={`${compact(interactions.views)} visualizações`}><Eye size={24}/><span>{compact(interactions.views)}</span></div>
+      <button type="button" aria-label={bookmarked?'Remover produto dos salvos':'Salvar produto'} className={bookmarked?'is-active':''} onClick={()=>void toggleSocialSaved({id:post.product.id,name:post.product.name,sku:post.product.sku,category:post.product.category,mediaUrl:post.product.mediaUrl,mediaType:post.product.mediaType,store:{id:post.store.id,slug:post.store.slug,name:post.store.name,logoUrl:post.store.logoUrl}})}><Bookmark size={24} fill={bookmarked?'currentColor':'none'}/><span>Salvar</span></button>
       <button aria-label="Compartilhar produto" onClick={share}><Share2 size={24}/><span>{compact(interactions.shares)}</span></button>
       <button aria-label="Perguntar sobre o produto" className="social-feed-actions__ask" onClick={ask} disabled={asking}><MessageCircleQuestion size={25}/><span>{asking ? 'Abrindo…' : 'Perguntar'}</span></button>
     </aside>
@@ -252,7 +255,6 @@ const SocialPostCard = memo(function SocialPostCard({ post, cartCount, active, s
         {descriptionCanExpand && <button type="button" aria-expanded={descriptionExpanded} onClick={() => setDescriptionExpanded((value) => !value)}>{descriptionExpanded ? 'Menos' : 'Mais'}</button>}
       </div>}
       <div className="social-feed-buyline">
-        <strong>Ver valores e condições</strong>
         <div>
           <button className="social-feed-add" onClick={() => onAdd(post)}><Plus size={17}/> Ver preço / Comprar</button>
           {cartCount > 0 && <button className="social-feed-cart" onClick={() => onCart(post.store)} aria-label={`Abrir carrinho da ${post.store.name}`}><ShoppingBag size={17}/><b>{cartCount}</b></button>}
@@ -293,6 +295,7 @@ export default function SocialFeed() {
   const [socialPurchase,setSocialPurchase] = useState<{storeSlug:string;storeName:string;productId?:string;initialCart?:boolean}|null>(null)
   const ownerSession = useOwnerSession()
   const buyerSession = useBuyerSession()
+  useEffect(()=>{if(buyerSession==='authenticated')void listSocialSaved()},[buyerSession])
   const [cartVersion, setCartVersion] = useState(0)
   const [activeIndex, setActiveIndex] = useState(() => restoredIndex.current)
   const [restoreEpoch, setRestoreEpoch] = useState(0)
@@ -431,7 +434,8 @@ export default function SocialFeed() {
   useEffect(() => {
     const save = () => persist()
     window.addEventListener('pagehide', save)
-    return () => window.removeEventListener('pagehide', save)
+    window.addEventListener('shopvax:save-feed-position',save)
+    return () => {window.removeEventListener('pagehide', save);window.removeEventListener('shopvax:save-feed-position',save)}
   }, [persist])
 
   useEffect(() => {
@@ -493,7 +497,7 @@ export default function SocialFeed() {
   }
 
   return <div className="social-feed-page">
-    <header className="social-feed-nav"><strong className="svx-social-brand"><img src="/brand/shopvax-symbol-dark.svg" className="svx-brand-symbol" alt="" aria-hidden="true" /><img src="/brand/shopvax-wordmark-light.svg" className="svx-brand-wordmark" alt="Shopvax" /></strong><span>PRODUTOS DAS LOJAS</span><div className="social-feed-nav__right"><a href="/para-lojas">Para lojas</a><button type="button" onClick={() => ownerSession === 'authenticated'
+    <header className="social-feed-nav"><strong className="svx-social-brand"><img src="/brand/shopvax-symbol-dark.svg" className="svx-brand-symbol" alt="" aria-hidden="true" /><img src="/brand/shopvax-wordmark-light.svg" className="svx-brand-wordmark" alt="Shopvax" /></strong><span></span><div className="social-feed-nav__right"><button type="button" onClick={() => ownerSession === 'authenticated'
       ? go('/painel')
       : buyerSession === 'authenticated'
         ? go('/comprador')
