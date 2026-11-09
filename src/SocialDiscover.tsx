@@ -60,7 +60,7 @@ export default function SocialDiscover(){
        <SlidersHorizontal size={18}/>
        <label htmlFor="svx-mode">Compra</label>
        <select id="svx-mode" value={mode} onChange={e=>setMode(e.target.value)}>
-         <option value="">Todas</option><option value="varejo">Varejo</option><option value="atacado">Atacado</option>
+         <option value="">Todas</option><option value="varejo">Varejo</option><option value="atacado">Atacado</option><option value="caixa_fechada">Caixa fechada</option><option value="personalizado">Personalizado</option>
        </select>
        <label htmlFor="svx-min">Preço de</label>
        <input id="svx-min" type="number" min="0" step="0.01" inputMode="decimal" placeholder="R$ mín." value={minPrice} onChange={e=>setMinPrice(e.target.value)}/>
