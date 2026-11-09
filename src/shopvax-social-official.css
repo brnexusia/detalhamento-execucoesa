@@ -314,3 +314,208 @@
  .social-profile-page .social-profile-tabs{margin:12px -15px -14px}
  .social-profile-page .social-profile-shell{padding-top:6px}
 }
+
+
+/* Redesign visual final das superfícies sociais existentes.
+   Pranchas 02/03/08: papel, tinta, cor de ação e movimento funcional. */
+.social-profile-page,
+.social-profile-page .social-profile-shell {
+  background:var(--svx-paper,#F3F0E8);
+  color:var(--svx-ink,#161514);
+  font-family:var(--svx-font-body,'Archivo',sans-serif);
+}
+.social-profile-page .social-profile-card {
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:0;
+  background:var(--svx-paper,#F3F0E8);
+  box-shadow:none;
+}
+.social-profile-page .social-profile-nav{
+  background:rgba(243,240,232,.96);
+  border-bottom:1px solid var(--svx-ink,#161514);
+  color:var(--svx-ink,#161514);
+  font-family:var(--svx-font-body,'Archivo',sans-serif);
+}
+.social-profile-page .social-profile-nav :is(a,button) {
+  font-family:var(--svx-font-body,'Archivo',sans-serif);
+  color:var(--svx-ink,#161514);
+}
+.social-profile-page .social-profile-identity h1 {
+  font-family:var(--svx-font-display,'Archivo Narrow',sans-serif);
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:-.035em;
+}
+.social-profile-page .social-profile-identity>span,
+.social-profile-page .social-profile-stats span {
+  font-family:var(--svx-font-mono,'Fragment Mono',monospace);
+  color:var(--svx-muted,#6B665C);
+}
+.social-profile-page .social-profile-identity p{color:var(--svx-muted-strong,#4D4943)}
+.social-profile-page .social-profile-stats strong {
+  font-family:var(--svx-font-display,'Archivo Narrow',sans-serif);
+  font-weight:800;
+  font-size:clamp(24px,3.5vw,33px);
+}
+.social-profile-page .social-profile-actions button{
+  border:1px solid var(--svx-ink,#161514);
+  border-radius:0;
+  background:var(--svx-ink,#161514);
+  color:var(--svx-paper,#F3F0E8);
+  font-family:var(--svx-font-body,'Archivo',sans-serif);
+  font-weight:700;
+}
+.social-profile-page .social-profile-actions button.is-following {
+  background:transparent;
+  color:var(--svx-ink,#161514);
+}
+.social-profile-page .social-profile-actions button:focus-visible,
+.social-profile-page .social-profile-view-switch button:focus-visible,
+.social-profile-page .social-profile-grid button:focus-visible,
+.social-profile-page .social-profile-feed-post button:focus-visible {
+  outline:3px solid var(--svx-stamp,#2D2A8C);
+  outline-offset:2px;
+}
+.social-profile-page .social-profile-view-switch {
+  background:var(--svx-paper,#F3F0E8);
+  border-top:1px solid var(--svx-line,#D9D3C6);
+}
+.social-profile-page .social-profile-view-switch>button {
+  border-bottom:3px solid transparent;
+  border-radius:0;
+  color:var(--svx-muted,#6B665C);
+  font:700 12px/1.2 var(--svx-font-body,'Archivo',sans-serif);
+}
+.social-profile-page .social-profile-view-switch>button.is-active {
+  color:var(--svx-ink,#161514);
+  border-bottom-color:var(--svx-orange,#F25C05);
+}
+.social-profile-page .social-profile-grid {gap:3px}
+.social-profile-page .social-profile-grid>button{
+  background:var(--svx-board,#E7E3DA);
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:0;
+}
+.social-profile-page .social-profile-grid img,
+.social-profile-page .social-profile-grid video {
+  object-fit:contain;
+  background:var(--svx-board,#E7E3DA);
+}
+.social-profile-page .social-profile-grid__name,
+.social-profile-page .social-profile-feed-post__title {
+  font-family:var(--svx-font-display,'Archivo Narrow',sans-serif);
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:-.015em;
+}
+.social-profile-page .social-profile-feed{border-radius:0;background:var(--svx-ink,#161514)}
+.social-profile-page .social-profile-feed-post{background:var(--svx-ink,#161514)}
+.social-profile-page .social-profile-feed-post__buy{
+  border:1px solid var(--svx-ink,#161514);
+  border-radius:0;
+  background:var(--svx-orange,#F25C05);
+  color:var(--svx-ink,#161514);
+  font:700 13px/1.2 var(--svx-font-body,'Archivo',sans-serif);
+}
+.social-profile-page .social-profile-viewer article{
+  border:1px solid var(--svx-ink,#161514);
+  border-radius:0;
+  background:var(--svx-paper,#F3F0E8);
+  color:var(--svx-ink,#161514);
+  box-shadow:0 20px 60px rgba(22,21,20,.26);
+}
+.social-profile-page .social-profile-viewer__copy>span {
+  font:500 11px/1.25 var(--svx-font-mono,'Fragment Mono',monospace);
+  color:var(--svx-muted,#6B665C);
+}
+.social-profile-page .social-profile-viewer__copy h2 {
+  font-family:var(--svx-font-display,'Archivo Narrow',sans-serif);
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:-.03em;
+}
+.social-profile-page .social-profile-viewer__copy>button{
+  border:1px solid var(--svx-ink,#161514);
+  border-radius:0;
+  background:var(--profile-accent,var(--svx-orange,#F25C05));
+  color:var(--profile-text,var(--svx-ink,#161514));
+  font-family:var(--svx-font-body,'Archivo',sans-serif);
+}
+.social-profile-page .social-profile-viewer__copy>button:first-of-type {
+  background:transparent;
+}
+.social-feed-page .social-feed-add {
+  border:1px solid var(--svx-paper,#F3F0E8);
+  border-radius:0;
+  background:var(--social-store-accent,var(--svx-orange,#F25C05));
+  color:var(--social-store-text,var(--svx-ink,#161514));
+  font-family:var(--svx-font-body,'Archivo',sans-serif);
+  font-weight:800;
+}
+.social-feed-page .social-feed-actions button,
+.social-feed-page .social-feed-follow {
+  transition:color 160ms ease,border-color 160ms ease,background-color 160ms ease;
+}
+.social-feed-page .social-feed-actions button:focus-visible,
+.social-feed-page .social-feed-add:focus-visible,
+.social-feed-page .social-feed-follow:focus-visible {
+  outline:3px solid var(--svx-stamp,#2D2A8C);
+  outline-offset:3px;
+}
+/* Movimento editorial reaproveitado; não animar vídeos ou rolagem do feed. */
+@media(prefers-reduced-motion:no-preference) {
+  .social-profile-page .social-profile-card {
+    animation:svx-arrive 240ms cubic-bezier(.2,.65,.1,1) both;
+  }
+  .social-profile-page .social-profile-viewer article{
+    animation:svx-arrive 240ms cubic-bezier(.2,.65,.1,1) both;
+  }
+  .social-profile-page .social-profile-view-switch>button{
+    transition:color 160ms ease,border-color 160ms ease;
+  }
+  .social-profile-page .social-profile-view-switch>button.is-active{
+    animation:svx-number-up 160ms ease-out both;
+  }
+  .social-profile-page .social-profile-grid>button,
+  .social-profile-page .social-profile-feed-post__buy,
+  .social-profile-page .social-profile-viewer__copy>button,
+  .social-feed-page .social-feed-add {
+    transition:border-color 160ms ease,background-color 160ms ease,filter 160ms ease;
+  }
+  .social-profile-page :is(button,a):active:not(:disabled):not(.social-profile-feed-post__media) {translate:0 1px}
+}
+@media(hover:hover) and (pointer:fine){
+  .social-profile-page .social-profile-grid>button:hover {border-color:var(--svx-ink,#161514)}
+  .social-profile-page .social-profile-feed-post__buy:hover,
+  .social-profile-page .social-profile-viewer__copy>button:hover,
+  .social-feed-page .social-feed-add:hover {filter:brightness(.95)}
+}
+@media(max-width:720px) {
+  .social-profile-page .social-profile-card {
+    border-left:0;
+    border-right:0;
+  }
+  .social-profile-page .social-profile-viewer article {
+    border:0;
+  }
+}
+@media(prefers-reduced-motion:reduce){
+  .social-feed-page .social-feed-actions button,
+  .social-feed-page .social-feed-follow,
+  .social-feed-page .social-feed-add,
+  .social-profile-page .social-profile-card,
+  .social-profile-page .social-profile-viewer article,
+  .social-profile-page .social-profile-view-switch>button {
+    animation:none!important;
+    transition:none!important;
+    translate:none!important;
+  }
+}
+
+/* A entrada do Feed anima apenas a barra institucional, nunca a mídia/scroll. */
+@media(prefers-reduced-motion:no-preference){
+  .social-feed-page .social-feed-nav{animation:svx-arrive 200ms ease-out both}
+}
+@media(prefers-reduced-motion:reduce){
+  .social-feed-page .social-feed-nav{animation:none!important;translate:none!important}
+}
