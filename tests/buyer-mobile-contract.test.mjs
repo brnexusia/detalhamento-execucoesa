@@ -36,3 +36,10 @@ test('UI build revision covers buyer and search source',()=>{
    assert.ok(file.includes("'"+path+"'"),path+' excluded from build identity')
  }
 })
+
+test('Docker inicia o endpoint real de pesquisa, sem fallback para HTML',()=>{
+ const docker=read('Dockerfile')
+ assert.match(docker,/--import", "\.\/server\/buyer-discovery-hooks\.mjs"/)
+ const source=read('server/buyer-discovery-hooks.mjs')
+ assert.match(source,/app\.get\('\/api\/social\/discover',wrap\(discover\)\)/)
+})
