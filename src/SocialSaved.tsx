@@ -1,4 +1,4 @@
-import { Bookmark, Heart, Store, Trash2 } from 'lucide-react'
+import { Bookmark, Heart, Play, Store, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { buyerGo } from './BuyerAppNav'
 import { listSocialSaved, localSocialSaved, socialSaveEvent, toggleSocialSaved } from './social-saves'
@@ -51,7 +51,7 @@ export default function SocialSaved(){
   {!loading&&tab==='products'&&(products.length?<div className="buyer-product-grid">{products.map(p=>{
    const path='/perfil/'+encodeURIComponent(p.store.slug)+'?produto='+encodeURIComponent(p.id)
    return <div className="buyer-product-card" key={p.id}>
-    <a className="buyer-product-card__image" href={path} onClick={e=>go(path,e)}>{p.mediaUrl?<img src={p.mediaUrl} alt={p.name} loading="lazy"/>:<Store size={24}/>}</a>
+    <a className="buyer-product-card__image" href={path} onClick={e=>go(path,e)}>{p.mediaType==='video'?(p.thumbnailUrl?<img src={p.thumbnailUrl} alt={p.name} loading="lazy"/>:<span className="buyer-video-placeholder"><Play size={24}/><small>Vídeo</small></span>):p.mediaUrl?<img src={p.mediaUrl} alt={p.name} loading="lazy"/>:<Store size={24}/>}</a>
     <span className="buyer-product-card__details"><strong>{p.name}</strong><small>{p.store.name}</small>
      <a className="buyer-inline-link" href={path} onClick={e=>go(path,e)}>Ver produto</a>
      <button type="button" className="buyer-inline-link" onClick={()=>void remove(p)} aria-label={'Remover '+p.name+' dos salvos'}><Trash2 size={14}/> Remover</button>
