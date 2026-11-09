@@ -91,3 +91,6 @@
 @media(min-width:720px){.buyer-product-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}.buyer-screen{padding-top:35px}.buyer-app-nav__inner{min-height:68px}.buyer-profile-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(max-height:660px){.social-feed-page .social-feed-actions{gap:4px;bottom:calc(168px + env(safe-area-inset-bottom))}.social-feed-page .social-feed-actions button{min-height:36px}.social-feed-page .social-feed-copy h2{font-size:17px}.social-feed-page .social-feed-description{display:none}}
 @media(prefers-reduced-motion:reduce){.buyer-app-nav *,.buyer-screen *{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
+
+.buyer-video-placeholder{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;background:#242321;color:#fff}
+.buyer-video-placeholder small{font-size:12px;color:#e5dfd4}
