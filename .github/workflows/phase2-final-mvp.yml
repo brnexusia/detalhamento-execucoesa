@@ -101,6 +101,8 @@ jobs:
           exit 1
       - name: Frente 02 - comprador em duas abas, historico e falha de rede
         run: node tests/shopvax-buyer-session-status.e2e.mjs
+      - name: Navegação mobile real - feed, busca, perfil, salvos e carrinhos
+        run: node tests/shopvax-buyer-navigation.e2e.mjs
       - name: Print server log on failure
         if: failure()
         run: |
