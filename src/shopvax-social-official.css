@@ -437,8 +437,8 @@
 .social-profile-page .social-profile-viewer__copy>button{
   border:1px solid var(--svx-ink,#161514);
   border-radius:0;
-  background:var(--svx-orange,#F25C05);
-  color:var(--svx-ink,#161514);
+  background:var(--profile-accent,var(--svx-orange,#F25C05));
+  color:var(--profile-text,var(--svx-ink,#161514));
   font-family:var(--svx-font-body,'Archivo',sans-serif);
 }
 .social-profile-page .social-profile-viewer__copy>button:first-of-type {
@@ -447,8 +447,8 @@
 .social-feed-page .social-feed-add {
   border:1px solid var(--svx-paper,#F3F0E8);
   border-radius:0;
-  background:var(--svx-orange,#F25C05);
-  color:var(--svx-ink,#161514);
+  background:var(--social-store-accent,var(--svx-orange,#F25C05));
+  color:var(--social-store-text,var(--svx-ink,#161514));
   font-family:var(--svx-font-body,'Archivo',sans-serif);
   font-weight:800;
 }
