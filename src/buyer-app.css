@@ -344,3 +344,10 @@
     transition:none!important;
   }
 }
+
+/* Inputs de busca herdam a mesma família do texto oficial, não a fonte do navegador. */
+.buyer-search-input input,
+.buyer-filters select,
+.buyer-filters input {
+  font-family:var(--svx-font-body,'Archivo',sans-serif);
+}
