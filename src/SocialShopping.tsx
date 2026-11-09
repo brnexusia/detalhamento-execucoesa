@@ -110,7 +110,18 @@ export default function SocialShopping({storeSlug,storeName,productId,initialCar
     persistCart(storeSlug,{...activeCart,items:activeCart.items.map(i=>i.key===key?{...i,quantity:Math.max(0,i.quantity+delta)}:i).filter(i=>i.quantity>0)})
     reloadCart()
   }
-  const submit=async()=>{
+  const askSeller=async()=>{
+    if(!offerData||busy)return
+    setBusy(true);setError('')
+    try{
+      const r=await fetch('/api/social/posts/'+encodeURIComponent(offerData.product.id)+'/ask',{method:'POST',credentials:'include'})
+      const data=await parseJson(r)
+      if(!r.ok||!data.whatsappUrl)throw Error(data.error||'Não foi possível abrir a conversa.')
+      window.open(data.whatsappUrl,'_blank','noopener,noreferrer')
+    }catch(e){setError(e instanceof Error?e.message:'Não foi possível conversar com a loja.')}
+    finally{setBusy(false)}
+  }
+    const submit=async()=>{
     if(!activeCart||!activeCart.items.length||total<minimum||busy)return
     setBusy(true);setError('')
     try{
@@ -163,6 +174,7 @@ export default function SocialShopping({storeSlug,storeName,productId,initialCar
           {(offerData.product.variations||[]).map(v=><div key={v.name} className="svx-social-shop-field"><strong>{v.name}</strong><div className="svx-social-options">{v.options.map(o=><button type="button" key={o} className={selections[v.name]===o?'is-selected':''} onClick={()=>{setSelections(s=>({...s,[v.name]:o}));setError('')}}>{o}</button>)}</div></div>)}
           <div className="svx-social-qty"><span>Quantidade {offer.unitsPerBox>1?'de caixas':'de itens'}</span><div><button type="button" aria-label="Diminuir" onClick={()=>setQuantity(n=>Math.max(1,n-1))}><Minus size={16}/></button><strong>{quantity}</strong><button type="button" aria-label="Aumentar" onClick={()=>setQuantity(n=>Math.min(999,n+1))}><Plus size={16}/></button></div></div>
           <button className="svx-social-shop-primary" onClick={addItem}><ShoppingBag size={18}/> Adicionar · {money.format(offer.price*quantity)}</button>
+          <button className="svx-social-shop-secondary" disabled={busy} onClick={()=>void askSeller()}>{busy?'Abrindo…':'Perguntar à vendedora'}</button>
         </>}
         {step==='cart'&&<>
           {storedCarts.length>1&&<div className="svx-social-shop-tabs">{catalogOptions.map(c=><button type="button" key={c.slug} className={c.slug===catalogSlug?'is-selected':''} onClick={()=>setCatalogSlug(c.slug)}>{c.name}</button>)}</div>}
