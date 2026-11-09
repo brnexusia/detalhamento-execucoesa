@@ -18,6 +18,7 @@ type Publication = {
   category: string
   mediaUrl: string
   mediaType: 'image' | 'video'
+  images?: string[]
   pack?: string
   variations: VariationGroup[]
   publishedAt: string
@@ -191,7 +192,7 @@ export default function SocialStoreProfile() {
           {publications.map(publication=><article key={publication.id} className="social-profile-feed-post">
             <button className="social-profile-feed-post__media" type="button" onClick={()=>openPublication(publication)} aria-label={`Abrir ${publication.name}`}>
               {publication.mediaType==='video'
-                ? <video src={publication.mediaUrl} muted playsInline loop preload="none" aria-hidden="true"/>
+                ? <video src={publication.mediaUrl} poster={publication.images?.[0]||undefined} muted playsInline loop preload="none" aria-hidden="true"/>
                 : publication.mediaUrl
                   ? <img src={publication.mediaUrl} alt="" loading="lazy" decoding="async"/>
                   : <span className="social-profile-empty"><Store size={26}/></span>}
@@ -203,7 +204,7 @@ export default function SocialStoreProfile() {
         : <section className="social-profile-grid" aria-label={`Produtos de ${store.name} em grade`}>
           {publications.map((publication) => <button key={publication.id} onClick={() => openPublication(publication)}>
             {publication.mediaType === 'video'
-              ? <><video src={publication.mediaUrl} muted playsInline preload="none"/><span className="social-profile-video"><Play size={18} fill="currentColor"/></span></>
+              ? <><video src={publication.mediaUrl} poster={publication.images?.[0]||undefined} muted playsInline preload="none"/><span className="social-profile-video"><Play size={18} fill="currentColor"/></span></>
               : publication.mediaUrl ? <img src={publication.mediaUrl} alt={publication.name} loading="lazy" decoding="async"/> : <span className="social-profile-empty"><Store size={22}/></span>}
             <span className="social-profile-grid__name">{publication.name}</span>
           </button>)}
@@ -220,7 +221,7 @@ export default function SocialStoreProfile() {
       <article>
         <button className="social-profile-viewer__close" onClick={closePublication}><X size={21}/></button>
         <div className="social-profile-viewer__media">
-          {selected.mediaType === 'video' ? <video src={selected.mediaUrl} autoPlay controls playsInline/> : <img src={selected.mediaUrl} alt={selected.name}/>} 
+          {selected.mediaType === 'video' ? <video src={selected.mediaUrl} poster={selected.images?.[0]||undefined} autoPlay controls playsInline/> : <img src={selected.mediaUrl} alt={selected.name}/>} 
         </div>
         <div className="social-profile-viewer__copy">
           <span>{selected.category}</span>
