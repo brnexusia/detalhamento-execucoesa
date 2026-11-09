@@ -27,6 +27,7 @@ export default function SocialShopping({storeSlug,storeName,productId,initialCar
   const [selections,setSelections]=useState<Record<string,string>>({})
   const [quantity,setQuantity]=useState(1)
   const [imageIndex,setImageIndex]=useState(0)
+  const photos=useMemo(()=>offerData?Array.from(new Set([...(offerData.product.images||[]),...(offerData.product.mediaType==='image'&&offerData.product.mediaUrl?[offerData.product.mediaUrl]:[])].filter(Boolean))).slice(0,8):[],[offerData])
   const [notes,setNotes]=useState('')
   const [error,setError]=useState('')
   const [busy,setBusy]=useState(false)
@@ -157,10 +158,13 @@ export default function SocialShopping({storeSlug,storeName,productId,initialCar
         {step==='error'&&<><p role="alert">{error}</p><button className="svx-social-shop-primary" onClick={()=>void load()}>Tentar novamente</button></>}
         {step==='auth'&&<><p className="svx-social-shop-description">Para ver valores e comprar, confirme seu WhatsApp e informe se compra no varejo, atacado ou em ambos. Você volta ao mesmo produto.</p><BuyerWhatsappLogin storeSlug={storeSlug} onVerified={load}/></>}
         {step==='item'&&offerData&&offer&&<>
-          {Array.isArray(offerData.product.images)&&offerData.product.images.length>0&&<div className="svx-social-gallery">
-            <img className="svx-social-gallery__hero" src={offerData.product.images[Math.min(imageIndex,offerData.product.images.length-1)]} alt={offerData.product.name} loading="eager"/>
-            {offerData.product.images.length>1&&<div className="svx-social-gallery__thumbs" aria-label="Fotos do produto">{offerData.product.images.slice(0,8).map((src,i)=><button type="button" className={imageIndex===i?'is-active':''} key={i} aria-label={'Ver foto '+(i+1)} onClick={()=>setImageIndex(i)}><img src={src} alt="" loading="lazy"/></button>)}</div>}
+          {photos.length>0&&<div className="svx-social-gallery">
+            <img className="svx-social-gallery__hero" src={photos[Math.min(imageIndex,photos.length-1)]} alt={offerData.product.name} loading="eager"/>
+            {photos.length>1&&<div className="svx-social-gallery__thumbs" aria-label="Fotos do produto">{photos.map((src,i)=><button type="button" className={imageIndex===i?'is-active':''} key={i} aria-label={'Ver foto '+(i+1)} onClick={()=>setImageIndex(i)}><img src={src} alt="" loading="lazy"/></button>)}</div>}
           </div>}
+          {!photos.length&&offerData.product.mediaType==='video'&&offerData.product.mediaUrl&&
+            <video className="svx-social-gallery__hero" src={offerData.product.mediaUrl} controls playsInline preload="metadata" aria-label={'Vídeo de '+offerData.product.name}/>}
+
           {offerData.product.description&&<p className="svx-social-shop-description">{offerData.product.description}</p>}
           <p className="svx-social-shop-label">Como deseja comprar?</p>
           <div className="svx-social-offers">{offerData.offers.map(x=><button type="button" key={x.id} className={offer.slug===x.slug?'is-selected':''} onClick={()=>selectOffer(x)}>
