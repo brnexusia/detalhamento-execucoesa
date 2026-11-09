@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { ArrowLeft, Grid2X2, Play, ShoppingBag, Store, X } from 'lucide-react'
-import SocialShopping from './SocialShopping'
+const SocialShopping = lazy(() => import('./SocialShopping'))
 import './social-profile.css'
 import './shopvax-social-official.css'
 import { shopvaxAccentTextColor } from './ShopvaxDesignSystem'
@@ -178,7 +178,7 @@ export default function SocialStoreProfile() {
       {!publications.length && <div className="social-profile-empty-state" role={error ? "alert" : undefined}>{publicationsLoading ? "Carregando publicações…" : error || "Esta loja ainda não publicou produtos."}</div>}
     </main>
 
-    {socialPurchase&&<SocialShopping storeSlug={slug} storeName={store.name} {...socialPurchase} onClose={()=>setSocialPurchase(null)}/>}
+    {socialPurchase&&<Suspense fallback={null}><SocialShopping storeSlug={slug} storeName={store.name} {...socialPurchase} onClose={()=>setSocialPurchase(null)}/></Suspense>}
     {accountChoice && <SocialAccountChoice storeSlug={slug} storeId={profile.store.id} reason={accountChoice}
       onFollowed={(result) => setProfile((current) => current ? { ...current, stats: { ...current.stats, following: result.following, followers: result.followers } } : current)}
       onClose={() => setAccountChoice(null)}/>} 
