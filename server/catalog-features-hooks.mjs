@@ -565,7 +565,7 @@ async function socialProductOffers(req, res) {
     FROM catalogs c JOIN products p ON p.id=$2
     LEFT JOIN catalog_products cp ON cp.catalog_id=c.id AND cp.product_id=p.id
     WHERE c.store_id=$1 AND c.active=true AND ($3::boolean OR c.is_default)
-      AND (cp.visible IS NULL OR cp.visible=true)
+      AND (CASE WHEN c.explicit_membership THEN cp.visible=true ELSE COALESCE(cp.visible,true)=true END)
     ORDER BY c.is_default DESC,c.created_at ASC`, [p.store_id, p.id, p.plan_tier==='ouro'])
   if (!available.rowCount) return res.status(404).json({ error: 'Produto indisponível nos catálogos da loja.' })
   return res.json({
@@ -641,7 +641,7 @@ async function createCatalogOrder(req, res) {
   try {
     await client.query('BEGIN')
     const productsResult = await client.query(
-      `SELECT p.*,${effectiveCatalogPrice} AS public_price,COALESCE(cp.visible,true) AS catalog_visible
+      `SELECT p.*,${effectiveCatalogPrice} AS public_price,(CASE WHEN c.explicit_membership THEN cp.visible=true ELSE COALESCE(cp.visible,true) END) AS catalog_visible
        FROM products p JOIN catalogs c ON c.id=$3
        LEFT JOIN catalog_products cp ON cp.product_id=p.id AND cp.catalog_id=$3
        WHERE p.store_id=$1 AND p.active=true AND p.id=ANY($2::text[]) ORDER BY p.id FOR UPDATE OF p`,
