@@ -12,7 +12,9 @@ export type Catalog = {
   id: string
   slug: string
   name: string
-  kind: 'geral' | 'atacado' | 'varejo'
+  kind: 'geral' | 'atacado' | 'varejo' | 'caixa_fechada' | 'personalizado'
+  customLabel?: string
+  priceMode?: 'base' | 'varejo' | 'atacado' | 'caixa_fechada'
   minimumOrder: number | null
   lockedByPlan?: boolean
   isDefault: boolean
