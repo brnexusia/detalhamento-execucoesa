@@ -179,8 +179,9 @@ function profileFields(body) {
   const personal = purpose === 'pessoal'
   const businessStatus = personal ? '' : String(body?.businessStatus || '')
   const cnpjStatus = personal ? '' : String(body?.cnpjStatus || '')
-  if (!personal && (!businesses.has(businessStatus) || !cnpjStatuses.has(cnpjStatus)))
-    return { error: 'Informe a situação do negócio e do CNPJ.' }
+  // Empresa/MEI e CNPJ são dados complementares; a pessoa pode informar depois.
+  if (!personal && ((businessStatus && !businesses.has(businessStatus)) || (cnpjStatus && !cnpjStatuses.has(cnpjStatus))))
+    return { error: 'Confira a situação do negócio e do CNPJ.' }
   const channels = personal ? [] : Array.isArray(body?.channels) ? [...new Set(body.channels)].filter(v => channelsAllowed.has(v)).slice(0, 7) : []
   const cnpj = cnpjStatus === 'sim' ? digits(body?.cnpj).slice(0, 14) : ''
   if (cnpj && cnpj.length !== 14) return { error: 'CNPJ deve ter 14 dígitos.' }
