@@ -68,6 +68,7 @@ async function requireStore(req, res, next) {
   try {
     const store = await currentStore(req)
     if (!store) return res.status(401).json({ error: 'Sessão necessária.' })
+    await schemaReady()
     req.catalogStore = store
     next()
   } catch (error) { next(error) }
@@ -133,6 +134,7 @@ if (pool) {
 }
 
 async function ensureDefaultCatalog(storeId, client = pool) {
+  await schemaReady()
   let result = await client.query('SELECT * FROM catalogs WHERE store_id=$1 AND is_default=true LIMIT 1', [storeId])
   if (result.rowCount) return result.rows[0]
   try {
