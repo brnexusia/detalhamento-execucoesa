@@ -272,7 +272,7 @@ function injectMetadata(html, meta) {
     .replace('</head>', '    ' + tags.join('\n    ') + '\n  </head>')
   // Real server response content for crawlers; React replaces this boot markup when mounted.
   // Same content is presented to visitors and bots; no UA-specific rendering or hidden text.
-  if (meta.index && meta.headline) {
+  if (meta.index && meta.headline && meta.url !== SITE + '/') {
     const productList = Array.isArray(meta.publicProducts) && meta.publicProducts.length
       ? '<section aria-label="Produtos públicos da loja"><h2>Produtos disponíveis</h2><ul>' +
         meta.publicProducts.map((product) =>
