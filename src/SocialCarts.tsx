@@ -56,6 +56,6 @@ export default function SocialCarts(){
    </section>
    })
   }
-  {selected&&<Suspense fallback={<p role="status">Abrindo seu carrinho…</p>}><SocialShopping storeSlug={selected.storeSlug} storeName={names[selected.storeSlug]||selected.storeSlug} initialCart onCartChanged={refresh} onClose={()=>{setOpened(null);refresh()}}/></Suspense>}
+  {selected&&<Suspense fallback={<p role="status">Abrindo seu carrinho…</p>}><SocialShopping storeSlug={selected.storeSlug} storeName={names[selected.storeSlug]||selected.storeSlug} initialCatalogSlug={selected.cart.catalog.slug} initialCart onCartChanged={refresh} onClose={()=>{setOpened(null);refresh()}}/></Suspense>}
  </div></main>
 }
