@@ -30,8 +30,8 @@ const productShape = row => ({
  store:{id:row.store_id,slug:row.store_slug,name:row.store_name,logoUrl:row.logo_url||''}
 })
 async function discover(req,res){
- await ensureCatalogSchema()
  if(!pool)return res.status(503).json({error:'Busca indisponível.'})
+ await ensureCatalogSchema()
  const q=clean(req.query.q,100), category=clean(req.query.category,80),mode=clean(req.query.mode,12)
  const min=clean(req.query.minPrice,16),max=clean(req.query.maxPrice,16)
  if(mode && !['varejo','atacado','caixa_fechada','personalizado'].includes(mode))return res.status(400).json({error:'Modalidade inválida.'})
