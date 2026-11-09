@@ -422,7 +422,7 @@ export default function PublicStoreV2() {
          <span>Comprar por catálogo</span><div>{payload?.catalogs?.map(c=><a key={c.id}
           aria-current={payload.activeCatalog?.id===c.id?'page':undefined}
           href={'/'+encodeURIComponent(route.storeSlug)+(route.sellerSlug?'/'+encodeURIComponent(route.sellerSlug):'')+'?catalog='+encodeURIComponent(c.slug)}>
-          {c.name} {c.kind==='atacado'?'· Caixa fechada':c.kind==='varejo'?'· Varejo':''}
+          {c.name} {c.kind==='caixa_fechada'?'· Caixa fechada':c.kind==='atacado'?'· Atacado':c.kind==='varejo'?'· Varejo':c.kind==='personalizado'?'· '+(c.customLabel||'Personalizado'):''}
          </a>)}</div>
         </nav>}
        <section className="catalog-toolbar"><label className="search-box"><Search size={18}/><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar produto ou referência" /></label><label className="svx-catalog-sort"><span>Ordenar por</span><select aria-label="Ordenação dos produtos" value={sort} onChange={(e) => setSort(e.target.value as 'newest' | 'price_asc' | 'price_desc')}><option value="newest">Mais recentes</option><option value="price_asc">Menor preço</option><option value="price_desc">Maior preço</option></select></label><div className="minimum-inline"><span>Pedido mínimo</span><strong>{money.format(minimum)}</strong></div></section>

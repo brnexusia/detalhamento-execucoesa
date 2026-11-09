@@ -1,6 +1,7 @@
 import express from 'express'
 import pg from 'pg'
 import { currentSocialBuyer } from './buyer-whatsapp-auth-hooks.mjs'
+import { ensureCatalogSchema } from './catalog-features-hooks.mjs'
 
 // Leitura pública limitada à descoberta social. Preço comercial continua
 // protegido pela identificação do comprador e pela modalidade do catálogo.
@@ -30,9 +31,10 @@ const productShape = row => ({
 })
 async function discover(req,res){
  if(!pool)return res.status(503).json({error:'Busca indisponível.'})
+ await ensureCatalogSchema()
  const q=clean(req.query.q,100), category=clean(req.query.category,80),mode=clean(req.query.mode,12)
  const min=clean(req.query.minPrice,16),max=clean(req.query.maxPrice,16)
- if(mode && !['varejo','atacado'].includes(mode))return res.status(400).json({error:'Modalidade inválida.'})
+ if(mode && !['varejo','atacado','caixa_fechada','personalizado'].includes(mode))return res.status(400).json({error:'Modalidade inválida.'})
  const priceFilter=min!==''||max!==''
  const minimum=min===''?null:Number(min),maximum=max===''?null:Number(max)
  if(priceFilter && ([minimum,maximum].some(x=>x!==null&&(!Number.isFinite(x)||x<0||x>100000000))||(minimum!==null&&maximum!==null&&minimum>maximum)))
@@ -51,8 +53,8 @@ async function discover(req,res){
        AND (c.is_default OR s.plan_tier='ouro')
        AND (CASE WHEN c.explicit_membership THEN cp.visible=true ELSE COALESCE(cp.visible,true)=true END)
        AND ($3::text='' OR c.kind=$3)
-       AND ($4::numeric IS NULL OR COALESCE(cp.price_override,CASE WHEN c.kind='varejo' THEN p.retail_price WHEN c.kind='atacado' THEN p.box_price END,p.price)>=$4)
-       AND ($5::numeric IS NULL OR COALESCE(cp.price_override,CASE WHEN c.kind='varejo' THEN p.retail_price WHEN c.kind='atacado' THEN p.box_price END,p.price)<=$5)
+       AND ($4::numeric IS NULL OR COALESCE(cp.price_override,CASE WHEN c.kind='varejo' OR (c.kind='personalizado' AND c.price_mode='varejo') THEN p.retail_price WHEN c.kind='caixa_fechada' OR (c.kind='personalizado' AND c.price_mode='caixa_fechada') THEN p.box_price ELSE p.price END,p.price)>=$4)
+       AND ($5::numeric IS NULL OR COALESCE(cp.price_override,CASE WHEN c.kind='varejo' OR (c.kind='personalizado' AND c.price_mode='varejo') THEN p.retail_price WHEN c.kind='caixa_fechada' OR (c.kind='personalizado' AND c.price_mode='caixa_fechada') THEN p.box_price ELSE p.price END,p.price)<=$5)
    )`
  }
  const base=`FROM products p JOIN stores s ON s.id=p.store_id
@@ -82,7 +84,7 @@ async function discover(req,res){
  if(account&&products.rows.length){
    const offers=await pool.query(`
     SELECT p.id AS product_id,MIN(COALESCE(cp.price_override,
-       CASE WHEN c.kind='varejo' THEN p.retail_price WHEN c.kind='atacado' THEN p.box_price END,p.price))::numeric AS display_price,
+       CASE WHEN c.kind='varejo' OR (c.kind='personalizado' AND c.price_mode='varejo') THEN p.retail_price WHEN c.kind='caixa_fechada' OR (c.kind='personalizado' AND c.price_mode='caixa_fechada') THEN p.box_price ELSE p.price END,p.price))::numeric AS display_price,
        COUNT(*)::int AS catalog_count
     FROM products p JOIN stores s ON s.id=p.store_id
       JOIN catalogs c ON c.store_id=s.id AND c.active=true AND (c.is_default OR s.plan_tier='ouro')

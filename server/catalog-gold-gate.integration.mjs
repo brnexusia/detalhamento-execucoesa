@@ -38,7 +38,7 @@ try{
  }
  let goldCatalogs=(await (await get('/api/admin/catalogs',gold.cookie)).json()).catalogs
  const def=goldCatalogs.find(c=>c.isDefault)
- const renamed=await post('/api/admin/catalogs/'+def.id,{name:'Caixa fechada',kind:'atacado',minimumOrder:60},gold.cookie,'PATCH')
+ const renamed=await post('/api/admin/catalogs/'+def.id,{name:'Caixa fechada',kind:'caixa_fechada',minimumOrder:60},gold.cookie,'PATCH')
  assert.equal(renamed.status,200,await renamed.text().catch(()=>''),'Gold edita principal com mínimo')
  const created=await post('/api/admin/catalogs',{name:'Varejo',kind:'varejo',minimumOrder:30},gold.cookie)
  const createdBody=await created.json()
@@ -67,7 +67,7 @@ try{
  const boxPublic=await get('/api/public/store/'+gold.slug+'?catalog='+def.slug)
  const boxPayload=await boxPublic.json()
  assert.equal(boxPublic.status,200,JSON.stringify(boxPayload).slice(0,900))
- assert.equal(boxPayload.activeCatalog.kind,'atacado')
+ assert.equal(boxPayload.activeCatalog.kind,'caixa_fechada')
  assert.equal(boxPayload.store.minimumOrder,60)
  assert.equal(boxPayload.products[0].price,100,'Vitrine de caixa fechada usa preço correto')
  assert.equal(boxPayload.products[0].unitsPerBox,5)
@@ -105,6 +105,59 @@ try{
  assert.match(pdf.headers.get('content-type')||'',/application\/pdf/)
  assert.match(pdf.headers.get('content-disposition')||'',/varejo-bolsas/)
  assert.ok((await pdf.arrayBuffer()).byteLength>800,'PDF não pode estar vazio')
+ // Quatro tipos reais: atacado usa preço principal; caixa fechada cobra por caixa.
+ const wholesaleResponse=await post('/api/admin/catalogs',{name:'Atacado por unidade',kind:'atacado',minimumOrder:15},gold.cookie)
+ const wholesaleBody=await wholesaleResponse.json()
+ assert.equal(wholesaleResponse.status,201,JSON.stringify(wholesaleBody))
+ const wholesale=wholesaleBody.catalog
+ assert.equal(wholesale.kind,'atacado')
+ await post('/api/admin/catalogs/'+wholesale.id+'/members',{ids:[product.id],action:'add'},gold.cookie)
+ const wholesalePublic=await (await get('/api/public/store/'+gold.slug+'?catalog='+wholesale.slug)).json()
+ assert.equal(wholesalePublic.products[0].price,10,'Atacado usa preço principal por unidade')
+ assert.equal(wholesalePublic.products[0].unitsPerBox,1,'Atacado não desconta caixas de estoque')
+ const wholesaleOrder=await post('/api/business/orders',{storeSlug:gold.slug,catalogSlug:wholesale.slug,items:[{productId:product.id,quantity:2,selections:{}}]},'')
+ assert.equal(wholesaleOrder.status,201,'Pedido mínimo atacado por unidade')
+ const wholesaleOrderBody=await wholesaleOrder.json()
+ const wholesaleItems=(await pool.query('SELECT items FROM orders WHERE id=$1',[wholesaleOrderBody.orderId])).rows[0].items
+ assert.equal(Number(wholesaleItems[0].stockUnits),2)
+ assert.equal(Number(wholesaleItems[0].unitPrice),10)
+
+ const invalidKind=await post('/api/admin/catalogs',{name:'Inválido',kind:'qualquer'},gold.cookie)
+ assert.equal(invalidKind.status,400,'Tipos desconhecidos não devem virar Geral silenciosamente')
+ const missingCustom=await post('/api/admin/catalogs',{name:'Catálogo sob encomenda',kind:'personalizado'},gold.cookie)
+ assert.equal(missingCustom.status,400,'Tipo personalizado exige nome próprio')
+ const customResponse=await post('/api/admin/catalogs',{
+   name:'Sob encomenda',kind:'personalizado',customLabel:'Encomendas especiais',priceMode:'varejo',minimumOrder:20
+ },gold.cookie)
+ const customBody=await customResponse.json()
+ assert.equal(customResponse.status,201,JSON.stringify(customBody))
+ const custom=customBody.catalog
+ assert.equal(custom.customLabel,'Encomendas especiais')
+ assert.equal(custom.priceMode,'varejo')
+ await post('/api/admin/catalogs/'+custom.id+'/members',{ids:[product.id],action:'add'},gold.cookie)
+ const customPublic=await (await get('/api/public/store/'+gold.slug+'?catalog='+custom.slug)).json()
+ assert.equal(customPublic.activeCatalog.customLabel,'Encomendas especiais')
+ assert.equal(customPublic.products[0].price,20,'Personalizado respeita escolha do preço varejo')
+ assert.equal(customPublic.products[0].unitsPerBox,1)
+ const customBoxUpdate=await post('/api/admin/catalogs/'+custom.id,{
+   kind:'personalizado',customLabel:'Por caixa',priceMode:'caixa_fechada',minimumOrder:80
+ },gold.cookie,'PATCH')
+ assert.equal(customBoxUpdate.status,200,'Regra de preço personalizado pode ser alterada')
+ const customBoxPublic=await (await get('/api/public/store/'+gold.slug+'?catalog='+custom.slug)).json()
+ assert.equal(customBoxPublic.products[0].price,100,'Preço personalizado pode vir da caixa fechada')
+ assert.equal(customBoxPublic.products[0].unitsPerBox,5,'Personalizado por caixa desconta unidades corretas')
+ const customOrder=await post('/api/business/orders',{storeSlug:gold.slug,catalogSlug:custom.slug,items:[{productId:product.id,quantity:1,selections:{}}]},'')
+ assert.equal(customOrder.status,201,'Pedido personalizado com regra de caixa respeita mínimo')
+ const customOrderBody=await customOrder.json()
+ const customOrderItems=(await pool.query('SELECT items FROM orders WHERE id=$1',[customOrderBody.orderId])).rows[0].items
+ assert.equal(Number(customOrderItems[0].stockUnits),5)
+ const customPdf=await get('/api/admin/catalogs/'+custom.id+'/pdf',gold.cookie)
+ assert.equal(customPdf.status,200,'Personalizado também permite PDF')
+ await customPdf.arrayBuffer()
+ for(const c of [custom,wholesale]){
+   const removed=await fetch(base+'/api/admin/catalogs/'+c.id,{method:'DELETE',headers:{cookie:gold.cookie}})
+   assert.equal(removed.status,204,'Remover catálogo preserva base de produtos')
+ }
  // Após downgrade, preservar dados e impedir o uso do catálogo adicional.
  await pool.query("UPDATE stores SET plan_tier='prata' WHERE id=$1",[gold.storeId])
  const after=(await (await get('/api/admin/catalogs',gold.cookie)).json()).catalogs

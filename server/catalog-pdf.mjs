@@ -8,8 +8,8 @@ function cleanText(value, max = 500) {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max)
 }
 
-function kindLabel(kind) {
-  return kind === 'atacado' ? 'Atacado' : kind === 'varejo' ? 'Varejo' : 'Catálogo'
+function kindLabel(catalog) {
+  return catalog.kind === 'personalizado' ? (catalog.custom_label || 'Personalizado') : catalog.kind === 'caixa_fechada' ? 'Caixa fechada' : catalog.kind === 'atacado' ? 'Atacado' : catalog.kind === 'varejo' ? 'Varejo' : 'Catálogo'
 }
 
 function mediaAssetId(url) {
@@ -101,7 +101,7 @@ function drawHeader(doc, store, catalog, logo, theme) {
   doc.fillColor(foreground).font('Helvetica').fontSize(9)
     .text(cleanText(catalog.name, 100), textLeft, top + 23, { width: 330, lineBreak: false })
   const min = catalog.minimum_order ?? store.minimum_order
-  const kind = [kindLabel(catalog.kind), min == null ? '' :
+  const kind = [kindLabel(catalog), min == null ? '' :
     `Pedido mínimo: ${money.format(Number(min))}`].filter(Boolean).join(' · ')
   doc.fontSize(7.5).text(kind, textLeft, top + 36, { width: 420, lineBreak: false })
   // Texto sazonal aparece no PDF, mas nunca anuncia desconto, preço ou prazo inventado.

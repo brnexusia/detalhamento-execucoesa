@@ -7,7 +7,7 @@ import type { AdminBootstrap, AdminProduct, VariationGroup } from './types'
 import './business-features.css'
 
 type StockDraft = { enabled: boolean; quantity: number; variantStock: Record<string, number> }
-type CatalogDraft = { name: string; kind: 'geral' | 'atacado' | 'varejo'; minimumOrder: string; active: boolean; items: Record<string, { visible: boolean; priceOverride: string }> }
+type CatalogDraft = { name: string; kind: 'varejo' | 'atacado' | 'caixa_fechada' | 'personalizado'; customLabel: string; priceMode: 'base'|'varejo'|'atacado'|'caixa_fechada'; minimumOrder: string; active: boolean; items: Record<string, { visible: boolean; priceOverride: string }> }
 
 function go(path: string) {
   window.history.pushState({}, '', path)
@@ -34,7 +34,9 @@ function catalogDraft(catalog: AdminCatalog, products: AdminProduct[]): CatalogD
   const mapped = new Map(catalog.items.map((item) => [item.productId, item]))
   return {
     name: catalog.name,
-    kind: catalog.kind,
+    kind: catalog.kind==='geral'?'personalizado':catalog.kind,
+    customLabel: catalog.kind==='geral'?catalog.name:catalog.customLabel||'',
+    priceMode: catalog.priceMode||'base',
     minimumOrder: catalog.minimumOrder == null ? '' : String(catalog.minimumOrder),
     active: catalog.active,
     items: Object.fromEntries(products.map((product) => {
@@ -49,7 +51,7 @@ export default function BusinessFeaturesPanel() {
   const [catalogs, setCatalogs] = useState<AdminCatalog[]>([])
   const [drafts, setDrafts] = useState<Record<string, StockDraft>>({})
   const [catalogDrafts, setCatalogDrafts] = useState<Record<string, CatalogDraft>>({})
-  const [newCatalog, setNewCatalog] = useState({ name: '', kind: 'atacado' as 'atacado' | 'varejo' | 'geral', minimumOrder: '' })
+  const [newCatalog, setNewCatalog] = useState({ name: '', kind: 'varejo' as CatalogDraft['kind'], customLabel:'', priceMode:'base' as CatalogDraft['priceMode'], minimumOrder: '' })
   const [saving, setSaving] = useState('')
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
@@ -88,10 +90,11 @@ export default function BusinessFeaturesPanel() {
 
   const createCatalog = async () => {
     if (!newCatalog.name.trim()) return setError('Informe o nome do catálogo.')
+    if (newCatalog.kind==='personalizado'&&!newCatalog.customLabel.trim())return setError('Defina o nome do tipo personalizado.')
     setSaving('new-catalog'); setError('')
     try {
-      await api.createCatalog({ name: newCatalog.name.trim(), kind: newCatalog.kind, minimumOrder: newCatalog.minimumOrder === '' ? null : Number(newCatalog.minimumOrder) })
-      setNewCatalog({ name: '', kind: 'atacado', minimumOrder: '' })
+      await api.createCatalog({ name: newCatalog.name.trim(), kind: newCatalog.kind, customLabel:newCatalog.kind==='personalizado'?newCatalog.customLabel.trim():'', priceMode:newCatalog.kind==='personalizado'?newCatalog.priceMode:'base', minimumOrder: newCatalog.minimumOrder === '' ? null : Number(newCatalog.minimumOrder) })
+      setNewCatalog({ name: '', kind: 'varejo', customLabel:'',priceMode:'base', minimumOrder: '' })
       flash('Catálogo criado.'); await load()
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível criar o catálogo.') }
     finally { setSaving('') }
@@ -105,6 +108,8 @@ export default function BusinessFeaturesPanel() {
       await api.updateCatalog(catalog.id, {
         name: draft.name,
         kind: draft.kind,
+        customLabel:draft.kind==='personalizado'?draft.customLabel:'',
+        priceMode:draft.kind==='personalizado'?draft.priceMode:'base',
         minimumOrder: draft.minimumOrder === '' ? null : Number(draft.minimumOrder),
         active: draft.active,
         items: Object.entries(draft.items).map(([productId, item]) => ({ productId, visible: item.visible, priceOverride: item.priceOverride === '' ? null : Number(item.priceOverride) })),
@@ -158,10 +163,20 @@ export default function BusinessFeaturesPanel() {
     {error && <div className="business-error">{error}</div>}
 
     <section className="business-card"><div className="business-card__head"><div><span>Catálogos</span><h2>Múltiplos catálogos</h2></div><button className="business-secondary" onClick={load}><RefreshCcw size={16}/> Atualizar</button></div>
-      <div className="catalog-create"><label><span>Nome</span><input value={newCatalog.name} onChange={(e) => setNewCatalog((v) => ({ ...v, name: e.target.value }))} placeholder="Ex.: Atacado"/></label><label><span>Tipo</span><select value={newCatalog.kind} onChange={(e) => setNewCatalog((v) => ({ ...v, kind: e.target.value as typeof v.kind }))}><option value="atacado">Atacado</option><option value="varejo">Varejo</option><option value="geral">Geral</option></select></label><label><span>Pedido mínimo</span><input type="number" min="0" value={newCatalog.minimumOrder} onChange={(e) => setNewCatalog((v) => ({ ...v, minimumOrder: e.target.value }))} placeholder="herdar da loja"/></label><button disabled={saving === 'new-catalog'} onClick={createCatalog}><Plus size={16}/> Criar catálogo</button></div>
+      <div className="catalog-create"><label><span>Nome</span><input value={newCatalog.name} onChange={(e) => setNewCatalog((v) => ({ ...v, name: e.target.value }))} placeholder="Ex.: Atacado"/></label><label><span>Tipo</span><select value={newCatalog.kind} onChange={(e) => setNewCatalog((v) => ({ ...v, kind: e.target.value as typeof v.kind }))}><option value="varejo">Varejo</option><option value="atacado">Atacado</option><option value="caixa_fechada">Caixa fechada</option><option value="personalizado">Personalizado</option></select></label>{newCatalog.kind==='personalizado'&&<>
+  <label><span>Nome do tipo</span><input maxLength={60} value={newCatalog.customLabel} onChange={e=>setNewCatalog(v=>({...v,customLabel:e.target.value}))} placeholder="Ex.: Consignado"/></label>
+  <label><span>Regra de preço</span><select value={newCatalog.priceMode} onChange={e=>setNewCatalog(v=>({...v,priceMode:e.target.value as CatalogDraft['priceMode']}))}>
+    <option value="base">Preço principal</option><option value="varejo">Preço varejo</option><option value="atacado">Preço atacado (principal)</option><option value="caixa_fechada">Preço por caixa fechada</option>
+  </select></label></> }
+  <label><span>Pedido mínimo</span><input type="number" min="0" value={newCatalog.minimumOrder} onChange={(e) => setNewCatalog((v) => ({ ...v, minimumOrder: e.target.value }))} placeholder="herdar da loja"/></label><button disabled={saving === 'new-catalog'} onClick={createCatalog}><Plus size={16}/> Criar catálogo</button></div>
       <div className="catalog-list">{catalogs.map((catalog) => {
         const draft = catalogDrafts[catalog.id] || catalogDraft(catalog, data.products)
-        return <article className="catalog-card" key={catalog.id}><div className="catalog-card__head"><div><span>{catalog.isDefault ? 'Principal' : draft.kind}</span><input value={draft.name} onChange={(e) => setCatalogDrafts((current) => ({ ...current, [catalog.id]: { ...draft, name: e.target.value } }))}/></div><div className="catalog-card__actions"><button disabled={saving === `pdf-${catalog.id}`} onClick={() => void downloadCatalogPdf(catalog)}><Download size={15}/>{saving === `pdf-${catalog.id}` ? 'Gerando…' : 'Gerar PDF'}</button><button onClick={() => copyCatalogLink(catalog)}><Copy size={15}/> Copiar link</button>{!catalog.isDefault && <button className="business-danger" onClick={() => removeCatalog(catalog)}><Trash2 size={15}/></button>}</div></div><div className="catalog-settings"><label><span>Tipo</span><select value={draft.kind} onChange={(e) => setCatalogDrafts((current) => ({ ...current, [catalog.id]: { ...draft, kind: e.target.value as CatalogDraft['kind'] } }))}><option value="geral">Geral</option><option value="atacado">Atacado</option><option value="varejo">Varejo</option></select></label><label><span>Pedido mínimo</span><input type="number" min="0" value={draft.minimumOrder} onChange={(e) => setCatalogDrafts((current) => ({ ...current, [catalog.id]: { ...draft, minimumOrder: e.target.value } }))} placeholder={`herdar R$ ${data.store.minimum_order}`}/></label>{!catalog.isDefault && <label className="business-switch"><input type="checkbox" checked={draft.active} onChange={(e) => setCatalogDrafts((current) => ({ ...current, [catalog.id]: { ...draft, active: e.target.checked } }))}/><span/>Publicado</label>}</div><div className="catalog-products"><div className="catalog-products__head"><strong>Produtos deste catálogo</strong><span>O estoque físico continua compartilhado entre todos.</span></div>{data.products.map((product) => {
+        return <article className="catalog-card" key={catalog.id}><div className="catalog-card__head"><div><span>{catalog.isDefault ? 'Principal' : draft.kind}</span><input value={draft.name} onChange={(e) => setCatalogDrafts((current) => ({ ...current, [catalog.id]: { ...draft, name: e.target.value } }))}/></div><div className="catalog-card__actions"><button disabled={saving === `pdf-${catalog.id}`} onClick={() => void downloadCatalogPdf(catalog)}><Download size={15}/>{saving === `pdf-${catalog.id}` ? 'Gerando…' : 'Gerar PDF'}</button><button onClick={() => copyCatalogLink(catalog)}><Copy size={15}/> Copiar link</button>{!catalog.isDefault && <button className="business-danger" onClick={() => removeCatalog(catalog)}><Trash2 size={15}/></button>}</div></div><div className="catalog-settings"><label><span>Tipo</span><select value={draft.kind} onChange={(e) => setCatalogDrafts((current) => ({ ...current, [catalog.id]: { ...draft, kind: e.target.value as CatalogDraft['kind'] } }))}><option value="varejo">Varejo</option><option value="atacado">Atacado</option><option value="caixa_fechada">Caixa fechada</option><option value="personalizado">Personalizado</option></select></label>{draft.kind==='personalizado'&&<>
+  <label><span>Nome do tipo</span><input maxLength={60} value={draft.customLabel} onChange={e=>setCatalogDrafts(v=>({...v,[catalog.id]:{...draft,customLabel:e.target.value}}))}/></label>
+  <label><span>Regra de preço</span><select value={draft.priceMode} onChange={e=>setCatalogDrafts(v=>({...v,[catalog.id]:{...draft,priceMode:e.target.value as CatalogDraft['priceMode']}}))}>
+    <option value="base">Preço principal</option><option value="varejo">Preço varejo</option><option value="atacado">Preço atacado (principal)</option><option value="caixa_fechada">Preço por caixa fechada</option>
+  </select></label></>}
+  <label><span>Pedido mínimo</span><input type="number" min="0" value={draft.minimumOrder} onChange={(e) => setCatalogDrafts((current) => ({ ...current, [catalog.id]: { ...draft, minimumOrder: e.target.value } }))} placeholder={`herdar R$ ${data.store.minimum_order}`}/></label>{!catalog.isDefault && <label className="business-switch"><input type="checkbox" checked={draft.active} onChange={(e) => setCatalogDrafts((current) => ({ ...current, [catalog.id]: { ...draft, active: e.target.checked } }))}/><span/>Publicado</label>}</div><div className="catalog-products"><div className="catalog-products__head"><strong>Produtos deste catálogo</strong><span>O estoque físico continua compartilhado entre todos.</span></div>{data.products.map((product) => {
           const item = draft.items[product.id] || { visible: true, priceOverride: '' }
           return <div className="catalog-product" key={product.id}><label className="catalog-visible"><input type="checkbox" checked={item.visible} onChange={(e) => setCatalogDrafts((current) => ({ ...current, [catalog.id]: { ...draft, items: { ...draft.items, [product.id]: { ...item, visible: e.target.checked } } } }))}/><span>{product.name}</span><small>{product.sku || 'SEM SKU'} · base R$ {Number(product.price).toFixed(2).replace('.', ',')}</small></label><label><span>Preço neste catálogo</span><input type="number" min="0" step="0.01" value={item.priceOverride} placeholder={String(product.price)} onChange={(e) => setCatalogDrafts((current) => ({ ...current, [catalog.id]: { ...draft, items: { ...draft.items, [product.id]: { ...item, priceOverride: e.target.value } } } }))}/></label></div>
         })}</div><div className="stock-product__actions"><span>Link: /{data.store.slug}?catalog={catalog.slug}</span><button disabled={saving === catalog.id} onClick={() => saveCatalog(catalog)}><Save size={16}/>{saving === catalog.id ? 'Salvando…' : 'Salvar catálogo'}</button></div></article>
