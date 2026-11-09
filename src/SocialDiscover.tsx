@@ -1,9 +1,9 @@
-import { Search, SlidersHorizontal, Store, X } from 'lucide-react'
+import { Play, Search, SlidersHorizontal, Store, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { buyerGo } from './BuyerAppNav'
 import './buyer-app.css'
 
-type ResultProduct={id:string;name:string;sku:string;category:string;mediaUrl:string;mediaType:'image'|'video';store:{id:string;slug:string;name:string;logoUrl?:string}}
+type ResultProduct={id:string;name:string;sku:string;category:string;mediaUrl:string;thumbnailUrl?:string;mediaType:'image'|'video';store:{id:string;slug:string;name:string;logoUrl?:string}}
 type ResultStore={id:string;slug:string;name:string;logoUrl:string;tagline:string;productCount:number}
 type ResponseData={products:ResultProduct[];stores:ResultStore[];categories:string[]}
 const start=()=>new URLSearchParams(location.search)
@@ -81,7 +81,7 @@ export default function SocialDiscover(){
          {results.products.length?<div className="buyer-product-grid">{results.products.map(p=>{
            const path='/perfil/'+encodeURIComponent(p.store.slug)+'?produto='+encodeURIComponent(p.id)
            return <a className="buyer-product-card" key={p.id} href={path} onClick={e=>navTo(path,e)}>
-             <span className="buyer-product-card__image">{p.mediaUrl?<img src={p.mediaUrl} alt={p.name} loading="lazy"/>:<Store size={25}/>}</span>
+             <span className="buyer-product-card__image">{p.mediaType==='video'?(p.thumbnailUrl?<img src={p.thumbnailUrl} alt={p.name} loading="lazy"/>:<span className="buyer-video-placeholder"><Play size={25}/><small>Vídeo</small></span>):p.mediaUrl?<img src={p.mediaUrl} alt={p.name} loading="lazy"/>:<Store size={25}/>}</span>
              <span className="buyer-product-card__details"><strong>{p.name}</strong><small>{p.store.name} · {p.category}</small><em>Ver preço / Comprar</em></span>
            </a>
          })}</div>:<div className="buyer-empty">{empty?'Nenhum resultado. Tente outro termo ou categoria.':'Nenhum produto encontrado.'}</div>}
