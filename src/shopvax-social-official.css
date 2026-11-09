@@ -511,3 +511,11 @@
     translate:none!important;
   }
 }
+
+/* A entrada do Feed anima apenas a barra institucional, nunca a mídia/scroll. */
+@media(prefers-reduced-motion:no-preference){
+  .social-feed-page .social-feed-nav{animation:svx-arrive 200ms ease-out both}
+}
+@media(prefers-reduced-motion:reduce){
+  .social-feed-page .social-feed-nav{animation:none!important;translate:none!important}
+}
