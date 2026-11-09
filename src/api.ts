@@ -239,10 +239,11 @@ export const api = {
   me: () => request<{ user: { id: string; name: string; email: string }; store: { id: string; slug: string; name: string; plan_tier?: string } }>('/api/auth/me'),
   bootstrap: () => request<AdminBootstrap>('/api/admin/bootstrap'),
   bootstrapCompact: () => request<AdminBootstrap>('/api/admin/bootstrap?compact=1'),
-  listAdminProducts: (options: { page: number; limit?: number; q?: string; category?: string }) => {
+  listAdminProducts: (options: { page: number; limit?: number; q?: string; category?: string; catalogId?: string }) => {
     const params = new URLSearchParams({ page: String(options.page), limit: String(options.limit || 18) })
     if (options.q?.trim()) params.set('q', options.q.trim())
     if (options.category && options.category !== 'Todas') params.set('category', options.category)
+    if (options.catalogId) params.set('catalogId', options.catalogId)
     return request<{ products: AdminProduct[]; pagination: { page: number; limit: number; total: number } }>(`/api/admin/products?${params}`)
   },
   planContext: () => request<{ plan: { code: string; name: string; monthlyPrice: number; limits: { sellers: number | null; products: number | null; catalogs: number | null; photosPerProduct: number | null; franchisees: number | null }; features: Record<string, boolean> }; usage: { products: number; sellers: number; catalogs: number } }>('/api/admin/plan-context'),
@@ -254,6 +255,13 @@ export const api = {
   setProductVisibility: (id: string, active: boolean) => request<{ product: { id: string; active: boolean } }>(`/api/admin/products/${encodeURIComponent(id)}/visibility`, { method: 'PATCH', body: JSON.stringify({ active }) }),
   deleteProduct: (id: string) => request(`/api/admin/products/${id}`, { method: 'DELETE' }),
   deleteProducts: (ids: string[]) => request<{ ok: true; deleted: number; ids: string[] }>('/api/admin/products/bulk-delete', { method: 'POST', body: JSON.stringify({ ids }) }),
+  startProductBulkJob: (options:{mode:'delete-products'|'remove-members';catalogId?:string|null;q?:string;category?:string;excludeIds?:string[];expectedTotal:number;confirmation:'EXCLUIR TUDO'|'EXCLUIR SELEÇÃO'|'ESVAZIAR CATÁLOGO'}) =>
+    request<{job:{id:string;total:number;processed:number;status:string;mode:string}}>(
+      '/api/admin/products/bulk-jobs',{method:'POST',body:JSON.stringify(options)}),
+  productBulkJob: (jobId:string) =>
+    request<{job:{id:string;total:number;processed:number;status:'queued'|'running'|'completed'|'failed';error:string|null}}>(
+      '/api/admin/products/bulk-jobs/'+encodeURIComponent(jobId)),
+
   downloadProductsPdf: (category = '') => requestBlob('/api/admin/products/pdf' + (category ? '?category=' + encodeURIComponent(category) : '')),
   updateStock: (productId: string, body: { enabled: boolean; quantity: number; variantStock: Record<string, number> }) => request<{ product: { id: string; stock_enabled: boolean; stock_quantity: number; variant_stock: Record<string, number> } }>(`/api/admin/features/products/${encodeURIComponent(productId)}/stock`, { method: 'PATCH', body: JSON.stringify(body) }),
   updateOrderStatus: (orderId: string, status: 'whatsapp' | 'em_atendimento' | 'confirmado' | 'arquivado') => request<{ order: { id: string; code: string; status: string } }>(`/api/admin/phase2/orders/${encodeURIComponent(orderId)}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
@@ -263,6 +271,7 @@ export const api = {
   updateCatalog: (catalogId: string, body: { name?: string; kind?: 'geral' | 'atacado' | 'varejo'; minimumOrder?: number | null; active?: boolean; items?: Array<{ productId: string; priceOverride: number | null; visible: boolean }> }) => request<{ catalog: Catalog }>(`/api/admin/catalogs/${encodeURIComponent(catalogId)}`, { method: 'PATCH', body: JSON.stringify(body) }),
   downloadCatalogPdf: (catalogId: string, category = '') => requestBlob(`/api/admin/catalogs/${encodeURIComponent(catalogId)}/pdf` + (category ? '?category=' + encodeURIComponent(category) : '')),
   deleteCatalog: (catalogId: string) => request<void>(`/api/admin/catalogs/${encodeURIComponent(catalogId)}`, { method: 'DELETE' }),
+  updateCatalogMembers: (catalogId:string,ids:string[],action:'add'|'remove') => request<{ok:true;changed:number}>(`/api/admin/catalogs/${encodeURIComponent(catalogId)}/members`,{method:'POST',body:JSON.stringify({ids,action})}),
   createSeller: (body: Record<string, unknown>) => request('/api/admin/sellers', { method: 'POST', body: JSON.stringify(body) }),
   updateSeller: (id: string, body: Record<string, unknown>) => request(`/api/admin/sellers/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   deleteSeller: (id: string) => request(`/api/admin/sellers/${id}`, { method: 'DELETE' }),
