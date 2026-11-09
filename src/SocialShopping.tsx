@@ -8,13 +8,14 @@ type Variant = { name: string; options: string[] }
 type Offer = { id: string; slug: string; name: string; kind: 'varejo' | 'atacado' | 'geral'; price: number; minimumOrder: number; unitsPerBox: number }
 type Product = { id: string; sku: string; name: string; description: string; category: string; variations: Variant[]; images: string[] }
 type OfferPayload = { product: Product; offers: Offer[]; buyerPurpose: string }
-type Buyer = { name: string; phone: string; city: string; profileCompleted: boolean }
+type Buyer = { id: string; name: string; phone: string; city: string; profileCompleted: boolean }
 type CartLine = { key: string; productId: string; name: string; sku: string; quantity: number; price: number; selections: Record<string,string>; image: string; unitsPerBox: number }
 type Cart = { catalog: Offer; items: CartLine[] }
 type Props = { storeSlug: string; storeName?: string; productId?: string; initialCart?: boolean; onClose: () => void; onCartChanged?: () => void }
 const money = new Intl.NumberFormat('pt-BR', { style:'currency', currency:'BRL' })
 const prefix = (slug:string) => `shopvax-social-cart-v1:${encodeURIComponent(slug)}:`
 const keyFor = (slug:string, catalog:string) => prefix(slug)+encodeURIComponent(catalog)
+const readyKey = (slug:string,catalog:string) => 'shopvax-social-ready-v1:'+encodeURIComponent(slug)+':'+encodeURIComponent(catalog)
 const readCart = (slug:string,catalog:string): Cart | null => {
   try { const raw=localStorage.getItem(keyFor(slug,catalog)); if(!raw)return null; const data=JSON.parse(raw) as Cart
     return Array.isArray(data.items)&&data.catalog?.slug===catalog?data:null } catch { return null }
@@ -30,6 +31,7 @@ export function socialCartCount(slug:string):number { return allCarts(slug).redu
 function persistCart(slug:string, cart:Cart):void {
   try { const key=keyFor(slug,cart.catalog.slug)
     if(cart.items.length)localStorage.setItem(key,JSON.stringify(cart));else localStorage.removeItem(key)
+    sessionStorage.removeItem(readyKey(slug,cart.catalog.slug))
     window.dispatchEvent(new CustomEvent('shopvax:social-cart-change',{detail:{storeSlug:slug}}))
   }catch{ /* no persistent storage */ }
 }
@@ -130,6 +132,13 @@ export default function SocialShopping({storeSlug,storeName,productId,initialCar
     if(!activeCart||!activeCart.items.length||total<minimum||busy)return
     setBusy(true);setError('')
     try{
+      const signature=JSON.stringify({buyerId:buyer?.id||'',items:activeCart.items.map(i=>({id:i.productId,qty:i.quantity,selections:i.selections}))})
+      try {
+        const previous=JSON.parse(sessionStorage.getItem(readyKey(storeSlug,activeCart.catalog.slug))||'null') as {signature:string;code:string;url:string;at:number}|null
+        if(previous?.signature===signature && Date.now()-previous.at<30*60_000){
+          setReady({code:previous.code,url:previous.url});setStep('ready');return
+        }
+      }catch{ /* pedido antigo não está disponível */ }
       // Product prices may change while a buyer browses. Re-validate the offer
       // and request an explicit review before preparing the order.
       const refreshed:CartLine[]=[]
@@ -152,6 +161,7 @@ export default function SocialShopping({storeSlug,storeName,productId,initialCar
       const data=await parseJson(response)
       if(!response.ok)throw Error(data.error||'Não foi possível preparar o pedido.')
       if(!data.code||!data.whatsappUrl)throw Error('O servidor não confirmou o pedido.')
+      try{sessionStorage.setItem(readyKey(storeSlug,activeCart.catalog.slug),JSON.stringify({signature,code:data.code,url:data.whatsappUrl,at:Date.now()}))}catch{}
       setReady({code:data.code,url:data.whatsappUrl});setStep('ready')
     }catch(e){setError(e instanceof Error?e.message:'Não foi possível preparar o pedido.')}
     finally{setBusy(false)}
