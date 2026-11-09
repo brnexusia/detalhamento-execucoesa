@@ -175,7 +175,9 @@ function publicationShape(row) {
     sku: row.sku,
     name: row.name,
     description: row.description,
-    price: Number(row.price),
+    // O feed público é uma vitrine de descoberta: preços são consultados apenas
+    // pela rota de ofertas, após verificação do comprador.
+    price: null,
     category: row.category,
     mediaUrl: row.media_url || (Array.isArray(row.images) ? row.images[0] || '' : ''),
     mediaType: row.media_type === 'video' ? 'video' : 'image',
