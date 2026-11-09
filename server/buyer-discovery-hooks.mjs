@@ -49,7 +49,7 @@ async function discover(req,res){
      LEFT JOIN catalog_products cp ON cp.catalog_id=c.id AND cp.product_id=p.id
      WHERE c.store_id=s.id AND c.active=true
        AND (c.is_default OR s.plan_tier='ouro')
-       AND (cp.visible IS NULL OR cp.visible=true)
+       AND (CASE WHEN c.explicit_membership THEN cp.visible=true ELSE COALESCE(cp.visible,true)=true END)
        AND ($3::text='' OR c.kind=$3)
        AND ($4::numeric IS NULL OR COALESCE(cp.price_override,CASE WHEN c.kind='varejo' THEN p.retail_price WHEN c.kind='atacado' THEN p.box_price END,p.price)>=$4)
        AND ($5::numeric IS NULL OR COALESCE(cp.price_override,CASE WHEN c.kind='varejo' THEN p.retail_price WHEN c.kind='atacado' THEN p.box_price END,p.price)<=$5)
@@ -61,7 +61,7 @@ async function discover(req,res){
      AND ($2::text='' OR p.category=$2)
      AND ($3::text='' OR EXISTS (SELECT 1 FROM catalogs c LEFT JOIN catalog_products cp ON cp.catalog_id=c.id AND cp.product_id=p.id
        WHERE c.store_id=s.id AND c.active=true AND (c.is_default OR s.plan_tier='ouro')
-         AND (cp.visible IS NULL OR cp.visible=true) AND c.kind=$3))
+         AND (CASE WHEN c.explicit_membership THEN cp.visible=true ELSE COALESCE(cp.visible,true)=true END) AND c.kind=$3))
      ${priceWhere}`
  const [products,stores,categories]=await Promise.all([
    pool.query(`SELECT p.id,p.name,p.sku,p.category,p.media_url,p.media_type,p.images,
@@ -87,7 +87,7 @@ async function discover(req,res){
     FROM products p JOIN stores s ON s.id=p.store_id
       JOIN catalogs c ON c.store_id=s.id AND c.active=true AND (c.is_default OR s.plan_tier='ouro')
       LEFT JOIN catalog_products cp ON cp.catalog_id=c.id AND cp.product_id=p.id
-    WHERE p.id=ANY($1::text[]) AND (cp.visible IS NULL OR cp.visible=true)
+    WHERE p.id=ANY($1::text[]) AND (CASE WHEN c.explicit_membership THEN cp.visible=true ELSE COALESCE(cp.visible,true)=true END)
       AND ($2::text='' OR c.kind=$2)
     GROUP BY p.id`,[products.rows.map(x=>x.id),mode])
    priceMap=new Map(offers.rows.map(x=>[x.product_id,{price:Number(x.display_price),multiple:Number(x.catalog_count)>1}]))
