@@ -55,3 +55,170 @@
 .svx-social-gallery__thumbs button{padding:2px;border:2px solid #e3e0db;background:#fff;border-radius:9px;flex:none;width:52px;height:60px}
 .svx-social-gallery__thumbs button.is-active{border-color:#F25C05}
 .svx-social-gallery__thumbs img{width:100%;height:100%;object-fit:cover;border-radius:5px}
+
+
+/* Pranchas 02, 03 e 08 — talão social em linguagem Shopvax oficial.
+   Somente aparência; seleção, carrinho, mínimos e WhatsApp permanecem iguais. */
+.svx-social-shop-layer {font-family:var(--svx-font-body,'Archivo',sans-serif)}
+.svx-social-shop-backdrop {background:rgba(22,21,20,.78)}
+.svx-social-shop {
+  background:var(--svx-paper,#F3F0E8);
+  color:var(--svx-ink,#161514);
+  border:1px solid var(--svx-ink,#161514);
+  border-radius:0;
+  box-shadow:0 22px 58px rgba(22,21,20,.28);
+  font-family:var(--svx-font-body,'Archivo',sans-serif);
+}
+.svx-social-shop-head{
+  border-bottom:2px solid var(--svx-ink,#161514);
+  background:var(--svx-board,#E7E3DA);
+}
+.svx-social-shop-head small,
+.svx-social-shop-hint,
+.svx-social-offers button small,
+.svx-social-cart-line small,
+.svx-social-cart-totals>div>span,
+.svx-social-review-line {
+  font-family:var(--svx-font-mono,'Fragment Mono',monospace);
+  color:var(--svx-muted,#6B665C);
+}
+.svx-social-shop-head small {
+  font-size:10px;
+  letter-spacing:.035em;
+  text-transform:uppercase;
+}
+.svx-social-shop-head h2,
+.svx-social-ready h3 {
+  font-family:var(--svx-font-display,'Archivo Narrow',sans-serif);
+  font-size:clamp(24px,4vw,34px);
+  font-weight:800;
+  line-height:.98;
+  text-transform:uppercase;
+  letter-spacing:-.03em;
+  color:var(--svx-ink,#161514);
+}
+.svx-social-shop-head button{
+  border:1px solid var(--svx-ink,#161514);
+  border-radius:0;
+  background:var(--svx-paper,#F3F0E8);
+  color:var(--svx-ink,#161514);
+}
+.svx-social-shop-description {color:var(--svx-muted-strong,#4D4943)}
+.svx-social-shop-label,
+.svx-social-shop-field strong {
+  font:700 14px/1.2 var(--svx-font-body,'Archivo',sans-serif);
+}
+.svx-social-offers button,
+.svx-social-options button,
+.svx-social-shop-tabs button {
+  border:1px solid var(--svx-ink,#161514);
+  border-radius:0;
+  background:transparent;
+  color:var(--svx-ink,#161514);
+  font-family:var(--svx-font-body,'Archivo',sans-serif);
+}
+.svx-social-offers button.is-selected,
+.svx-social-options button.is-selected,
+.svx-social-shop-tabs button.is-selected {
+  border:2px solid var(--svx-ink,#161514);
+  background:var(--svx-mustard,#E9B21C);
+  color:var(--svx-ink,#161514);
+}
+.svx-social-offers button b,
+.svx-social-cart-line b,
+.svx-social-review-line b,
+.svx-social-cart-totals strong{
+  color:var(--svx-ink,#161514);
+  font-family:var(--svx-font-display,'Archivo Narrow',sans-serif);
+  font-weight:800;
+}
+.svx-social-offers button b{font-size:22px}
+.svx-social-cart-totals strong{font-size:25px}
+.svx-social-shop-primary{
+  border:1px solid var(--svx-ink,#161514);
+  border-radius:0;
+  background:var(--svx-orange,#F25C05);
+  color:var(--svx-ink,#161514);
+  font:700 14px/1.2 var(--svx-font-body,'Archivo',sans-serif);
+}
+.svx-social-shop-secondary,
+.svx-social-shop-back {
+  border:1px solid var(--svx-ink,#161514);
+  border-radius:0;
+  background:transparent;
+  color:var(--svx-ink,#161514);
+  font-family:var(--svx-font-body,'Archivo',sans-serif);
+}
+.svx-social-shop-field textarea {
+  border:1px solid var(--svx-ink,#161514);
+  border-radius:0;
+  background:var(--svx-paper,#F3F0E8);
+  color:var(--svx-ink,#161514);
+  font-family:var(--svx-font-body,'Archivo',sans-serif);
+}
+.svx-social-qty button,
+.svx-social-cart-qty button,
+.svx-social-cart-line img,
+.svx-social-gallery__hero,
+.svx-social-gallery__thumbs button,
+.svx-social-gallery__thumbs img {
+  border-radius:0;
+}
+.svx-social-qty button,
+.svx-social-cart-qty button {
+  border:1px solid var(--svx-ink,#161514);
+  background:var(--svx-paper,#F3F0E8);
+  color:var(--svx-ink,#161514);
+}
+.svx-social-cart-line,
+.svx-social-review-line {border-bottom:1px solid var(--svx-line,#D9D3C6)}
+.svx-social-cart-totals {
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-left:3px solid var(--svx-orange,#F25C05);
+  border-radius:0;
+  background:var(--svx-board,#E7E3DA);
+}
+.svx-social-cart-totals p,.svx-social-shop-error{color:#92341D}
+.svx-social-gallery__hero,
+.svx-social-gallery__thumbs button {
+  background:var(--svx-board,#E7E3DA);
+  border-color:var(--svx-line,#D9D3C6);
+}
+.svx-social-gallery__thumbs button.is-active {border-color:var(--svx-orange,#F25C05)}
+.svx-social-gallery__hero{object-fit:contain}
+.svx-social-ready h3 {
+  display:inline-block;
+  border:2px solid var(--svx-stamp,#2D2A8C);
+  color:var(--svx-stamp,#2D2A8C);
+  padding:8px 12px;
+  transform:rotate(-3deg);
+}
+.svx-social-shop :is(button,a,textarea):focus-visible{
+  outline:3px solid var(--svx-stamp,#2D2A8C);
+  outline-offset:3px;
+}
+.svx-social-shop button:disabled,
+.svx-social-shop a[aria-disabled="true"]{opacity:.52;cursor:not-allowed}
+
+/* Animações oficiais reaproveitadas: entrada editorial, toque e carimbo.
+   O carimbo confirma apenas pedido preparado, nunca mensagem enviada/pagamento. */
+@media (prefers-reduced-motion:no-preference){
+  .svx-social-shop {animation:svx-arrive 260ms cubic-bezier(.2,.65,.1,1) both}
+  .svx-social-ready h3 {animation:svx-stamp-hit 220ms cubic-bezier(.2,1.4,.4,1.1) both}
+  .svx-social-shop :is(button,a):not(:disabled) {
+    transition:background-color 160ms ease,border-color 160ms ease,filter 160ms ease;
+  }
+  .svx-social-shop button:active:not(:disabled) {translate:0 1px}
+}
+@media (hover:hover) and (pointer:fine){
+  .svx-social-shop-primary:hover:not(:disabled){filter:brightness(.95)}
+  .svx-social-shop-secondary:hover:not(:disabled){background:var(--svx-board,#E7E3DA)}
+  .svx-social-offers button:hover,.svx-social-options button:hover,.svx-social-shop-tabs button:hover{border-color:var(--svx-orange,#F25C05)}
+}
+@media(max-width:600px){
+  .svx-social-shop {border-radius:0;border-left:0;border-right:0;border-bottom:0}
+}
+@media(prefers-reduced-motion:reduce){
+  .svx-social-shop,.svx-social-ready h3{animation:none!important;translate:none!important}
+  .svx-social-shop button{transition:none!important}
+}
