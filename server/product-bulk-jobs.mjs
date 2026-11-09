@@ -48,7 +48,8 @@ export function installProductBulkJobs(app,pool,auth,asyncRoute){
     return BigInt.asIntN(64,a).toString()
   }
   function matcher(job,catalog){
-    const params=[job.store_id,job.cutoff_at,job.search_query,job.category,job.excluded_ids]
+    const excludeJson=typeof job.excluded_ids==='string'?job.excluded_ids:JSON.stringify(job.excluded_ids||[])
+    const params=[job.store_id,job.cutoff_at,job.search_query,job.category,excludeJson]
     const cond=[
       'p.store_id=$1',
       'p.created_at<=$2::timestamptz',
