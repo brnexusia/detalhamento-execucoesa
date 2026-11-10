@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, Star, Tag, X } from 'lucide-react'
+import { isShopvaxDemoStore } from './shopvax-demo'
 import './phase3-public.css'
 
 type CartItem = {
@@ -20,7 +21,7 @@ function publicContext() {
   const customer = parts[0] === 'cliente'
   if (customer) return { customer: true, storeSlug: parts[1] || '', sellerSlug: '', catalogSlug: '' }
   const blocked = ['painel', 'admin', 'entrar', 'criar-conta', 'perfil', 'feed', 'descobrir', 'para-lojas']
-  if (!parts[0] || blocked.includes(parts[0])) return { customer: false, storeSlug: '', sellerSlug: '', catalogSlug: '' }
+  if (!parts[0] || blocked.includes(parts[0]) || isShopvaxDemoStore(parts[0])) return { customer: false, storeSlug: '', sellerSlug: '', catalogSlug: '' }
   return {
     customer: false,
     storeSlug: parts[0],
