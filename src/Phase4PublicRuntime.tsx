@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, CreditCard, ExternalLink, MapPin, PackageCheck, RefreshCcw, Truck } from 'lucide-react'
 import { apiRequest } from './api'
+import { isShopvaxDemoStore } from './shopvax-demo'
 import './phase4-public.css'
 
 type PublicConfig = {
@@ -21,7 +22,7 @@ const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL
 function routeContext() {
   const parts = window.location.pathname.split('/').filter(Boolean)
   const blocked = ['painel','admin','cliente','entrar','criar-conta','perfil','feed','descobrir','para-lojas']
-  if (!parts[0] || blocked.includes(parts[0])) return { storeSlug: '', sellerSlug: '', catalogSlug: '' }
+  if (!parts[0] || blocked.includes(parts[0]) || isShopvaxDemoStore(parts[0])) return { storeSlug: '', sellerSlug: '', catalogSlug: '' }
   return { storeSlug: parts[0], sellerSlug: parts[1] || '', catalogSlug: new URLSearchParams(window.location.search).get('catalog') || '' }
 }
 
