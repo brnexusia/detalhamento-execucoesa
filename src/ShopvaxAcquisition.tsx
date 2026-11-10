@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { isShopvaxDemoStore } from './shopvax-demo'
 import { ArrowRight, X } from 'lucide-react'
 import { apiRequest } from './api'
 import './shopvax-growth.css'
@@ -11,7 +12,7 @@ export default function ShopvaxAcquisition() {
   const storageKey = 'shopvax:visitor-offer-dismissed:v1:' + storeSlug
   const knownBuyerKey = 'shopvax:known-buyer-account:v1'
   useEffect(() => {
-    if (!storeSlug || storeSlug === 'demo') return
+    if (!storeSlug || isShopvaxDemoStore(storeSlug)) return
     let cancelled = false
     apiRequest('/api/public/store/' + encodeURIComponent(storeSlug) + '/customers/me')
       .then(() => { try { localStorage.setItem(knownBuyerKey, '1') } catch { /* armazenamento indisponível */ }; if (!cancelled) setVisible(false) })
