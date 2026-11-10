@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import sharp from 'sharp'
 import { extractProductsFromHtml, safeRequest } from './scanner-collector.mjs'
+import { extractFacilZapDetailProduct } from './scanner-platforms.mjs'
 
 const MAX_REMOTE_IMAGE_BYTES = 12 * 1024 * 1024
 const MAX_LOCALIZED_ASSETS_PER_PRODUCT = 120
@@ -226,11 +227,23 @@ export async function recoverImportImagesFromSource(sourceUrl, product, { reques
   })
   if (!response?.ok || !String(response.contentType || '').includes('html')) return []
 
-  const candidates = extractProductsFromHtml(response.body, response.url || source)
-  if (!Array.isArray(candidates) || !candidates.length) return []
-
+  const generic = extractProductsFromHtml(response.body, response.url || source)
+  // FácilZap embeds the authoritative product/gallery data in DadosProduto.
+  // A generic HTML/JSON-LD parser can miss the gallery even when the photo is
+  // still public. Only accept this fallback for the exact SKU or product name.
+  const facilZapDetail = extractFacilZapDetailProduct(response.body, response.url || source)
   const sku = normalizeText(product?.sku)
   const name = normalizeText(product?.name)
+  const matchingDetail = facilZapDetail && (
+    (sku && normalizeText(facilZapDetail.sku) === sku) ||
+    (name && normalizeText(facilZapDetail.title) === name)
+  ) ? facilZapDetail : null
+  const candidates = [
+    ...(matchingDetail ? [matchingDetail] : []),
+    ...(Array.isArray(generic) ? generic : []),
+  ]
+  if (!candidates.length) return []
+
   const match = (sku && candidates.find((candidate) => normalizeText(candidate?.sku) === sku)) ||
     (name && candidates.find((candidate) => normalizeText(candidate?.title) === name)) ||
     candidates.find(candidate => candidate?.source_url === source)
