@@ -405,16 +405,15 @@ function Products({ data, revision, query, setQuery, onCreate, onEdit, onVisibil
     <header className="page-title svx-products__hero">
       <div className="svx-products__intro">
         <span className="svx-products__eyebrow">{storeTotal} PRODUTOS NA BASE{data.activeProductCount == null ? '' : ' · ' + data.activeProductCount + ' APARECEM NA LOJA'}</span>
-        <div className="svx-products__catalog-heading"><h1>Produtos</h1>
-          <CatalogManager storeSlug={data.store.slug} categories={(data.productCategories||[]).map(x=>x.category)}
-            onSelect={(catalog)=>{setActiveCatalog(catalog);onCatalogChange(catalog)}}
-            onChanged={onRefreshed}/>
-        </div>
+        <div className="svx-products__catalog-heading"><h1>Produtos</h1></div>
       </div>
       <div className="page-title-actions svx-products__top-actions">
         <button type="button" className="primary-action" onClick={onCreate}>Novo produto <ArrowRight size={18} /></button>
       </div>
     </header>
+    <CatalogManager storeSlug={data.store.slug} categories={(data.productCategories||[]).map(x=>x.category)}
+      onSelect={(catalog)=>{setActiveCatalog(catalog);onCatalogChange(catalog)}}
+      onChanged={onRefreshed}/>
     <div className="svx-products__toolbar">
       <nav className="svx-products__categories" aria-label="Filtrar produtos por categoria">
         <button type="button" aria-pressed={activeCategory === 'Todas'} className={activeCategory === 'Todas' ? 'is-active' : ''} onClick={() => setActiveCategory('Todas')}>Todos <small>{storeTotal}</small></button>
