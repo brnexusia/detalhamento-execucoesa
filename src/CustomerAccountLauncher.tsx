@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { isShopvaxDemoStore } from './shopvax-demo'
 import { LogIn, UserRound } from 'lucide-react'
 import './customer-account.css'
 import { listenAuthChanges } from './auth-session-sync'
@@ -27,7 +28,7 @@ export default function CustomerAccountLauncher() {
   const statusVersion = useRef(0)
 
   useEffect(() => {
-    if (!storeSlug) return
+    if (!storeSlug || isShopvaxDemoStore(storeSlug)) return
     let mounted = true
     const root = document.documentElement
 
