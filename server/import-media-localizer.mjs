@@ -1,5 +1,6 @@
 import crypto from 'node:crypto'
 import sharp from 'sharp'
+import { load } from 'cheerio'
 import { extractProductsFromHtml, safeRequest } from './scanner-collector.mjs'
 import { extractFacilZapDetailProduct } from './scanner-platforms.mjs'
 
@@ -266,6 +267,53 @@ function candidateImages(candidate) {
   ])
 }
 
+// Read image addresses actually rendered on the verified product page. This
+// avoids guessing CDN paths from the abbreviated FácilZap API filenames.
+// Product identity MUST be verified before calling this helper.
+function renderedProductImages(html, pageUrl) {
+  const $ = load(String(html || ''))
+  const found = []
+  const add = (raw) => {
+    if (!raw) return
+    try {
+      const url = new URL(String(raw).trim(), pageUrl)
+      if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return
+      url.hash = ''
+      const value = url.toString()
+      if (!found.includes(value)) found.push(value)
+    } catch {}
+  }
+  const takeSrcset = (value) => {
+    const choices = String(value || '').split(',').map((part) => part.trim().split(/\\s+/)[0]).filter(Boolean)
+    if (choices.length) add(choices.at(-1))
+  }
+  // Only take a metadata image from a page explicitly identifying as a
+  // product, not from a generic home-page redirect displaying the shop logo.
+  const pageType = String($('meta[property="og:type"]').attr('content') || '')
+  if (/^product(?:\\.|$)/i.test(pageType)) {
+    add($('meta[property="og:image"]').attr('content'))
+    add($('meta[property="og:image:secure_url"]').attr('content'))
+  }
+  const selectors = [
+    '[data-product-gallery] img', '[data-product-images] img',
+    '.product-gallery img', '.product-images img', '.product-image img',
+    '.product-media img', '.product-thumbnails img', '.product-thumbs img',
+    '.produto-imagens img', '.produto-imagem img', '.produto-thumbs img',
+    '.fotos-produto img', '.galeria-produto img', '#galeria-produto img',
+    '.product-gallery source', '.product-images source',
+    '.produto-imagens source', '[data-product-gallery] source',
+  ]
+  $(selectors.join(',')).each((_index, node) => {
+    const $node = $(node)
+    for (const key of ['data-full','data-original','data-image-url','data-large-image','data-zoom-image','data-src','src']) {
+      add($node.attr(key))
+    }
+    takeSrcset($node.attr('data-srcset'))
+    takeSrcset($node.attr('srcset'))
+  })
+  return found.slice(0, 40)
+}
+
 export async function recoverImportImagesFromSource(sourceUrl, product, { request = safeRequest } = {}) {
   const source = cleanUrl(sourceUrl)
   if (!isRemoteHttp(source)) return []
@@ -278,28 +326,27 @@ export async function recoverImportImagesFromSource(sourceUrl, product, { reques
   if (!response?.ok || !String(response.contentType || '').includes('html')) return []
 
   const generic = extractProductsFromHtml(response.body, response.url || source)
-  // FácilZap embeds the authoritative product/gallery data in DadosProduto.
-  // A generic HTML/JSON-LD parser can miss the gallery even when the photo is
-  // still public. Only accept this fallback for the exact SKU or product name.
   const facilZapDetail = extractFacilZapDetailProduct(response.body, response.url || source)
   const sku = normalizeText(product?.sku)
   const name = normalizeText(product?.name)
-  const matchingDetail = facilZapDetail && (
-    (sku && normalizeText(facilZapDetail.sku) === sku) ||
-    (name && normalizeText(facilZapDetail.title) === name)
-  ) ? facilZapDetail : null
-  const candidates = [
-    ...(matchingDetail ? [matchingDetail] : []),
-    ...(Array.isArray(generic) ? generic : []),
-  ]
-  if (!candidates.length) return []
+  const matches = (candidate) => {
+    if (!candidate) return false
+    const candidateSku = normalizeText(candidate.sku)
+    const candidateName = normalizeText(candidate.title)
+    // If both sides have SKU, a conflicting SKU disqualifies a name-only match.
+    if (sku && candidateSku) return candidateSku === sku
+    return Boolean(name && candidateName && candidateName === name)
+  }
+  const verified = [facilZapDetail, ...(Array.isArray(generic) ? generic : [])].filter(matches)
+  if (!verified.length) return []
 
-  const match = (sku && candidates.find((candidate) => normalizeText(candidate?.sku) === sku)) ||
-    (name && candidates.find((candidate) => normalizeText(candidate?.title) === name)) ||
-    candidates.find(candidate => candidate?.source_url === source)
-  // Do not borrow the only product on an unrelated page just because it is the
-  // sole JSON-LD entry. Product images must match SKU, title or exact URL.
-  return match ? candidateImages(match) : []
+  // Prefer the actual browser/gallery URLs over guessed CDN paths embedded in
+  // the paging JSON. Include all matching sources: previously, a matching
+  // DadosProduto hid useful images from JSON-LD / HTML galleries.
+  return unique([
+    ...renderedProductImages(response.body, response.url || source),
+    ...verified.flatMap(candidateImages),
+  ]).slice(0, 80)
 }
 
 function mediaFailureReason(error) {
