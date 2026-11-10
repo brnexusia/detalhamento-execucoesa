@@ -81,7 +81,25 @@ export async function stageSelectedImportMedia({
       const correctedSource = row.job_platform === 'facilzap' && sourceProductId && row.job_source_url
         ? facilZapProductUrl({}, sourceProductId, row.job_source_url)
         : ''
-      const sourceUrl = correctedSource || product.source_url || ''
+      const existingSource = String(product.source_url || '')
+      let sourceUrl = existingSource || correctedSource
+      if (correctedSource && existingSource) {
+        try {
+          const oldUrl = new URL(existingSource)
+          const rightUrl = new URL(correctedSource)
+          const catalogUrl = new URL(row.job_source_url)
+          const isWrongHostedPath = oldUrl.origin === rightUrl.origin &&
+            /^\/produto\/[^/]+\/?$/i.test(oldUrl.pathname) &&
+            /^\/[^/]+\/produto\//i.test(rightUrl.pathname)
+          const isCatalogNotProduct = oldUrl.origin === catalogUrl.origin &&
+            oldUrl.pathname.replace(/\/$/, '') === catalogUrl.pathname.replace(/\/$/, '')
+          // Keep explicit product/permalink routes intact; correct only old
+          // unscoped routes and catalog-root fallbacks.
+          if (isWrongHostedPath || isCatalogNotProduct) sourceUrl = correctedSource
+        } catch {
+          sourceUrl = correctedSource
+        }
+      }
       const localized = await localize({
         query, storeId, product, sourceUrl,
       })
