@@ -6,6 +6,9 @@ function mockJob(data, status='review') {
   const rows=data.map((value,index)=>({
     id:String(index+1).padStart(4,'0'),media_revision:'2026-11-06 12:00:00.123456+00',
     data:value,
+    source_product_id:value.source_product_id,
+    job_source_url:value.job_source_url,
+    job_platform:value.job_platform,
   }))
   const updates=[]
   const query=async (sql,params)=>{
@@ -16,7 +19,7 @@ function mockJob(data, status='review') {
         ...(row.data?.variant_images || []).flatMap(v=>v.images||[])].some(x => String(x).startsWith('https://') || String(x).startsWith('http://'))).length
       return {rowCount:1,rows:[{count}]}
     }
-    if (sql.includes('FROM import_normalized_products') && sql.includes('SELECT id,updated_at::text')) {
+    if (sql.includes('FROM import_normalized_products n') && sql.includes('SELECT n.id,n.updated_at::text')) {
       const next=rows.filter(row=>row.id>params[2]).slice(0,25)
       return {rowCount:next.length,rows:next}
     }
@@ -53,6 +56,31 @@ test('downloads remote media BEFORE publishing and stores only /media references
   assert.deepEqual(state.updates[0].data.variant_images[0].images,['/media/side'])
   assert.ok(!JSON.stringify(state.updates[0].data).includes('cdn.example/front.jpg'))
   assert.equal(state.updates[0].revision,'2026-11-06 12:00:00.123456+00')
+})
+
+test('reuses already scanned FácilZap import with corrected store-scoped source URL',async()=>{
+  const state=mockJob([{
+    name:'Brinco Aço Inox',price:45,
+    job_platform:'facilzap',
+    job_source_url:'https://facilzap.app.br/galego',
+    source_product_id:'2450312',
+    source_url:'https://facilzap.app.br/produto/2450312',
+    media_url:'https://arquivos.facilzap.app.br/produtos/404.webp',
+    images:['https://arquivos.facilzap.app.br/produtos/404.webp'],
+  }])
+  let source=''
+  await stageSelectedImportMedia({
+    query:state.query,storeId:'store-1',jobId:'job-facilzap',
+    localize:async ({sourceUrl})=>{
+      source=sourceUrl
+      return {mediaUrl:'/media/brinco-inox',images:['/media/brinco-inox'],variantImages:[],failed:1}
+    },
+  })
+  assert.equal(source,'https://facilzap.app.br/galego/produto/2450312',
+    'Recover from shop-specific product detail URL, not /produto/ID without shop')
+  assert.equal(state.updates[0].data.source_url,source,
+    'Repair source URL in current review without scanning again')
+  assert.deepEqual(state.updates[0].data.images,['/media/brinco-inox'])
 })
 
 test('keeps job in review when remote cover cannot be saved',async()=>{
