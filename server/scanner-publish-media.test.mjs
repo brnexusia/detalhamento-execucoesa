@@ -83,6 +83,27 @@ test('reuses already scanned FácilZap import with corrected store-scoped source
   assert.deepEqual(state.updates[0].data.images,['/media/brinco-inox'])
 })
 
+test('preserves explicit nonstandard FácilZap product permalinks when already correct',async()=>{
+  const manual='https://loja.example.br/colecoes/brinco-inox-2450312'
+  const state=mockJob([{
+    name:'Brinco Aço Inox',price:45,job_platform:'facilzap',
+    job_source_url:'https://loja.example.br/',source_product_id:'2450312',
+    source_url:manual,
+    media_url:'https://arquivos.facilzap.app.br/produtos/404.webp',
+    images:['https://arquivos.facilzap.app.br/produtos/404.webp'],
+  }])
+  let source=''
+  await stageSelectedImportMedia({
+    query:state.query,storeId:'store-1',jobId:'job-facilzap',
+    localize:async ({sourceUrl})=>{
+      source=sourceUrl
+      return {mediaUrl:'/media/correct',images:['/media/correct'],variantImages:[],failed:0}
+    },
+  })
+  assert.equal(source,manual,'Do not overwrite a verified shop-specific permalink with a guessed product route')
+  assert.equal(state.updates[0].data.source_url,manual)
+})
+
 test('keeps job in review when remote cover cannot be saved',async()=>{
   const state=mockJob([{name:'Camiseta sem foto',price:50,source_url:'https://store.example/p/1',
     media_url:'https://cdn.example/expired.jpg',images:['https://cdn.example/expired.jpg']}])
