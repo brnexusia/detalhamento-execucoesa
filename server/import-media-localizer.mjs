@@ -84,7 +84,11 @@ export async function fetchImportImage(url, { request = safeRequest, referer = '
     responseType: 'buffer',
   })
 
-  if (!response?.ok) throw new Error(`Imagem respondeu HTTP ${Number(response?.status || 0)}.`)
+  if (!response?.ok) {
+    const error = new Error(`Imagem respondeu HTTP ${Number(response?.status || 0)}.`)
+    error.status = Number(response?.status || 0)
+    throw error
+  }
   const buffer = Buffer.isBuffer(response.buffer) ? response.buffer : Buffer.from(response.buffer || [])
   if (!buffer.length) throw new Error('A imagem retornou vazia.')
   if (buffer.length > MAX_REMOTE_IMAGE_BYTES) throw new Error('Imagem maior que o limite de importação.')
@@ -131,11 +135,58 @@ async function imagePixels(buffer) {
   }
 }
 
+const FACILZAP_MEDIA_HOSTS = new Set([
+  'arquivos.facilzap.app.br',
+  'arquivos-cdn.facilzap.app.br',
+  'arquivos.facilzap.com.br',
+])
+
+// Troca somente entre domínios de arquivos conhecidos da própria FácilZap,
+// mantendo o caminho e a query idênticos. Nunca reutilizar foto de outro SKU.
+function facilZapMediaFallbacks(source) {
+  try {
+    const url = new URL(source)
+    if (url.protocol !== 'https:' || !FACILZAP_MEDIA_HOSTS.has(url.hostname.toLowerCase())) return []
+    const hosts = url.hostname.toLowerCase() === 'arquivos.facilzap.app.br'
+      ? ['arquivos-cdn.facilzap.app.br', 'arquivos.facilzap.com.br']
+      : url.hostname.toLowerCase() === 'arquivos-cdn.facilzap.app.br'
+        ? ['arquivos.facilzap.app.br', 'arquivos.facilzap.com.br']
+        : ['arquivos-cdn.facilzap.app.br', 'arquivos.facilzap.app.br']
+    return hosts.map((hostname) => {
+      const alternative = new URL(url)
+      alternative.hostname = hostname
+      alternative.hash = ''
+      return alternative.toString()
+    })
+  } catch {
+    return []
+  }
+}
+
 export async function fetchBestImportImage(url, { request = safeRequest, referer = '' } = {}) {
   const source = cleanUrl(url)
   if (!isBraavoImageUrl(source)) {
-    const fetched = await fetchImportImage(source, { request, referer })
-    return { ...fetched, resolvedUrl: source }
+    try {
+      const fetched = await fetchImportImage(source, { request, referer })
+      return { ...fetched, resolvedUrl: source }
+    } catch (firstError) {
+      if (firstError?.status !== 404) throw firstError
+      const fallbacks = facilZapMediaFallbacks(source)
+      if (!fallbacks.length) throw firstError
+      const failures = []
+      for (const alternate of fallbacks) {
+        try {
+          const fetched = await fetchImportImage(alternate, { request, referer })
+          return { ...fetched, resolvedUrl: alternate }
+        } catch (error) {
+          failures.push(error)
+        }
+      }
+      // Preserve the original 404 classification without leaking signed URLs.
+      const failed = new Error('Imagem respondeu HTTP 404 em todos os domínios de arquivos conhecidos da FácilZap.')
+      failed.status = 404
+      throw failed
+    }
   }
 
   const originalUrl = braavoImageUrl(source, 0) || source
