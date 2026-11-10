@@ -47,6 +47,32 @@ function mediaUrls(value, baseUrl) {
 }
 
 
+// Public FácilZap catalog URLs can be https://facilzap.app.br/LOJA without
+// a trailing slash. Resolving produto/ID directly against that URL would
+// drop LOJA, so recovery could fetch a different page instead of the item.
+function facilZapProductUrl(item, externalId, sourceUrl) {
+  const raw = text(item?.url ?? item?.link ?? item?.permalink)
+  if (/^https?:\/\//i.test(raw) || raw.startsWith('//')) return absolute(raw, sourceUrl)
+  try {
+    const origin = new URL(sourceUrl)
+    const isHosted = /^(?:www\.)?facilzap\.app\.br$/i.test(origin.hostname)
+    const segments = origin.pathname.split('/').filter(Boolean)
+    const storePrefix = isHosted && segments[0] && segments[0].toLowerCase() !== 'produto'
+      ? '/' + segments[0] : ''
+    if (raw) {
+      // Explicitly store-scoped routes already include the correct prefix.
+      if (/^\/[^/]+\/produto\//i.test(raw)) return absolute(raw, origin.origin)
+      if (/^\/?produto\//i.test(raw)) return absolute(storePrefix + '/' + raw.replace(/^\/+/, ''), origin.origin)
+      return absolute(raw, sourceUrl)
+    }
+    return externalId
+      ? absolute(storePrefix + '/produto/' + encodeURIComponent(externalId), origin.origin)
+      : sourceUrl
+  } catch {
+    return absolute(raw || (externalId ? 'produto/' + externalId : ''), sourceUrl)
+  }
+}
+
 function facilZapMediaUrl(value, baseUrl) {
   const raw = text(value)
   if (!raw) return ''
@@ -271,7 +297,7 @@ export function facilZapProducts(payload, sourceUrl) {
     const externalId = text(item.id ?? item.idProduto ?? item.produto_id ?? item.product_id)
     const title = text(item.nome ?? item.name ?? item.titulo ?? item.title)
     if (!title) continue
-    const productUrl = absolute(item.url ?? item.link ?? item.permalink ?? (externalId ? `produto/${externalId}` : ''), sourceUrl)
+    const productUrl = facilZapProductUrl(item, externalId, sourceUrl)
     const images = facilZapMediaUrls([
       item.imagens,
       item.images,
