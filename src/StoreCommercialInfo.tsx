@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { isShopvaxDemoStore } from './shopvax-demo'
 import { ChevronDown, Truck, Wallet } from 'lucide-react'
 import './store-commercial-info.css'
 
@@ -18,7 +19,7 @@ export default function StoreCommercialInfo({ storeSlug }: { storeSlug: string }
   useEffect(() => {
     const controller = new AbortController()
     setConfig(null)
-    if (!storeSlug) return () => controller.abort()
+    if (!storeSlug || isShopvaxDemoStore(storeSlug)) return () => controller.abort()
     fetch(`/api/public/commercial-config/${encodeURIComponent(storeSlug)}`, {
       credentials: 'include', signal: controller.signal,
     })
