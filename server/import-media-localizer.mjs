@@ -173,13 +173,12 @@ export async function fetchBestImportImage(url, { request = safeRequest, referer
       if (firstError?.status !== 404) throw firstError
       const fallbacks = facilZapMediaFallbacks(source)
       if (!fallbacks.length) throw firstError
-      const failures = []
       for (const alternate of fallbacks) {
         try {
           const fetched = await fetchImportImage(alternate, { request, referer })
           return { ...fetched, resolvedUrl: alternate }
-        } catch (error) {
-          failures.push(error)
+        } catch {
+          // Keep trying the other approved provider hostname.
         }
       }
       // Preserve the original 404 classification without leaking signed URLs.
@@ -305,7 +304,7 @@ export async function recoverImportImagesFromSource(sourceUrl, product, { reques
 
 function mediaFailureReason(error) {
   const message = String(error?.message || '')
-  const status = /Imagem respondeu HTTP (\d{3})\./.exec(message)
+  const status = /Imagem respondeu HTTP (\d{3})\b/.exec(message)
   if (status) return 'HTTP ' + status[1] + ' ao baixar a foto'
   if (/maior que o limite|Resposta maior que o limite/i.test(message)) return 'foto acima do limite de 12 MB'
   if (/imagem suportada/i.test(message)) return 'servidor não entregou formato de imagem válido'
