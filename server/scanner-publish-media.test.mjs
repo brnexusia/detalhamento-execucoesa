@@ -133,6 +133,29 @@ test('shows classified image failure without exposing signed URL or modifying re
   assert.equal(state.updates.length,0)
 })
 
+test('lists several broken photos in one publication attempt without publishing any product',async()=>{
+  const state=mockJob([
+    {name:'Brinco Importado',price:20,media_url:'https://cdn.example/1.webp',images:['https://cdn.example/1.webp']},
+    {name:'Brinco Aço Inox',price:29,media_url:'https://cdn.example/2.webp',images:['https://cdn.example/2.webp']},
+  ])
+  const checked=[]
+  await assert.rejects(()=>stageSelectedImportMedia({
+    query:state.query,storeId:'store-1',jobId:'job-1',
+    localize:async({product})=>{
+      checked.push(product.name)
+      return {mediaUrl:product.media_url,images:[],variantImages:[],failed:1,
+        failureReasons:['cdn.example: HTTP 404 ao baixar a foto']}
+    },
+  }),error=>{
+    assert.match(error.message,/2 produtos selecionados/)
+    assert.match(error.message,/Brinco Importado/)
+    assert.match(error.message,/Brinco Aço Inox/)
+    return true
+  })
+  assert.deepEqual(checked,['Brinco Importado','Brinco Aço Inox'])
+  assert.equal(state.updates.length,0)
+})
+
 test('does not re-download PDF images that were saved during scanning',async()=>{
   const state=mockJob([{name:'Vestido PDF',price:39.9,images:['/media/pdf-123'],media_url:'/media/pdf-123'}])
   const result=await stageSelectedImportMedia({
