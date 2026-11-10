@@ -170,6 +170,58 @@ assert.equal(recovered.mediaUrl, '/media/recovered-1')
 assert.deepEqual(recovered.images, ['/media/recovered-1'])
 assert.equal(recoveredInserts, 1)
 
+// A FácilZap expõe imagens novas no DadosProduto mesmo quando o link antigo
+// coletado na listagem expirou. Recuperar apenas se SKU ou nome coincidirem.
+const facilZapAssets = new Map()
+const facilZapQuery = async (sql, params) => {
+  if (sql.startsWith('SELECT id FROM media_assets')) {
+    const id = facilZapAssets.get(params[1])
+    return { rowCount: id ? 1 : 0, rows: id ? [{ id }] : [] }
+  }
+  if (sql.startsWith('INSERT INTO media_assets')) {
+    facilZapAssets.set(params[6], 'facilzap-recovered')
+    return { rowCount: 1, rows: [{ id:'facilzap-recovered' }] }
+  }
+  throw new Error('Unexpected FacilZap SQL')
+}
+const facilZapRequest = async (url) => {
+  if (url === 'https://arquivos.facilzap.app.br/produtos/expirado.webp') {
+    return { ok:false, status:403, contentType:'text/html', buffer:Buffer.alloc(0) }
+  }
+  if (url === 'https://galego.example/produto/123') {
+    const data = { id:'123', nome:'Brinco Importado', imagens:['produtos/foto-nova.webp'] }
+    return { ok:true,status:200,url,contentType:'text/html',body:
+      '<script>const DadosProduto = '+JSON.stringify(data)+';</script>' }
+  }
+  if (url === 'https://arquivos.facilzap.app.br/produtos/foto-nova.webp') {
+    return { ok:true,status:200,contentType:'image/webp',
+      buffer:Buffer.from([0x52,0x49,0x46,0x46,0x00,0x00,0x00,0x00,0x57,0x45,0x42,0x50]) }
+  }
+  throw new Error('Unexpected FacilZap URL: '+url)
+}
+const facilZapRecovered = await localizeImportedProductMedia({
+  query:facilZapQuery,storeId:'store-facilzap',
+  sourceUrl:'https://galego.example/produto/123',
+  product:{name:'Brinco Importado',sku:'',media_type:'image',
+    media_url:'https://arquivos.facilzap.app.br/produtos/expirado.webp',
+    images:['https://arquivos.facilzap.app.br/produtos/expirado.webp']},
+  request:facilZapRequest,
+})
+assert.equal(facilZapRecovered.mediaUrl,'/media/facilzap-recovered')
+assert.deepEqual(facilZapRecovered.images,['/media/facilzap-recovered'])
+assert.ok(facilZapRecovered.failureReasons.some(x=>x.includes('HTTP 403')))
+
+const wrongFacilZap = await localizeImportedProductMedia({
+  query:facilZapQuery,storeId:'store-facilzap',
+  sourceUrl:'https://galego.example/produto/123',
+  product:{name:'Outro Produto',sku:'OUTRO',media_type:'image',
+    media_url:'https://arquivos.facilzap.app.br/produtos/expirado.webp',
+    images:['https://arquivos.facilzap.app.br/produtos/expirado.webp']},
+  request:facilZapRequest,
+})
+assert.ok(!wrongFacilZap.images.some(isLocalShopvaxMedia),
+  'Não associar foto de Brinco Importado a outro produto no fallback')
+
 const failed = await localizeImportedProductMedia({
   query: async (sql, params) => {
     if (sql.startsWith('SELECT id FROM media_assets')) return { rowCount: 0, rows: [] }
