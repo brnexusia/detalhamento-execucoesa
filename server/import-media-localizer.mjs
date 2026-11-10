@@ -270,7 +270,7 @@ function candidateImages(candidate) {
 // Read image addresses actually rendered on the verified product page. This
 // avoids guessing CDN paths from the abbreviated FácilZap API filenames.
 // Product identity MUST be verified before calling this helper.
-function renderedProductImages(html, pageUrl) {
+function renderedProductImages(html, pageUrl, productIdentityVerified = false) {
   const $ = load(String(html || ''))
   const found = []
   const add = (raw) => {
@@ -290,7 +290,7 @@ function renderedProductImages(html, pageUrl) {
   // Only take a metadata image from a page explicitly identifying as a
   // product, not from a generic home-page redirect displaying the shop logo.
   const pageType = String($('meta[property="og:type"]').attr('content') || '')
-  if (/^product(?:\.|$)/i.test(pageType)) {
+  if (productIdentityVerified || /^product(?:\.|$)/i.test(pageType)) {
     add($('meta[property="og:image"]').attr('content'))
     add($('meta[property="og:image:secure_url"]').attr('content'))
   }
@@ -344,7 +344,7 @@ export async function recoverImportImagesFromSource(sourceUrl, product, { reques
   // the paging JSON. Include all matching sources: previously, a matching
   // DadosProduto hid useful images from JSON-LD / HTML galleries.
   return unique([
-    ...renderedProductImages(response.body, response.url || source),
+    ...renderedProductImages(response.body, response.url || source, true),
     ...verified.flatMap(candidateImages),
   ]).slice(0, 80)
 }
