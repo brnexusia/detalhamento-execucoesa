@@ -37,7 +37,8 @@ jobs:
           node --check server/scanner-publish-hooks.mjs
           node --check server/scanner-publish-media.mjs
           node --check server/scanner-hooks.mjs
-      - run: node --test server/scanner-publish-media.test.mjs server/scanner-publish-progress.test.mjs server/scanner-alexandre-bijoux.test.mjs
+          node --check scripts/diagnose-facilzap-import.mjs
+      - run: node --test server/scanner-publish-media.test.mjs server/scanner-publish-progress.test.mjs server/scanner-alexandre-bijoux.test.mjs server/scanner-review-lock-order.test.mjs
       - run: node server/import-media-localizer.test.mjs
       - run: node --test server/scanner-platform-media-regression.test.mjs
       - run: npm run build
