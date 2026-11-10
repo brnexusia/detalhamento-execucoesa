@@ -84,7 +84,7 @@ const base = (status = 200) => ({
   description: 'Descubra lojas, explore produtos e organize pedidos diretamente pelo WhatsApp no Shopvax.',
   url: SITE + '/', status, index: status === 200, image: '', schema: null, headline: '', excerpt: '',
 })
-async function metadataFor(req) {
+export async function metadataFor(req) {
   const url = new URL(req.originalUrl || '/', SITE)
   const pathname = url.pathname.replace(/\/+$/, '') || '/'
   const parts = pathname.split('/').filter(Boolean)
