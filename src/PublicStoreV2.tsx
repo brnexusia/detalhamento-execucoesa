@@ -7,6 +7,7 @@ import ShopvaxCheckoutReview, { type CheckoutBuyer } from './ShopvaxCheckoutRevi
 import ShopvaxOrderReady from './ShopvaxOrderReady'
 import { SHOPVAX_DEFAULT_ACCENT, shopvaxAccentTextColor, SVBrandSignature, SVRibbon, SVTicker, SVStamp, SVTag } from './ShopvaxDesignSystem'
 import { demoPayload } from './data'
+import { isShopvaxDemoStore } from './shopvax-demo'
 import StoreSocialNav from './StoreSocialNav'
 import CustomerAccountLauncher from './CustomerAccountLauncher'
 import StoreCommercialInfo from './StoreCommercialInfo'
@@ -179,6 +180,21 @@ export default function PublicStoreV2() {
     setCategory('Todos')
     setQuery('')
     filterKeyRef.current = 'Todos||newest'
+
+    // A Casa Norte é uma vitrine ilustrativa, não uma loja real no banco.
+    // Evitar uma busca que sempre responde 404 e não registrar analytics reais.
+    if (isShopvaxDemoStore(route.storeSlug)) {
+      setPayload({
+        ...demoPayload,
+        seller: route.sellerSlug === 'bianca'
+          ? { slug: 'bianca', name: 'Bianca', phone: '5571888888888' }
+          : demoPayload.seller,
+      })
+      setDemo(true)
+      setCatalogError('')
+      return Promise.resolve()
+    }
+
     return api.publicStore(route.storeSlug, route.sellerSlug)
       .then((data) => {
         setPayload(data)
@@ -187,15 +203,10 @@ export default function PublicStoreV2() {
         api.track({ storeSlug: route.storeSlug, sellerSlug: route.sellerSlug, kind: 'view' })
       })
       .catch((err: unknown) => {
-        if (route.storeSlug === demoPayload.store.slug) {
-          setPayload({ ...demoPayload, seller: route.sellerSlug === 'bianca' ? { slug: 'bianca', name: 'Bianca', phone: '5571888888888' } : demoPayload.seller })
-          setDemo(true)
-        } else {
-          const status = (err as Error & { status?: number })?.status
-          setInitialLoadError(status === 404
-            ? 'Essa loja não foi encontrada. Confira o endereço e tente novamente.'
-            : 'Não foi possível abrir a loja agora. Verifique sua conexão e tente novamente.')
-        }
+        const status = (err as Error & { status?: number })?.status
+        setInitialLoadError(status === 404
+          ? 'Essa loja não foi encontrada. Confira o endereço e tente novamente.'
+          : 'Não foi possível abrir a loja agora. Verifique sua conexão e tente novamente.')
       })
   }, [route.storeSlug, route.sellerSlug])
 
@@ -351,7 +362,11 @@ export default function PublicStoreV2() {
   }
 
   const sendOrder = async (buyer: CheckoutBuyer, notes: string) => {
-    if (!store || !minimumReached || !cart.length || sending || demo) return
+    if (demo) {
+      setError('Esta é uma loja de demonstração. O talão é ilustrativo e nenhum pedido será enviado ao WhatsApp.')
+      return
+    }
+    if (!store || !minimumReached || !cart.length || sending) return
     const signature = JSON.stringify({
       store: route.storeSlug,
       seller: route.sellerSlug || '',
@@ -457,7 +472,7 @@ export default function PublicStoreV2() {
     </main> : <main className="feed-shell"><div className="feed-list" ref={localFeedRef} onScroll={(event) => { const list = event.currentTarget; setLocalFeedIndex((index) => { const next = Math.max(0, Math.min(products.length - 1, Math.round(list.scrollTop / Math.max(1, list.clientHeight)))); return next === index ? index : next }) }}>{localFeedStart > 0 && <div className="feed-spacer" aria-hidden="true" style={{ height: `${localFeedStart * 100}%` }}/>} {visibleFeedProducts.map((product) => <article className="feed-card" key={product.id}><ProductMedia product={product} playWhenVisible/><div className="feed-card__shade"/><div className="feed-card__top"><span>{product.category}</span><span>{product.sku}</span></div><div className="feed-card__actions"><button aria-label={`Montar grade de ${product.name}`} onClick={() => openPicker(product)}><Plus size={24}/><span>GRADE</span></button><button type="button" aria-pressed={savedProducts.includes(product.id)} aria-label={savedProducts.includes(product.id) ? `Remover ${product.name} dos salvos` : `Salvar ${product.name}`} onClick={() => toggleSaved(product.id)}><Heart size={22} fill={savedProducts.includes(product.id) ? 'currentColor' : 'none'}/><span>SALVAR</span></button><button type="button" aria-label={`Compartilhar ${product.name}`} onClick={() => void shareProduct(product)}><Share2 size={22}/><span>ENVIAR</span></button><button type="button" aria-label={`Perguntar sobre ${product.name}`} onClick={() => askProduct(product)}><MessageCircle size={22}/><span>PERGUNTAR</span></button></div><div className="feed-card__info"><span className="feed-card__seller">com {seller?.name || 'atendimento'}</span><h2>{product.name}</h2><FeedCaption description={product.description}/><div className="feed-card__buyline"><strong>{money.format(product.price)}</strong><button onClick={() => openPicker(product)}>Escolher quantidade <ChevronRight size={18}/></button></div></div></article>)}{localFeedEnd < products.length && <div className="feed-spacer" aria-hidden="true" style={{ height: `${(products.length - localFeedEnd) * 100}%` }}/>} {!demo && <div ref={loadMoreRef}/>}</div></main>}
 
     <div className={`drawer-backdrop ${cartOpen ? 'is-open' : ''}`} onClick={() => setCartOpen(false)}/>
-    <aside className={`cart-drawer ${cartOpen ? 'is-open' : ''}`}><div className="cart-drawer__head"><div><small>Seu pedido</small><h2>Seu pedido</h2>{cartCount > 0 && <SVStamp key={cartCount}>NA GRADE</SVStamp>}</div><button onClick={() => setCartOpen(false)} aria-label="Fechar carrinho"><X size={22}/></button></div><div className="cart-drawer__seller"><span>Talão digital · Atendimento atribuído</span><strong>{seller?.name || 'Atendimento'}</strong></div><div className="cart-items">{cart.length === 0 ? <div className="cart-empty"><ShoppingBag size={30}/><h3>Seu carrinho está vazio.</h3></div> : cart.map((item) => <div className="cart-item" key={item.key}><ResilientImage src={galleryFor(item.product, item.selections)[0] || mediaUrl(item.product)} alt={item.product.name}/><div className="cart-item__main"><span>{item.product.sku}</span><strong>{item.product.name}</strong><small>{Object.entries(item.selections).map(([k,v]) => `${k}: ${v}`).join(' · ')}</small><small>{money.format(item.product.price)} cada</small></div><div className="quantity-control"><button onClick={() => setCart((current) => current.map((x) => x.key === item.key ? {...x, quantity: Math.max(0, x.quantity - 1)} : x).filter((x) => x.quantity > 0))} aria-label={`Diminuir quantidade de ${item.product.name}`}><Minus size={14}/></button><b>{item.quantity}</b><button onClick={() => setCart((current) => current.map((x) => x.key === item.key ? {...x, quantity: x.quantity + 1} : x))} aria-label={`Aumentar quantidade de ${item.product.name}`}><Plus size={14}/></button></div></div>)}</div><div className="cart-drawer__foot"><div className="minimum-box"><div className="minimum-box__copy">{minimumReached ? <span className="minimum-ok"><Check size={15}/> Pedido mínimo atingido</span> : <span>Faltam {money.format(Math.max(0, minimum - cartTotal))}</span>}<strong>{money.format(cartTotal)} / {money.format(minimum)}</strong></div><div className={`minimum-track ${minimumReached ? 'is-reached' : ''}`} role="progressbar" aria-label="Progresso do pedido mínimo" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(minimumProgress)}><span style={{width: `${minimumProgress}%`}}/><div className="svx-minimum-segments" aria-hidden="true">{Array.from({ length: 20 }, (_, n) => <i key={n} className={minimumProgress >= (n + 1) * 5 ? 'is-filled' : ''} />)}</div></div></div><div className="cart-total"><span>Total dos produtos</span><strong>{money.format(cartTotal)}</strong></div>{error && <p className="form-error">{error}</p>}<button className="whatsapp-button" disabled={!minimumReached || !cart.length || sending} onClick={() => { setError(''); setReviewOpen(true) }}>Revisar talão e ir ao WhatsApp<ArrowRight size={19}/></button></div></aside>
+    <aside className={`cart-drawer ${cartOpen ? 'is-open' : ''}`}><div className="cart-drawer__head"><div><small>Seu pedido</small><h2>Seu pedido</h2>{cartCount > 0 && <SVStamp key={cartCount}>NA GRADE</SVStamp>}</div><button onClick={() => setCartOpen(false)} aria-label="Fechar carrinho"><X size={22}/></button></div><div className="cart-drawer__seller"><span>Talão digital · Atendimento atribuído</span><strong>{seller?.name || 'Atendimento'}</strong></div><div className="cart-items">{cart.length === 0 ? <div className="cart-empty"><ShoppingBag size={30}/><h3>Seu carrinho está vazio.</h3></div> : cart.map((item) => <div className="cart-item" key={item.key}><ResilientImage src={galleryFor(item.product, item.selections)[0] || mediaUrl(item.product)} alt={item.product.name}/><div className="cart-item__main"><span>{item.product.sku}</span><strong>{item.product.name}</strong><small>{Object.entries(item.selections).map(([k,v]) => `${k}: ${v}`).join(' · ')}</small><small>{money.format(item.product.price)} cada</small></div><div className="quantity-control"><button onClick={() => setCart((current) => current.map((x) => x.key === item.key ? {...x, quantity: Math.max(0, x.quantity - 1)} : x).filter((x) => x.quantity > 0))} aria-label={`Diminuir quantidade de ${item.product.name}`}><Minus size={14}/></button><b>{item.quantity}</b><button onClick={() => setCart((current) => current.map((x) => x.key === item.key ? {...x, quantity: x.quantity + 1} : x))} aria-label={`Aumentar quantidade de ${item.product.name}`}><Plus size={14}/></button></div></div>)}</div><div className="cart-drawer__foot"><div className="minimum-box"><div className="minimum-box__copy">{minimumReached ? <span className="minimum-ok"><Check size={15}/> Pedido mínimo atingido</span> : <span>Faltam {money.format(Math.max(0, minimum - cartTotal))}</span>}<strong>{money.format(cartTotal)} / {money.format(minimum)}</strong></div><div className={`minimum-track ${minimumReached ? 'is-reached' : ''}`} role="progressbar" aria-label="Progresso do pedido mínimo" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(minimumProgress)}><span style={{width: `${minimumProgress}%`}}/><div className="svx-minimum-segments" aria-hidden="true">{Array.from({ length: 20 }, (_, n) => <i key={n} className={minimumProgress >= (n + 1) * 5 ? 'is-filled' : ''} />)}</div></div></div><div className="cart-total"><span>Total dos produtos</span><strong>{money.format(cartTotal)}</strong></div>{demo && <p className="form-note" role="note">Loja demonstrativa: você pode montar e revisar o talão, mas nenhum pedido será enviado ao WhatsApp.</p>}{error && <p className="form-error" role="alert">{error}</p>}<button className="whatsapp-button" disabled={!minimumReached || !cart.length || sending} onClick={() => { setError(''); setReviewOpen(true) }}>{demo ? 'Revisar talão demonstrativo' : 'Revisar talão e ir ao WhatsApp'}<ArrowRight size={19}/></button></div></aside>
 
     {reviewOpen && <ShopvaxCheckoutReview items={cart} total={cartTotal} minimum={minimum} storeName={store?.name || ''} sellerName={seller?.name || 'atendimento'} sending={sending} error={error} onClose={() => { if (!sending) setReviewOpen(false) }} onSubmit={sendOrder}/>}
     {readyOrder && <ShopvaxOrderReady code={readyOrder.code} url={readyOrder.url} storeName={store?.name || ''} onClose={() => setReadyOrder(null)}/>} 
