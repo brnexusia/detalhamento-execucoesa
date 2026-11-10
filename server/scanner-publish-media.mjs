@@ -43,6 +43,7 @@ export async function stageSelectedImportMedia({
   await onProgress({ phase: 'images', completed:0, total })
   let staged = 0
   let failed = 0
+  const unavailable = []
   let cursor = ''
   let examined = 0
   while (true) {
@@ -111,16 +112,14 @@ export async function stageSelectedImportMedia({
       if (!anyLocal) {
         failed += 1
         const reasons = Array.isArray(localized.failureReasons) ? localized.failureReasons.slice(0, 3) : []
-        // Diagnóstico acionável sem expor URL assinada, token ou caminho privado.
+        unavailable.push({ name:String(product.name || 'sem nome').slice(0, 90), reasons })
         console.warn('[scanner publish] product photo staging failed', {
           jobId, productId:row.id, reasons,
         })
-        throw new Error(
-          'Não foi possível salvar nenhuma foto do produto "' +
-          String(product.name || 'sem nome').slice(0, 90) +
-          '". O item continua em revisão; confira a URL ou substitua a imagem antes de publicar.' +
-          (reasons.length ? ' Diagnóstico: ' + reasons.join('; ') + '.' : '')
-        )
+        // Continue checking the other selected products before raising an
+        // error. One broken image must not hide dozens of other broken ones.
+        await onProgress({ phase:'images',completed:examined,total })
+        continue
       }
       // Product records must never retain expired third-party image URLs.
       const safeImages = (localized.images || []).filter(isLocalShopvaxMedia)
@@ -158,5 +157,23 @@ export async function stageSelectedImportMedia({
     }
   }
   await onProgress({ phase:'images', completed:total, total })
+  if (unavailable.length === 1) {
+    const item = unavailable[0]
+    throw new Error(
+      'Não foi possível salvar nenhuma foto do produto "' + item.name +
+      '". O item continua em revisão; confira a URL ou substitua a imagem antes de publicar.' +
+      (item.reasons.length ? ' Diagnóstico: ' + item.reasons.join('; ') + '.' : '')
+    )
+  }
+  if (unavailable.length > 1) {
+    const examples = unavailable.slice(0, 4).map(item =>
+      '"' + item.name + '"' + (item.reasons.length ? ' (' + item.reasons[0] + ')' : '')
+    ).join('; ')
+    throw new Error(
+      'Não foi possível salvar fotos de ' + unavailable.length +
+      ' produtos selecionados. Exemplos: ' + examples +
+      '. Eles continuam em revisão; corrija as URLs ou fotos antes de publicar.'
+    )
+  }
   return { staged, failed, skipped:false }
 }
