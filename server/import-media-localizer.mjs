@@ -284,13 +284,13 @@ function renderedProductImages(html, pageUrl) {
     } catch {}
   }
   const takeSrcset = (value) => {
-    const choices = String(value || '').split(',').map((part) => part.trim().split(/\\s+/)[0]).filter(Boolean)
+    const choices = String(value || '').split(',').map((part) => part.trim().split(/\s+/)[0]).filter(Boolean)
     if (choices.length) add(choices.at(-1))
   }
   // Only take a metadata image from a page explicitly identifying as a
   // product, not from a generic home-page redirect displaying the shop logo.
   const pageType = String($('meta[property="og:type"]').attr('content') || '')
-  if (/^product(?:\\.|$)/i.test(pageType)) {
+  if (/^product(?:\.|$)/i.test(pageType)) {
     add($('meta[property="og:image"]').attr('content'))
     add($('meta[property="og:image:secure_url"]').attr('content'))
   }
