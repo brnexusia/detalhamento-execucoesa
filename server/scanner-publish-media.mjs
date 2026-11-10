@@ -78,10 +78,16 @@ export async function stageSelectedImportMedia({
       const anyLocal = replacements.some(isLocalShopvaxMedia)
       if (!anyLocal) {
         failed += 1
+        const reasons = Array.isArray(localized.failureReasons) ? localized.failureReasons.slice(0, 3) : []
+        // Diagnóstico acionável sem expor URL assinada, token ou caminho privado.
+        console.warn('[scanner publish] product photo staging failed', {
+          jobId, productId:row.id, reasons,
+        })
         throw new Error(
           'Não foi possível salvar nenhuma foto do produto "' +
           String(product.name || 'sem nome').slice(0, 90) +
-          '". O item continua em revisão; confira a URL ou substitua a imagem antes de publicar.'
+          '". O item continua em revisão; confira a URL ou substitua a imagem antes de publicar.' +
+          (reasons.length ? ' Diagnóstico: ' + reasons.join('; ') + '.' : '')
         )
       }
       // Product records must never retain expired third-party image URLs.
