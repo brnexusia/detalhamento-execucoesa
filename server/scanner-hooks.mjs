@@ -706,39 +706,53 @@ function installScannerRoutes(app) {
     })
   }))
 
+  // The publisher locks import_jobs before import_normalized_products.
+  // Review writers MUST use the same order or concurrent edits/publication
+  // can deadlock (40P01) and leave repeated failing publication attempts.
   router.patch('/:jobId/review/:productId', requireStore, asyncRoute(async (req, res) => {
-    const job = await reviewJob(req, res)
-    if (!job) return
-
-    const current = await pool.query(
-      `SELECT * FROM import_normalized_products WHERE id=$1 AND job_id=$2 AND store_id=$3 LIMIT 1`,
-      [req.params.productId, job.id, req.scannerStore.store_id],
-    )
-    if (!current.rowCount) return res.status(404).json({ error: 'Produto da revisão não encontrado.' })
-
-    const row = current.rows[0]
-    const baseData = row.review_data || row.normalized_data
-    const prepared = prepareReview({ ...baseData, ...(req.body?.data && typeof req.body.data === 'object' ? req.body.data : {}) })
-    const selected = typeof req.body?.selected === 'boolean' ? req.body.selected : Boolean(row.selected)
-    if (selected && !prepared.publishable) {
-      return res.status(400).json({ error: 'Para selecionar este produto, informe pelo menos nome e preço válido.' })
-    }
-
     const client = await pool.connect()
     try {
       await client.query('BEGIN')
+      const lockedJob = await client.query(
+        'SELECT id,status FROM import_jobs WHERE id=$1 AND store_id=$2 FOR UPDATE',
+        [req.params.jobId, req.scannerStore.store_id],
+      )
+      if (!lockedJob.rowCount) {
+        await client.query('ROLLBACK')
+        return res.status(404).json({ error: 'Importação não encontrada.' })
+      }
+      if (lockedJob.rows[0].status !== 'review') {
+        await client.query('ROLLBACK')
+        return res.status(409).json({ error: 'Essa importação não está mais em revisão.' })
+      }
+      const current = await client.query(
+        'SELECT * FROM import_normalized_products WHERE id=$1 AND job_id=$2 AND store_id=$3 LIMIT 1 FOR UPDATE',
+        [req.params.productId, req.params.jobId, req.scannerStore.store_id],
+      )
+      if (!current.rowCount) {
+        await client.query('ROLLBACK')
+        return res.status(404).json({ error: 'Produto da revisão não encontrado.' })
+      }
+      const row = current.rows[0]
+      const baseData = row.review_data || row.normalized_data
+      const prepared = prepareReview({ ...baseData, ...(req.body?.data && typeof req.body.data === 'object' ? req.body.data : {}) })
+      const selected = typeof req.body?.selected === 'boolean' ? req.body.selected : Boolean(row.selected)
+      if (selected && !prepared.publishable) {
+        await client.query('ROLLBACK')
+        return res.status(400).json({ error: 'Para selecionar este produto, informe pelo menos nome e preço válido.' })
+      }
       const updated = await client.query(
         `UPDATE import_normalized_products
          SET review_data=$1,warnings=$2,confidence=$3,selected=$4,review_updated_at=now(),updated_at=now()
          WHERE id=$5 AND job_id=$6 AND store_id=$7 RETURNING *`,
-        [JSON.stringify(prepared.data), JSON.stringify(prepared.warnings), prepared.confidence, selected, row.id, job.id, req.scannerStore.store_id],
+        [JSON.stringify(prepared.data), JSON.stringify(prepared.warnings), prepared.confidence, selected, row.id, req.params.jobId, req.scannerStore.store_id],
       )
-      const summary = await refreshReviewStats(client, job.id, req.scannerStore.store_id)
-      const updatedJob = await client.query('SELECT * FROM import_jobs WHERE id=$1', [job.id])
+      const summary = await refreshReviewStats(client, req.params.jobId, req.scannerStore.store_id)
+      const updatedJob = await client.query('SELECT * FROM import_jobs WHERE id=$1', [req.params.jobId])
       await client.query('COMMIT')
-      res.json({ product: publicReviewProduct(updated.rows[0]), summary, job: publicJob(updatedJob.rows[0]) })
+      return res.json({ product: publicReviewProduct(updated.rows[0]), summary, job: publicJob(updatedJob.rows[0]) })
     } catch (error) {
-      await client.query('ROLLBACK')
+      await client.query('ROLLBACK').catch(() => {})
       throw error
     } finally {
       client.release()
@@ -746,29 +760,38 @@ function installScannerRoutes(app) {
   }))
 
   router.patch('/:jobId/review-selection', requireStore, asyncRoute(async (req, res) => {
-    const job = await reviewJob(req, res)
-    if (!job) return
     const action = String(req.body?.action || '')
     if (!['ready', 'none'].includes(action)) return res.status(400).json({ error: 'Ação de seleção inválida.' })
-
     const client = await pool.connect()
     try {
       await client.query('BEGIN')
+      const lockedJob = await client.query(
+        'SELECT id,status FROM import_jobs WHERE id=$1 AND store_id=$2 FOR UPDATE',
+        [req.params.jobId, req.scannerStore.store_id],
+      )
+      if (!lockedJob.rowCount) {
+        await client.query('ROLLBACK')
+        return res.status(404).json({ error: 'Importação não encontrada.' })
+      }
+      if (lockedJob.rows[0].status !== 'review') {
+        await client.query('ROLLBACK')
+        return res.status(409).json({ error: 'Essa importação não está mais em revisão.' })
+      }
       if (action === 'none') {
-        await client.query('UPDATE import_normalized_products SET selected=false,updated_at=now() WHERE job_id=$1 AND store_id=$2', [job.id, req.scannerStore.store_id])
+        await client.query('UPDATE import_normalized_products SET selected=false,updated_at=now() WHERE job_id=$1 AND store_id=$2', [req.params.jobId, req.scannerStore.store_id])
       } else {
         await client.query(
           `UPDATE import_normalized_products SET selected=(jsonb_array_length(warnings)=0),updated_at=now()
            WHERE job_id=$1 AND store_id=$2`,
-          [job.id, req.scannerStore.store_id],
+          [req.params.jobId, req.scannerStore.store_id],
         )
       }
-      const summary = await refreshReviewStats(client, job.id, req.scannerStore.store_id)
-      const updatedJob = await client.query('SELECT * FROM import_jobs WHERE id=$1', [job.id])
+      const summary = await refreshReviewStats(client, req.params.jobId, req.scannerStore.store_id)
+      const updatedJob = await client.query('SELECT * FROM import_jobs WHERE id=$1', [req.params.jobId])
       await client.query('COMMIT')
-      res.json({ summary, job: publicJob(updatedJob.rows[0]) })
+      return res.json({ summary, job: publicJob(updatedJob.rows[0]) })
     } catch (error) {
-      await client.query('ROLLBACK')
+      await client.query('ROLLBACK').catch(() => {})
       throw error
     } finally {
       client.release()
