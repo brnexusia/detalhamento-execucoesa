@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import sharp from 'sharp'
-import { fetchBestImportImage, fetchImportImage, isLocalShopvaxMedia, localizeImportedProductMedia } from './import-media-localizer.mjs'
+import { fetchBestImportImage, fetchImportImage, isLocalShopvaxMedia, localizeImportedProductMedia, recoverImportImagesFromSource } from './import-media-localizer.mjs'
 
 assert.equal(isLocalShopvaxMedia('/media/abc-123'), true)
 assert.equal(isLocalShopvaxMedia('https://cdn.example/foto.jpg'), false)
@@ -257,6 +257,77 @@ const wrongFacilZap = await localizeImportedProductMedia({
 })
 assert.ok(!wrongFacilZap.images.some(isLocalShopvaxMedia),
   'Não associar foto de Brinco Importado a outro produto no fallback')
+
+
+const sourceGalego = 'https://galego.example/produto/789'
+const realGalegoImage = 'https://assets-cdn.facilzap.app.br/produtos/imagens/brinco-inox-original.webp'
+const guessedGalegoImage = 'https://arquivos.facilzap.app.br/produtos/brinco-inox-404.webp'
+const detailGalegoHtml = `<!doctype html>
+  <meta property="og:type" content="product.item">
+  <meta property="og:title" content="Brinco Aço Inox">
+  <meta property="og:image" content="${realGalegoImage}">
+  <script>const DadosProduto = ${JSON.stringify({
+    id:'789',nome:'Brinco Aço Inox',imagens:['produtos/brinco-inox-404.webp'],
+  })};</script>
+  <section class="product-gallery">
+    <img src="https://arquivos.facilzap.app.br/produtos/brinco-inox-404.webp"
+         data-full="${realGalegoImage}">
+  </section>`
+const pageRequest = async (url) => url === sourceGalego
+  ? {ok:true,status:200,url,contentType:'text/html',body:detailGalegoHtml}
+  : url === realGalegoImage
+    ? {ok:true,status:200,contentType:'image/webp',buffer:Buffer.from([0x52,0x49,0x46,0x46,0,0,0,0,0x57,0x45,0x42,0x50])}
+    : {ok:false,status:404,contentType:'text/html',buffer:Buffer.alloc(0)}
+const verifiedGalegoImages = await recoverImportImagesFromSource(sourceGalego, {
+  name:'Brinco Aço Inox',sku:'',
+},{request:pageRequest})
+assert.equal(verifiedGalegoImages[0],realGalegoImage,
+  'Prioriza o caminho real da galeria, em vez da URL presumida pelo scanner')
+assert.ok(verifiedGalegoImages.includes(guessedGalegoImage))
+
+const galegoMediaCache = new Map()
+const galegoQuery = async (sql, params) => {
+  if (sql.startsWith('SELECT id FROM media_assets')) {
+    const hit=galegoMediaCache.get(params[1])
+    return {rowCount:hit?1:0,rows:hit?[{id:hit}]:[]}
+  }
+  if (sql.startsWith('INSERT INTO media_assets')) {
+    galegoMediaCache.set(params[6],'brinco-inox-local')
+    return {rowCount:1,rows:[{id:'brinco-inox-local'}]}
+  }
+  throw Error('Unexpected SQL for verified Galego image: '+sql)
+}
+const recoveredRealGalego = await localizeImportedProductMedia({
+  query:galegoQuery,storeId:'store-galego',
+  sourceUrl:sourceGalego,
+  product:{name:'Brinco Aço Inox',sku:'',media_type:'image',
+    media_url:guessedGalegoImage,images:[guessedGalegoImage],variant_images:[]},
+  request:pageRequest,
+})
+assert.equal(recoveredRealGalego.mediaUrl,'/media/brinco-inox-local')
+assert.deepEqual(recoveredRealGalego.images,['/media/brinco-inox-local'])
+assert.equal(galegoMediaCache.get(realGalegoImage),'brinco-inox-local')
+
+const mismatchedProductImages = await recoverImportImagesFromSource(sourceGalego,{
+  name:'Brinco de Outro Fornecedor',sku:'OUTRO',
+},{request:pageRequest})
+assert.deepEqual(mismatchedProductImages,[],
+  'Nunca aproveitar galeria de página que não pertence ao produto')
+
+const genericHtml = `<!doctype html><html><head>
+<script type="application/ld+json">${JSON.stringify({
+  '@context':'https://schema.org','@type':'Product',
+  name:'Brinco Aço Inox',image:'https://outra-cdn.example/foto-real.jpg',
+})}</script>
+</head><body><script>const DadosProduto = ${JSON.stringify({
+ id:'789',nome:'Brinco Aço Inox',imagens:['produtos/foto-anterior.jpg'],
+})};</script></body></html>`
+const verifiedMultipleSources = await recoverImportImagesFromSource(sourceGalego,{
+ name:'Brinco Aço Inox',sku:'',
+},{request:async url=>({ok:true,status:200,url,contentType:'text/html',body:genericHtml})})
+assert.ok(verifiedMultipleSources.includes('https://outra-cdn.example/foto-real.jpg'),
+  'Não perder a URL real do JSON-LD quando DadosProduto também corresponde')
+assert.ok(verifiedMultipleSources.includes('https://arquivos.facilzap.app.br/produtos/foto-anterior.jpg'))
 
 const failed = await localizeImportedProductMedia({
   query: async (sql, params) => {
