@@ -65,6 +65,25 @@ test('keeps job in review when remote cover cannot be saved',async()=>{
   assert.equal(state.updates.length,0)
 })
 
+test('shows classified image failure without exposing signed URL or modifying review',async()=>{
+  const state=mockJob([{name:'Brinco Importado',price:45,
+    source_url:'https://galego.example/produto/123',
+    media_url:'https://cdn.example/photo.webp?token=secret',
+    images:['https://cdn.example/photo.webp?token=secret']}])
+  await assert.rejects(()=>stageSelectedImportMedia({
+    query:state.query,storeId:'store-1',jobId:'job-1',
+    localize:async()=>({mediaUrl:'https://cdn.example/photo.webp?token=secret',
+      images:[],variantImages:[],failed:1,
+      failureReasons:['cdn.example: HTTP 403 ao baixar a foto']}),
+  }),error=>{
+    assert.match(error.message,/Brinco Importado/)
+    assert.match(error.message,/HTTP 403/)
+    assert.doesNotMatch(error.message,/token=secret/)
+    return true
+  })
+  assert.equal(state.updates.length,0)
+})
+
 test('does not re-download PDF images that were saved during scanning',async()=>{
   const state=mockJob([{name:'Vestido PDF',price:39.9,images:['/media/pdf-123'],media_url:'/media/pdf-123'}])
   const result=await stageSelectedImportMedia({
