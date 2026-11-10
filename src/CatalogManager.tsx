@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Check, Download, ExternalLink, MoreHorizontal, Plus, Search, Trash2, X } from 'lucide-react'
+import { Check, Copy, Download, ExternalLink, MoreHorizontal, Plus, Search, Share2, Trash2, X } from 'lucide-react'
 import { api, type AdminCatalog } from './api'
 import type { AdminProduct } from './types'
 import { confirmAction } from './ui-dialogs'
@@ -13,6 +13,7 @@ type Props = {
  onSelect:(catalog:AdminCatalog|null)=>void
  onChanged:()=>void
 }
+const currency=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'})
 const kindLabel=(catalog:AdminCatalog)=>catalog.kind==='personalizado'?catalog.customLabel||'Personalizado':catalog.kind==='caixa_fechada'?'Caixa fechada':catalog.kind==='atacado'?'Atacado':catalog.kind==='varejo'?'Varejo':'Catálogo geral'
 function download(blob:Blob,filename:string){
  const url=URL.createObjectURL(blob),a=document.createElement('a')
@@ -38,6 +39,7 @@ export default function CatalogManager({storeSlug,categories,onSelect,onChanged}
  const [busy,setBusy]=useState(false)
  const [error,setError]=useState('')
  const [message,setMessage]=useState('')
+ const [linkFeedback,setLinkFeedback]=useState<{id:string;text:string;error:boolean}|null>(null)
  const selected=catalogs.find(c=>c.id===selectedId)||catalogs[0]||null
  const load=async(preferred?:string)=>{
    try{
@@ -79,6 +81,24 @@ export default function CatalogManager({storeSlug,categories,onSelect,onChanged}
    return()=>window.removeEventListener('keydown',onKey)
  },[pane,busy])
  const choose=(catalog:AdminCatalog)=>{setSelectedId(catalog.id);onSelect(catalog)}
+ const catalogLink=(catalog:AdminCatalog)=>new URL('/'+encodeURIComponent(storeSlug)+'?catalog='+encodeURIComponent(catalog.slug),window.location.origin).toString()
+ const copyLink=async(catalog:AdminCatalog)=>{
+   try{
+     await navigator.clipboard.writeText(catalogLink(catalog))
+     setLinkFeedback({id:catalog.id,text:'Link copiado.',error:false})
+   }catch{
+     setLinkFeedback({id:catalog.id,text:'Não foi possível copiar automaticamente. Selecione o endereço acima e copie.',error:true})
+   }
+ }
+ const shareLink=async(catalog:AdminCatalog)=>{
+   if(typeof navigator.share!=='function'){await copyLink(catalog);return}
+   try{
+     await navigator.share({title:catalog.name,url:catalogLink(catalog)})
+     setLinkFeedback({id:catalog.id,text:'Compartilhamento iniciado.',error:false})
+   }catch(error){
+     if((error as Error)?.name!=='AbortError')setLinkFeedback({id:catalog.id,text:'Não foi possível compartilhar. Use Copiar link.',error:true})
+   }
+ }
  const show=(next:Pane)=>{setError('');setMessage('');setPane(next);setAddChecked([]);setAddSearch('')}
  const create=async(e:React.FormEvent)=>{
    e.preventDefault()
@@ -130,14 +150,35 @@ export default function CatalogManager({storeSlug,categories,onSelect,onChanged}
    finally{setBusy(false)}
  }
  return <div className="svx-catalog-inline" aria-label="Catálogos da loja">
-   <nav className="svx-catalog-inline__tabs" aria-label="Catálogo atual">
-     {catalogs.map(c=><button key={c.id} type="button" aria-pressed={selected?.id===c.id} className={selected?.id===c.id?'is-active':''}
-       disabled={busy} title={c.lockedByPlan?'Este catálogo requer o plano Gold':kindLabel(c)}
-       onClick={()=>choose(c)}>{c.name}{c.lockedByPlan?' · Gold':''}</button>)}
-   </nav>
-   <div className="svx-catalog-inline__buttons">
-     {gold&&<button type="button" className="svx-catalog-inline__create" onClick={()=>{setName('');setKind('varejo');setCustomLabel('');setPriceMode('base');setMinimum('');show('create')}}><Plus size={15}/> Criar catálogo</button>}
-     <button type="button" className="svx-catalog-inline__more" disabled={!selected} aria-label="Opções do catálogo" onClick={()=>show('settings')}><MoreHorizontal size={20}/></button>
+   <header className="svx-catalog-inline__header">
+     <div><h2>Meus catálogos</h2><p>Selecione o catálogo para organizar seus produtos. Cada catálogo publicado possui um link próprio.</p></div>
+     <div className="svx-catalog-inline__buttons">
+       {gold&&<button type="button" className="svx-catalog-inline__create" onClick={()=>{setName('');setKind('varejo');setCustomLabel('');setPriceMode('base');setMinimum('');show('create')}}><Plus size={15}/> Criar catálogo</button>}
+       <button type="button" className="svx-catalog-inline__more" disabled={!selected} aria-label="Opções do catálogo selecionado" onClick={()=>show('settings')}><MoreHorizontal size={20}/> <span>Opções</span></button>
+     </div>
+   </header>
+   <div className="svx-catalog-inline__cards">
+     {catalogs.map(c=>{
+       const available=c.active&&!c.lockedByPlan
+       const activeSelection=selected?.id===c.id
+       return <article key={c.id} className={'svx-catalog-card'+(activeSelection?' is-selected':'')}>
+         <div className="svx-catalog-card__top">
+           <button type="button" className="svx-catalog-card__name" aria-pressed={activeSelection} disabled={busy} onClick={()=>choose(c)}>{c.name}</button>
+           <span className={'svx-catalog-card__status'+(available?' is-published':'')}>{c.lockedByPlan?'Bloqueado pelo plano':c.active?'Publicado':'Não publicado'}</span>
+         </div>
+         <p className="svx-catalog-card__description">{kindLabel(c)} · {c.minimumOrder==null?'Mínimo conforme configuração da loja':'Pedido mínimo '+currency.format(c.minimumOrder)}{c.isDefault?' · Principal':''}</p>
+         {available?<div className="svx-catalog-card__link">
+           <label htmlFor={'catalog-link-'+c.id}>Link deste catálogo</label>
+           <input id={'catalog-link-'+c.id} readOnly value={catalogLink(c)} onFocus={event=>event.currentTarget.select()} />
+           <div className="svx-catalog-card__actions">
+             <button type="button" onClick={()=>void copyLink(c)}><Copy size={15} aria-hidden="true"/> Copiar link</button>
+             {typeof navigator.share==='function'&&<button type="button" onClick={()=>void shareLink(c)}><Share2 size={15} aria-hidden="true"/> Compartilhar</button>}
+             <a href={catalogLink(c)} target="_blank" rel="noreferrer"><ExternalLink size={15} aria-hidden="true"/> Abrir catálogo</a>
+           </div>
+         </div>:<p className="svx-catalog-card__disabled">O link deste catálogo não está disponível enquanto ele estiver desativado ou bloqueado pelo plano.</p>}
+         {linkFeedback?.id===c.id&&<p className="svx-catalog-card__feedback" role={linkFeedback.error?'alert':'status'}>{linkFeedback.text}</p>}
+       </article>
+     })}
    </div>
    {error&&!pane&&<p className="svx-catalog-inline__error" role="alert">{error}</p>}
    {pane&&<div className="svx-catalog-dialog">
