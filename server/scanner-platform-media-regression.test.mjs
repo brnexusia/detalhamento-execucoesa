@@ -26,6 +26,18 @@ test('FácilZap imports gallery photos even when only variations carry the image
   ])
 })
 
+test('FácilZap generates a store-scoped product page on hosted catalogs without trailing slash',()=>{
+  const product={id:'3950372',nome:'Conjunto Aço Inox',preco:'34,90',imagens:['produtos/conjunto.webp']}
+  const hosted=facilZapProducts({produtos:[product]},'https://facilzap.app.br/labijuterias')
+  assert.equal(hosted.products[0].source_url,'https://facilzap.app.br/labijuterias/produto/3950372')
+  const hostedWithSlash=facilZapProducts({produtos:[product]},'https://facilzap.app.br/labijuterias/')
+  assert.equal(hostedWithSlash.products[0].source_url,hosted.products[0].source_url)
+  const customDomain=facilZapProducts({produtos:[product]},'https://minhaloja.example/')
+  assert.equal(customDomain.products[0].source_url,'https://minhaloja.example/produto/3950372')
+  const explicit=facilZapProducts({produtos:[{...product,url:'/labijuterias/produto/3950372'}]},'https://facilzap.app.br/labijuterias')
+  assert.equal(explicit.products[0].source_url,hosted.products[0].source_url)
+})
+
 test('Vesti captures images across image, photos, gallery, and SKU media', () => {
   const context = { catalogBaseUrl: 'https://v.vesti.mobi/loja/catalogo/abc' }
   const [result] = vestiProducts({
