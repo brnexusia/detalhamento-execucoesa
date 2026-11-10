@@ -89,6 +89,17 @@ try {
   assert.equal(discovery.status, 200)
   includes(discovery.text, 'Shopvax | Catálogos, lojas e compras pelo WhatsApp')
 
+  // As paginas SPA e a demo existem de fato: o corpo nao pode renderizar
+  // React com HTTP 404 no acesso direto; SEO continua noindex nelas.
+  for (const route of ['/buscar', '/salvos', '/carrinhos', '/parceiros/cadastro',
+    '/casa-norte/marina']) {
+    const page = await get(route)
+    assert.equal(page.status, 200, route + ' precisa retornar 200')
+    includes(page.text, 'noindex,nofollow,noarchive')
+  }
+  const unknownShop = await get('/loja-inexistente-' + prefix)
+  assert.equal(unknownShop.status, 404, 'slug desconhecido nao pode ser mascarado como rota SPA')
+
   const pages = await botGet('/sitemap-pages.xml')
   assert.equal(pages.status, 200)
   assert.match(pages.contentType, /xml/)
