@@ -252,9 +252,29 @@ export async function recoverImportImagesFromSource(sourceUrl, product, { reques
   return match ? candidateImages(match) : []
 }
 
+function mediaFailureReason(error) {
+  const message = String(error?.message || '')
+  const status = /Imagem respondeu HTTP (\d{3})\./.exec(message)
+  if (status) return 'HTTP ' + status[1] + ' ao baixar a foto'
+  if (/maior que o limite|Resposta maior que o limite/i.test(message)) return 'foto acima do limite de 12 MB'
+  if (/imagem suportada/i.test(message)) return 'servidor não entregou formato de imagem válido'
+  if (/retornou vazia/i.test(message)) return 'resposta de imagem vazia'
+  if (/tempo demais|ETIMEDOUT|timeout/i.test(message)) return 'tempo limite no download'
+  if (/ENOTFOUND|EAI_AGAIN|domínio informado não aponta/i.test(message)) return 'falha de DNS ou domínio inacessível'
+  if (/ECONNRESET|ECONNREFUSED|socket hang up/i.test(message)) return 'conexão recusada ou interrompida'
+  if (/imagem armazenada|media_assets|constraint|database|connection/i.test(message)) return 'falha ao gravar mídia no banco'
+  return 'falha de rede ou armazenamento'
+}
+function mediaFailureSummary(url, error) {
+  let host = 'servidor de imagens'
+  try { host = new URL(url).hostname.slice(0, 100) } catch {}
+  return host + ': ' + mediaFailureReason(error)
+}
+
 async function localizeUrlList(query, { storeId, urls, sourceUrl, request, maxAssets }) {
   const replacements = new Map()
   const failedUrls = new Set()
+  const failures = []
   let localized = 0
   let failed = 0
 
@@ -270,13 +290,14 @@ async function localizeUrlList(query, { storeId, urls, sourceUrl, request, maxAs
         replacements.set(candidate, local)
         localized += 1
       }
-    } catch {
+    } catch (error) {
       failedUrls.add(candidate)
       failed += 1
+      if (failures.length < 5) failures.push(mediaFailureSummary(candidate, error))
     }
   }
 
-  return { replacements, failedUrls, localized, failed }
+  return { replacements, failedUrls, failures, localized, failed }
 }
 
 export async function localizeImportedProductMedia({
@@ -306,12 +327,14 @@ export async function localizeImportedProductMedia({
   })
 
   let recoveredUrls = []
+  let recoveryFailure = ''
   const firstPassHasLocal = [...firstPass.replacements.values()].some(isLocalShopvaxMedia)
   if (mediaType === 'image' && !firstPassHasLocal && isRemoteHttp(sourceUrl)) {
     try {
       recoveredUrls = await recoverImportImagesFromSource(sourceUrl, product, { request })
-    } catch {
+    } catch (error) {
       recoveredUrls = []
+      recoveryFailure = mediaFailureSummary(sourceUrl, error)
     }
   }
 
@@ -323,7 +346,7 @@ export async function localizeImportedProductMedia({
         request,
         maxAssets: Math.max(1, Number(maxAssets) || MAX_LOCALIZED_ASSETS_PER_PRODUCT),
       })
-    : { replacements: new Map(), failedUrls: new Set(), localized: 0, failed: 0 }
+    : { replacements: new Map(), failedUrls: new Set(), failures: [], localized: 0, failed: 0 }
 
   const replacements = new Map([...firstPass.replacements, ...recoveryPass.replacements])
   const failedUrls = new Set([...firstPass.failedUrls, ...recoveryPass.failedUrls])
@@ -360,6 +383,8 @@ export async function localizeImportedProductMedia({
     localized: firstPass.localized + recoveryPass.localized,
     failed: firstPass.failed + recoveryPass.failed,
     recovered: recoveredUrls.length,
+    // Expose only hostname and a classified failure, never signed URLs or tokens.
+    failureReasons: [...new Set([...firstPass.failures, ...recoveryPass.failures, recoveryFailure].filter(Boolean))].slice(0, 5),
     changed: mediaUrl !== cleanUrl(product?.media_url) ||
       JSON.stringify(images) !== JSON.stringify(baseImages) ||
       JSON.stringify(variantImages) !== JSON.stringify(variantGroups),
