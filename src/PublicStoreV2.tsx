@@ -338,7 +338,7 @@ export default function PublicStoreV2() {
       if (existing) return current.map((item) => item.key === key ? { ...item, quantity: item.quantity + pickerQty } : item)
       return [...current, { key, product: picker, quantity: pickerQty, selections: pickerSelections }]
     })
-    api.track({ storeSlug: route.storeSlug, sellerSlug: route.sellerSlug, kind: 'cart' })
+    if (!demo) api.track({ storeSlug: route.storeSlug, sellerSlug: route.sellerSlug, kind: 'cart' })
     setPicker(null)
     setFeedNotice('NA GRADE')
   }
@@ -355,7 +355,7 @@ export default function PublicStoreV2() {
       }
       return next
     })
-    api.track({ storeSlug: route.storeSlug, sellerSlug: route.sellerSlug, kind: 'cart' })
+    if (!demo) api.track({ storeSlug: route.storeSlug, sellerSlug: route.sellerSlug, kind: 'cart' })
     setError('')
     setPicker(null)
     setFeedNotice('NA GRADE')
