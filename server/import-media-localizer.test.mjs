@@ -16,6 +16,42 @@ const downloaded = await fetchImportImage('https://cdn.example/foto.jpg', {
 assert.equal(downloaded.mimeType, 'image/jpeg')
 assert.ok(Buffer.isBuffer(downloaded.buffer))
 
+// 404 from the older FácilZap file hostname must be retried only on
+// the provider's known file hosts, never by guessing products or paths.
+const facilZapRequests = []
+const aliasMedia = await fetchBestImportImage('https://arquivos.facilzap.app.br/produtos/brinco.webp', {
+  referer:'https://galego.example/produto/12',
+  request:async (url) => {
+    facilZapRequests.push(url)
+    return url === 'https://arquivos-cdn.facilzap.app.br/produtos/brinco.webp'
+      ? { ok:true,status:200,contentType:'image/webp',buffer:Buffer.from([0x52,0x49,0x46,0x46,0,0,0,0,0x57,0x45,0x42,0x50]) }
+      : { ok:false,status:404,contentType:'text/html',buffer:Buffer.alloc(0) }
+  },
+})
+assert.equal(aliasMedia.resolvedUrl,'https://arquivos-cdn.facilzap.app.br/produtos/brinco.webp')
+assert.deepEqual(facilZapRequests,[
+  'https://arquivos.facilzap.app.br/produtos/brinco.webp',
+  'https://arquivos-cdn.facilzap.app.br/produtos/brinco.webp',
+])
+
+const unavailableRequests=[]
+await assert.rejects(() => fetchBestImportImage('https://arquivos.facilzap.app.br/produtos/indisponivel.webp', {
+  request:async url=>{
+    unavailableRequests.push(url)
+    return {ok:false,status:404,contentType:'text/html',buffer:Buffer.alloc(0)}
+  },
+}),/HTTP 404/)
+assert.equal(unavailableRequests.length,3,'Tentar somente domínios de arquivos conhecidos da FácilZap')
+
+const unrelatedRequests=[]
+await assert.rejects(()=>fetchBestImportImage('https://cdn.example/foto.webp',{
+  request:async url=>{
+    unrelatedRequests.push(url)
+    return {ok:false,status:404,contentType:'text/html',buffer:Buffer.alloc(0)}
+  },
+}),/HTTP 404/)
+assert.deepEqual(unrelatedRequests,['https://cdn.example/foto.webp'],'Não testar aliases para outros fornecedores')
+
 const braavoSmall = await sharp({ create: { width: 566, height: 850, channels: 3, background: '#bbb' } }).webp({ quality: 80 }).toBuffer()
 const braavoLarge = await sharp({ create: { width: 1000, height: 1502, channels: 3, background: '#bbb' } }).webp({ quality: 80 }).toBuffer()
 const braavoRequests = []
