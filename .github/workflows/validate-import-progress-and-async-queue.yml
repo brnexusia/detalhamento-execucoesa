@@ -41,6 +41,7 @@ jobs:
           node --check server/scanner-publish-media.mjs
           node --check server/scanner-hooks.mjs
           node --check server/scanner-collector.mjs
+          node --check server/scanner-network-retry.mjs
           node --check server/scanner-scan-lease.mjs
           node --check server/scanner-work-scheduler.mjs
           node --check scripts/diagnose-facilzap-import.mjs
@@ -48,6 +49,7 @@ jobs:
       - run: node --test server/scanner-scan-lease.test.mjs
       - run: node --test server/scanner-work-scheduler.test.mjs
       - run: node server/scanner-collector.test.mjs
+      - run: node --test server/scanner-network-retry.test.mjs server/scanner-facilzap-network-resilience.test.mjs
       - run: node server/import-media-localizer.test.mjs
       - run: node --test server/scanner-platform-media-regression.test.mjs
       - run: npm run build
