@@ -30,8 +30,12 @@ export function createScannerWorkScheduler({
       polling = true
       try {
         await ensureSchema()
-        const abandoned = await recover()
-        for (const row of abandoned || []) {
+        const recovered = await recover()
+        // Accept both the older rows-array return and PostgreSQL QueryResult.
+        // A rolling deploy must never disable imports over a .rows mismatch.
+        const abandoned = Array.isArray(recovered) ? recovered
+          : Array.isArray(recovered?.rows) ? recovered.rows : []
+        for (const row of abandoned) {
           log('[scanner] restarting interrupted scan:', row.id)
           // A scan could be stuck in a hung promise inside this process. Once
           // its DB lease is revoked, open the lane for the recovered attempt.
