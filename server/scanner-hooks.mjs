@@ -13,6 +13,7 @@ import { sharedPhotoSourceKind } from './scanner-photo-albums.mjs'
 import { normalizeCandidates } from './scanner-normalizer.mjs'
 import { prepareReview } from './scanner-review.mjs'
 import { requeueInterruptedScans } from './scanner-scan-lease.mjs'
+import { createScannerWorkScheduler } from './scanner-work-scheduler.mjs'
 
 const { Pool } = pg
 const databaseUrl = process.env.DATABASE_URL?.trim() || ''
@@ -537,28 +538,40 @@ export async function processNormalizationJob(jobId, normalizer = normalizeCandi
   }
 }
 
-let workerBusy = false
+// Short polling ticks recover interrupted jobs even while another importer
+// is busy. A PDF and a website scan may run at the same time, separately from
+// normalization. Jobs are claimed atomically by their existing worker functions.
+const scannerScheduler = createScannerWorkScheduler({
+  ensureSchema: ensureScannerSchema,
+  recover: () => requeueInterruptedScans(pool.query.bind(pool)),
+  findNext: async (lane) => {
+    if (lane === 'normalization') {
+      const result = await pool.query(
+        "SELECT id FROM import_jobs WHERE status='processing' ORDER BY updated_at ASC LIMIT 1",
+      )
+      return result.rows[0] || null
+    }
+    const result = await pool.query(
+      `SELECT id FROM import_jobs
+       WHERE status='queued' AND (platform='pdf')=$1
+       ORDER BY created_at ASC LIMIT 1`,
+      [lane === 'pdf'],
+    )
+    return result.rows[0] || null
+  },
+  processScan: processImportJob,
+  processNormalization: processNormalizationJob,
+  log: (message, error) => console.warn(message,
+    error instanceof Error ? error.message : error),
+})
+
 let workerTimer = null
 async function runNextWork() {
-  if (workerDisabled || workerBusy || !pool) return
-  workerBusy = true
+  if (workerDisabled || !pool) return
   try {
-    await ensureScannerSchema()
-    // A restarted service previously left jobs stuck in 'scanning' forever.
-    // Requeue only a scan whose heartbeat has expired. Any partial candidates
-    // are rebuilt by processImportJob; they are never published as complete.
-    const orphaned = await requeueInterruptedScans(pool.query.bind(pool))
-    for (const row of orphaned) console.warn('[scanner] restarting interrupted scan:', row.id)
-    const processing = await pool.query("SELECT id FROM import_jobs WHERE status='processing' ORDER BY updated_at ASC LIMIT 1")
-    if (processing.rowCount) await processNormalizationJob(processing.rows[0].id)
-    else {
-      const queued = await pool.query("SELECT id FROM import_jobs WHERE status='queued' ORDER BY created_at ASC LIMIT 1")
-      if (queued.rowCount) await processImportJob(queued.rows[0].id)
-    }
+    await scannerScheduler.tick()
   } catch (error) {
     console.error('[scanner] worker:', error instanceof Error ? error.message : error)
-  } finally {
-    workerBusy = false
   }
 }
 
