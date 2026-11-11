@@ -32,6 +32,15 @@ test('FácilZap generates a store-scoped product page on hosted catalogs without
   assert.equal(hosted.products[0].source_url,'https://facilzap.app.br/labijuterias/produto/3950372')
   const hostedWithSlash=facilZapProducts({produtos:[product]},'https://facilzap.app.br/labijuterias/')
   assert.equal(hostedWithSlash.products[0].source_url,hosted.products[0].source_url)
+  const realGalego=facilZapProducts({produtos:[{
+    id:'4419956',nome:'Brinco Aço Inox',imagens:['produtos/1787876125_fb3aa3165caa45e86750.webp'],
+  }]},'https://facilzap.com.br/galegobijooux')
+  assert.equal(realGalego.products[0].source_url,
+    'https://facilzap.com.br/galegobijooux/produto/4419956',
+    'facilzap.com.br precisa preservar o slug da loja, como facilzap.app.br')
+  const withSlash=facilZapProducts({produtos:[{id:'4419956',nome:'Brinco Aço Inox'}]},
+    'https://facilzap.com.br/galegobijooux/')
+  assert.equal(withSlash.products[0].source_url,realGalego.products[0].source_url)
   const customDomain=facilZapProducts({produtos:[product]},'https://minhaloja.example/')
   assert.equal(customDomain.products[0].source_url,'https://minhaloja.example/produto/3950372')
   const explicit=facilZapProducts({produtos:[{...product,url:'/labijuterias/produto/3950372'}]},'https://facilzap.app.br/labijuterias')
