@@ -200,7 +200,7 @@
   background: transparent;
   box-shadow: none;
 }
-.panel-shell .svx-products .product-admin-card.is-selected { background: #fbecdd; }
+.panel-shell .svx-products .product-admin-card.is-selected { background: #f0f0ed; box-shadow: inset 3px 0 var(--svx-orange,#F25C05); }
 .svx-products__product { display: flex; align-items: center; gap: 20px; min-width: 0; }
 .panel-shell .svx-products .product-admin-card__media {
   position: relative;
@@ -300,7 +300,7 @@
   font: 700 11px var(--svx-font-body, 'Archivo', sans-serif);
   cursor: pointer;
 }
-.svx-products .product-bulk-toolbar { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; border-radius: 0; border: 1px solid #161514; background: #fbecdd; padding: 12px; }
+.svx-products .product-bulk-toolbar { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 10px; border: 0; background: #f5f2eb; padding: 8px 0 12px; box-shadow: none; }
 .svx-products .product-select-control { position: relative; display: inline-flex; align-items: center; flex: 0 0 auto; margin: 0; padding: 0; border: 0; background: transparent; }
 .svx-products .product-select-control input { width: 18px; height: 18px; accent-color: #F25C05; }
 .svx-products .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
@@ -393,10 +393,10 @@
   gap:9px 16px;
   min-height:48px;
   margin:0 0 8px;
-  padding:8px 11px;
-  border:1px solid var(--svx-line,#D9D3C6);
-  background:rgba(243,240,232,.97);
-  backdrop-filter:blur(9px);
+  padding:8px 0 12px;
+  border:0;
+  background:#f5f2eb;
+  backdrop-filter:none;
 }
 .product-bulk-toolbar--sticky .product-bulk-toolbar__primary,
 .product-bulk-toolbar--sticky .product-bulk-toolbar__destructive{
@@ -413,13 +413,15 @@
   cursor:pointer;
 }
 .product-bulk-toolbar--sticky .svx-products__select{
-  border:1px solid var(--svx-ink,#161514);
-  background:var(--svx-ink,#161514);
-  color:var(--svx-paper,#F3F0E8);
+  border:1px solid var(--svx-orange,#F25C05);
+  background:transparent;
+  color:#9d4005;
   text-decoration:none;
 }
 .product-bulk-toolbar--sticky .svx-products__select:hover:not(:disabled){
-  background:#302d29;
+  border-color:var(--svx-orange,#F25C05);
+  background:var(--svx-orange,#F25C05);
+  color:#161514;
 }
 .product-bulk-toolbar--sticky label{display:flex;align-items:center;gap:7px;cursor:pointer;font:600 11px var(--svx-font-body,'Archivo',sans-serif)}
 .product-bulk-toolbar--sticky label input{width:17px;height:17px;accent-color:var(--svx-orange,#F25C05);cursor:pointer}
