@@ -21,16 +21,18 @@ const toMoney = (value) => {
   const number = Number(value)
   return Number.isFinite(number) ? Math.round(number * 100) / 100 : 0
 }
-// Atacado vende por unidade (preço base); caixa fechada usa preço da caixa.
-// Os catálogos personalizados escolhem explicitamente qual tabela utilizar.
+// Atacado e Alto Atacado usam preço unitário base até que o produto tenha
+// preço específico configurado no catálogo (catalog_products.price_override).
+// Caixa fechada preserva seu preço e multiplicador de estoque próprios.
+// Catálogos personalizados escolhem explicitamente qual tabela utilizar.
 const effectiveCatalogPrice = "COALESCE(cp.price_override,CASE WHEN c.kind='varejo' OR (c.kind='personalizado' AND c.price_mode='varejo') THEN p.retail_price WHEN c.kind='caixa_fechada' OR (c.kind='personalizado' AND c.price_mode='caixa_fechada') THEN p.box_price ELSE p.price END,p.price)"
 const isBoxCatalog = (catalog) => catalog.kind === 'caixa_fechada' || (catalog.kind === 'personalizado' && catalog.price_mode === 'caixa_fechada')
-const catalogKinds = new Set(['varejo','atacado','caixa_fechada','personalizado'])
+const catalogKinds = new Set(['varejo','atacado','alto_atacado','caixa_fechada','personalizado'])
 const pricingModes = new Set(['base','varejo','atacado','caixa_fechada'])
 function catalogConfiguration(body, previous = null) {
   const kind = body?.kind === undefined ? previous?.kind || 'varejo' : String(body.kind || '')
   if (!catalogKinds.has(kind) && !(kind === 'geral' && previous?.kind === 'geral')) {
-    return { error: 'Escolha Varejo, Atacado, Caixa fechada ou Personalizado.' }
+    return { error: 'Escolha Varejo, Atacado, Alto Atacado ou Personalizado.' }
   }
   const customLabel = kind === 'personalizado'
     ? String(body?.customLabel === undefined ? previous?.custom_label || '' : body.customLabel || '').trim().slice(0,60)
