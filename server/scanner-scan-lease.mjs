@@ -15,6 +15,9 @@ export async function requeueInterruptedScans(query) {
        )
      RETURNING id`,
   )
-  return result.rows || []
+  // Keep PostgreSQL's QueryResult shape. Older scanner workers consumed
+  // "orphaned.rows" directly, while newer schedulers also accept bare rows.
+  // Returning the original result makes mixed rolling deployments compatible.
+  return { rows: Array.isArray(result?.rows) ? result.rows : [] }
 }
 
