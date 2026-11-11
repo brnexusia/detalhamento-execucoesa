@@ -23,7 +23,7 @@ type PublishPreview = {
   examples: Array<{ name: string; occurrences: number }>
 }
 type PublishResult = {
-  result: { selected: number; created: number; skipped_existing: number }
+  result: { selected: number; created: number; skipped_existing: number; skipped_no_image?: number }
   idempotent: boolean
 }
 type PublishProgress = {
@@ -261,9 +261,9 @@ export default function ScannerPublishModule() {
           </header>
           <div className="scanner-publish-content">
             <p>Este painel reúne <strong>{readyTotal} produtos de {readyJobs.length} importação(ões) pendente(s)</strong>. Os totais são somados entre catálogos diferentes. Use o botão de cada catálogo abaixo para publicar apenas aquela importação; abrir este painel não publica todos.</p>
-            <p>Os produtos tecnicamente válidos já estão selecionados. Itens que realmente precisam de correção ficam de fora e podem ser tratados depois.</p>
+            <p>Os produtos tecnicamente válidos já estão selecionados. Durante a publicação, itens sem foto válida são ignorados automaticamente; apenas produtos com imagem salva entram na loja.</p>
             {error && <div className="scanner-publish-message scanner-publish-message--error">{error}</div>}
-            {success && <div className="scanner-publish-message scanner-publish-message--success"><CheckCircle2 size={17} /><div><strong>Importação concluída.</strong><span>{success.result.created} novo(s) cadastrado(s){success.result.skipped_existing ? ` · ${success.result.skipped_existing} SKU(s) já existente(s) preservado(s)` : ''}.</span></div></div>}
+            {success && <div className="scanner-publish-message scanner-publish-message--success"><CheckCircle2 size={17} /><div><strong>Importação concluída.</strong><span>{success.result.created} novo(s) cadastrado(s){success.result.skipped_existing ? ` · ${success.result.skipped_existing} SKU(s) já existente(s) preservado(s)` : ''}{success.result.skipped_no_image ? ` · ${success.result.skipped_no_image} produto(s) sem foto ignorado(s)` : ''}.</span></div></div>}
 
             <div className="scanner-publish-jobs">
               {readyJobs.length === 0 ? <div className="scanner-publish-empty">Não há importações pendentes com produtos válidos.</div> : readyJobs.map((job) => {
