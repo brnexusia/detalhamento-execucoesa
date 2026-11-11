@@ -34,6 +34,7 @@ export default function CatalogManager({storeSlug,categories,onSelect,onChanged}
  const [name,setName]=useState('')
  const [kind,setKind]=useState<Kind>('varejo')
  const [customLabel,setCustomLabel]=useState('')
+ const [customFormat,setCustomFormat]=useState('')
  const [priceMode,setPriceMode]=useState<'base'|'varejo'|'atacado'|'caixa_fechada'>('base')
  const [minimum,setMinimum]=useState('')
  const [active,setActive]=useState(true)
@@ -47,10 +48,8 @@ export default function CatalogManager({storeSlug,categories,onSelect,onChanged}
  const [message,setMessage]=useState('')
  const [linkFeedback,setLinkFeedback]=useState<{id:string;text:string;error:boolean}|null>(null)
  const selected=catalogs.find(c=>c.id===selectedId)||catalogs[0]||null
- const customFormat = presetCustomLabels.some(preset=>preset===customLabel)
-   ? customLabel
-   : customLabel ? 'outro' : ''
  const changeCustomFormat=(value:string)=>{
+   setCustomFormat(value)
    if(value==='outro'){setCustomLabel('');return}
    setCustomLabel(value)
    if(value==='Caixa fechada')setPriceMode('caixa_fechada')
@@ -72,7 +71,9 @@ export default function CatalogManager({storeSlug,categories,onSelect,onChanged}
    if(!selected)return
    setName(selected.name)
    setKind(selected.kind==='geral'||selected.kind==='caixa_fechada'?'personalizado':selected.kind)
-   setCustomLabel(selected.kind==='geral'?selected.name:selected.kind==='caixa_fechada'?'Caixa fechada':selected.customLabel||'')
+   const label=selected.kind==='geral'?selected.name:selected.kind==='caixa_fechada'?'Caixa fechada':selected.customLabel||''
+   setCustomLabel(label)
+   setCustomFormat(presetCustomLabels.some(preset=>preset===label)?label:label?'outro':'')
    setPriceMode(selected.kind==='caixa_fechada'?'caixa_fechada':selected.priceMode||'base')
    setMinimum(selected.minimumOrder==null?'':String(selected.minimumOrder))
    setActive(selected.active)
@@ -168,7 +169,7 @@ export default function CatalogManager({storeSlug,categories,onSelect,onChanged}
    <header className="svx-catalog-inline__header">
      <div><h2>Meus catálogos</h2><p>Selecione o catálogo para organizar seus produtos. Cada catálogo publicado possui um link próprio.</p></div>
      <div className="svx-catalog-inline__buttons">
-       {gold&&<button type="button" className="svx-catalog-inline__create" onClick={()=>{setName('');setKind('varejo');setCustomLabel('');setPriceMode('base');setMinimum('');show('create')}}><Plus size={15}/> Criar catálogo</button>}
+       {gold&&<button type="button" className="svx-catalog-inline__create" onClick={()=>{setName('');setKind('varejo');setCustomLabel('');setCustomFormat('');setPriceMode('base');setMinimum('');show('create')}}><Plus size={15}/> Criar catálogo</button>}
        <button type="button" className="svx-catalog-inline__more" disabled={!selected} aria-label="Opções do catálogo selecionado" onClick={()=>show('settings')}><MoreHorizontal size={20}/> <span>Opções</span></button>
      </div>
    </header>
