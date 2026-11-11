@@ -14,6 +14,7 @@ test('scanner lease: requeue only orphaned jobs after a crash, never live jobs',
       CREATE TEMP TABLE import_jobs(
         id text PRIMARY KEY,
         status text NOT NULL,
+        platform text NOT NULL DEFAULT 'generic',
         progress integer NOT NULL,
         result_count integer NOT NULL,
         pages_scanned integer NOT NULL,
@@ -31,15 +32,19 @@ test('scanner lease: requeue only orphaned jobs after a crash, never live jobs',
         ('live-worker','scanning',54,360,391,'','active',now(),'2020-01-01T00:00:00Z'),
         ('orphan-legacy','scanning',54,360,391,'',NULL,NULL,'2020-01-01T00:00:00Z'),
         ('new-legacy','scanning',54,360,391,'',NULL,NULL,now()),
-        ('already-processing','processing',95,360,391,'','old','2020-01-01T00:00:00Z','2020-01-01T00:00:00Z')
+        ('already-processing','processing',95,360,391,'','old','2020-01-01T00:00:00Z','2020-01-01T00:00:00Z'),
+        ('hung-with-heartbeat','scanning',54,360,391,'','active',now(),'2020-01-01T00:00:00Z'),
+        ('long-pdf','scanning',54,360,391,'','active',now(),'2020-01-01T00:00:00Z')
     `)
+    await db.query("UPDATE import_jobs SET platform='pdf' WHERE id='long-pdf'")
     const recovered = await requeueInterruptedScans(db.query.bind(db))
-    assert.deepEqual(recovered.map(x=>x.id).sort(),['orphan-legacy','orphan-new'])
+    assert.deepEqual(recovered.map(x=>x.id).sort(),['hung-with-heartbeat','orphan-legacy','orphan-new'])
     const rows = (await db.query('SELECT * FROM import_jobs ORDER BY id')).rows
     assert.equal(rows.find(x=>x.id==='live-worker').status,'scanning')
     assert.equal(rows.find(x=>x.id==='new-legacy').status,'scanning')
     assert.equal(rows.find(x=>x.id==='already-processing').status,'processing')
-    for (const key of ['orphan-legacy','orphan-new']) {
+    assert.equal(rows.find(x=>x.id==='long-pdf').status,'scanning')
+    for (const key of ['hung-with-heartbeat','orphan-legacy','orphan-new']) {
       const row=rows.find(x=>x.id===key)
       assert.equal(row.status,'queued')
       assert.equal(row.progress,0)
