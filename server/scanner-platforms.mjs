@@ -47,7 +47,7 @@ function mediaUrls(value, baseUrl) {
 }
 
 
-// Public FácilZap catalog URLs can be https://facilzap.app.br/LOJA without
+// Public FácilZap catalog URLs can be https://facilzap.com.br/LOJA without
 // a trailing slash. Resolving produto/ID directly against that URL would
 // drop LOJA, so recovery could fetch a different page instead of the item.
 export function facilZapProductUrl(item, externalId, sourceUrl) {
@@ -55,7 +55,7 @@ export function facilZapProductUrl(item, externalId, sourceUrl) {
   if (/^https?:\/\//i.test(raw) || raw.startsWith('//')) return absolute(raw, sourceUrl)
   try {
     const origin = new URL(sourceUrl)
-    const isHosted = /^(?:www\.)?facilzap\.app\.br$/i.test(origin.hostname)
+    const isHosted = /^(?:www\.)?facilzap\.(?:app|com)\.br$/i.test(origin.hostname)
     const segments = origin.pathname.split('/').filter(Boolean)
     const storePrefix = isHosted && segments[0] && segments[0].toLowerCase() !== 'produto'
       ? '/' + segments[0] : ''
