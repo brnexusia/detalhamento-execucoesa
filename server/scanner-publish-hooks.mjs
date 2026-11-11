@@ -45,6 +45,7 @@ async function ensurePublisherSchema() {
     ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS skipped_no_image_count integer NOT NULL DEFAULT 0;
     ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS published_at timestamptz;
     ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS publish_mode text;
+    ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS target_catalog_id text;
     ALTER TABLE import_normalized_products ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
     ALTER TABLE import_normalized_products ADD COLUMN IF NOT EXISTS published_product_id text;
     ALTER TABLE import_normalized_products ADD COLUMN IF NOT EXISTS publish_result text NOT NULL DEFAULT '';
@@ -92,6 +93,7 @@ function publicResult(job, idempotent = false) {
       skipped_no_image_count: noPhotoCount,
       published_at: job.published_at || null,
       publish_mode: job.publish_mode || null,
+      target_catalog_id: job.target_catalog_id || null,
     },
     result: {
       selected: parentProducts,
@@ -382,6 +384,23 @@ async function publishJob(req, res) {
       await client.query('ROLLBACK')
       return res.status(400).json({ error: 'Modo de importação inválido.' })
     }
+    const targetCatalogId = String(req.body?.catalogId || '').trim().slice(0, 100)
+    if (!targetCatalogId) {
+      await client.query('ROLLBACK')
+      return res.status(400).json({ error: 'Selecione o catálogo de destino antes de publicar.' })
+    }
+    const target = await client.query(
+      'SELECT c.id,c.is_default,s.plan_tier FROM catalogs c JOIN stores s ON s.id=c.store_id WHERE c.id=$1 AND c.store_id=$2 AND c.active=true',
+      [targetCatalogId, store.store_id],
+    )
+    if (!target.rowCount) {
+      await client.query('ROLLBACK')
+      return res.status(404).json({ error: 'O catálogo de destino não existe mais nesta loja.' })
+    }
+    if (!target.rows[0].is_default && target.rows[0].plan_tier !== 'ouro') {
+      await client.query('ROLLBACK')
+      return res.status(403).json({ error: 'Catálogos adicionais exigem o plano Ouro.' })
+    }
     await assignPublishGroups(client, job.id, store.store_id,
       job.platform === 'pdf' && mode === 'separate', job.platform, onProgress)
 
@@ -464,12 +483,14 @@ async function publishJob(req, res) {
 
       const productRows = []
       const publishRows = []
+      const membershipByProduct = new Map()
       for (const item of preparedGroups) {
         const alreadyPublished = item.members.find((row) => row.published_product_id)
         if (alreadyPublished) {
           const result = alreadyPublished.publish_result || 'created'
           if (result === 'existing') skippedExisting += 1
           else created += 1
+          membershipByProduct.set(alreadyPublished.published_product_id, Number(item.prepared.data.price))
           for (const row of item.members) publishRows.push({ row_id: row.id, product_id: alreadyPublished.published_product_id, result })
           continue
         }
@@ -480,6 +501,7 @@ async function publishJob(req, res) {
         const existingId = skuKey ? existingBySku.get(skuKey) : null
         if (existingId) {
           skippedExisting += 1
+          membershipByProduct.set(existingId, Number(item.prepared.data.price))
           for (const row of item.members) publishRows.push({ row_id: row.id, product_id: existingId, result: 'existing' })
           continue
         }
@@ -502,6 +524,7 @@ async function publishJob(req, res) {
           pack: String(data.pack || '').trim().slice(0, 160),
           variations: Array.isArray(data.variations) ? data.variations : [],
         })
+        membershipByProduct.set(productId, Number(data.price))
         for (const row of item.members) publishRows.push({ row_id: row.id, product_id: productId, result: 'created' })
         created += 1
         if (skuKey) existingBySku.set(skuKey, productId)
@@ -516,6 +539,30 @@ async function publishJob(req, res) {
              id text,store_id text,sku text,name text,description text,price numeric,category text,media_url text,media_type text,images jsonb,variant_images jsonb,pack text,variations jsonb
            )`,
           [JSON.stringify(productRows)],
+        )
+      }
+      // A newly imported SKU must not leak into other implicit-membership
+      // catalogs (especially retail). Explicit user-made links remain untouched.
+      if (productRows.length) {
+        await client.query(
+          `INSERT INTO catalog_products(catalog_id,product_id,price_override,visible)
+           SELECT c.id,p.id,NULL,false
+           FROM catalogs c
+           CROSS JOIN jsonb_to_recordset($1::jsonb) AS p(id text)
+           WHERE c.store_id=$2 AND c.id<>$3 AND c.explicit_membership=false
+           ON CONFLICT(catalog_id,product_id) DO NOTHING`,
+          [JSON.stringify(productRows.map(row => ({ id: row.id }))), store.store_id, targetCatalogId],
+        )
+      }
+      if (membershipByProduct.size) {
+        const members = [...membershipByProduct].map(([product_id, price_override]) => ({ product_id, price_override }))
+        await client.query(
+          `INSERT INTO catalog_products(catalog_id,product_id,price_override,visible)
+           SELECT $1,p.product_id,p.price_override,true
+           FROM jsonb_to_recordset($2::jsonb) AS p(product_id text,price_override numeric)
+           ON CONFLICT(catalog_id,product_id)
+           DO UPDATE SET price_override=EXCLUDED.price_override,visible=true,updated_at=now()`,
+          [targetCatalogId, JSON.stringify(members)],
         )
       }
       if (publishRows.length) {
@@ -541,7 +588,7 @@ async function publishJob(req, res) {
 
     const updated = await client.query(
       `UPDATE import_jobs
-       SET status='completed',published_count=$1,skipped_existing_count=$2,publish_mode=$3,published_at=now(),updated_at=now()
+       SET status='completed',published_count=$1,skipped_existing_count=$2,publish_mode=$3,target_catalog_id=$6,published_at=now(),updated_at=now()
        WHERE id=$4 AND store_id=$5
        RETURNING *`,
       [created, skippedExisting, mode, job.id, store.store_id],
@@ -859,7 +906,16 @@ async function enqueuePublishJob(req,res){
   if(job.status!=='review')return res.status(409).json({error:'Revise os produtos antes de iniciar a publicação.'})
   const mode=pdfMode(req.body?.mode || '',job.platform)
   if(!mode)return res.status(400).json({error:'Modo de importação inválido.'})
-  const task=await publishTasks.enqueue(req.params.jobId,store.store_id,mode)
+  const catalogId=String(req.body?.catalogId||'').trim().slice(0,100)
+  if(!catalogId)return res.status(400).json({error:'Selecione o catálogo de destino antes de publicar.'})
+  const target=await pool.query(
+    'SELECT c.id,c.is_default,s.plan_tier FROM catalogs c JOIN stores s ON s.id=c.store_id WHERE c.id=$1 AND c.store_id=$2 AND c.active=true',
+    [catalogId,store.store_id])
+  if(!target.rowCount)return res.status(404).json({error:'Catálogo de destino inválido.'})
+  if(!target.rows[0].is_default&&target.rows[0].plan_tier!=='ouro')
+    return res.status(403).json({error:'Catálogos adicionais exigem o plano Ouro.'})
+  const task=await publishTasks.enqueue(req.params.jobId,store.store_id,mode,catalogId)
+  if(task?.catalogId!==catalogId)return res.status(409).json({error:'Esta publicação já está vinculada a outro catálogo. Aguarde sua conclusão.'})
   return res.status(202).json({progress:task})
 }
 
@@ -906,7 +962,7 @@ async function runPublishWorker(){
       json(value){this.payload=value;return this},
     }
     await publishJob({
-      params:{jobId:task.job_id},body:{mode:task.mode},
+      params:{jobId:task.job_id},body:{mode:task.mode,catalogId:task.target_catalog_id},
       __publishWorkerStore:{store_id:task.store_id},
       __publishWorkerProgress:onProgress,
     },res)
