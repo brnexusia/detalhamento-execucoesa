@@ -89,7 +89,11 @@ try {
   assert.equal(normalized.selected_count, TOTAL)
   assert.equal(normalized.duplicate_count, 0)
 
-  response = await api(`/api/admin/imports/${jobId}/publish`, account.cookie, { method: 'POST', body: '{}' })
+  const catalogResponse = await api('/api/admin/catalogs',account.cookie)
+  assert.equal(catalogResponse.status,200)
+  const catalogId = (await catalogResponse.json()).catalogs.find(c=>c.isDefault)?.id
+  assert.ok(catalogId)
+  response = await api(`/api/admin/imports/${jobId}/publish`, account.cookie, { method: 'POST', body: JSON.stringify({catalogId}) })
   assert.equal(response.status, 200)
   payload = await response.json()
   assert.equal(payload.job.status, 'completed')
@@ -101,7 +105,7 @@ try {
   const productCount = await db.query('SELECT count(*)::int AS count FROM products WHERE store_id=$1', [store.rows[0].id])
   assert.equal(Number(productCount.rows[0].count), TOTAL)
 
-  response = await api(`/api/admin/imports/${jobId}/publish`, account.cookie, { method: 'POST', body: '{}' })
+  response = await api(`/api/admin/imports/${jobId}/publish`, account.cookie, { method: 'POST', body: JSON.stringify({catalogId}) })
   assert.equal(response.status, 200)
   payload = await response.json()
   assert.equal(payload.idempotent, true)
