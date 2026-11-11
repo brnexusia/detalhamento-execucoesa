@@ -29,7 +29,7 @@ test('scanner lease: requeue only orphaned jobs after a crash, never live jobs',
         (id,status,progress,result_count,pages_scanned,error,scan_worker_token,scan_lease_at,updated_at)
       VALUES
         ('orphan-new','scanning',54,360,391,'','dead','2020-01-01T00:00:00Z',now()),
-        ('live-worker','scanning',54,360,391,'','active',now(),'2020-01-01T00:00:00Z'),
+        ('live-worker','scanning',54,360,391,'','active',now(),now()),
         ('orphan-legacy','scanning',54,360,391,'',NULL,NULL,'2020-01-01T00:00:00Z'),
         ('new-legacy','scanning',54,360,391,'',NULL,NULL,now()),
         ('already-processing','processing',95,360,391,'','old','2020-01-01T00:00:00Z','2020-01-01T00:00:00Z'),
