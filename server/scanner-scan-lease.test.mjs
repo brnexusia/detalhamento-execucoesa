@@ -3,6 +3,15 @@ import assert from 'node:assert/strict'
 import pg from 'pg'
 import { requeueInterruptedScans } from './scanner-scan-lease.mjs'
 
+test('orphaned recovery always exposes .rows for legacy scanner workers', async()=>{
+  const empty = await requeueInterruptedScans(async()=>({rows:[]}))
+  assert.deepEqual(empty.rows,[])
+  assert.ok(Symbol.iterator in Object(empty.rows),
+    'Orphaned recovery must be directly iterable via orphaned.rows')
+  const one = await requeueInterruptedScans(async()=>({rows:[{id:'stuck-job'}]}))
+  assert.deepEqual([...one.rows].map(row=>row.id),['stuck-job'])
+})
+
 test('scanner lease: requeue only orphaned jobs after a crash, never live jobs', {
   skip: !process.env.DATABASE_URL,
 }, async () => {
