@@ -177,7 +177,18 @@ export default function CatalogManager({storeSlug,categories,onSelect,onChanged}
      {catalogs.map(c=>{
        const available=c.active&&!c.lockedByPlan
        const activeSelection=selected?.id===c.id
-       return <article key={c.id} className={'svx-catalog-card'+(activeSelection?' is-selected':'')}>
+       return <article
+         key={c.id}
+         className={'svx-catalog-card'+(activeSelection?' is-selected':'')}
+         data-selectable={!busy}
+         onClick={(event) => {
+           if (busy || activeSelection) return
+           // Botões de ação, link público e campo de URL conservam suas funções.
+           const target=event.target
+           if (target instanceof Element && target.closest('button, a, input, select, textarea, label, [contenteditable="true"]')) return
+           choose(c)
+         }}
+       >
          <div className="svx-catalog-card__top">
            <button type="button" className="svx-catalog-card__name" aria-pressed={activeSelection} disabled={busy} onClick={()=>choose(c)}>{c.name}</button>
            <span className={'svx-catalog-card__status'+(available?' is-published':'')}>{c.lockedByPlan?'Bloqueado pelo plano':c.active?'Publicado':'Não publicado'}</span>
