@@ -259,18 +259,18 @@ assert.ok(!wrongFacilZap.images.some(isLocalShopvaxMedia),
   'Não associar foto de Brinco Importado a outro produto no fallback')
 
 
-const sourceGalego = 'https://galego.example/produto/789'
-const realGalegoImage = 'https://assets-cdn.facilzap.app.br/produtos/imagens/brinco-inox-original.webp'
-const guessedGalegoImage = 'https://arquivos.facilzap.app.br/produtos/brinco-inox-404.webp'
+const sourceGalego = 'https://facilzap.com.br/galegobijooux/produto/4419956'
+const realGalegoImage = 'https://assets-cdn.facilzap.app.br/produtos/imagens/1787876125_fb3aa3165caa45e86750.webp'
+const guessedGalegoImage = 'https://arquivos.facilzap.app.br/produtos/1787876125_fb3aa3165caa45e86750.webp'
 const detailGalegoHtml = `<!doctype html>
   <meta property="og:type" content="product.item">
   <meta property="og:title" content="Brinco Aço Inox">
   <meta property="og:image" content="${realGalegoImage}">
   <script>const DadosProduto = ${JSON.stringify({
-    id:'789',nome:'Brinco Aço Inox',imagens:['produtos/brinco-inox-404.webp'],
+    id:'4419956',nome:'Brinco Aço Inox',sku:'SKU-ORIGINAL',imagens:['produtos/1787876125_fb3aa3165caa45e86750.webp'],
   })};</script>
   <section class="product-gallery">
-    <img src="https://arquivos.facilzap.app.br/produtos/brinco-inox-404.webp"
+    <img src="${guessedGalegoImage}"
          data-full="${realGalegoImage}">
   </section>`
 const pageRequest = async (url) => url === sourceGalego
@@ -279,7 +279,7 @@ const pageRequest = async (url) => url === sourceGalego
     ? {ok:true,status:200,contentType:'image/webp',buffer:Buffer.from([0x52,0x49,0x46,0x46,0,0,0,0,0x57,0x45,0x42,0x50])}
     : {ok:false,status:404,contentType:'text/html',buffer:Buffer.alloc(0)}
 const verifiedGalegoImages = await recoverImportImagesFromSource(sourceGalego, {
-  name:'Brinco Aço Inox',sku:'',
+  name:'Brinco Aço Inox',sku:'FZ4419956',
 },{request:pageRequest})
 assert.equal(verifiedGalegoImages[0],realGalegoImage,
   'Prioriza o caminho real da galeria, em vez da URL presumida pelo scanner')
@@ -300,7 +300,7 @@ const galegoQuery = async (sql, params) => {
 const recoveredRealGalego = await localizeImportedProductMedia({
   query:galegoQuery,storeId:'store-galego',
   sourceUrl:sourceGalego,
-  product:{name:'Brinco Aço Inox',sku:'',media_type:'image',
+  product:{name:'Brinco Aço Inox',sku:'FZ4419956',media_type:'image',
     media_url:guessedGalegoImage,images:[guessedGalegoImage],variant_images:[]},
   request:pageRequest,
 })
@@ -320,7 +320,7 @@ const genericHtml = `<!doctype html><html><head>
   name:'Brinco Aço Inox',image:'https://outra-cdn.example/foto-real.jpg',
 })}</script>
 </head><body><script>const DadosProduto = ${JSON.stringify({
- id:'789',nome:'Brinco Aço Inox',imagens:['produtos/foto-anterior.jpg'],
+ id:'4419956',nome:'Brinco Aço Inox',imagens:['produtos/foto-anterior.jpg'],
 })};</script></body></html>`
 const verifiedMultipleSources = await recoverImportImagesFromSource(sourceGalego,{
  name:'Brinco Aço Inox',sku:'',
