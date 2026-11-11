@@ -6,6 +6,13 @@ on:
       - 'server/scanner-publish-async.integration.mjs'
       - 'server/scanner-publish-progress.mjs'
       - 'server/scanner-publish-hooks.mjs'
+      - 'server/scanner-hooks.mjs'
+      - 'server/scanner-work-scheduler.mjs'
+      - 'server/scanner-scan-lease.mjs'
+      - 'server/scanner-publish-media.mjs'
+      - 'server/scanner-pdf.mjs'
+      - 'server/scanner-pdf-chunks.mjs'
+      - 'server/scanner-collector.mjs'
       - '.github/workflows/validate-async-import-publishing.yml'
   pull_request:
     branches: [main]
@@ -40,6 +47,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
+      - run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends poppler-utils tesseract-ocr
       - run: npm install --no-audit --no-fund
       - run: |
           npm start > /tmp/shopvax-alexandre-server.log 2>&1 &
@@ -49,6 +57,11 @@ jobs:
           done
           tail -100 /tmp/shopvax-alexandre-server.log
           exit 1
+      - name: Run site, normalization and PDF full-import integration
+        run: |
+          node server/scanner-module2.integration.mjs
+          node server/scanner-module3.integration.mjs
+          node server/scanner-pdf.integration.mjs
       - run: node server/scanner-publish-async.integration.mjs
       - if: failure()
         run: tail -140 /tmp/shopvax-alexandre-server.log || true
