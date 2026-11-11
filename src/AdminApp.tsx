@@ -260,6 +260,13 @@ function Products({ data, revision, query, setQuery, onCreate, onEdit, onVisibil
   const effectiveSelected=allMatching?Math.max(0,total-excludedIds.length):selectedIds.length
   const isSelected=(id:string)=>allMatching?!excludedIds.includes(id):selected.has(id)
   const allLoadedSelected=visible.length>0&&visible.every(product=>isSelected(product.id))
+  // Ação destrutiva total: somente depois da seleção explícita de todos os
+  // resultados, sem filtros, exclusões ou dados pendentes de carregamento.
+  const wholeCatalogSelected=
+    selectionMode&&allMatching&&excludedIds.length===0&&total>0&&
+    !pageBusy&&!pageError&&query.trim()===''&&searchTerm.trim()===''&&
+    activeCategory==='Todas'&&
+    (activeCatalog&&!activeCatalog.isDefault||total===storeTotal)
 
   useEffect(() => { window.dispatchEvent(new Event('shopvax:products-ready')) }, [])
   useEffect(() => { setPage(1); setProducts([]); setSelectedIds([]); setAllMatching(false);setExcludedIds([]) }, [query, activeCategory, activeCatalog?.id, revision])
@@ -297,21 +304,18 @@ function Products({ data, revision, query, setQuery, onCreate, onEdit, onVisibil
   }
   const ask=(scope:'selected'|'matching'|'store'|'catalog',count:number)=>{
     if(!count||bulkBusy||bulkJobId)return
+    if((scope==='store'||scope==='catalog')&&!wholeCatalogSelected)return
     setIntent({scope,count});setConfirmation('');setActionError('')
-  }
-  const askEmptyCatalog=async()=>{
-    if(!activeCatalog||activeCatalog.isDefault)return
-    setBulkBusy(true)
-    try{
-      const r=await api.listAdminProducts({page:1,limit:1,catalogId:activeCatalog.id})
-      ask('catalog',r.pagination.total)
-    }catch(e){setActionError(e instanceof Error?e.message:'Não foi possível verificar o catálogo.')}
-    finally{setBulkBusy(false)}
   }
   const confirmPhrase=(scope:'selected'|'matching'|'store'|'catalog')=>
     scope==='store'?'EXCLUIR TUDO':activeCatalog&&!activeCatalog.isDefault?'ESVAZIAR CATÁLOGO':'EXCLUIR SELEÇÃO'
   const executeBulk=async()=>{
     if(!intent||confirmation!==confirmPhrase(intent.scope)||bulkBusy)return
+    if((intent.scope==='store'||intent.scope==='catalog')&&!wholeCatalogSelected){
+      setIntent(null)
+      setActionError('A seleção total mudou. Selecione todos os produtos novamente antes de continuar.')
+      return
+    }
     setBulkBusy(true);setActionError('')
     try{
       if(intent.scope==='selected'&&!allMatching){
@@ -435,24 +439,24 @@ function Products({ data, revision, query, setQuery, onCreate, onEdit, onVisibil
           <label><input type="checkbox" checked={allLoadedSelected} onChange={toggleLoaded} disabled={!visible.length||Boolean(bulkJobId)}/>
             <span>{allMatching?'Produtos desta página':'Selecionar '+visible.length+' carregados'}</span></label>
           <span>{effectiveSelected.toLocaleString('pt-BR')} selecionado(s)</span>
-          {!allMatching&&total>visible.length&&<button type="button" className="svx-products__all-results" onClick={()=>{setAllMatching(true);setSelectedIds([]);setExcludedIds([])}}>
+          {!allMatching&&total>0&&<button type="button" className="svx-products__all-results" disabled={pageBusy||Boolean(pageError)||query!==searchTerm||Boolean(bulkJobId)} onClick={()=>{setAllMatching(true);setSelectedIds([]);setExcludedIds([])}}>
             Selecionar todos os {total.toLocaleString('pt-BR')} resultados
           </button>}
           {allMatching&&<button type="button" className="svx-products__all-results" onClick={()=>{setAllMatching(false);setExcludedIds([]);setSelectedIds([])}}>Selecionar apenas carregados</button>}
-          <button type="button" className="secondary-action danger" disabled={!effectiveSelected||bulkBusy||Boolean(bulkJobId)} onClick={()=>ask(allMatching?'matching':'selected',effectiveSelected)}>
+          {!wholeCatalogSelected&&<button type="button" className="secondary-action danger" disabled={!effectiveSelected||bulkBusy||Boolean(bulkJobId)} onClick={()=>ask(allMatching?'matching':'selected',effectiveSelected)}>
             <Trash2 size={15}/>{activeCatalog&&!activeCatalog.isDefault?'Remover do catálogo':'Excluir selecionados'}
-          </button>
+          </button>}
         </>}
       </div>
-      <div className="product-bulk-toolbar__destructive">
+      {wholeCatalogSelected&&<div className="product-bulk-toolbar__destructive">
         {activeCatalog&&!activeCatalog.isDefault
-          ? <button type="button" className="svx-products__erase" disabled={bulkBusy||Boolean(bulkJobId)||!total&&!storeTotal} onClick={()=>void askEmptyCatalog()}>
+          ? <button type="button" className="svx-products__erase" disabled={bulkBusy||Boolean(bulkJobId)} onClick={()=>ask('catalog',total)}>
               Esvaziar catálogo
             </button>
-          : <button type="button" className="svx-products__erase" disabled={bulkBusy||Boolean(bulkJobId)||!storeTotal} onClick={()=>ask('store',storeTotal)}>
+          : <button type="button" className="svx-products__erase" disabled={bulkBusy||Boolean(bulkJobId)} onClick={()=>ask('store',storeTotal)}>
               Excluir tudo da loja
             </button>}
-      </div>
+      </div>}
     </div>
     {bulkJobId&&jobProgress&&<div className="svx-products__job" role="status">
       <strong>{jobProgress.status==='queued'?'Preparando operação…':'Processando produtos…'}</strong>
