@@ -444,6 +444,19 @@ export async function processImportJob(jobId, collector = collectCatalog) {
 
 export async function processNormalizationJob(jobId, normalizer = normalizeCandidates) {
   await ensureScannerSchema()
+  // Normalize each import exactly once across EasyPanel replicas. Without
+  // a cross-process lock, two instances can simultaneously delete/recreate
+  // review rows for the same PDF or website job.
+  const normalizerGuard = await pool.connect()
+  const lockKey = 'scanner-normalize:' + jobId
+  let acquired = false
+  try {
+    const lock = await normalizerGuard.query(
+      'SELECT pg_try_advisory_lock(hashtext($1)::bigint) AS ok',
+      [lockKey],
+    )
+    if (!lock.rows[0]?.ok) return null
+    acquired = true
   const claimed = await pool.query(
     `UPDATE import_jobs SET error='',updated_at=now()
      WHERE id=$1 AND status='processing' RETURNING *`,
@@ -552,6 +565,15 @@ export async function processNormalizationJob(jobId, normalizer = normalizeCandi
     const failed = await pool.query(`UPDATE import_jobs SET status='failed',error=$1,updated_at=now() WHERE id=$2 RETURNING *`, [message.slice(0, 2000), job.id])
     console.error('[scanner] normalization failed:', job.id, message)
     return publicJob(failed.rows[0])
+  }
+  } finally {
+    if (acquired) {
+      await normalizerGuard.query(
+        'SELECT pg_advisory_unlock(hashtext($1)::bigint)',
+        [lockKey],
+      ).catch(error => console.warn('[scanner] normalization unlock:', error.message))
+    }
+    normalizerGuard.release()
   }
 }
 
