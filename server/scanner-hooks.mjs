@@ -418,9 +418,26 @@ export async function processImportJob(jobId, collector = collectCatalog) {
   } finally {
     clearInterval(leaseTimer)
     if (job.platform === 'pdf') {
-      await pool.query('DELETE FROM import_pdf_uploads WHERE job_id=$1', [job.id]).catch((error) =>
-        console.warn('[scanner] PDF cleanup:', error.message))
-      await clearChunkedPdf(pool, job.id).catch((error) => console.warn('[scanner] PDF chunks cleanup:', error.message))
+      // A stale PDF worker must not remove the uploaded bytes after another
+      // worker has requeued or reclaimed that same job.
+      const pdfState = await pool.query(
+        'SELECT status,scan_worker_token FROM import_jobs WHERE id=$1',
+        [job.id],
+      ).catch(() => ({ rows:[] }))
+      const current = pdfState.rows[0]
+      const ownedOrFinished = current && (
+        current.status === 'processing' ||
+        current.status === 'review' ||
+        current.status === 'completed' ||
+        current.status === 'failed' ||
+        current.status === 'cancelled' ||
+        (current.status === 'scanning' && current.scan_worker_token === workerToken)
+      )
+      if (ownedOrFinished) {
+        await pool.query('DELETE FROM import_pdf_uploads WHERE job_id=$1', [job.id]).catch((error) =>
+          console.warn('[scanner] PDF cleanup:', error.message))
+        await clearChunkedPdf(pool, job.id).catch((error) => console.warn('[scanner] PDF chunks cleanup:', error.message))
+      }
     }
   }
 }
