@@ -39,9 +39,11 @@ jobs:
           node --check server/scanner-hooks.mjs
           node --check server/scanner-collector.mjs
           node --check server/scanner-scan-lease.mjs
+          node --check server/scanner-work-scheduler.mjs
           node --check scripts/diagnose-facilzap-import.mjs
       - run: node --test server/scanner-publish-media.test.mjs server/scanner-publish-progress.test.mjs server/scanner-alexandre-bijoux.test.mjs server/scanner-review-lock-order.test.mjs
       - run: node --test server/scanner-scan-lease.test.mjs
+      - run: node --test server/scanner-work-scheduler.test.mjs
       - run: node server/scanner-collector.test.mjs
       - run: node server/import-media-localizer.test.mjs
       - run: node --test server/scanner-platform-media-regression.test.mjs
