@@ -122,6 +122,29 @@ try{
  assert.equal(Number(wholesaleItems[0].stockUnits),2)
  assert.equal(Number(wholesaleItems[0].unitPrice),10)
 
+ // Alto Atacado is a separate catalog tier, never a renamed closed box.
+ // Until a tier price is configured, the ordinary unit price is used.
+ const highResponse=await post('/api/admin/catalogs',{
+   name:'Alto Atacado',kind:'alto_atacado',minimumOrder:15
+ },gold.cookie)
+ const highBody=await highResponse.json()
+ assert.equal(highResponse.status,201,JSON.stringify(highBody))
+ const highWholesale=highBody.catalog
+ assert.equal(highWholesale.kind,'alto_atacado')
+ await post('/api/admin/catalogs/'+highWholesale.id+'/members',{ids:[product.id],action:'add'},gold.cookie)
+ const highPublic=await (await get('/api/public/store/'+gold.slug+'?catalog='+highWholesale.slug)).json()
+ assert.equal(highPublic.activeCatalog.kind,'alto_atacado')
+ assert.equal(highPublic.products[0].price,10,'Alto atacado uses default unit pricing without box multiplication')
+ assert.equal(highPublic.products[0].unitsPerBox,1,'Alto atacado does not consume stock in boxes')
+ const highOrder=await post('/api/business/orders',{
+   storeSlug:gold.slug,catalogSlug:highWholesale.slug,
+   items:[{productId:product.id,quantity:2,selections:{}}]
+ },'')
+ assert.equal(highOrder.status,201,'High wholesale products remain orderable')
+ const highItems=(await pool.query('SELECT items FROM orders WHERE id=$1',[(await highOrder.json()).orderId])).rows[0].items
+ assert.equal(Number(highItems[0].stockUnits),2)
+ assert.equal(Number(highItems[0].unitPrice),10)
+
  const invalidKind=await post('/api/admin/catalogs',{name:'Inválido',kind:'qualquer'},gold.cookie)
  assert.equal(invalidKind.status,400,'Tipos desconhecidos não devem virar Geral silenciosamente')
  const missingCustom=await post('/api/admin/catalogs',{name:'Catálogo sob encomenda',kind:'personalizado'},gold.cookie)
@@ -154,7 +177,18 @@ try{
  const customPdf=await get('/api/admin/catalogs/'+custom.id+'/pdf',gold.cookie)
  assert.equal(customPdf.status,200,'Personalizado também permite PDF')
  await customPdf.arrayBuffer()
- for(const c of [custom,wholesale]){
+ for (const format of ['Pacote','6 unidades','Caixa fechada']) {
+   const mode=format==='Caixa fechada'?'caixa_fechada':'base'
+   const formatResult=await post('/api/admin/catalogs/'+custom.id,{
+     kind:'personalizado',customLabel:format,priceMode:mode,minimumOrder:20
+   },gold.cookie,'PATCH')
+   assert.equal(formatResult.status,200,'Custom format is editable: '+format)
+   const persisted=(await (await get('/api/admin/catalogs',gold.cookie)).json()).catalogs.find(c=>c.id===custom.id)
+   assert.equal(persisted.kind,'personalizado')
+   assert.equal(persisted.customLabel,format)
+   assert.equal(persisted.priceMode,mode)
+ }
+ for(const c of [custom,wholesale,highWholesale]){
    const removed=await fetch(base+'/api/admin/catalogs/'+c.id,{method:'DELETE',headers:{cookie:gold.cookie}})
    assert.equal(removed.status,204,'Remover catálogo preserva base de produtos')
  }
