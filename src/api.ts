@@ -240,6 +240,14 @@ export const api = {
   me: () => request<{ user: { id: string; name: string; email: string }; store: { id: string; slug: string; name: string; plan_tier?: string } }>('/api/auth/me'),
   bootstrap: () => request<AdminBootstrap>('/api/admin/bootstrap'),
   bootstrapCompact: () => request<AdminBootstrap>('/api/admin/bootstrap?compact=1'),
+  listAdminProductCategories: (catalogId?: string) => {
+    const params = new URLSearchParams()
+    if (catalogId) params.set('catalogId', catalogId)
+    const suffix = params.toString()
+    return request<{ catalogId: string | null; total: number; categories: Array<{ category: string; count: number }> }>(
+      '/api/admin/products/categories' + (suffix ? '?' + suffix : ''),
+    )
+  },
   listAdminProducts: (options: { page: number; limit?: number; q?: string; category?: string; catalogId?: string }) => {
     const params = new URLSearchParams({ page: String(options.page), limit: String(options.limit || 18) })
     if (options.q?.trim()) params.set('q', options.q.trim())
