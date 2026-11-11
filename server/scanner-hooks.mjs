@@ -12,7 +12,7 @@ import { whatsappCatalogPhone, uazapiCatalogConfig } from './scanner-uazapi-cata
 import { sharedPhotoSourceKind } from './scanner-photo-albums.mjs'
 import { normalizeCandidates } from './scanner-normalizer.mjs'
 import { prepareReview } from './scanner-review.mjs'
-import { requeueInterruptedScans } from './scanner-scan-lease.mjs'
+import { requeueInterruptedScans, retryInterruptedScan } from './scanner-scan-lease.mjs'
 
 const { Pool } = pg
 const databaseUrl = process.env.DATABASE_URL?.trim() || ''
@@ -622,6 +622,36 @@ function installScannerRoutes(app) {
   router.get('/', requireStore, asyncRoute(async (req, res) => {
     const result = await pool.query(`SELECT * FROM import_jobs WHERE store_id=$1 ORDER BY created_at DESC LIMIT 10`, [req.scannerStore.store_id])
     res.json({ jobs: result.rows.map(publicJob) })
+  }))
+
+  // UI recovery for scanner jobs abandoned by a process/container restart.
+  // A renewed heartbeat proves the scanner is alive; never steal its lease.
+  router.post('/:jobId/retry-stalled', requireStore, asyncRoute(async (req, res) => {
+    const recovered = await retryInterruptedScan(pool.query.bind(pool), {
+      jobId:req.params.jobId,
+      storeId:req.scannerStore.store_id,
+    })
+    if (!recovered) {
+      const found = await pool.query(
+        'SELECT status,scan_lease_at,updated_at FROM import_jobs WHERE id=$1 AND store_id=$2 LIMIT 1',
+        [req.params.jobId, req.scannerStore.store_id],
+      )
+      if (!found.rowCount) return res.status(404).json({ error:'Importação não encontrada.' })
+      return res.status(409).json({
+        error:found.rows[0].status === 'scanning'
+          ? 'O scanner continua ativo ou sua última atualização ainda é recente. Aguarde a verificação automática.'
+          : 'Essa importação não está interrompida e não precisa ser retomada.',
+      })
+    }
+    if (!workerDisabled) setImmediate(() => void runNextWork())
+    const job = await pool.query('SELECT * FROM import_jobs WHERE id=$1 AND store_id=$2 LIMIT 1', [
+      req.params.jobId,req.scannerStore.store_id,
+    ])
+    return res.status(202).json({
+      restarted:true,
+      job:job.rows[0] ? publicJob(job.rows[0]) : null,
+      message:'Importação retomada; a captura será refeita para manter o catálogo completo.',
+    })
   }))
 
 
