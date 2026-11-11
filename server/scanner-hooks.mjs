@@ -8,6 +8,7 @@ import { requireCompleteCatalog } from './scanner-import-completeness.mjs'
 import { traceUpload } from './upload-request-logging.mjs'
 import { ensurePdfChunkSchema, installChunkedPdfRoutes, loadChunkedPdf, clearChunkedPdf } from './scanner-pdf-chunks.mjs'
 import { collectCatalog } from './scanner-collector.mjs'
+import { isTransientScannerNetworkError } from './scanner-network-retry.mjs'
 import { whatsappCatalogPhone, uazapiCatalogConfig } from './scanner-uazapi-catalog.mjs'
 import { sharedPhotoSourceKind } from './scanner-photo-albums.mjs'
 import { normalizeCandidates } from './scanner-normalizer.mjs'
@@ -115,6 +116,8 @@ export async function ensureScannerSchema() {
       ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS pages_scanned integer NOT NULL DEFAULT 0;
       ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS scan_lease_at timestamptz;
       ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS scan_worker_token text;
+      ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS scan_next_page integer NOT NULL DEFAULT 1;
+      ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS scan_network_retries integer NOT NULL DEFAULT 0;
       ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS normalized_count integer NOT NULL DEFAULT 0;
       ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS warning_count integer NOT NULL DEFAULT 0;
       ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS duplicate_count integer NOT NULL DEFAULT 0;
@@ -299,6 +302,7 @@ export async function processImportJob(jobId, collector = collectCatalog) {
   if (!claimed.rowCount) return null
   const job = claimed.rows[0]
   let persistedBatches = 0
+  let scanningPlatform = String(job.platform || '')
   const storedImportAssetIds = []
   // A process can die after claiming a job. Other replicas may reclaim it
   // only after this lease stops being renewed; no in-flight job is reset.
@@ -339,13 +343,46 @@ export async function processImportJob(jobId, collector = collectCatalog) {
   }
 
   try {
+    const proposedResumePage = job.platform === 'facilzap'
+      ? Math.max(1, Number(job.scan_next_page || 1)) : 1
+    const priorCandidates = proposedResumePage > 1
+      ? await pool.query(
+        'SELECT count(*)::int AS count FROM import_candidates WHERE job_id=$1 AND store_id=$2',
+        [job.id, job.store_id],
+      ) : { rows:[{ count:0 }] }
+    const savedCount = Number(priorCandidates.rows[0]?.count || 0)
+    const resumePage = proposedResumePage > 1 && savedCount > 0 ? proposedResumePage : 1
     await pool.query('DELETE FROM import_normalized_products WHERE job_id=$1', [job.id])
-    await pool.query('DELETE FROM import_candidates WHERE job_id=$1', [job.id])
+    if (resumePage === 1) {
+      await pool.query('DELETE FROM import_candidates WHERE job_id=$1', [job.id])
+      await pool.query(
+        "UPDATE import_jobs SET scan_next_page=1 WHERE id=$1 AND scan_worker_token=$2",
+        [job.id, workerToken],
+      )
+    }
+    if (resumePage > 1) console.warn('[scanner] resuming large FácilZap import:', {
+      jobId:job.id, nextPage:resumePage, savedProducts:savedCount,
+    })
 
     const collectorOptions = {
+      resumePage,
+      initialCandidatesCount: resumePage > 1 ? savedCount : 0,
+      resumePagesScanned: resumePage > 1 ? Number(job.pages_scanned || 1) : 1,
+      onPageCheckpoint: async ({ nextPage, pagesScanned, candidates }) => {
+        const checkpoint = await pool.query(
+          `UPDATE import_jobs
+           SET scan_next_page=GREATEST(scan_next_page,$1),
+               pages_scanned=GREATEST(pages_scanned,$2),
+               result_count=GREATEST(result_count,$3),updated_at=now()
+           WHERE id=$4 AND status='scanning' AND scan_worker_token=$5 RETURNING id`,
+          [nextPage, pagesScanned, candidates, job.id, workerToken],
+        )
+        if (!checkpoint.rowCount) throw new Error('O scanner perdeu a reserva; checkpoint não gravado.')
+      },
       collectInMemory: false,
       onBatch: persistBatch,
       onProgress: async ({ progress, pagesScanned, candidates, platform }) => {
+        if (platform) scanningPlatform = String(platform)
         await pool.query(
           `UPDATE import_jobs
            SET progress=GREATEST(progress,$1),pages_scanned=GREATEST(pages_scanned,$2),result_count=GREATEST(result_count,$3),platform=CASE WHEN $4<>'' THEN $4 ELSE platform END,updated_at=now()
@@ -404,9 +441,19 @@ export async function processImportJob(jobId, collector = collectCatalog) {
       await pool.query('DELETE FROM media_assets WHERE store_id=$1 AND id=ANY($2::text[])', [job.store_id, storedImportAssetIds]).catch((cleanupError) =>
         console.warn('[scanner] imported media cleanup:', cleanupError.message))
     }
+    // A transient error after a successfully persisted FácilZap page is
+    // recoverable. Keep the durable checkpoint and candidate rows; they are
+    // NEVER published unless the next attempt confirms the final page.
+    const transientNetworkFailure = isTransientScannerNetworkError(error)
+    const checkpoint = transientNetworkFailure && scanningPlatform === 'facilzap'
+      ? await pool.query(
+        'SELECT scan_next_page FROM import_jobs WHERE id=$1 AND scan_worker_token=$2',
+        [job.id, workerToken],
+      ).catch(() => ({ rows:[] })) : { rows:[] }
+    const keepCheckpoint = Number(checkpoint.rows[0]?.scan_next_page || 1) > 1
     try {
       await pool.query('DELETE FROM import_normalized_products WHERE job_id=$1', [job.id])
-      await pool.query('DELETE FROM import_candidates WHERE job_id=$1', [job.id])
+      if (!keepCheckpoint) await pool.query('DELETE FROM import_candidates WHERE job_id=$1', [job.id])
     } catch {}
     const message = error instanceof Error ? error.message : String(error)
     const failed = await pool.query(
