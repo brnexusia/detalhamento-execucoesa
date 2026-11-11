@@ -218,7 +218,7 @@ export default function CatalogManager({storeSlug,categories,onSelect,onChanged}
            <option value="alto_atacado">Alto Atacado</option>
            <option value="personalizado">Personalizado</option>
          </select></label>
-         {kind==='alto_atacado'&&<small>Preço unitário principal, podendo ser ajustado individualmente por catálogo. Não utiliza o preço por caixa fechada.</small>}
+         {kind==='alto_atacado'&&<small>Usa o preço principal por unidade, sem desconto automático nem multiplicação por caixa.</small>}
          {kind==='personalizado'&&<>
            <label>Formato personalizado<select value={customFormat} onChange={e=>changeCustomFormat(e.target.value)} disabled={busy||Boolean(selected?.lockedByPlan)&&pane==='settings'}>
              <option value="">Selecione um formato</option>
