@@ -11,6 +11,7 @@ import ShopvaxThemesPanel from './ShopvaxThemesPanel'
 import ShopvaxOrders from './ShopvaxOrders'
 import AdminNavigation from './AdminNavigation'
 import CatalogManager from './CatalogManager'
+import ThinCategoryScroll from './ThinCategoryScroll'
 import CommercialSettingsPanel from './CommercialSettingsPanel'
 import { confirmAction } from './ui-dialogs'
 import { confirmNavigationIfDirty } from './unsaved-changes'
@@ -419,10 +420,10 @@ function Products({ data, revision, query, setQuery, onCreate, onEdit, onVisibil
       }}
       onChanged={onRefreshed}/>
     <div className="svx-products__toolbar">
-      <nav className="svx-products__categories" aria-label="Filtrar produtos por categoria">
+      <ThinCategoryScroll refreshKey={categories.map((item) => item.category).join('|')}>
         <button type="button" aria-pressed={activeCategory === 'Todas'} className={activeCategory === 'Todas' ? 'is-active' : ''} onClick={() => setActiveCategory('Todas')}>Todos <small>{storeTotal}</small></button>
         {categories.map((item) => <button type="button" key={item.category} aria-pressed={activeCategory === item.category} className={activeCategory === item.category ? 'is-active' : ''} onClick={() => setActiveCategory(item.category)}>{item.category} {(!activeCatalog||activeCatalog.isDefault)&&<small>{item.count}</small>}</button>)}
-      </nav>
+      </ThinCategoryScroll>
       <label className="svx-products__search"><Search size={16} aria-hidden="true" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nome ou referência" aria-label="Buscar produto por nome, referência ou categoria" /></label>
     </div>
     <div className="product-bulk-toolbar product-bulk-toolbar--sticky" aria-label="Ações em produtos">
