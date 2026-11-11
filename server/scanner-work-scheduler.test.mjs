@@ -84,7 +84,7 @@ test('automatic recovery starts a new attempt without old promise clearing its l
   let recovery=false
   const scheduler=createScannerWorkScheduler({
     ensureSchema:async()=>{},
-    recover:async()=>recovery ? [{id:'interrupted-site'}] : [],
+    recover:async()=>recovery ? { rows:[{id:'interrupted-site'}] } : { rows:[] },
     findNext:async lane=>lane==='site'?queue.shift():null,
     processScan:async id=>{
       scanRuns.push(id)
@@ -108,4 +108,52 @@ test('automatic recovery starts a new attempt without old promise clearing its l
   second.resolve()
   await flush()
   assert.equal(scheduler.active().site,undefined)
+})
+
+test('queue continues despite a failed orphan-recovery query', async()=>{
+  const started=[],errors=[]
+  const queue=[{id:'pdf-recovery-error'}]
+  const scheduler=createScannerWorkScheduler({
+    ensureSchema:async()=>{},
+    recover:async()=>{throw new TypeError('recovery endpoint mismatch')},
+    findNext:async lane=>lane==='pdf' ? queue.shift() : null,
+    processScan:async id=>{started.push(id)},
+    processNormalization:async()=>{},
+    log:(message,error)=>errors.push(message+' '+String(error?.message || error || '')),
+  })
+  await scheduler.tick()
+  await flush()
+  assert.deepEqual(started,['pdf-recovery-error'])
+  assert.equal(errors.length,1)
+  assert.match(errors[0],/recovery endpoint mismatch/)
+})
+
+test('query result with rows is compatible with automatic recover and scan claims',async()=>{
+  const queue=[{id:'site-after-recover'}]
+  const recovered=[]
+  const scheduler=createScannerWorkScheduler({
+    ensureSchema:async()=>{},
+    recover:async()=>({ rows:[{id:'old-site'}] }),
+    findNext:async lane=>lane==='site'?queue.shift():null,
+    processScan:async id=>{recovered.push(id)},
+    processNormalization:async()=>{},
+    log:()=>{},
+  })
+  await scheduler.tick()
+  await flush()
+  assert.deepEqual(recovered,['site-after-recover'])
+})
+
+test('a malformed recovery response does not block the import queue', async()=>{
+  const started=[]
+  const scheduler=createScannerWorkScheduler({
+    ensureSchema:async()=>{},
+    recover:async()=>({ wrongField:[] }),
+    findNext:async lane=>lane==='pdf'?{id:'pdf-after-malformed-response'}:null,
+    processScan:async id=>{started.push(id)},
+    processNormalization:async()=>{},
+  })
+  await scheduler.tick()
+  await flush()
+  assert.deepEqual(started,['pdf-after-malformed-response'])
 })
