@@ -12,6 +12,7 @@ type Job = {
   selected_count: number
   warning_count: number
   duplicate_count: number
+  target_catalog_id?: string | null
 }
 
 type Destination = { id: string; name: string; isDefault: boolean; lockedByPlan?: boolean }
@@ -148,11 +149,11 @@ export default function ScannerPublishModule() {
   }, [open])
 
   useEffect(() => {
-    if (!open || !activeCatalogId) return
+    if (!open) return
     setDestinations(current => {
       const next = {...current}
       for (const job of readyJobs) {
-        if (!next[job.id]) next[job.id] = activeCatalogId
+        if (!next[job.id] && (job.target_catalog_id || activeCatalogId)) next[job.id] = job.target_catalog_id || activeCatalogId
       }
       return next
     })
