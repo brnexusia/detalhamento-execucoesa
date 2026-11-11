@@ -462,3 +462,85 @@
 @media(max-width:650px){.svx-products__catalog-heading{flex-direction:column;align-items:stretch}.product-bulk-toolbar--sticky{top:0;padding:8px}.product-bulk-toolbar--sticky .product-bulk-toolbar__primary{gap:7px}.product-bulk-toolbar--sticky .product-bulk-toolbar__destructive{width:100%}.product-bulk-toolbar--sticky .svx-products__erase{width:100%;justify-content:center}.svx-products__job{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:no-preference){.svx-products__confirm-card{animation:svx-arrive .2s ease-out both}}
 @media(prefers-reduced-motion:reduce){.svx-products__confirm-card{animation:none}}
+
+
+/* Refinamento suave e exclusivo da página Produtos.
+   Preserva a identidade editorial e a barra de categorias ultrafina. */
+.panel-shell .svx-products {
+  --svx-products-radius-sm: 5px;
+  --svx-products-radius-md: 7px;
+  --svx-products-radius-lg: 10px;
+}
+
+/* Cartões de catálogos e ações principais: cantos discretos, sem formato pílula. */
+.panel-shell .svx-products .svx-catalog-card {
+  border-radius: var(--svx-products-radius-lg);
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+.panel-shell .svx-products .svx-catalog-card__link input,
+.panel-shell .svx-products .svx-products__search {
+  border-radius: var(--svx-products-radius-md);
+}
+.panel-shell .svx-products :is(
+  .svx-catalog-card__actions button,
+  .svx-catalog-card__actions a,
+  .svx-catalog-inline__buttons button,
+  .svx-products__load-more,
+  .product-bulk-toolbar--sticky button,
+  .svx-products__more .svx-products__delete,
+  .svx-products__confirm-card footer button
+) {
+  border-radius: var(--svx-products-radius-sm);
+}
+.panel-shell .svx-products .svx-products__top-actions .primary-action {
+  border-radius: var(--svx-products-radius-md);
+}
+.panel-shell .svx-products .svx-products__top-actions .scanner-entry-button {
+  padding-inline: 10px;
+  border-radius: var(--svx-products-radius-sm);
+}
+.panel-shell .svx-products .svx-products__top-actions .scanner-entry-button:hover {
+  background: rgba(22, 21, 20, .045);
+}
+
+/* Painel de seleção em massa, fotos, menus e indicadores de produtos. */
+.panel-shell .svx-products .product-bulk-toolbar--sticky {
+  border-radius: var(--svx-products-radius-md);
+}
+.panel-shell .svx-products .product-admin-card.is-selected {
+  border-radius: var(--svx-products-radius-md);
+}
+.panel-shell .svx-products .product-admin-card__media,
+.panel-shell .svx-products .svx-products__featured,
+.panel-shell .svx-products .svx-products__more summary {
+  border-radius: var(--svx-products-radius-sm);
+}
+.panel-shell .svx-products .svx-products__edit {
+  border-radius: var(--svx-products-radius-sm);
+  padding-inline: 8px;
+}
+.panel-shell .svx-products .svx-products__edit:hover,
+.panel-shell .svx-products .svx-products__more summary:hover {
+  background: rgba(22, 21, 20, .05);
+}
+.panel-shell .svx-products .svx-products__job {
+  border-radius: var(--svx-products-radius-md);
+}
+
+/* Diálogos da área de Produtos acompanham os mesmos raios. */
+.panel-shell .svx-products :is(.svx-catalog-dialog__card, .svx-products__confirm-card) {
+  border-radius: var(--svx-products-radius-lg);
+}
+.panel-shell .svx-products :is(
+  .svx-catalog-dialog__card input:not([type="checkbox"]),
+  .svx-catalog-dialog__card select,
+  .svx-catalog-dialog__card button,
+  .svx-products__confirm-card input
+) {
+  border-radius: var(--svx-products-radius-sm);
+}
+
+/* Texto/abas e a linha laranja de rolagem mantêm o tratamento original. */
+@media (prefers-reduced-motion: reduce) {
+  .panel-shell .svx-products .svx-catalog-card { transition: none; }
+}
