@@ -15,6 +15,7 @@ const products=Array.from({length:18},(_,i)=>({
  id:'product-'+(i+1),name:'Bolsa '+(i+1),sku:'R'+(i+1),description:'',price:29.99,category:'Bolsas',media_url:'',
  media_type:'image',variations:[],images:[],featured:false,active:true,pack:'',stock_enabled:false,stock_quantity:0,variant_stock:{}
 }))
+const retailProducts=[{...products[0],category:'Bijuterias'}]
 const browser=await chromium.launch({headless:true})
 const json=(body,status=200)=>({status,contentType:'application/json',body:JSON.stringify(body)})
 mkdirSync('artifacts/shopvax-products',{recursive:true})
@@ -25,16 +26,25 @@ try{
   await page.route('**/api/billing/status',r=>r.fulfill(json({required:false,accessGranted:true})))
   await page.route('**/api/admin/bootstrap?compact=1',r=>r.fulfill(json(data)))
   await page.route('**/api/admin/catalogs',r=>r.fulfill(json({catalogs:[general,retail],canCreateMultiple:true})))
+  await page.route('**/api/admin/products/categories**',r=>{
+    const catalogId=new URL(r.request().url()).searchParams.get('catalogId')||general.id
+    const body=catalogId===retail.id
+      ? {catalogId:retail.id,total:1,categories:[{category:'Bijuterias',count:1}]}
+      : {catalogId:general.id,total:100,categories:[{category:'Bolsas',count:100}]}
+    return r.fulfill(json(body))
+  })
   await page.route('**/api/admin/products?**',r=>{
     const url=new URL(r.request().url())
     const current=url.searchParams.get('catalogId')||general.id
-    const list=current===retail.id?products.slice(0,1):products
+    const list=current===retail.id?retailProducts:products
     return r.fulfill(json({products:list,pagination:{page:1,limit:18,total:current===retail.id?1:100}}))
   })
   await page.goto(base+'/painel/produtos',{waitUntil:'domcontentloaded'})
   await page.getByRole('heading',{name:'Produtos',exact:true}).waitFor({timeout:30000})
   await page.getByRole('button',{name:'Catálogo principal'}).waitFor({timeout:30000})
   await page.getByRole('heading',{name:'Meus catálogos'}).waitFor()
+  await page.locator('.svx-products__categories').getByRole('button',{name:/Todos 100/}).waitFor()
+  assert.equal(await page.locator('.svx-products__categories').getByRole('button',{name:/Bolsas 100/}).count(),1)
   const catalogCards=page.locator('.svx-catalog-card')
   assert.equal(await catalogCards.count(),2,'Catálogos da mesma loja precisam ter cartões e URLs individuais')
   const retailCard=catalogCards.filter({has:page.getByRole('button',{name:'Minha Vitrine'})})
@@ -48,10 +58,19 @@ try{
   await page.getByRole('button',{name:/Selecionar todos os 100 resultados/}).waitFor()
   await page.getByRole('button',{name:/Selecionar todos os 100 resultados/}).click()
   assert.match(await page.locator('.product-bulk-toolbar').innerText(),/100 selecionado/)
+  await page.getByRole('button',{name:'Excluir tudo da loja'}).waitFor()
   await page.getByRole('button',{name:'Cancelar seleção'}).click()
+  assert.equal(await page.getByRole('button',{name:'Excluir tudo da loja'}).count(),0)
   await page.getByRole('button',{name:'Minha Vitrine'}).click()
+  await page.locator('.svx-products__categories').getByRole('button',{name:/Todos 1/}).waitFor()
+  assert.equal(await page.locator('.svx-products__categories').getByRole('button',{name:/Bolsas/}).count(),0,'Categoria exclusiva da outra vitrine não pode aparecer')
+  assert.equal(await page.locator('.svx-products__categories').getByRole('button',{name:/Bijuterias 1/}).count(),1)
   await page.waitForFunction(()=>document.querySelectorAll('.product-admin-card').length===1)
+  assert.equal(await page.getByRole('button',{name:'Esvaziar catálogo'}).count(),0,'Esvaziar requer seleção total explícita')
+  await page.getByRole('button',{name:'Selecionar produtos'}).click()
+  await page.getByRole('button',{name:/Selecionar todos os 1 resultados/}).click()
   await page.getByRole('button',{name:'Esvaziar catálogo'}).waitFor()
+  await page.getByRole('button',{name:'Cancelar seleção'}).click()
   await page.getByRole('button',{name:/Criar catálogo/}).click()
   const createDialog=page.getByRole('dialog',{name:'Criar catálogo'})
   await createDialog.waitFor()
@@ -76,6 +95,10 @@ try{
   assert.equal(await createDialog.getByLabel('Nome do tipo personalizado').inputValue(),'Consignado')
   await page.getByRole('button',{name:'Fechar'}).last().click()
   await page.getByRole('button',{name:'Catálogo principal'}).click()
+  await page.locator('.svx-products__categories').getByRole('button',{name:/Todos 100/}).waitFor()
+  assert.equal(await page.locator('.svx-products__categories').getByRole('button',{name:/Bijuterias/}).count(),0,'Categorias da vitrine secundária não podem vazar')
+  await page.getByRole('button',{name:'Selecionar produtos'}).click()
+  await page.getByRole('button',{name:/Selecionar todos os 100 resultados/}).click()
   await page.getByRole('button',{name:'Excluir tudo da loja'}).click()
   await page.getByRole('dialog',{name:/Excluir todos os produtos/}).waitFor()
   assert.match(await page.getByRole('dialog').innerText(),/EXCLUIR TUDO/)
