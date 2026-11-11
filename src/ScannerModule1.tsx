@@ -534,7 +534,10 @@ export default function ScannerModule1() {
           </form>
           <div className="scanner-jobs">
             <div><strong>Importações recentes</strong><small>{loadingJobs ? 'Atualizando…' : jobs.length ? `${jobs.length} registro(s)` : 'Nenhuma ainda'}</small></div>
-            {jobs.slice(0, 5).map((job) => <article key={job.id}>
+            {jobs.slice(0, 5).map((job) => <article
+              key={job.id}
+              className={job.status === 'completed' && !job.target_catalog_id ? 'scanner-job--catalog-repair' : undefined}
+            >
               <div>
                 <strong>{job.source_host}</strong>
                 <small>{jobDetails(job)}</small>
