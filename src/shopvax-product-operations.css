@@ -89,15 +89,15 @@
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: thin;
-  scrollbar-color: #aaa49a transparent;
+  scrollbar-color: var(--svx-orange, #F25C05) transparent;
   scroll-padding-inline: 12px;
   white-space: nowrap;
   overscroll-behavior-inline: contain;
 }
 /* Give the horizontal thumb its own space below the category labels. */
-.svx-products__categories::-webkit-scrollbar { height: 5px; }
+.svx-products__categories::-webkit-scrollbar { height: 3px; }
 .svx-products__categories::-webkit-scrollbar-track { background: transparent; }
-.svx-products__categories::-webkit-scrollbar-thumb { background: #aaa49a; border-radius: 999px; }
+.svx-products__categories::-webkit-scrollbar-thumb { background: var(--svx-orange, #F25C05); border-radius: 999px; }
 .svx-products__categories button {
   display: inline-flex;
   flex: 0 0 auto;
