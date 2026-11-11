@@ -75,3 +75,37 @@ test('one failed scan releases its own lane',async()=>{
   assert.deepEqual(started,['site-bad','site-good'])
   assert.ok(errors.some(x=>x.includes('Network failed')))
 })
+
+test('automatic recovery starts a new attempt without old promise clearing its lane',async()=>{
+  const first=deferred()
+  const second=deferred()
+  const scanRuns=[]
+  const queue=[{id:'interrupted-site'}]
+  let recovery=false
+  const scheduler=createScannerWorkScheduler({
+    ensureSchema:async()=>{},
+    recover:async()=>recovery ? [{id:'interrupted-site'}] : [],
+    findNext:async lane=>lane==='site'?queue.shift():null,
+    processScan:async id=>{
+      scanRuns.push(id)
+      return scanRuns.length===1 ? first.promise : second.promise
+    },
+    processNormalization:async()=>{},
+    log:()=>{},
+  })
+  await scheduler.tick()
+  await flush()
+  assert.equal(scheduler.active().site,'interrupted-site')
+  recovery=true
+  queue.push({id:'interrupted-site'})
+  await scheduler.tick()
+  await flush()
+  assert.equal(scanRuns.length,2)
+  first.resolve()
+  await flush()
+  assert.equal(scheduler.active().site,'interrupted-site',
+    'Old attempt must not unset the recovered attempt')
+  second.resolve()
+  await flush()
+  assert.equal(scheduler.active().site,undefined)
+})
