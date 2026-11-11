@@ -113,6 +113,7 @@ export async function ensureScannerSchema() {
         CHECK (progress >= 0 AND progress <= 100)
       );
       ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS platform text NOT NULL DEFAULT '';
+      ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS target_catalog_id text;
       ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS pages_scanned integer NOT NULL DEFAULT 0;
       ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS scan_lease_at timestamptz;
       ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS scan_worker_token text;
@@ -220,6 +221,7 @@ function publicJob(row) {
     published_count: Number(row.published_count || 0),
     skipped_existing_count: Number(row.skipped_existing_count || 0),
     publish_mode: row.publish_mode || null,
+    target_catalog_id: row.target_catalog_id || null,
     platform: row.platform || '',
     pages_scanned: Number(row.pages_scanned || 0),
     error: row.error || '',
