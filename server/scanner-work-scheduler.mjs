@@ -12,12 +12,15 @@ export function createScannerWorkScheduler({
   const running = new Map()
   const launch = (lane, jobId) => {
     if (running.has(lane)) return
-    running.set(lane, jobId)
+    // Unique ownership prevents a stale worker's finally from clearing
+    // a newer attempt of the same job after automatic lease recovery.
+    const attempt = { jobId }
+    running.set(lane, attempt)
     void Promise.resolve()
       .then(() => lane === 'normalization' ? processNormalization(jobId) : processScan(jobId))
       .catch(error => log('[scanner] ' + lane + ' worker:', error))
       .finally(() => {
-        if (running.get(lane) === jobId) running.delete(lane)
+        if (running.get(lane) === attempt) running.delete(lane)
       })
   }
 
@@ -28,7 +31,14 @@ export function createScannerWorkScheduler({
       try {
         await ensureSchema()
         const abandoned = await recover()
-        for (const row of abandoned || []) log('[scanner] restarting interrupted scan:', row.id)
+        for (const row of abandoned || []) {
+          log('[scanner] restarting interrupted scan:', row.id)
+          // A scan could be stuck in a hung promise inside this process. Once
+          // its DB lease is revoked, open the lane for the recovered attempt.
+          for (const [lane, attempt] of running.entries()) {
+            if (lane !== 'normalization' && attempt.jobId === row.id) running.delete(lane)
+          }
+        }
         // No lane awaits another lane's work: scanning a 600-item website
         // must never prevent a PDF or normalization from beginning.
         for (const lane of ['normalization', 'pdf', 'site']) {
@@ -40,6 +50,6 @@ export function createScannerWorkScheduler({
         polling = false
       }
     },
-    active: () => Object.fromEntries(running),
+    active: () => Object.fromEntries([...running].map(([lane, attempt]) => [lane, attempt.jobId])),
   }
 }
