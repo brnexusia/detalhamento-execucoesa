@@ -234,6 +234,10 @@ function Products({ data, revision, query, setQuery, onCreate, onEdit, onVisibil
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [activeCatalog,setActiveCatalog]=useState<AdminCatalog|null>(null)
+  const [catalogCategoryStats,setCatalogCategoryStats]=useState<{
+    catalogId:string|null;total:number;categories:Array<{category:string;count:number}>
+  }|null>(null)
+  const [categoryStatsError,setCategoryStatsError]=useState('')
   const [allMatching,setAllMatching]=useState(false)
   const [excludedIds,setExcludedIds]=useState<string[]>([])
   const [intent,setIntent]=useState<{scope:'selected'|'matching'|'store'|'catalog';count:number}|null>(null)
@@ -254,7 +258,8 @@ function Products({ data, revision, query, setQuery, onCreate, onEdit, onVisibil
   const [retry, setRetry] = useState(0)
   const [searchTerm, setSearchTerm] = useState(query)
   const storeTotal = data.productCount ?? data.products.length
-  const categories = data.productCategories || []
+  const catalogStats=catalogCategoryStats?.catalogId===(activeCatalog?.id||null)?catalogCategoryStats:null
+  const categories=catalogStats?.categories||[]
   const visible = query !== searchTerm || pageError ? [] : products
   const selected = new Set(selectedIds)
   const effectiveSelected=allMatching?Math.max(0,total-excludedIds.length):selectedIds.length
@@ -269,6 +274,23 @@ function Products({ data, revision, query, setQuery, onCreate, onEdit, onVisibil
     (activeCatalog&&!activeCatalog.isDefault||total===storeTotal)
 
   useEffect(() => { window.dispatchEvent(new Event('shopvax:products-ready')) }, [])
+  useEffect(() => {
+    let current=true
+    setCatalogCategoryStats(null)
+    setCategoryStatsError('')
+    void api.listAdminProductCategories(activeCatalog?.id)
+      .then((result)=>{
+        if(!current)return
+        setCatalogCategoryStats(result)
+        // A categoria anterior pode não existir no catálogo atual.
+        setActiveCategory(previous=>previous==='Todas'||result.categories.some(item=>item.category===previous)
+          ?previous:'Todas')
+      })
+      .catch((err)=>{
+        if(current)setCategoryStatsError(err instanceof Error?err.message:'Não foi possível carregar as categorias.')
+      })
+    return ()=>{current=false}
+  },[activeCatalog?.id,data.store.id,revision,retry])
   useEffect(() => { setPage(1); setProducts([]); setSelectedIds([]); setAllMatching(false);setExcludedIds([]) }, [query, activeCategory, activeCatalog?.id, revision])
   useEffect(() => {
     const timeout = window.setTimeout(() => setSearchTerm(query), 250)
@@ -416,18 +438,20 @@ function Products({ data, revision, query, setQuery, onCreate, onEdit, onVisibil
         <button type="button" className="primary-action" onClick={onCreate}>Novo produto <ArrowRight size={18} /></button>
       </div>
     </header>
-    <CatalogManager storeSlug={data.store.slug} categories={(data.productCategories||[]).map(x=>x.category)}
+    <CatalogManager storeSlug={data.store.slug} categories={categories.map(x=>x.category)}
       onSelect={(catalog)=>{
+        if(activeCatalog?.id!==catalog?.id)setActiveCategory('Todas')
         setActiveCatalog(catalog)
         onCatalogChange(catalog)
         window.dispatchEvent(new CustomEvent('shopvax:active-catalog',{detail:{id:catalog?.id||'',name:catalog?.name||''}}))
       }}
       onChanged={onRefreshed}/>
     <div className="svx-products__toolbar">
-      <ThinCategoryScroll refreshKey={categories.map((item) => item.category).join('|')}>
-        <button type="button" aria-pressed={activeCategory === 'Todas'} className={activeCategory === 'Todas' ? 'is-active' : ''} onClick={() => setActiveCategory('Todas')}>Todos <small>{storeTotal}</small></button>
-        {categories.map((item) => <button type="button" key={item.category} aria-pressed={activeCategory === item.category} className={activeCategory === item.category ? 'is-active' : ''} onClick={() => setActiveCategory(item.category)}>{item.category} {(!activeCatalog||activeCatalog.isDefault)&&<small>{item.count}</small>}</button>)}
+      <ThinCategoryScroll refreshKey={(activeCatalog?.id||'base')+':'+categories.map(item=>item.category+':'+item.count).join('|')}>
+        <button type="button" aria-pressed={activeCategory === 'Todas'} className={activeCategory === 'Todas' ? 'is-active' : ''} onClick={() => setActiveCategory('Todas')}>Todos <small>{catalogStats?.total??'…'}</small></button>
+        {categories.map((item) => <button type="button" key={item.category} aria-pressed={activeCategory === item.category} className={activeCategory === item.category ? 'is-active' : ''} onClick={() => setActiveCategory(item.category)}>{item.category} <small>{item.count}</small></button>)}
       </ThinCategoryScroll>
+      {categoryStatsError&&<small className="svx-products__category-error" role="alert">{categoryStatsError}</small>}
       <label className="svx-products__search"><Search size={16} aria-hidden="true" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nome ou referência" aria-label="Buscar produto por nome, referência ou categoria" /></label>
     </div>
     <div className="product-bulk-toolbar product-bulk-toolbar--sticky" aria-label="Ações em produtos">
