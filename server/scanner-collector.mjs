@@ -86,12 +86,14 @@ export async function safeRequest(input, options = {}) {
       response.on('aborted', () => {
         const failure = new Error('Resposta interrompida durante a leitura da página.')
         failure.code = 'ECONNRESET'
+        reject(failure)
         request.destroy(failure)
       })
       response.on('close', () => {
         if (!finished) {
           const failure = new Error('Resposta interrompida antes de terminar a página.')
           failure.code = 'ECONNRESET'
+          reject(failure)
           request.destroy(failure)
         }
       })
