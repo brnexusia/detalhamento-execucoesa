@@ -416,6 +416,10 @@
   border:1px solid var(--svx-ink,#161514);
   background:var(--svx-ink,#161514);
   color:var(--svx-paper,#F3F0E8);
+  text-decoration:none;
+}
+.product-bulk-toolbar--sticky .svx-products__select:hover:not(:disabled){
+  background:#302d29;
 }
 .product-bulk-toolbar--sticky label{display:flex;align-items:center;gap:7px;cursor:pointer;font:600 11px var(--svx-font-body,'Archivo',sans-serif)}
 .product-bulk-toolbar--sticky label input{width:17px;height:17px;accent-color:var(--svx-orange,#F25C05);cursor:pointer}
@@ -467,9 +471,9 @@
 /* Refinamento suave e exclusivo da página Produtos.
    Preserva a identidade editorial e a barra de categorias ultrafina. */
 .panel-shell .svx-products {
-  --svx-products-radius-sm: 5px;
-  --svx-products-radius-md: 7px;
-  --svx-products-radius-lg: 10px;
+  --svx-products-radius-sm: 7px;
+  --svx-products-radius-md: 9px;
+  --svx-products-radius-lg: 12px;
 }
 
 /* Cartões de catálogos e ações principais: cantos discretos, sem formato pílula. */
