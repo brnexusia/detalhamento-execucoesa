@@ -57,7 +57,7 @@ function jobDetails(job: ImportJob) {
     const duplicates = job.duplicate_count ? ` · ${job.duplicate_count} duplicado(s) removido(s)` : ''
     return `${platformLabel(job.platform)} · ${job.normalized_count} encontrado(s)${alerts}${duplicates}`
   }
-  return `${job.platform ? `${platformLabel(job.platform)} · ` : ''}${job.result_count} produto(s) · ${job.pages_scanned} página(s)`
+  return `${job.platform ? `${platformLabel(job.platform)} · ` : ''}${job.result_count} produto(s) · ${job.pages_scanned} ${job.platform === 'facilzap' ? 'consultas' : 'página(s)'}`
 }
 
 const warningLabels: Record<string, string> = {
@@ -502,7 +502,7 @@ export default function ScannerModule1() {
                     <div className="scanner-scan-progress-label">
                       <strong>{job.status==='queued'?'Aguardando scanner':
                         job.status==='processing'?'Organizando produtos':'Lendo catálogo'}</strong>
-                      <b>{Math.max(0,Math.min(99,job.progress||0))}%</b>
+                      <b>{Math.max(0,Math.min(99,job.progress||0))}%{job.status==='scanning' ? ' estimado' : ''}</b>
                     </div>
                     <div className="scanner-scan-progress-track" role="progressbar"
                       aria-label="Progresso do scanner"
@@ -511,7 +511,7 @@ export default function ScannerModule1() {
                       <span style={{width:`${Math.max(0,Math.min(99,job.progress||0))}%`}} />
                     </div>
                     <small>{job.result_count>0?`${job.result_count} produto(s) identificado(s)`:
-                      'Iniciando descoberta de produtos…'} · Pode acompanhar aqui</small>
+                      'Iniciando descoberta de produtos…'} · Última atualização: {new Date(job.updated_at).toLocaleTimeString('pt-BR')} · Pode acompanhar aqui</small>
                   </div>
                 )}
                 {job.status==='failed' && job.error && <small className="scanner-job-error">{job.error}</small>}
@@ -536,7 +536,7 @@ export default function ScannerModule1() {
                     {recoveringId === job.id ? 'Recuperando…' : 'Recuperar peças agrupadas'}
                   </button>}
                 <button type="button" className="scanner-discard" disabled={discardingId === job.id} onClick={() => void discardImport(job)} title="Apagar esta importação"><Trash2 size={14} /> {discardingId === job.id ? 'Descartando…' : 'Descartar'}</button>
-                <span data-status={job.status}>{job.status === 'scanning' || job.status === 'processing' ? `${statusLabel(job.status)} ${job.progress}%` : statusLabel(job.status)}</span>
+                <span data-status={job.status}>{job.status === 'scanning' || job.status === 'processing' ? `${statusLabel(job.status)} ${job.progress}%${job.status==='scanning'?' estimado':''}` : statusLabel(job.status)}</span>
               </div>
             </article>)}
           </div>
