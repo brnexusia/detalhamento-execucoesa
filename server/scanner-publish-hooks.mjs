@@ -30,9 +30,16 @@ function parseCookies(req) {
   }))
 }
 
+// Idempotent publisher DDL must not execute on every publish/preview.
+// Repeated ALTER TABLE under concurrent imports caused unnecessary locks and
+// could contribute to deadlocks in the shared import tables.
+let publisherSchemaPromise = null
+let publisherSchemaInitialized = false
 async function ensurePublisherSchema() {
   if (!pool) throw new Error('DATABASE_URL não configurada.')
-  await pool.query(`
+  if (publisherSchemaInitialized) return
+  if (publisherSchemaPromise) return publisherSchemaPromise
+  publisherSchemaPromise = pool.query(`
     ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS published_count integer NOT NULL DEFAULT 0;
     ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS skipped_existing_count integer NOT NULL DEFAULT 0;
     ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS skipped_no_image_count integer NOT NULL DEFAULT 0;
@@ -51,7 +58,9 @@ async function ensurePublisherSchema() {
       ON media_assets(store_id,source_url) WHERE source_url IS NOT NULL;
     CREATE INDEX IF NOT EXISTS idx_import_normalized_publish_result ON import_normalized_products(job_id,publish_result);
     CREATE INDEX IF NOT EXISTS idx_import_normalized_publish_group ON import_normalized_products(job_id,selected,publish_group_key);
-  `)
+  `).then(() => { publisherSchemaInitialized = true })
+    .finally(() => { publisherSchemaPromise = null })
+  return publisherSchemaPromise
 }
 
 async function currentStore(req) {
