@@ -638,7 +638,8 @@ app.get(
            FROM products p JOIN catalogs c ON c.id=$2
            LEFT JOIN catalog_products cp ON cp.catalog_id=c.id AND cp.product_id=p.id WHERE `
         : 'SELECT p.*,NULL::numeric AS catalog_price FROM products p WHERE ')
-        +where+' ORDER BY p.created_at DESC,p.id DESC LIMIT 
+        +where+' ORDER BY p.created_at DESC,p.id DESC LIMIT $'+(params.length+1)+' OFFSET $'+(params.length+2),
+        [...params,limit,offset]),
     ])
     res.json({
       products:found.rows.map(item=>({...item,price:Number(item.price),catalogPrice:item.catalog_price==null?null:Number(item.catalog_price)})),
