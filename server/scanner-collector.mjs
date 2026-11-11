@@ -2,6 +2,7 @@ import dns from 'node:dns/promises'
 import http from 'node:http'
 import https from 'node:https'
 import { isPublicAddress } from './network-egress-policy.mjs'
+import { retryScannerRequest } from './scanner-network-retry.mjs'
 export { isPublicAddress } from './network-egress-policy.mjs'
 import { gunzipSync } from 'node:zlib'
 import { load } from 'cheerio'
@@ -80,6 +81,20 @@ export async function safeRequest(input, options = {}) {
 
       const chunks = []
       let size = 0
+      let finished = false
+      response.on('error', reject)
+      response.on('aborted', () => {
+        const failure = new Error('Resposta interrompida durante a leitura da página.')
+        failure.code = 'ECONNRESET'
+        request.destroy(failure)
+      })
+      response.on('close', () => {
+        if (!finished) {
+          const failure = new Error('Resposta interrompida antes de terminar a página.')
+          failure.code = 'ECONNRESET'
+          request.destroy(failure)
+        }
+      })
       response.on('data', (chunk) => {
         size += chunk.length
         if (size > maxBytes) {
@@ -89,6 +104,7 @@ export async function safeRequest(input, options = {}) {
         chunks.push(chunk)
       })
       response.on('end', () => {
+        finished = true
         let buffer = Buffer.concat(chunks)
         const gzip = String(response.headers['content-encoding'] || '').toLowerCase().includes('gzip') || url.pathname.toLowerCase().endsWith('.gz')
         if (gzip) {
@@ -702,7 +718,7 @@ function createCandidateSink(options, maxProducts) {
   const onBatch = typeof options.onBatch === 'function' ? options.onBatch : null
   const candidates = []
   const seen = new Set()
-  let count = 0
+  let count = Math.max(0,Math.floor(Number(options.initialCandidatesCount || 0)))
   let chain = Promise.resolve()
 
   const push = (items) => {
@@ -871,13 +887,13 @@ function mergeDetailIntoCandidate(candidate, detail) {
   return { ...candidate, description: candidate.description || detail.description || '', images, variants }
 }
 
-async function collectFacilZap(rootResponse, request, maxProducts, sink, onProgress) {
+async function collectFacilZap(rootResponse, request, maxProducts, sink, onProgress, options = {}) {
   const runtime = extractFacilZapRuntime(rootResponse.body)
   if (!runtime?.urlCarregarProdutosTemplate) throw new Error('A vitrine FácilZap não expôs o contrato público de paginação esperado.')
 
   const seenPages = new Set()
-  let pagesScanned = 1
-  let page = 1
+  let pagesScanned = Math.max(1,Number(options.resumePagesScanned || 1))
+  let page = Math.max(1,Math.floor(Number(options.resumePage || 1)))
   let exhausted = false
   while (sink.count < maxProducts) {
     const category = Number(runtime.categoria || 0) > 0 ? String(runtime.categoria) : 'todas'
@@ -911,7 +927,7 @@ async function collectFacilZap(rootResponse, request, maxProducts, sink, onProgr
 
     let detailFinished = 0
     let detailReportAt = Date.now()
-    const enriched = await mapLimit(mapped.products, 6, async (candidate) => {
+    const enriched = await mapLimit(mapped.products, 4, async (candidate) => {
       try {
         return await (async () => {
       const detailUrl = String(candidate?.source_url || '').trim()
@@ -954,8 +970,18 @@ async function collectFacilZap(rootResponse, request, maxProducts, sink, onProgr
       }
     })
 
+    // Persist all candidates before advancing the durable page checkpoint.
+    // A reset between pages can then resume without re-reading thousands of
+    // detail URLs or treating a partial catalog as fully scanned.
     await sink.push(enriched)
     await onProgress({ progress: Math.min(90, 15 + Math.floor(Math.log2(page + 1) * 8)), pagesScanned, candidates: sink.count, platform: 'facilzap' })
+    if (typeof options.onPageCheckpoint === 'function') {
+      await options.onPageCheckpoint({
+        nextPage: page + 1,
+        pagesScanned,
+        candidates: sink.count,
+      })
+    }
     page += 1
   }
   await sink.flush()
@@ -1144,7 +1170,14 @@ async function collectGeneric(rootResponse, request, maxProducts, maxPages, onPr
 }
 
 export async function collectCatalog(sourceUrl, options = {}) {
-  const request = options.request || safeRequest
+  const request = retryScannerRequest(options.request || safeRequest, {
+    maxAttempts: options.requestMaxAttempts || 5,
+    sleep: options.retrySleep,
+    onRetry: ({ attempt, status, code }) => {
+      // Never print storefront URLs, credentialed query strings or tokens.
+      console.warn('[scanner] transient catalog request retry:', { attempt, status, code })
+    },
+  })
   const maxProducts = configuredLimit(options.maxProducts ?? process.env.SCANNER_MAX_PRODUCTS)
   const maxPages = configuredLimit(options.maxPages ?? process.env.SCANNER_MAX_PAGES)
   const onProgress = options.onProgress || (async () => {})
@@ -1216,7 +1249,7 @@ export async function collectCatalog(sourceUrl, options = {}) {
 
   if (platform === 'facilzap') {
     try {
-      const result = await collectFacilZap(rootResponse, request, maxProducts, sink, onProgress)
+      const result = await collectFacilZap(rootResponse, request, maxProducts, sink, onProgress, options)
       if (result.candidateCount) return { platform, pagesScanned: result.pagesScanned, candidateCount: sink.count, candidates: sink.candidates, complete: result.complete, warnings: result.warnings }
     } catch (error) {
       if (sink.count > 0 || options.strictPlatformAdapters) throw error
