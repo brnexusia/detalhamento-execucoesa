@@ -24,6 +24,7 @@ test('scanner lease: requeue only orphaned jobs after a crash, never live jobs',
         id text PRIMARY KEY,
         status text NOT NULL,
         platform text NOT NULL DEFAULT 'generic',
+        scan_next_page integer NOT NULL DEFAULT 1,
         progress integer NOT NULL,
         result_count integer NOT NULL,
         pages_scanned integer NOT NULL,
@@ -90,6 +91,9 @@ test('auto-requeues recent failed FácilZap ECONNRESET only, with strict retry l
         error text NOT NULL,
         scan_network_retries integer NOT NULL DEFAULT 0,
         scan_next_page integer NOT NULL DEFAULT 1,
+        progress integer NOT NULL DEFAULT 0,
+        result_count integer NOT NULL DEFAULT 0,
+        pages_scanned integer NOT NULL DEFAULT 0,
         scan_worker_token text,
         scan_lease_at timestamptz,
         created_at timestamptz NOT NULL DEFAULT now(),
@@ -103,6 +107,9 @@ test('auto-requeues recent failed FácilZap ECONNRESET only, with strict retry l
         ('stalled','a','https://facilzap.com.br/galegobijoux/11952148150',
           'facilzap.com.br','failed','facilzap','read ECONNRESET',24,
           now()-interval '2 minutes',now()-interval '30 seconds'),
+        ('legacy-reset','a','https://facilzap.com.br/galegobijoux/legado',
+          'facilzap.com.br','failed','facilzap','read ECONNRESET',1,
+          now()-interval '2 minutes',now()-interval '30 seconds'),
         ('fatal','a','https://facilzap.com.br/galegobijoux/fatal',
           'facilzap.com.br','failed','facilzap','pagina repetida',1,
           now()-interval '2 minutes',now()-interval '30 seconds'),
@@ -113,12 +120,20 @@ test('auto-requeues recent failed FácilZap ECONNRESET only, with strict retry l
           'facilzap.com.br','failed','facilzap','read ECONNRESET',1,
           now()-interval '2 days',now()-interval '30 seconds')
     `)
+    await db.query("UPDATE import_jobs SET progress=54,result_count=2736,pages_scanned=2965 WHERE id IN ('stalled','legacy-reset')")
     const first=await requeueFailedTransientFacilZapScans(db.query.bind(db))
-    assert.deepEqual(first.rows.map(x=>x.id),['stalled'])
+    assert.deepEqual(first.rows.map(x=>x.id).sort(),['legacy-reset','stalled'])
     let job=(await db.query("SELECT * FROM import_jobs WHERE id='stalled'")).rows[0]
     assert.equal(job.status,'queued')
     assert.equal(job.scan_next_page,24,'Must preserve last successfully persisted page')
     assert.equal(job.scan_network_retries,1)
+    job=(await db.query("SELECT * FROM import_jobs WHERE id='stalled'")).rows[0]
+    assert.equal(job.progress,54,'Valid page checkpoint keeps existing progress')
+    assert.equal(job.result_count,2736)
+    const legacy=(await db.query("SELECT * FROM import_jobs WHERE id='legacy-reset'")).rows[0]
+    assert.equal(legacy.progress,0,'Old failed scan without checkpoint must reset misleading progress')
+    assert.equal(legacy.result_count,0)
+    assert.equal(legacy.pages_scanned,0)
     assert.deepEqual((await requeueFailedTransientFacilZapScans(db.query.bind(db))).rows,[])
     await db.query("UPDATE import_jobs SET status='failed',error='read ECONNRESET',updated_at=now()-interval '30 seconds' WHERE id='stalled'")
     assert.deepEqual((await requeueFailedTransientFacilZapScans(db.query.bind(db))).rows.map(x=>x.id),['stalled'])
