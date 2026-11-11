@@ -77,27 +77,59 @@
   padding: 13px 0 20px;
   margin-bottom: 6px;
 }
+/* A scrollbar nativa do Firefox tem espessura mínima; usamos um indicador
+   de 1.5px, arrastável e com foco pelo teclado, em todos os navegadores. */
+.svx-products__category-scroll {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-bottom: 12px;
+}
 .svx-products__categories {
   display: flex;
   align-items: center;
   gap: clamp(13px, 2vw, 27px);
-  flex: 1 1 auto;
+  width: 100%;
   min-width: 0;
-  min-height: 56px;
+  min-height: 44px;
   box-sizing: border-box;
-  padding: 8px 0 16px;
+  padding: 8px 0 4px;
   overflow-x: auto;
   overflow-y: hidden;
-  scrollbar-width: thin;
-  scrollbar-color: var(--svx-orange, #F25C05) transparent;
+  scrollbar-width: none;
   scroll-padding-inline: 12px;
   white-space: nowrap;
   overscroll-behavior-inline: contain;
 }
-/* Give the horizontal thumb its own space below the category labels. */
-.svx-products__categories::-webkit-scrollbar { height: 3px; }
-.svx-products__categories::-webkit-scrollbar-track { background: transparent; }
-.svx-products__categories::-webkit-scrollbar-thumb { background: var(--svx-orange, #F25C05); border-radius: 999px; }
+.svx-products__categories::-webkit-scrollbar { display: none; width: 0; height: 0; }
+.svx-products__category-scrollbar {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  display: block;
+  width: 100%;
+  height: 12px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  cursor: pointer;
+  touch-action: none;
+}
+.svx-products__category-scrollbar-thumb {
+  position: absolute;
+  top: 50%;
+  height: 1.5px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: var(--svx-orange, #F25C05);
+  pointer-events: none;
+}
+.svx-products__category-scrollbar:focus-visible {
+  outline: 2px solid var(--svx-orange, #F25C05);
+  outline-offset: 2px;
+}
 .svx-products__categories button {
   display: inline-flex;
   flex: 0 0 auto;
@@ -298,7 +330,7 @@
   .panel-shell .svx-products .svx-products__hero { flex-direction: column; gap: 18px; }
   .panel-shell .svx-products .svx-products__top-actions { justify-content: flex-start; }
   .svx-products__toolbar { flex-wrap: wrap; gap: 12px; }
-  .svx-products__categories { flex: 1 1 100%; order: 2; }
+  .svx-products__category-scroll { flex: 1 1 100%; order: 2; }
   .svx-products__search { flex: 1 1 100%; order: 1; max-width: 360px; }
   .panel-shell .svx-products .svx-products__headings { display: none; }
   .panel-shell .svx-products .product-admin-card {
