@@ -33,17 +33,12 @@ export async function stageSelectedImportMedia({
 
   const totals = await query(
     `SELECT COUNT(*)::int AS count FROM import_normalized_products
-     WHERE job_id=$1 AND store_id=$2 AND selected=true
-       AND (
-         COALESCE(review_data,normalized_data)->>'media_url' ~* '^https?://'
-         OR (COALESCE(review_data,normalized_data)->'images')::text ~* 'https?://'
-         OR (COALESCE(review_data,normalized_data)->'variant_images')::text ~* 'https?://'
-       )`, [jobId,storeId])
+     WHERE job_id=$1 AND store_id=$2 AND selected=true`, [jobId,storeId])
   const total = Number(totals.rows[0]?.count || 0)
   await onProgress({ phase: 'images', completed:0, total })
   let staged = 0
   let failed = 0
-  const unavailable = []
+  // Count excluded items, but do not let broken photos block other products.
   let cursor = ''
   let examined = 0
   while (true) {
@@ -55,11 +50,6 @@ export async function stageSelectedImportMedia({
        JOIN import_jobs j ON j.id=n.job_id AND j.store_id=n.store_id
        LEFT JOIN import_candidates c ON c.id=n.source_candidate_id AND c.store_id=n.store_id
        WHERE n.job_id=$1 AND n.store_id=$2 AND n.selected=true AND n.id>$3
-         AND (
-           COALESCE(n.review_data,n.normalized_data)->>'media_url' ~* '^https?://'
-           OR (COALESCE(n.review_data,n.normalized_data)->'images')::text ~* 'https?://'
-           OR (COALESCE(n.review_data,n.normalized_data)->'variant_images')::text ~* 'https?://'
-         )
        ORDER BY n.id ASC LIMIT 100`,
       [jobId, storeId, cursor],
     )
@@ -73,7 +63,12 @@ export async function stageSelectedImportMedia({
       const product = prepareReview(row.data).data
       const originalImages = sourceImages(product)
       const remoteImages = originalImages.filter(remote)
-      if (!remoteImages.length) continue // No external asset to persist.
+      const localImages = originalImages.filter(isLocalShopvaxMedia)
+      if (!remoteImages.length && localImages.length) {
+        // PDF/manual uploads already point to locally stored media.
+        await onProgress({ phase:'images', completed:examined, total })
+        continue
+      }
       // Old FácilZap imports can have a detail URL missing the store slug.
       // Rebuild it from the original import-job URL + source product ID,
       // so the same review can recover images without a full rescan.
@@ -101,23 +96,38 @@ export async function stageSelectedImportMedia({
           sourceUrl = correctedSource
         }
       }
-      const localized = await localize({
-        query, storeId, product, sourceUrl,
-      })
+      const localized = remoteImages.length
+        ? await localize({ query, storeId, product, sourceUrl })
+        : { mediaUrl:'', images:[], variantImages:[], failed:0, failureReasons:[] }
       const replacements = sourceImages({
         ...product, media_url:localized.mediaUrl,
         images:localized.images, variant_images:localized.variantImages,
       })
       const anyLocal = replacements.some(isLocalShopvaxMedia)
       if (!anyLocal) {
-        failed += 1
         const reasons = Array.isArray(localized.failureReasons) ? localized.failureReasons.slice(0, 3) : []
-        unavailable.push({ name:String(product.name || 'sem nome').slice(0, 90), reasons })
-        console.warn('[scanner publish] product photo staging failed', {
+        // A product with no downloadable photo must never enter products.
+        // Keep its source/review data for audit, but deselect it explicitly.
+        // Optimistic revision guard avoids overwriting a concurrent user edit.
+        const excluded = await query(
+          `UPDATE import_normalized_products n
+           SET selected=false,publish_result='skipped_no_image',
+               warnings=CASE WHEN n.warnings ? 'missing_image'
+                 THEN n.warnings ELSE n.warnings || '["missing_image"]'::jsonb END,
+               updated_at=now()
+           WHERE n.id=$1 AND n.job_id=$2 AND n.store_id=$3 AND n.selected=true
+             AND n.updated_at::text=$4
+             AND EXISTS (SELECT 1 FROM import_jobs j
+               WHERE j.id=n.job_id AND j.store_id=n.store_id AND j.status='review')`,
+          [row.id,jobId,storeId,row.media_revision],
+        )
+        if (excluded.rowCount !== 1) throw new Error(
+          'A revisão do catálogo mudou durante a verificação das fotos. Atualize a lista e tente novamente.'
+        )
+        failed += 1
+        console.warn('[scanner publish] product skipped without valid photo', {
           jobId, productId:row.id, reasons,
         })
-        // Continue checking the other selected products before raising an
-        // error. One broken image must not hide dozens of other broken ones.
         await onProgress({ phase:'images',completed:examined,total })
         continue
       }
@@ -136,7 +146,7 @@ export async function stageSelectedImportMedia({
       const written = await query(
         `UPDATE import_normalized_products n
          SET review_data=$1::jsonb, warnings=$2::jsonb,
-           confidence=$3,updated_at=now(),review_updated_at=now()
+           confidence=$3,publish_result='',updated_at=now(),review_updated_at=now()
          WHERE n.id=$4 AND n.job_id=$5 AND n.store_id=$6 AND n.selected=true
            AND n.updated_at::text=$7
            AND EXISTS (SELECT 1 FROM import_jobs j
@@ -157,23 +167,14 @@ export async function stageSelectedImportMedia({
     }
   }
   await onProgress({ phase:'images', completed:total, total })
-  if (unavailable.length === 1) {
-    const item = unavailable[0]
-    throw new Error(
-      'Não foi possível salvar nenhuma foto do produto "' + item.name +
-      '". O item continua em revisão; confira a URL ou substitua a imagem antes de publicar.' +
-      (item.reasons.length ? ' Diagnóstico: ' + item.reasons.join('; ') + '.' : '')
-    )
-  }
-  if (unavailable.length > 1) {
-    const examples = unavailable.slice(0, 4).map(item =>
-      '"' + item.name + '"' + (item.reasons.length ? ' (' + item.reasons[0] + ')' : '')
-    ).join('; ')
-    throw new Error(
-      'Não foi possível salvar fotos de ' + unavailable.length +
-      ' produtos selecionados. Exemplos: ' + examples +
-      '. Eles continuam em revisão; corrija as URLs ou fotos antes de publicar.'
-    )
-  }
-  return { staged, failed, skipped:false }
+  // Synchronize metadata with actual selection after photo exclusions.
+  await query(
+    `UPDATE import_jobs j
+     SET selected_count=(SELECT COUNT(*)::int FROM import_normalized_products n
+       WHERE n.job_id=j.id AND n.store_id=j.store_id AND n.selected=true),
+       updated_at=now()
+     WHERE j.id=$1 AND j.store_id=$2 AND j.status='review'`,
+    [jobId,storeId],
+  )
+  return { staged, failed, skippedNoImage:failed, skipped:false }
 }
