@@ -35,6 +35,7 @@ async function ensurePublisherSchema() {
   await pool.query(`
     ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS published_count integer NOT NULL DEFAULT 0;
     ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS skipped_existing_count integer NOT NULL DEFAULT 0;
+    ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS skipped_no_image_count integer NOT NULL DEFAULT 0;
     ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS published_at timestamptz;
     ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS publish_mode text;
     ALTER TABLE import_normalized_products ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
@@ -71,6 +72,7 @@ async function currentStore(req) {
 
 function publicResult(job, idempotent = false) {
   const parentProducts = Number(job.published_count || 0) + Number(job.skipped_existing_count || 0)
+  const noPhotoCount = Number(job.skipped_no_image_count || 0)
   return {
     job: {
       id: job.id,
@@ -78,14 +80,16 @@ function publicResult(job, idempotent = false) {
       selected_count: Number(job.selected_count || 0),
       published_count: Number(job.published_count || 0),
       skipped_existing_count: Number(job.skipped_existing_count || 0),
+      skipped_no_image_count: noPhotoCount,
       published_at: job.published_at || null,
       publish_mode: job.publish_mode || null,
     },
     result: {
       selected: parentProducts,
-      source_rows: Number(job.selected_count || 0),
+      source_rows: Number(job.selected_count || 0) + noPhotoCount,
       created: Number(job.published_count || 0),
       skipped_existing: Number(job.skipped_existing_count || 0),
+      skipped_no_image: noPhotoCount,
     },
     idempotent,
   }
@@ -389,7 +393,7 @@ async function publishJob(req, res) {
     }
     if (!selectedParentCount) {
       await client.query('ROLLBACK')
-      return res.status(400).json({ error: 'Nenhum produto válido está selecionado para importação.' })
+      return res.status(409).json({ error: 'Nenhum produto com foto válida ficou selecionado para importação. Os itens sem foto foram ignorados; adicione fotos na revisão se quiser importar algum deles.' })
     }
 
     let created = 0
@@ -523,7 +527,7 @@ async function publishJob(req, res) {
 
     if (created + skippedExisting === 0) {
       await client.query('ROLLBACK')
-      return res.status(400).json({ error: 'Nenhum produto válido está selecionado para importação.' })
+      return res.status(409).json({ error: 'Nenhum produto com foto válida ficou selecionado para importação. Os itens sem foto foram ignorados; adicione fotos na revisão se quiser importar algum deles.' })
     }
 
     const updated = await client.query(
