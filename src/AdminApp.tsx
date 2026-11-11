@@ -412,7 +412,11 @@ function Products({ data, revision, query, setQuery, onCreate, onEdit, onVisibil
       </div>
     </header>
     <CatalogManager storeSlug={data.store.slug} categories={(data.productCategories||[]).map(x=>x.category)}
-      onSelect={(catalog)=>{setActiveCatalog(catalog);onCatalogChange(catalog)}}
+      onSelect={(catalog)=>{
+        setActiveCatalog(catalog)
+        onCatalogChange(catalog)
+        window.dispatchEvent(new CustomEvent('shopvax:active-catalog',{detail:{id:catalog?.id||'',name:catalog?.name||''}}))
+      }}
       onChanged={onRefreshed}/>
     <div className="svx-products__toolbar">
       <nav className="svx-products__categories" aria-label="Filtrar produtos por categoria">
