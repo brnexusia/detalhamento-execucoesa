@@ -113,6 +113,7 @@ export async function ensureScannerSchema() {
         CHECK (progress >= 0 AND progress <= 100)
       );
       ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS platform text NOT NULL DEFAULT '';
+      ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS target_catalog_id text;
       ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS pages_scanned integer NOT NULL DEFAULT 0;
       ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS scan_lease_at timestamptz;
       ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS scan_worker_token text;
@@ -220,6 +221,7 @@ function publicJob(row) {
     published_count: Number(row.published_count || 0),
     skipped_existing_count: Number(row.skipped_existing_count || 0),
     publish_mode: row.publish_mode || null,
+    target_catalog_id: row.target_catalog_id || null,
     platform: row.platform || '',
     pages_scanned: Number(row.pages_scanned || 0),
     error: row.error || '',
@@ -957,15 +959,26 @@ function installScannerRoutes(app) {
       try { uazapiCatalogConfig() }
       catch(error) { return res.status(503).json({ error:error instanceof Error ? error.message : 'Integração de catálogo WhatsApp indisponível.' }) }
     }
+    const targetCatalogId=String(req.body?.catalogId||'').trim().slice(0,100)
+    if(targetCatalogId){
+      const destination=await pool.query(
+        'SELECT c.id,c.is_default,s.plan_tier FROM catalogs c JOIN stores s ON s.id=c.store_id WHERE c.id=$1 AND c.store_id=$2 AND c.active=true',
+        [targetCatalogId,req.scannerStore.store_id])
+      if(!destination.rowCount)return res.status(404).json({error:'Catálogo de destino não encontrado.'})
+      if(!destination.rows[0].is_default&&destination.rows[0].plan_tier!=='ouro')
+        return res.status(403).json({error:'Catálogos adicionais exigem o plano Ouro.'})
+    }
     const existing = await pool.query(
-      `SELECT * FROM import_jobs WHERE store_id=$1 AND source_url=$2 AND status IN ('queued','scanning','processing') ORDER BY created_at DESC LIMIT 1`,
-      [req.scannerStore.store_id, normalized.url],
+      `SELECT * FROM import_jobs WHERE store_id=$1 AND source_url=$2
+       AND target_catalog_id IS NOT DISTINCT FROM $3
+       AND status IN ('queued','scanning','processing') ORDER BY created_at DESC LIMIT 1`,
+      [req.scannerStore.store_id, normalized.url,targetCatalogId||null],
     )
     if (existing.rowCount) return res.json({ job: publicJob(existing.rows[0]), duplicated: true })
 
     const result = await pool.query(
-      `INSERT INTO import_jobs (id,store_id,source_url,source_host,status) VALUES ($1,$2,$3,$4,'queued') RETURNING *`,
-      [id(), req.scannerStore.store_id, normalized.url, normalized.host],
+      `INSERT INTO import_jobs (id,store_id,source_url,source_host,status,target_catalog_id) VALUES ($1,$2,$3,$4,'queued',$5) RETURNING *`,
+      [id(), req.scannerStore.store_id, normalized.url, normalized.host,targetCatalogId||null],
     )
     if (!workerDisabled) setImmediate(() => void runNextWork())
     res.status(201).json({ job: publicJob(result.rows[0]), duplicated: false })

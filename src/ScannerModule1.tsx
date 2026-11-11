@@ -86,6 +86,7 @@ export default function ScannerModule1() {
   const [open, setOpen] = useState(false)
   const [mode, setMode] = useState<'scan' | 'review'>('scan')
   const [url, setUrl] = useState('')
+  const [activeCatalogId,setActiveCatalogId] = useState('')
   const [sourceMode, setSourceMode] = useState<'site' | 'pdf' | 'album' | 'whatsapp'>('site')
   const [pdfFile, setPdfFile] = useState<File | null>(null)
   const [uploadVersion, setUploadVersion] = useState(0)
@@ -109,6 +110,8 @@ export default function ScannerModule1() {
   const [reviewError, setReviewError] = useState('')
   const [selectionBusy, setSelectionBusy] = useState(false)
   const [recoveringId, setRecoveringId] = useState<string | null>(null)
+  const [availableCatalogs,setAvailableCatalogs] = useState<Array<{id:string;name:string;lockedByPlan?:boolean}>>([])
+  const [recoveryDestinations,setRecoveryDestinations] = useState<Record<string,string>>({})
 
   const [editing, setEditing] = useState<ImportReviewProduct | null>(null)
   const [draft, setDraft] = useState<ImportReviewData | null>(null)
@@ -147,7 +150,20 @@ export default function ScannerModule1() {
     return () => document.removeEventListener('visibilitychange', onVisibility)
   }, [])
   useEffect(() => {
+    const onCatalog = (event: Event) => setActiveCatalogId(
+      (event as CustomEvent<{id:string}>).detail?.id || '')
+    window.addEventListener('shopvax:active-catalog',onCatalog)
+    return () => window.removeEventListener('shopvax:active-catalog',onCatalog)
+  }, [])
+  useEffect(() => {
     window.dispatchEvent(new CustomEvent('shopvax:scanner-visibility', { detail: { open } }))
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    void api.catalogs()
+      .then(response => setAvailableCatalogs(response.catalogs.filter(c => !c.lockedByPlan)))
+      .catch(err => setError(err instanceof Error ? err.message : 'Não foi possível carregar os catálogos.'))
   }, [open])
 
   const loadJobs = async (quiet = false) => {
@@ -253,7 +269,7 @@ export default function ScannerModule1() {
       }
       const result = sourceMode === 'pdf'
         ? await api.uploadPdfCatalog(pdfFile!, (sent, total) => setPdfTransferPercent(Math.round(sent / total * 100)))
-        : await api.createImportJob(url)
+        : await api.createImportJob(url,activeCatalogId)
       setSuccess(result.duplicated
         ? 'Essa loja já está sendo processada.'
         : sourceMode === 'pdf'
@@ -292,6 +308,31 @@ export default function ScannerModule1() {
     } finally {
       setDiscardingId(null)
     }
+  }
+
+  const repairImportDestination = async (job: ImportJob) => {
+    const catalogId = recoveryDestinations[job.id] || ''
+    const catalog = availableCatalogs.find(item => item.id === catalogId)
+    if (!catalog) { setError('Escolha o catálogo que deve receber esta importação.'); return }
+    const confirmed = await confirmAction(
+      `Associar a importação de ${job.source_host} (${new Date(job.created_at).toLocaleString('pt-BR')}) ao catálogo "${catalog.name}"?\n\n` +
+      'Os produtos já importados serão aproveitados, preservando os preços por catálogo e sem excluir os demais. Confira se é a importação correta.',
+      'Corrigir destino da importação',
+      'Confirmar associação',
+    )
+    if (!confirmed) return
+    setRecoveringId(job.id)
+    setError('')
+    try {
+      const result = await api.assignImportCatalog(job.id,catalogId)
+      setSuccess(result.idempotent
+        ? 'Esta importação já estava vinculada ao catálogo escolhido.'
+        : `Destino corrigido: ${result.assigned} produto(s) vinculado(s) a "${catalog.name}".`)
+      await loadJobs()
+      window.dispatchEvent(new Event('shopvax:catalog-changed'))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível corrigir o catálogo.')
+    } finally { setRecoveringId(null) }
   }
 
   const recoverLegacyPdf = async (job: ImportJob) => {
@@ -529,6 +570,22 @@ export default function ScannerModule1() {
                     setSuccess('O link correto foi preenchido. Clique em Escanear loja para iniciar uma nova revisão.')
                   }}>Corrigir endereço</button>}
                 {job.status === 'review' && <button type="button" className="scanner-review-open" onClick={() => void openReview(job)}>Revisar</button>}
+                {job.status === 'completed' && !job.target_catalog_id && <>
+                  <label className="scanner-catalog-repair">
+                    <span>Destino desta importação</span>
+                    <select aria-label={`Corrigir catálogo de destino para ${job.source_host}`}
+                      value={recoveryDestinations[job.id] || ''}
+                      disabled={Boolean(recoveringId)}
+                      onChange={event=>setRecoveryDestinations(current=>({...current,[job.id]:event.target.value}))}>
+                      <option value="">Escolha o catálogo</option>
+                      {availableCatalogs.map(catalog=><option key={catalog.id} value={catalog.id}>{catalog.name}</option>)}
+                    </select>
+                  </label>
+                  <button type="button" className="scanner-review-open" disabled={Boolean(recoveringId)||!recoveryDestinations[job.id]}
+                    onClick={()=>void repairImportDestination(job)}>
+                    {recoveringId===job.id?'Associando…':'Corrigir destino'}
+                  </button>
+                </>}
                 {job.status === 'completed' && job.platform === 'alexandre-bijoux' &&
                   job.selected_count > (job.published_count || 0) + (job.skipped_existing_count || 0) &&
                   <button type="button" className="scanner-review-open" disabled={recoveringId === job.id}

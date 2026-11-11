@@ -630,10 +630,21 @@ app.get(
     const offset=(page-1)*limit
     const [count,found] = await Promise.all([
       pool.query('SELECT count(*)::int AS total FROM products p WHERE '+where,params),
-      pool.query('SELECT p.* FROM products p WHERE '+where+' ORDER BY p.created_at DESC,p.id DESC LIMIT $'+(params.length+1)+' OFFSET $'+(params.length+2),[...params,limit,offset]),
+      pool.query(
+        (catalogId
+          ? `SELECT p.*,COALESCE(cp.price_override,
+              CASE WHEN c.kind='varejo' OR (c.kind='personalizado' AND c.price_mode='varejo') THEN p.retail_price
+                   WHEN c.kind='caixa_fechada' OR (c.kind='personalizado' AND c.price_mode='caixa_fechada') THEN p.box_price
+                   ELSE p.price END,p.price) AS catalog_price
+             FROM products p JOIN catalogs c ON c.id=$2
+             LEFT JOIN catalog_products cp ON cp.catalog_id=c.id AND cp.product_id=p.id WHERE `
+          : 'SELECT p.*,NULL::numeric AS catalog_price FROM products p WHERE '
+        )+where+' ORDER BY p.created_at DESC,p.id DESC LIMIT $'+(params.length+1)+' OFFSET $'+(params.length+2),
+        [...params,limit,offset],
+      ),
     ])
     res.json({
-      products:found.rows.map(item=>({...item,price:Number(item.price)})),
+      products:found.rows.map(item=>({...item,price:Number(item.price),catalogPrice:item.catalog_price==null?null:Number(item.catalog_price)})),
       pagination:{page,limit,total:Number(count.rows[0]?.total||0)},
     })
   }),

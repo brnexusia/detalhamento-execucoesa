@@ -82,6 +82,7 @@ export type PublicPayload = {
 }
 
 export type AdminProduct = {
+  catalogPrice?: number | null
   id: string
   sku: string
   name: string

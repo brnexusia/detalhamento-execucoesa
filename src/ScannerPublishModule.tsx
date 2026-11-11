@@ -12,8 +12,10 @@ type Job = {
   selected_count: number
   warning_count: number
   duplicate_count: number
+  target_catalog_id?: string | null
 }
 
+type Destination = { id: string; name: string; isDefault: boolean; lockedByPlan?: boolean }
 type PdfMode = 'separate' | 'grouped'
 type PublishPreview = {
   mode: PdfMode
@@ -39,6 +41,7 @@ type PublishProgress = {
   heartbeatAt: string | null
   updatedAt?: string | null
   attempts: number
+  catalogId?: string | null
 }
 
 async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
@@ -58,6 +61,9 @@ export default function ScannerPublishModule() {
   const [visible, setVisible] = useState(document.visibilityState === 'visible')
   const [pollCount, setPollCount] = useState(0)
   const [jobs, setJobs] = useState<Job[]>([])
+  const [catalogs, setCatalogs] = useState<Destination[]>([])
+  const [activeCatalogId, setActiveCatalogId] = useState('')
+  const [destinations, setDestinations] = useState<Record<string,string>>({})
   const [open, setOpen] = useState(false)
   const [busyId, setBusyId] = useState('')
   const [error, setError] = useState('')
@@ -125,6 +131,33 @@ export default function ScannerPublishModule() {
       host?.remove()
     }
   }, [])
+
+  useEffect(() => {
+    const onCatalog = (event: Event) => {
+      const selected = (event as CustomEvent<{id:string}>).detail?.id || ''
+      setActiveCatalogId(selected)
+    }
+    window.addEventListener('shopvax:active-catalog', onCatalog)
+    return () => window.removeEventListener('shopvax:active-catalog', onCatalog)
+  }, [])
+
+  useEffect(() => {
+    if (!open) return
+    void request<{ catalogs: Destination[] }>('/api/admin/catalogs')
+      .then(payload => setCatalogs(payload.catalogs.filter(catalog => !catalog.lockedByPlan)))
+      .catch(err => setError(err instanceof Error ? err.message : 'Não foi possível carregar os catálogos de destino.'))
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    setDestinations(current => {
+      const next = {...current}
+      for (const job of readyJobs) {
+        if (!next[job.id] && (job.target_catalog_id || activeCatalogId)) next[job.id] = job.target_catalog_id || activeCatalogId
+      }
+      return next
+    })
+  }, [open, activeCatalogId, readyJobs])
 
   useEffect(() => {
     const onVisibility = () => setVisible(document.visibilityState === 'visible')
@@ -218,6 +251,11 @@ export default function ScannerPublishModule() {
   }
 
   const publish = async (job: Job) => {
+    const catalogId = destinations[job.id] || ''
+    if (!catalogId || !catalogs.some(c => c.id === catalogId)) {
+      setError('Escolha um catálogo de destino válido antes de publicar os produtos.')
+      return
+    }
     setBusyId(job.id)
     setError('')
     setSuccess(null)
@@ -225,7 +263,7 @@ export default function ScannerPublishModule() {
       const payload = await request<{progress:PublishProgress}>(
         `/api/admin/imports/${encodeURIComponent(job.id)}/publish-async`,{
           method:'POST',
-          body:JSON.stringify({mode:job.platform==='pdf' ? (modes[job.id]||'separate') : 'grouped'}),
+          body:JSON.stringify({mode:job.platform==='pdf' ? (modes[job.id]||'separate') : 'grouped',catalogId}),
         })
       setPublishProgress(current=>({...current,[job.id]:payload.progress}))
       // Progress and final result are retrieved independently of this request.
@@ -262,6 +300,7 @@ export default function ScannerPublishModule() {
           <div className="scanner-publish-content">
             <p>Este painel reúne <strong>{readyTotal} produtos de {readyJobs.length} importação(ões) pendente(s)</strong>. Os totais são somados entre catálogos diferentes. Use o botão de cada catálogo abaixo para publicar apenas aquela importação; abrir este painel não publica todos.</p>
             <p>Os produtos tecnicamente válidos já estão selecionados. Durante a publicação, itens sem foto válida são ignorados automaticamente; apenas produtos com imagem salva entram na loja.</p>
+            <p><strong>Confira o destino em cada importação.</strong> Os produtos serão vinculados somente ao catálogo escolhido. Produtos com o mesmo SKU podem manter preços diferentes por catálogo.</p>
             {error && <div className="scanner-publish-message scanner-publish-message--error">{error}</div>}
             {success && <div className="scanner-publish-message scanner-publish-message--success"><CheckCircle2 size={17} /><div><strong>Importação concluída.</strong><span>{success.result.created} novo(s) cadastrado(s){success.result.skipped_existing ? ` · ${success.result.skipped_existing} SKU(s) já existente(s) preservado(s)` : ''}{success.result.skipped_no_image ? ` · ${success.result.skipped_no_image} produto(s) sem foto ignorado(s)` : ''}.</span></div></div>}
 
@@ -272,6 +311,14 @@ export default function ScannerPublishModule() {
                   <div>
                     <strong>{job.source_host}</strong>
                     <span>{job.selected_count} selecionado(s){exceptions ? ` · ${exceptions} exceção(ões) ficam de fora` : ''}</span>
+                    <label className="scanner-publish-mode">
+                      <span>Catálogo de destino (obrigatório)</span>
+                      <select value={destinations[job.id] || ''} disabled={Boolean(busyId) || ['queued','running'].includes(publishProgress[job.id]?.state||'')}
+                        onChange={event => setDestinations(current=>({...current,[job.id]:event.target.value}))}>
+                        <option value="">Selecione o catálogo correto</option>
+                        {catalogs.map(catalog => <option key={catalog.id} value={catalog.id}>{catalog.name}{catalog.isDefault ? ' · principal' : ''}</option>)}
+                      </select>
+                    </label>
                     {job.platform === 'pdf' && <>
                       <label className="scanner-publish-mode">
                         <span>Como cadastrar este PDF</span>
@@ -321,7 +368,7 @@ export default function ScannerPublishModule() {
                       </small>
                     )}
                     <button type="button"
-                      disabled={Boolean(busyId) ||
+                      disabled={Boolean(busyId) || !destinations[job.id] || !catalogs.some(c=>c.id===destinations[job.id]) ||
                         ['queued','running'].includes(publishProgress[job.id]?.state||'') ||
                         (job.platform === 'pdf' && previews[job.id]?.mode !== (modes[job.id] || 'separate'))}
                       onClick={() => void publish(job)}>

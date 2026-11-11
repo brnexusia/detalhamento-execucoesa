@@ -17,6 +17,7 @@ export type ImportJob = {
   published_count?: number
   skipped_existing_count?: number
   publish_mode?: 'separate' | 'grouped' | null
+  target_catalog_id?: string | null
   platform: string
   pages_scanned: number
   error: string
@@ -276,7 +277,8 @@ export const api = {
   updateSeller: (id: string, body: Record<string, unknown>) => request(`/api/admin/sellers/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   deleteSeller: (id: string) => request(`/api/admin/sellers/${id}`, { method: 'DELETE' }),
   listImportJobs: () => request<{ jobs: ImportJob[] }>('/api/admin/imports'),
-  createImportJob: (url: string) => request<{ job: ImportJob; duplicated: boolean }>('/api/admin/imports', { method: 'POST', body: JSON.stringify({ url }) }),
+  assignImportCatalog: (jobId:string,catalogId:string) => request<{ok:boolean;idempotent:boolean;catalogId:string;assigned:number;hidden:number}>(`/api/admin/imports/${encodeURIComponent(jobId)}/assign-catalog`,{method:'POST',body:JSON.stringify({catalogId})}),
+  createImportJob: (url: string, catalogId?: string) => request<{ job: ImportJob; duplicated: boolean }>('/api/admin/imports', { method: 'POST', body: JSON.stringify({ url, catalogId:catalogId || null }) }),
   uploadPdfCatalog: async (file: File, onProgress?: (uploadedBytes: number, totalBytes: number) => void) => {
     const chunkLimit = 512 * 1024
     if (file.size <= chunkLimit) {

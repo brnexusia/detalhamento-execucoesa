@@ -85,10 +85,14 @@ try {
   assert.equal(response.status, 200)
   assert.match(response.headers.get('content-type') || '', /image\/webp/)
 
+  const catalogResponse = await fetch(base + '/api/admin/catalogs',{headers:{Cookie:first}})
+  assert.equal(catalogResponse.status,200)
+  const catalogId=(await catalogResponse.json()).catalogs.find(c=>c.isDefault)?.id
+  assert.ok(catalogId)
   response = await fetch(base + '/api/admin/imports/' + jobId + '/publish', {
     method: 'POST',
     headers: { Cookie: first, 'Content-Type': 'application/json' },
-    body: '{}',
+    body: JSON.stringify({catalogId}),
   })
   assert.equal(response.status, 200)
   response = await fetch(base + '/api/admin/bootstrap', { headers: { Cookie: first } })

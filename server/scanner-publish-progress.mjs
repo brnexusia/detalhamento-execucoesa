@@ -40,6 +40,7 @@ export function publishProgress(row) {
     updatedAt:row.updated_at,
     heartbeatAt:row.heartbeat_at || null,
     attempts:Number(row.attempts || 0),
+    catalogId:row.target_catalog_id || null,
   }
 }
 export function createPublishTaskQueue(pool) {
@@ -50,6 +51,7 @@ export function createPublishTaskQueue(pool) {
         job_id text PRIMARY KEY REFERENCES import_jobs(id) ON DELETE CASCADE,
         store_id text NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
         mode text NOT NULL DEFAULT 'grouped',
+        target_catalog_id text,
         state text NOT NULL DEFAULT 'queued'
           CHECK(state IN ('queued','running','finished','failed')),
         phase text NOT NULL DEFAULT 'queued',
@@ -62,6 +64,7 @@ export function createPublishTaskQueue(pool) {
         heartbeat_at timestamptz,
         updated_at timestamptz NOT NULL DEFAULT now()
       );
+      ALTER TABLE import_publish_tasks ADD COLUMN IF NOT EXISTS target_catalog_id text;
       CREATE INDEX IF NOT EXISTS idx_import_publish_task_pending
         ON import_publish_tasks(state,updated_at)
         WHERE state IN ('queued','running');
@@ -70,18 +73,19 @@ export function createPublishTaskQueue(pool) {
   }
   return {
     ensure,
-    async enqueue(jobId,storeId,mode) {
+    async enqueue(jobId,storeId,mode,catalogId) {
+      if (!catalogId) throw new Error('Selecione o catálogo de destino antes de publicar.')
       await ensure()
       const result=await pool.query(`
-        INSERT INTO import_publish_tasks(job_id,store_id,mode)
-        VALUES($1,$2,$3)
+        INSERT INTO import_publish_tasks(job_id,store_id,mode,target_catalog_id)
+        VALUES($1,$2,$3,$4)
         ON CONFLICT(job_id) DO UPDATE SET
-          mode=EXCLUDED.mode,state='queued',phase='queued',
+          mode=EXCLUDED.mode,target_catalog_id=EXCLUDED.target_catalog_id,state='queued',phase='queued',
           completed=0,total=0,percent=0,error='',result=NULL,
           heartbeat_at=NULL,updated_at=now()
         WHERE import_publish_tasks.state='failed'
         RETURNING *
-      `,[jobId,storeId,mode])
+      `,[jobId,storeId,mode,catalogId])
       if (result.rowCount) return publishProgress(result.rows[0])
       return this.get(jobId,storeId)
     },
