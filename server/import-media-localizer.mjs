@@ -343,6 +343,7 @@ export async function recoverImportImagesFromSource(sourceUrl, product, { reques
     // The original page can legitimately carry a different merchant SKU.
     // Require both the same immutable FácilZap ID and matching product name,
     // rather than treating an artificial SKU mismatch as a different product.
+    if (generatedId && candidateId && candidateId !== generatedId) return false
     if (generatedId && candidateId === generatedId && exactName) return true
     if (sku && candidateSku) return candidateSku === sku
     return exactName
