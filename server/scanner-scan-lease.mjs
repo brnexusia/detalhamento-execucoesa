@@ -6,7 +6,10 @@
 export async function requeueInterruptedScans(query) {
   const result = await query(
     `UPDATE import_jobs
-     SET status='queued',progress=0,result_count=0,pages_scanned=0,
+     SET status='queued',
+         progress=CASE WHEN scan_next_page>1 THEN progress ELSE 0 END,
+         result_count=CASE WHEN scan_next_page>1 THEN result_count ELSE 0 END,
+         pages_scanned=CASE WHEN scan_next_page>1 THEN pages_scanned ELSE 0 END,
          error='',scan_worker_token=NULL,scan_lease_at=NULL,updated_at=now()
      WHERE status='scanning'
        AND (
@@ -33,6 +36,9 @@ export async function requeueFailedTransientFacilZapScans(query) {
   const result = await query(
     `UPDATE import_jobs j
      SET status='queued',error='',scan_worker_token=NULL,scan_lease_at=NULL,
+         progress=CASE WHEN j.scan_next_page>1 THEN j.progress ELSE 0 END,
+         result_count=CASE WHEN j.scan_next_page>1 THEN j.result_count ELSE 0 END,
+         pages_scanned=CASE WHEN j.scan_next_page>1 THEN j.pages_scanned ELSE 0 END,
          scan_network_retries=j.scan_network_retries+1,updated_at=now()
      WHERE j.status='failed'
        AND j.platform='facilzap'
