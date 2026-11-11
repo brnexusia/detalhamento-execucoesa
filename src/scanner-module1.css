@@ -507,3 +507,88 @@
 .scanner-scan-progress-track span { display:block; height:100%; background:#18876b; transition:width 250ms ease }
 .scanner-jobs .scanner-scan-progress small { white-space:normal; overflow:visible; font-size:10px; color:#69645d }
 @media (prefers-reduced-motion:reduce) { .scanner-scan-progress-track span { transition:none } }
+
+
+/* Importações concluídas: o seletor de catálogo ocupa uma linha própria.
+   Ações têm espaço para quebrar em telas estreitas, sem cobrir nome ou preços. */
+.scanner-jobs article.scanner-job--catalog-repair {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  row-gap: 12px;
+  padding-block: 18px;
+}
+
+.scanner-job--catalog-repair .scanner-job-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  align-items: flex-end;
+  gap: 12px 10px;
+  width: 100%;
+  min-width: 0;
+}
+
+.scanner-catalog-repair {
+  display: grid;
+  flex: 1 1 210px;
+  min-width: min(100%, 180px);
+  gap: 7px;
+  margin: 0;
+}
+
+.scanner-catalog-repair > span {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: normal;
+}
+
+.scanner-catalog-repair > select {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--line, #d1cbc0);
+  background: #fff;
+  color: var(--ink, #191919);
+  font: inherit;
+  font-size: 12px;
+}
+
+.scanner-job--catalog-repair .scanner-review-open {
+  min-height: 36px;
+  padding-inline: 12px;
+  white-space: nowrap;
+}
+
+.scanner-job--catalog-repair .scanner-review-open:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+.scanner-job--catalog-repair .scanner-discard {
+  min-height: 36px;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.scanner-job--catalog-repair .scanner-job-actions > span[data-status] {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  box-sizing: border-box;
+  margin-left: auto;
+}
+
+@media (max-width: 760px) {
+  .scanner-job--catalog-repair .scanner-catalog-repair {
+    flex-basis: 100%;
+  }
+
+  .scanner-job--catalog-repair .scanner-job-actions {
+    gap: 10px 12px;
+  }
+}
