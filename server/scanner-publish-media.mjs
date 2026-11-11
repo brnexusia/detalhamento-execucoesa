@@ -172,6 +172,9 @@ export async function stageSelectedImportMedia({
     `UPDATE import_jobs j
      SET selected_count=(SELECT COUNT(*)::int FROM import_normalized_products n
        WHERE n.job_id=j.id AND n.store_id=j.store_id AND n.selected=true),
+       skipped_no_image_count=(SELECT COUNT(*)::int FROM import_normalized_products n
+       WHERE n.job_id=j.id AND n.store_id=j.store_id
+         AND n.selected=false AND n.publish_result='skipped_no_image'),
        updated_at=now()
      WHERE j.id=$1 AND j.store_id=$2 AND j.status='review'`,
     [jobId,storeId],
