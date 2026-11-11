@@ -38,6 +38,7 @@ jobs:
       - run: |
           node --check server/scanner-publish-progress.mjs
           node --check server/scanner-publish-hooks.mjs
+          node --check server/app.mjs
           node --check server/scanner-publish-media.mjs
           node --check server/scanner-hooks.mjs
           node --check server/scanner-collector.mjs
