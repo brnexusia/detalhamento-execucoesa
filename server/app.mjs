@@ -630,7 +630,1173 @@ app.get(
     const offset=(page-1)*limit
     const [count,found] = await Promise.all([
       pool.query('SELECT count(*)::int AS total FROM products p WHERE '+where,params),
-      pool.query('SELECT p.* FROM products p WHERE '+where+' ORDER BY p.created_at DESC,p.id DESC LIMIT $'+(params.length+1)+' OFFSET $'+(params.length+2),[...params,limit,offset]),
+      pool.query((catalogId
+        ? `SELECT p.*,COALESCE(cp.price_override,
+             CASE WHEN c.kind='varejo' OR (c.kind='personalizado' AND c.price_mode='varejo') THEN p.retail_price
+                  WHEN c.kind='caixa_fechada' OR (c.kind='personalizado' AND c.price_mode='caixa_fechada') THEN p.box_price
+                  ELSE p.price END,p.price) AS catalog_price
+           FROM products p JOIN catalogs c ON c.id=$2
+           LEFT JOIN catalog_products cp ON cp.catalog_id=c.id AND cp.product_id=p.id WHERE `
+        : 'SELECT p.*,NULL::numeric AS catalog_price FROM products p WHERE ')
+        +where+' ORDER BY p.created_at DESC,p.id DESC LIMIT 
+    ])
+    res.json({
+      products:found.rows.map(item=>({...item,price:Number(item.price),catalogPrice:item.catalog_price==null?null:Number(item.catalog_price)})),
+      pagination:{page,limit,total:Number(count.rows[0]?.total||0)},
+    })
+  }),
+)
+
+app.put(
+  '/api/admin/store',
+  auth,
+  asyncRoute(async (req, res) => {
+    const current = await pool.query('SELECT * FROM stores WHERE owner_id=$1 LIMIT 1', [req.user.id])
+    if (!current.rowCount) return res.status(404).json({ error: 'Loja não encontrada.' })
+
+    const store = current.rows[0]
+    const desiredSlug = slugify(req.body?.slug || store.slug)
+    const slug =
+      desiredSlug === store.slug ? store.slug : await uniqueSlug(desiredSlug, 'stores', null, store.id)
+    const name = String(req.body?.name || store.name).trim()
+    const eyebrow = String(req.body?.eyebrow ?? store.eyebrow).trim().slice(0, 120)
+    const tagline = String(req.body?.tagline ?? store.tagline).trim().slice(0, 240)
+    const minimumOrder = Math.max(0, toMoney(req.body?.minimumOrder ?? store.minimum_order))
+    const whatsapp = digits(req.body?.whatsapp ?? store.whatsapp)
+    const logoUrl = String(req.body?.logoUrl ?? store.logo_url).trim().slice(0, 1000)
+    const accent = /^#[0-9a-fA-F]{6}$/.test(req.body?.accent || '') ? req.body.accent : store.accent
+    const paletteSelected = store.onboarding_palette_selected === true || req.body?.completePaletteSetup === true
+    const requestedSeason = req.body?.seasonalTheme
+    const allowedSeasons = new Set(['padrao', 'black-friday', 'natal'])
+    if (requestedSeason != null && !allowedSeasons.has(requestedSeason)) {
+      return res.status(400).json({ error: 'Tema sazonal inválido.' })
+    }
+    if (requestedSeason != null && !isShopvaxSeasonOpen(requestedSeason)) {
+      return res.status(400).json({ error: 'Este tema só pode ser ativado durante o período da campanha.' })
+    }
+    // Em atualizações comuns, limpa seleções antigas ou campanhas já encerradas.
+    const seasonalTheme = resolveShopvaxTheme({ seasonal_theme: requestedSeason ?? store.seasonal_theme ?? 'padrao' }).id
+
+    const updated = await pool.query(
+      `UPDATE stores
+       SET slug=$1,name=$2,eyebrow=$3,tagline=$4,minimum_order=$5,whatsapp=$6,logo_url=$7,accent=$8,onboarding_palette_selected=$9,seasonal_theme=$11,updated_at=now()
+       WHERE id=$10
+       RETURNING *`,
+      [slug, name, eyebrow, tagline, minimumOrder, whatsapp, logoUrl, accent, paletteSelected, store.id, seasonalTheme],
+    )
+    res.json({
+      store: { ...updated.rows[0], minimum_order: Number(updated.rows[0].minimum_order) },
+    })
+  }),
+)
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 30 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) =>
+    cb(null, acceptsCatalogMediaFile(file)),
+})
+
+// A resposta do upload depende apenas da gravação do original; a otimização é
+// opcional e executada em uma fila pequena, fora do caminho crítico HTTP.
+const mediaVariantQueue = process.env.REDIS_URL ? createRedisMediaVariantQueue({
+  onError: (error) => console.warn('[shopvax-media] redis queue:', error?.message || error),
+}) : createMediaVariantQueue({
+  generate: generateMediaVariants,
+  persist: async (assetId, variant) => {
+    await pool.query(
+      `INSERT INTO media_variants (asset_id,width,mime_type,byte_size,data)
+       VALUES ($1,$2,$3,$4,$5)
+       ON CONFLICT (asset_id,width) DO NOTHING`,
+      [assetId, variant.width, variant.mimeType, variant.bytes.length, variant.bytes],
+    )
+  },
+  onError: (error) => console.warn(
+    '[shopvax-media] variante opcional indisponível:',
+    error instanceof Error ? error.message : 'erro',
+  ),
+})
+
+if (process.env.REDIS_URL && process.env.SHOPVAX_MEDIA_WORKER_DISABLED !== '1') {
+  import('./redis-media-jobs.mjs').then(({ startRedisMediaWorker }) =>
+    startRedisMediaWorker({ onError: (error) =>
+      console.warn('[shopvax-media-worker]', error.message) }),
+  ).catch((error) => console.error('[shopvax-media-worker] falha:', error.message))
+}
+
+app.post(
+  '/api/admin/upload',
+  traceUpload('media'),
+  auth,
+  upload.single('file'),
+  asyncRoute(async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'Selecione uma imagem JPG, PNG, WEBP, AVIF ou HEIC, ou um vídeo MP4.' })
+    const store = await pool.query('SELECT id FROM stores WHERE owner_id=$1 LIMIT 1', [req.user.id])
+    if (!store.rowCount) return res.status(404).json({ error: 'Loja não encontrada.' })
+
+    let prepared
+    try {
+      prepared = await prepareCatalogMedia(req.file)
+    } catch (error) {
+      return res.status(error?.statusCode || 415).json({ error: error?.message || 'Não foi possível processar a foto.' })
+    }
+
+    const assetId = id()
+    await pool.query(
+      `INSERT INTO media_assets (id,store_id,mime_type,original_name,byte_size,data)
+       VALUES ($1,$2,$3,$4,$5,$6)`,
+      [
+        assetId,
+        store.rows[0].id,
+        prepared.mimeType,
+        String(req.file.originalname || '').slice(0, 255),
+        prepared.buffer.length,
+        prepared.buffer,
+      ],
+    )
+    // Retorna assim que o original está persistido; o proxy não espera o Sharp.
+    res.status(201).json({
+      url: `/media/${assetId}`,
+      type: prepared.type,
+    })
+    if (prepared.type === 'image') {
+      const job = mediaVariantQueue.enqueue(assetId, prepared.buffer, prepared.mimeType)
+      if (!job.accepted) {
+        console.warn('[shopvax-media] fila de variantes cheia; original preservado:', assetId)
+      }
+    }
+  }),
+)
+
+app.post(
+  '/api/admin/products',
+  auth,
+  asyncRoute(async (req, res) => {
+    const store = await pool.query('SELECT id,plan_tier FROM stores WHERE owner_id=$1 LIMIT 1', [req.user.id])
+    const price = toMoney(req.body?.price)
+    const retailPrice = req.body?.retailPrice == null || req.body.retailPrice === '' ? null : toMoney(req.body.retailPrice)
+    const boxPrice = req.body?.boxPrice == null || req.body.boxPrice === '' ? null : toMoney(req.body.boxPrice)
+    const unitsPerBox = req.body?.unitsPerBox == null || req.body.unitsPerBox === '' ? null : Number(req.body.unitsPerBox)
+    if ([retailPrice,boxPrice].some(v => v !== null && v <= 0) || (unitsPerBox !== null && (!Number.isSafeInteger(unitsPerBox) || unitsPerBox < 1 || unitsPerBox > 10000))) {
+      return res.status(400).json({ error: 'Preços adicionais devem ser positivos e unidades por caixa deve ser inteiro entre 1 e 10.000.' })
+    }
+    const name = String(req.body?.name || '').trim()
+    if (!store.rowCount || !name || price <= 0) {
+      return res.status(400).json({ error: 'Nome e preço são obrigatórios.' })
+    }
+
+    const catalogId=String(req.body?.catalogId||'').trim().slice(0,100)
+    if(catalogId){
+      const existing=await pool.query('SELECT id,is_default FROM catalogs WHERE id=$1 AND store_id=$2',[catalogId,store.rows[0].id])
+      if(!existing.rowCount)return res.status(404).json({error:'Catálogo não encontrado.'})
+      if(!existing.rows[0].is_default&&store.rows[0].plan_tier!=='ouro')return res.status(403).json({error:'Catálogo adicional requer Gold.'})
+    }
+    const client=await pool.connect()
+    try{
+      await client.query('BEGIN')
+      const result = await client.query(
+      `INSERT INTO products
+       (id,store_id,sku,name,description,price,category,media_url,media_type,pack,variations,featured,active,retail_price,box_price,units_per_box)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+       RETURNING *`,
+      [
+        id(),
+        store.rows[0].id,
+        String(req.body?.sku || '').trim().slice(0, 80),
+        name.slice(0, 180),
+        String(req.body?.description || '').trim().slice(0, 2000),
+        price,
+        String(req.body?.category || 'Geral').trim().slice(0, 80) || 'Geral',
+        String(req.body?.mediaUrl || '').trim().slice(0, 1000),
+        req.body?.mediaType === 'video' ? 'video' : 'image',
+        String(req.body?.pack || '').trim().slice(0, 160),
+        JSON.stringify(normalizeVariations(req.body?.variations)),
+        Boolean(req.body?.featured),
+        req.body?.active !== false,
+        retailPrice,
+        boxPrice,
+        unitsPerBox,
+      ],
+    )
+    if(catalogId){
+      await client.query(`INSERT INTO catalog_products(catalog_id,product_id,visible)
+        SELECT c.id,$2,true FROM catalogs c WHERE c.id=$1 AND c.store_id=$3
+        ON CONFLICT(catalog_id,product_id) DO UPDATE SET visible=true,updated_at=now()`,
+        [catalogId,result.rows[0].id,store.rows[0].id])
+    }
+    await client.query('COMMIT')
+    res.status(201).json({ product: { ...result.rows[0], price: Number(result.rows[0].price) } })
+    }catch(error){await client.query('ROLLBACK').catch(()=>{});throw error}
+    finally{client.release()}
+  }),
+)
+
+app.post(
+  '/api/admin/products/bulk-delete',
+  auth,
+  asyncRoute(async (req, res) => {
+    const store = await pool.query('SELECT id FROM stores WHERE owner_id=$1 LIMIT 1', [req.user.id])
+    if (!store.rowCount) return res.status(404).json({ error: 'Loja não encontrada.' })
+
+    const ids = [...new Set(
+      (Array.isArray(req.body?.ids) ? req.body.ids : [])
+        .map((value) => String(value || '').trim())
+        .filter(Boolean),
+    )].slice(0, 5000)
+    if (!ids.length) return res.status(400).json({ error: 'Selecione ao menos um produto para excluir.' })
+
+    const deleted = await pool.query(
+      'DELETE FROM products WHERE store_id=$1 AND id = ANY($2::text[]) RETURNING id',
+      [store.rows[0].id, ids],
+    )
+    res.json({ ok: true, deleted: deleted.rowCount, ids: deleted.rows.map((row) => row.id) })
+  }),
+)
+
+installProductBulkJobs(app,pool,auth,asyncRoute)
+
+app.put(
+  '/api/admin/products/:id',
+  auth,
+  asyncRoute(async (req, res) => {
+    const store = await pool.query('SELECT id FROM stores WHERE owner_id=$1 LIMIT 1', [req.user.id])
+    if (!store.rowCount) return res.status(404).json({ error: 'Loja não encontrada.' })
+
+    const price = toMoney(req.body?.price)
+    const retailPrice = req.body?.retailPrice == null || req.body.retailPrice === '' ? null : toMoney(req.body.retailPrice)
+    const boxPrice = req.body?.boxPrice == null || req.body.boxPrice === '' ? null : toMoney(req.body.boxPrice)
+    const unitsPerBox = req.body?.unitsPerBox == null || req.body.unitsPerBox === '' ? null : Number(req.body.unitsPerBox)
+    if ([retailPrice,boxPrice].some(v => v !== null && v <= 0) || (unitsPerBox !== null && (!Number.isSafeInteger(unitsPerBox) || unitsPerBox < 1 || unitsPerBox > 10000))) {
+      return res.status(400).json({ error: 'Preços adicionais devem ser positivos e unidades por caixa deve ser inteiro entre 1 e 10.000.' })
+    }
+    const name = String(req.body?.name || '').trim()
+    if (!name || price <= 0) return res.status(400).json({ error: 'Nome e preço são obrigatórios.' })
+
+    const result = await pool.query(
+      `UPDATE products
+       SET sku=$1,name=$2,description=$3,price=$4,category=$5,media_url=$6,media_type=$7,pack=$8,variations=$9,featured=$10,active=$11,
+       retail_price=CASE WHEN $14::boolean THEN $15 ELSE retail_price END,
+       box_price=CASE WHEN $16::boolean THEN $17 ELSE box_price END,
+       units_per_box=CASE WHEN $18::boolean THEN $19 ELSE units_per_box END,updated_at=now()
+       WHERE id=$12 AND store_id=$13
+       RETURNING *`,
+      [
+        String(req.body?.sku || '').trim().slice(0, 80),
+        name.slice(0, 180),
+        String(req.body?.description || '').trim().slice(0, 2000),
+        price,
+        String(req.body?.category || 'Geral').trim().slice(0, 80) || 'Geral',
+        String(req.body?.mediaUrl || '').trim().slice(0, 1000),
+        req.body?.mediaType === 'video' ? 'video' : 'image',
+        String(req.body?.pack || '').trim().slice(0, 160),
+        JSON.stringify(normalizeVariations(req.body?.variations)),
+        Boolean(req.body?.featured),
+        req.body?.active !== false,
+        req.params.id,
+        store.rows[0].id,
+        Object.hasOwn(req.body || {}, 'retailPrice'),retailPrice,
+        Object.hasOwn(req.body || {}, 'boxPrice'),boxPrice,
+        Object.hasOwn(req.body || {}, 'unitsPerBox'),unitsPerBox,
+      ],
+    )
+    if (!result.rowCount) return res.status(404).json({ error: 'Produto não encontrado.' })
+    res.json({ product: { ...result.rows[0], price: Number(result.rows[0].price) } })
+  }),
+)
+
+app.patch(
+  '/api/admin/products/:id/visibility',
+  auth,
+  asyncRoute(async (req, res) => {
+    const store = await pool.query('SELECT id FROM stores WHERE owner_id=$1 LIMIT 1', [req.user.id])
+    if (!store.rowCount) return res.status(404).json({ error: 'Loja não encontrada.' })
+    const active = req.body?.active !== false
+    const result = await pool.query(
+      'UPDATE products SET active=$1,updated_at=now() WHERE id=$2 AND store_id=$3 RETURNING id,active',
+      [active, req.params.id, store.rows[0].id],
+    )
+    if (!result.rowCount) return res.status(404).json({ error: 'Produto não encontrado.' })
+    res.json({ product: result.rows[0] })
+  }),
+)
+
+app.delete(
+  '/api/admin/products/:id',
+  auth,
+  asyncRoute(async (req, res) => {
+    const store = await pool.query('SELECT id FROM stores WHERE owner_id=$1 LIMIT 1', [req.user.id])
+    if (!store.rowCount) return res.status(404).json({ error: 'Loja não encontrada.' })
+    await pool.query('DELETE FROM products WHERE id=$1 AND store_id=$2', [
+      req.params.id,
+      store.rows[0].id,
+    ])
+    res.json({ ok: true })
+  }),
+)
+
+app.post(
+  '/api/admin/sellers',
+  auth,
+  asyncRoute(async (req, res) => {
+    const store = await pool.query('SELECT id FROM stores WHERE owner_id=$1 LIMIT 1', [req.user.id])
+    const name = String(req.body?.name || '').trim()
+    const phone = digits(req.body?.phone)
+    if (!store.rowCount || !name || phone.length < 10) {
+      return res.status(400).json({ error: 'Nome e WhatsApp são obrigatórios.' })
+    }
+
+    const slug = await uniqueSlug(req.body?.slug || name, 'sellers', store.rows[0].id)
+    const result = await pool.query(
+      'INSERT INTO sellers (id,store_id,slug,name,phone,is_active) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
+      [id(), store.rows[0].id, slug, name.slice(0, 120), phone, req.body?.isActive !== false],
+    )
+    res.status(201).json({ seller: result.rows[0] })
+  }),
+)
+
+app.put(
+  '/api/admin/sellers/:id',
+  auth,
+  asyncRoute(async (req, res) => {
+    const store = await pool.query('SELECT id FROM stores WHERE owner_id=$1 LIMIT 1', [req.user.id])
+    if (!store.rowCount) return res.status(404).json({ error: 'Loja não encontrada.' })
+
+    const current = await pool.query('SELECT * FROM sellers WHERE id=$1 AND store_id=$2', [
+      req.params.id,
+      store.rows[0].id,
+    ])
+    if (!current.rowCount) return res.status(404).json({ error: 'Vendedora não encontrada.' })
+
+    const name = String(req.body?.name || current.rows[0].name).trim()
+    const phone = digits(req.body?.phone || current.rows[0].phone)
+    const desired = slugify(req.body?.slug || current.rows[0].slug)
+    const slug =
+      desired === current.rows[0].slug
+        ? desired
+        : await uniqueSlug(desired, 'sellers', store.rows[0].id, req.params.id)
+
+    const result = await pool.query(
+      'UPDATE sellers SET slug=$1,name=$2,phone=$3,is_active=$4 WHERE id=$5 AND store_id=$6 RETURNING *',
+      [slug, name, phone, req.body?.isActive !== false, req.params.id, store.rows[0].id],
+    )
+    res.json({ seller: result.rows[0] })
+  }),
+)
+
+app.delete(
+  '/api/admin/sellers/:id',
+  auth,
+  asyncRoute(async (req, res) => {
+    const store = await pool.query('SELECT id FROM stores WHERE owner_id=$1 LIMIT 1', [req.user.id])
+    if (!store.rowCount) return res.status(404).json({ error: 'Loja não encontrada.' })
+    await pool.query('DELETE FROM sellers WHERE id=$1 AND store_id=$2', [
+      req.params.id,
+      store.rows[0].id,
+    ])
+    res.json({ ok: true })
+  }),
+)
+
+async function getPublicStore(req, res) {
+  if (!dbReady) await initDb()
+  if (!dbReady || !pool) return res.status(503).json({ error: 'Loja ainda não conectada ao banco.' })
+
+  const storeResult = await pool.query(
+    'SELECT * FROM stores WHERE slug=$1 AND is_active=true LIMIT 1',
+    [req.params.storeSlug],
+  )
+  if (!storeResult.rowCount) return res.status(404).json({ error: 'Loja não encontrada.' })
+
+  const store = storeResult.rows[0]
+  let seller = null
+  if (req.params.sellerSlug) {
+    const sellerResult = await pool.query(
+      'SELECT id,slug,name,phone FROM sellers WHERE store_id=$1 AND slug=$2 AND is_active=true LIMIT 1',
+      [store.id, req.params.sellerSlug],
+    )
+    if (sellerResult.rowCount) seller = sellerResult.rows[0]
+  }
+  if (!seller || digits(seller.phone).length < 10) {
+    const available = await pool.query(
+      'SELECT id,slug,name,phone FROM sellers WHERE store_id=$1 AND is_active=true AND length(regexp_replace(phone, \'[^0-9]\', \'\', \'g\'))>=10 ORDER BY created_at ASC,id ASC LIMIT 1',
+      [store.id],
+    )
+    seller = available.rows[0] || null
+  }
+
+  const products = await pool.query(
+    'SELECT * FROM products WHERE store_id=$1 AND active=true ORDER BY featured DESC,created_at DESC',
+    [store.id],
+  )
+  res.json(publicStoreShape(store, seller, products.rows))
+}
+app.get('/api/public/store/:storeSlug/:sellerSlug', asyncRoute(getPublicStore))
+app.get('/api/public/store/:storeSlug', asyncRoute(getPublicStore))
+
+app.post(
+  '/api/public/events',
+  requireDb,
+  asyncRoute(async (req, res) => {
+    // Anonymous analytics are not an unbounded SQL input surface. Slugs are
+    // generated by slugify() (ASCII lower-case and hyphens, at most 60 chars).
+    // Ignore malformed traffic without creating bogus store-level events.
+    const validSlug = (value) => typeof value === 'string' && value.length <= 60 &&
+      /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value)
+    const body = req.body
+    if (!body || typeof body !== 'object' || Array.isArray(body) ||
+      Object.keys(body).some((key) => !['storeSlug', 'sellerSlug', 'kind'].includes(key))) {
+      return res.status(204).end()
+    }
+    const { storeSlug, sellerSlug, kind } = body
+    if (!validSlug(storeSlug) || (sellerSlug != null && sellerSlug !== '' && !validSlug(sellerSlug)) ||
+      !['view', 'cart', 'whatsapp'].includes(kind)) {
+      return res.status(204).end()
+    }
+    const storeResult = await pool.query(
+      'SELECT id FROM stores WHERE slug=$1 AND is_active=true LIMIT 1',
+      [storeSlug],
+    )
+    if (!storeResult.rowCount) return res.status(204).end()
+
+    let sellerId = null
+    if (sellerSlug) {
+      const seller = await pool.query(
+        'SELECT id FROM sellers WHERE store_id=$1 AND slug=$2 LIMIT 1',
+        [storeResult.rows[0].id, sellerSlug],
+      )
+      sellerId = seller.rows[0]?.id || null
+    }
+
+    await pool.query('INSERT INTO events (id,store_id,seller_id,kind) VALUES ($1,$2,$3,$4)', [
+      id(),
+      storeResult.rows[0].id,
+      sellerId,
+      kind,
+    ])
+    res.status(204).end()
+  }),
+)
+
+app.post(
+  '/api/public/orders',
+  requireDb,
+  asyncRoute(async (req, res) => {
+    const storeResult = await pool.query(
+      'SELECT * FROM stores WHERE slug=$1 AND is_active=true LIMIT 1',
+      [String(req.body?.storeSlug || '')],
+    )
+    if (!storeResult.rowCount) return res.status(404).json({ error: 'Loja não encontrada.' })
+
+    const store = storeResult.rows[0]
+    const requestedItems = Array.isArray(req.body?.items) ? req.body.items : []
+    if (!requestedItems.length) return res.status(400).json({ error: 'Carrinho vazio.' })
+
+    const productIds = [
+      ...new Set(requestedItems.map((item) => String(item.productId || '')).filter(Boolean)),
+    ]
+    const productsResult = await pool.query(
+      'SELECT * FROM products WHERE store_id=$1 AND active=true AND id=ANY($2::text[])',
+      [store.id, productIds],
+    )
+    const byId = new Map(productsResult.rows.map((product) => [product.id, product]))
+
+    const items = []
+    let total = 0
+    for (const requested of requestedItems) {
+      const product = byId.get(String(requested.productId || ''))
+      if (!product) continue
+
+      const quantity = Math.max(1, Math.min(999, Math.floor(Number(requested.quantity) || 1)))
+      const allowedGroups = Array.isArray(product.variations) ? product.variations : []
+      const selections = {}
+      for (const group of allowedGroups) {
+        const selected = String(requested.selections?.[group.name] || '')
+        if (!group.options.includes(selected)) {
+          return res.status(400).json({ error: `Escolha ${group.name} para ${product.name}.` })
+        }
+        selections[group.name] = selected
+      }
+
+      const unitPrice = Number(product.price)
+      const lineTotal = unitPrice * quantity
+      total += lineTotal
+      items.push({
+        productId: product.id,
+        sku: product.sku,
+        name: product.name,
+        quantity,
+        unitPrice,
+        lineTotal,
+        selections,
+      })
+    }
+
+    total = toMoney(total)
+    if (!items.length) return res.status(400).json({ error: 'Nenhum produto válido no carrinho.' })
+    if (total < Number(store.minimum_order)) {
+      return res
+        .status(400)
+        .json({
+          error: `O pedido mínimo é R$ ${Number(store.minimum_order).toFixed(2).replace('.', ',')}.`,
+        })
+    }
+
+    let seller = null
+    if (req.body?.sellerSlug) {
+      const sellerResult = await pool.query(
+        'SELECT * FROM sellers WHERE store_id=$1 AND slug=$2 AND is_active=true LIMIT 1',
+        [store.id, req.body.sellerSlug],
+      )
+      seller = sellerResult.rows[0] || null
+    }
+
+    if (!seller || digits(seller.phone).length < 10) {
+      const available = await pool.query(
+        'SELECT * FROM sellers WHERE store_id=$1 AND is_active=true AND length(regexp_replace(phone, \'[^0-9]\', \'\', \'g\'))>=10 ORDER BY created_at ASC,id ASC LIMIT 1',
+        [store.id],
+      )
+      seller = available.rows[0] || null
+    }
+    const phone = digits(seller?.phone || '')
+    if (phone.length < 10) {
+      return res.status(409).json({ code: 'NO_AVAILABLE_SELLER', error: 'Nenhuma vendedora disponível para receber o pedido. Ative uma vendedora antes de continuar.' })
+    }
+
+    const code = `AS-${Date.now().toString().slice(-6)}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`
+    await pool.query(
+      'INSERT INTO orders (id,code,store_id,seller_id,total,items) VALUES ($1,$2,$3,$4,$5,$6)',
+      [id(), code, store.id, seller?.id || null, total, JSON.stringify(items)],
+    )
+    await pool.query('INSERT INTO events (id,store_id,seller_id,kind) VALUES ($1,$2,$3,$4)', [
+      id(),
+      store.id,
+      seller?.id || null,
+      'whatsapp',
+    ])
+
+    const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
+    const lines = items.map((item) => {
+      const variations = Object.entries(item.selections)
+        .map(([key, value]) => `${key}: ${value}`)
+        .join(' · ')
+      return `${item.quantity}x ${item.name}${variations ? ` (${variations})` : ''} — ${money.format(item.lineTotal)}`
+    })
+    const attendant = seller?.name || 'atendimento'
+    const message = [
+      `Olá! Montei este pedido na ${store.name}:`,
+      '',
+      ...lines,
+      '',
+      `Total dos produtos: ${money.format(total)}`,
+      `Pedido: ${code}`,
+      '',
+      `Quero finalizar com ${attendant}.`,
+    ].join('\n')
+
+    res.status(201).json({
+      code,
+      whatsappUrl: `https://wa.me/${phone}?text=${encodeURIComponent(message)}`,
+    })
+  }),
+)
+
+app.use(express.static(distDir, { index: false, maxAge: '1h' }))
+app.get('*', (_req, res) => res.sendFile(path.join(distDir, 'index.html')))
+
+app.use((error, _req, res, _next) => {
+  console.error(error)
+  if (error?.code === 'LIMIT_FILE_SIZE') {
+    return res.status(413).json({ error: 'Arquivo maior que 30 MB. Tente uma foto menor.' })
+  }
+  if (error?.code === '23505') {
+    return res.status(409).json({ error: 'Esse dado já está em uso.' })
+  }
+  res.status(500).json({ error: 'Erro interno.' })
+})
+
+app.listen(port, '0.0.0.0', () => {
+  console.log(`[atacado-shop] listening on :${port} | db=${dbReady ? 'ready' : 'waiting'}`)
+})
++(params.length+1)+' OFFSET 
+    ])
+    res.json({
+      products:found.rows.map(item=>({...item,price:Number(item.price)})),
+      pagination:{page,limit,total:Number(count.rows[0]?.total||0)},
+    })
+  }),
+)
+
+app.put(
+  '/api/admin/store',
+  auth,
+  asyncRoute(async (req, res) => {
+    const current = await pool.query('SELECT * FROM stores WHERE owner_id=$1 LIMIT 1', [req.user.id])
+    if (!current.rowCount) return res.status(404).json({ error: 'Loja não encontrada.' })
+
+    const store = current.rows[0]
+    const desiredSlug = slugify(req.body?.slug || store.slug)
+    const slug =
+      desiredSlug === store.slug ? store.slug : await uniqueSlug(desiredSlug, 'stores', null, store.id)
+    const name = String(req.body?.name || store.name).trim()
+    const eyebrow = String(req.body?.eyebrow ?? store.eyebrow).trim().slice(0, 120)
+    const tagline = String(req.body?.tagline ?? store.tagline).trim().slice(0, 240)
+    const minimumOrder = Math.max(0, toMoney(req.body?.minimumOrder ?? store.minimum_order))
+    const whatsapp = digits(req.body?.whatsapp ?? store.whatsapp)
+    const logoUrl = String(req.body?.logoUrl ?? store.logo_url).trim().slice(0, 1000)
+    const accent = /^#[0-9a-fA-F]{6}$/.test(req.body?.accent || '') ? req.body.accent : store.accent
+    const paletteSelected = store.onboarding_palette_selected === true || req.body?.completePaletteSetup === true
+    const requestedSeason = req.body?.seasonalTheme
+    const allowedSeasons = new Set(['padrao', 'black-friday', 'natal'])
+    if (requestedSeason != null && !allowedSeasons.has(requestedSeason)) {
+      return res.status(400).json({ error: 'Tema sazonal inválido.' })
+    }
+    if (requestedSeason != null && !isShopvaxSeasonOpen(requestedSeason)) {
+      return res.status(400).json({ error: 'Este tema só pode ser ativado durante o período da campanha.' })
+    }
+    // Em atualizações comuns, limpa seleções antigas ou campanhas já encerradas.
+    const seasonalTheme = resolveShopvaxTheme({ seasonal_theme: requestedSeason ?? store.seasonal_theme ?? 'padrao' }).id
+
+    const updated = await pool.query(
+      `UPDATE stores
+       SET slug=$1,name=$2,eyebrow=$3,tagline=$4,minimum_order=$5,whatsapp=$6,logo_url=$7,accent=$8,onboarding_palette_selected=$9,seasonal_theme=$11,updated_at=now()
+       WHERE id=$10
+       RETURNING *`,
+      [slug, name, eyebrow, tagline, minimumOrder, whatsapp, logoUrl, accent, paletteSelected, store.id, seasonalTheme],
+    )
+    res.json({
+      store: { ...updated.rows[0], minimum_order: Number(updated.rows[0].minimum_order) },
+    })
+  }),
+)
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 30 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) =>
+    cb(null, acceptsCatalogMediaFile(file)),
+})
+
+// A resposta do upload depende apenas da gravação do original; a otimização é
+// opcional e executada em uma fila pequena, fora do caminho crítico HTTP.
+const mediaVariantQueue = process.env.REDIS_URL ? createRedisMediaVariantQueue({
+  onError: (error) => console.warn('[shopvax-media] redis queue:', error?.message || error),
+}) : createMediaVariantQueue({
+  generate: generateMediaVariants,
+  persist: async (assetId, variant) => {
+    await pool.query(
+      `INSERT INTO media_variants (asset_id,width,mime_type,byte_size,data)
+       VALUES ($1,$2,$3,$4,$5)
+       ON CONFLICT (asset_id,width) DO NOTHING`,
+      [assetId, variant.width, variant.mimeType, variant.bytes.length, variant.bytes],
+    )
+  },
+  onError: (error) => console.warn(
+    '[shopvax-media] variante opcional indisponível:',
+    error instanceof Error ? error.message : 'erro',
+  ),
+})
+
+if (process.env.REDIS_URL && process.env.SHOPVAX_MEDIA_WORKER_DISABLED !== '1') {
+  import('./redis-media-jobs.mjs').then(({ startRedisMediaWorker }) =>
+    startRedisMediaWorker({ onError: (error) =>
+      console.warn('[shopvax-media-worker]', error.message) }),
+  ).catch((error) => console.error('[shopvax-media-worker] falha:', error.message))
+}
+
+app.post(
+  '/api/admin/upload',
+  traceUpload('media'),
+  auth,
+  upload.single('file'),
+  asyncRoute(async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'Selecione uma imagem JPG, PNG, WEBP, AVIF ou HEIC, ou um vídeo MP4.' })
+    const store = await pool.query('SELECT id FROM stores WHERE owner_id=$1 LIMIT 1', [req.user.id])
+    if (!store.rowCount) return res.status(404).json({ error: 'Loja não encontrada.' })
+
+    let prepared
+    try {
+      prepared = await prepareCatalogMedia(req.file)
+    } catch (error) {
+      return res.status(error?.statusCode || 415).json({ error: error?.message || 'Não foi possível processar a foto.' })
+    }
+
+    const assetId = id()
+    await pool.query(
+      `INSERT INTO media_assets (id,store_id,mime_type,original_name,byte_size,data)
+       VALUES ($1,$2,$3,$4,$5,$6)`,
+      [
+        assetId,
+        store.rows[0].id,
+        prepared.mimeType,
+        String(req.file.originalname || '').slice(0, 255),
+        prepared.buffer.length,
+        prepared.buffer,
+      ],
+    )
+    // Retorna assim que o original está persistido; o proxy não espera o Sharp.
+    res.status(201).json({
+      url: `/media/${assetId}`,
+      type: prepared.type,
+    })
+    if (prepared.type === 'image') {
+      const job = mediaVariantQueue.enqueue(assetId, prepared.buffer, prepared.mimeType)
+      if (!job.accepted) {
+        console.warn('[shopvax-media] fila de variantes cheia; original preservado:', assetId)
+      }
+    }
+  }),
+)
+
+app.post(
+  '/api/admin/products',
+  auth,
+  asyncRoute(async (req, res) => {
+    const store = await pool.query('SELECT id,plan_tier FROM stores WHERE owner_id=$1 LIMIT 1', [req.user.id])
+    const price = toMoney(req.body?.price)
+    const retailPrice = req.body?.retailPrice == null || req.body.retailPrice === '' ? null : toMoney(req.body.retailPrice)
+    const boxPrice = req.body?.boxPrice == null || req.body.boxPrice === '' ? null : toMoney(req.body.boxPrice)
+    const unitsPerBox = req.body?.unitsPerBox == null || req.body.unitsPerBox === '' ? null : Number(req.body.unitsPerBox)
+    if ([retailPrice,boxPrice].some(v => v !== null && v <= 0) || (unitsPerBox !== null && (!Number.isSafeInteger(unitsPerBox) || unitsPerBox < 1 || unitsPerBox > 10000))) {
+      return res.status(400).json({ error: 'Preços adicionais devem ser positivos e unidades por caixa deve ser inteiro entre 1 e 10.000.' })
+    }
+    const name = String(req.body?.name || '').trim()
+    if (!store.rowCount || !name || price <= 0) {
+      return res.status(400).json({ error: 'Nome e preço são obrigatórios.' })
+    }
+
+    const catalogId=String(req.body?.catalogId||'').trim().slice(0,100)
+    if(catalogId){
+      const existing=await pool.query('SELECT id,is_default FROM catalogs WHERE id=$1 AND store_id=$2',[catalogId,store.rows[0].id])
+      if(!existing.rowCount)return res.status(404).json({error:'Catálogo não encontrado.'})
+      if(!existing.rows[0].is_default&&store.rows[0].plan_tier!=='ouro')return res.status(403).json({error:'Catálogo adicional requer Gold.'})
+    }
+    const client=await pool.connect()
+    try{
+      await client.query('BEGIN')
+      const result = await client.query(
+      `INSERT INTO products
+       (id,store_id,sku,name,description,price,category,media_url,media_type,pack,variations,featured,active,retail_price,box_price,units_per_box)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+       RETURNING *`,
+      [
+        id(),
+        store.rows[0].id,
+        String(req.body?.sku || '').trim().slice(0, 80),
+        name.slice(0, 180),
+        String(req.body?.description || '').trim().slice(0, 2000),
+        price,
+        String(req.body?.category || 'Geral').trim().slice(0, 80) || 'Geral',
+        String(req.body?.mediaUrl || '').trim().slice(0, 1000),
+        req.body?.mediaType === 'video' ? 'video' : 'image',
+        String(req.body?.pack || '').trim().slice(0, 160),
+        JSON.stringify(normalizeVariations(req.body?.variations)),
+        Boolean(req.body?.featured),
+        req.body?.active !== false,
+        retailPrice,
+        boxPrice,
+        unitsPerBox,
+      ],
+    )
+    if(catalogId){
+      await client.query(`INSERT INTO catalog_products(catalog_id,product_id,visible)
+        SELECT c.id,$2,true FROM catalogs c WHERE c.id=$1 AND c.store_id=$3
+        ON CONFLICT(catalog_id,product_id) DO UPDATE SET visible=true,updated_at=now()`,
+        [catalogId,result.rows[0].id,store.rows[0].id])
+    }
+    await client.query('COMMIT')
+    res.status(201).json({ product: { ...result.rows[0], price: Number(result.rows[0].price) } })
+    }catch(error){await client.query('ROLLBACK').catch(()=>{});throw error}
+    finally{client.release()}
+  }),
+)
+
+app.post(
+  '/api/admin/products/bulk-delete',
+  auth,
+  asyncRoute(async (req, res) => {
+    const store = await pool.query('SELECT id FROM stores WHERE owner_id=$1 LIMIT 1', [req.user.id])
+    if (!store.rowCount) return res.status(404).json({ error: 'Loja não encontrada.' })
+
+    const ids = [...new Set(
+      (Array.isArray(req.body?.ids) ? req.body.ids : [])
+        .map((value) => String(value || '').trim())
+        .filter(Boolean),
+    )].slice(0, 5000)
+    if (!ids.length) return res.status(400).json({ error: 'Selecione ao menos um produto para excluir.' })
+
+    const deleted = await pool.query(
+      'DELETE FROM products WHERE store_id=$1 AND id = ANY($2::text[]) RETURNING id',
+      [store.rows[0].id, ids],
+    )
+    res.json({ ok: true, deleted: deleted.rowCount, ids: deleted.rows.map((row) => row.id) })
+  }),
+)
+
+installProductBulkJobs(app,pool,auth,asyncRoute)
+
+app.put(
+  '/api/admin/products/:id',
+  auth,
+  asyncRoute(async (req, res) => {
+    const store = await pool.query('SELECT id FROM stores WHERE owner_id=$1 LIMIT 1', [req.user.id])
+    if (!store.rowCount) return res.status(404).json({ error: 'Loja não encontrada.' })
+
+    const price = toMoney(req.body?.price)
+    const retailPrice = req.body?.retailPrice == null || req.body.retailPrice === '' ? null : toMoney(req.body.retailPrice)
+    const boxPrice = req.body?.boxPrice == null || req.body.boxPrice === '' ? null : toMoney(req.body.boxPrice)
+    const unitsPerBox = req.body?.unitsPerBox == null || req.body.unitsPerBox === '' ? null : Number(req.body.unitsPerBox)
+    if ([retailPrice,boxPrice].some(v => v !== null && v <= 0) || (unitsPerBox !== null && (!Number.isSafeInteger(unitsPerBox) || unitsPerBox < 1 || unitsPerBox > 10000))) {
+      return res.status(400).json({ error: 'Preços adicionais devem ser positivos e unidades por caixa deve ser inteiro entre 1 e 10.000.' })
+    }
+    const name = String(req.body?.name || '').trim()
+    if (!name || price <= 0) return res.status(400).json({ error: 'Nome e preço são obrigatórios.' })
+
+    const result = await pool.query(
+      `UPDATE products
+       SET sku=$1,name=$2,description=$3,price=$4,category=$5,media_url=$6,media_type=$7,pack=$8,variations=$9,featured=$10,active=$11,
+       retail_price=CASE WHEN $14::boolean THEN $15 ELSE retail_price END,
+       box_price=CASE WHEN $16::boolean THEN $17 ELSE box_price END,
+       units_per_box=CASE WHEN $18::boolean THEN $19 ELSE units_per_box END,updated_at=now()
+       WHERE id=$12 AND store_id=$13
+       RETURNING *`,
+      [
+        String(req.body?.sku || '').trim().slice(0, 80),
+        name.slice(0, 180),
+        String(req.body?.description || '').trim().slice(0, 2000),
+        price,
+        String(req.body?.category || 'Geral').trim().slice(0, 80) || 'Geral',
+        String(req.body?.mediaUrl || '').trim().slice(0, 1000),
+        req.body?.mediaType === 'video' ? 'video' : 'image',
+        String(req.body?.pack || '').trim().slice(0, 160),
+        JSON.stringify(normalizeVariations(req.body?.variations)),
+        Boolean(req.body?.featured),
+        req.body?.active !== false,
+        req.params.id,
+        store.rows[0].id,
+        Object.hasOwn(req.body || {}, 'retailPrice'),retailPrice,
+        Object.hasOwn(req.body || {}, 'boxPrice'),boxPrice,
+        Object.hasOwn(req.body || {}, 'unitsPerBox'),unitsPerBox,
+      ],
+    )
+    if (!result.rowCount) return res.status(404).json({ error: 'Produto não encontrado.' })
+    res.json({ product: { ...result.rows[0], price: Number(result.rows[0].price) } })
+  }),
+)
+
+app.patch(
+  '/api/admin/products/:id/visibility',
+  auth,
+  asyncRoute(async (req, res) => {
+    const store = await pool.query('SELECT id FROM stores WHERE owner_id=$1 LIMIT 1', [req.user.id])
+    if (!store.rowCount) return res.status(404).json({ error: 'Loja não encontrada.' })
+    const active = req.body?.active !== false
+    const result = await pool.query(
+      'UPDATE products SET active=$1,updated_at=now() WHERE id=$2 AND store_id=$3 RETURNING id,active',
+      [active, req.params.id, store.rows[0].id],
+    )
+    if (!result.rowCount) return res.status(404).json({ error: 'Produto não encontrado.' })
+    res.json({ product: result.rows[0] })
+  }),
+)
+
+app.delete(
+  '/api/admin/products/:id',
+  auth,
+  asyncRoute(async (req, res) => {
+    const store = await pool.query('SELECT id FROM stores WHERE owner_id=$1 LIMIT 1', [req.user.id])
+    if (!store.rowCount) return res.status(404).json({ error: 'Loja não encontrada.' })
+    await pool.query('DELETE FROM products WHERE id=$1 AND store_id=$2', [
+      req.params.id,
+      store.rows[0].id,
+    ])
+    res.json({ ok: true })
+  }),
+)
+
+app.post(
+  '/api/admin/sellers',
+  auth,
+  asyncRoute(async (req, res) => {
+    const store = await pool.query('SELECT id FROM stores WHERE owner_id=$1 LIMIT 1', [req.user.id])
+    const name = String(req.body?.name || '').trim()
+    const phone = digits(req.body?.phone)
+    if (!store.rowCount || !name || phone.length < 10) {
+      return res.status(400).json({ error: 'Nome e WhatsApp são obrigatórios.' })
+    }
+
+    const slug = await uniqueSlug(req.body?.slug || name, 'sellers', store.rows[0].id)
+    const result = await pool.query(
+      'INSERT INTO sellers (id,store_id,slug,name,phone,is_active) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
+      [id(), store.rows[0].id, slug, name.slice(0, 120), phone, req.body?.isActive !== false],
+    )
+    res.status(201).json({ seller: result.rows[0] })
+  }),
+)
+
+app.put(
+  '/api/admin/sellers/:id',
+  auth,
+  asyncRoute(async (req, res) => {
+    const store = await pool.query('SELECT id FROM stores WHERE owner_id=$1 LIMIT 1', [req.user.id])
+    if (!store.rowCount) return res.status(404).json({ error: 'Loja não encontrada.' })
+
+    const current = await pool.query('SELECT * FROM sellers WHERE id=$1 AND store_id=$2', [
+      req.params.id,
+      store.rows[0].id,
+    ])
+    if (!current.rowCount) return res.status(404).json({ error: 'Vendedora não encontrada.' })
+
+    const name = String(req.body?.name || current.rows[0].name).trim()
+    const phone = digits(req.body?.phone || current.rows[0].phone)
+    const desired = slugify(req.body?.slug || current.rows[0].slug)
+    const slug =
+      desired === current.rows[0].slug
+        ? desired
+        : await uniqueSlug(desired, 'sellers', store.rows[0].id, req.params.id)
+
+    const result = await pool.query(
+      'UPDATE sellers SET slug=$1,name=$2,phone=$3,is_active=$4 WHERE id=$5 AND store_id=$6 RETURNING *',
+      [slug, name, phone, req.body?.isActive !== false, req.params.id, store.rows[0].id],
+    )
+    res.json({ seller: result.rows[0] })
+  }),
+)
+
+app.delete(
+  '/api/admin/sellers/:id',
+  auth,
+  asyncRoute(async (req, res) => {
+    const store = await pool.query('SELECT id FROM stores WHERE owner_id=$1 LIMIT 1', [req.user.id])
+    if (!store.rowCount) return res.status(404).json({ error: 'Loja não encontrada.' })
+    await pool.query('DELETE FROM sellers WHERE id=$1 AND store_id=$2', [
+      req.params.id,
+      store.rows[0].id,
+    ])
+    res.json({ ok: true })
+  }),
+)
+
+async function getPublicStore(req, res) {
+  if (!dbReady) await initDb()
+  if (!dbReady || !pool) return res.status(503).json({ error: 'Loja ainda não conectada ao banco.' })
+
+  const storeResult = await pool.query(
+    'SELECT * FROM stores WHERE slug=$1 AND is_active=true LIMIT 1',
+    [req.params.storeSlug],
+  )
+  if (!storeResult.rowCount) return res.status(404).json({ error: 'Loja não encontrada.' })
+
+  const store = storeResult.rows[0]
+  let seller = null
+  if (req.params.sellerSlug) {
+    const sellerResult = await pool.query(
+      'SELECT id,slug,name,phone FROM sellers WHERE store_id=$1 AND slug=$2 AND is_active=true LIMIT 1',
+      [store.id, req.params.sellerSlug],
+    )
+    if (sellerResult.rowCount) seller = sellerResult.rows[0]
+  }
+  if (!seller || digits(seller.phone).length < 10) {
+    const available = await pool.query(
+      'SELECT id,slug,name,phone FROM sellers WHERE store_id=$1 AND is_active=true AND length(regexp_replace(phone, \'[^0-9]\', \'\', \'g\'))>=10 ORDER BY created_at ASC,id ASC LIMIT 1',
+      [store.id],
+    )
+    seller = available.rows[0] || null
+  }
+
+  const products = await pool.query(
+    'SELECT * FROM products WHERE store_id=$1 AND active=true ORDER BY featured DESC,created_at DESC',
+    [store.id],
+  )
+  res.json(publicStoreShape(store, seller, products.rows))
+}
+app.get('/api/public/store/:storeSlug/:sellerSlug', asyncRoute(getPublicStore))
+app.get('/api/public/store/:storeSlug', asyncRoute(getPublicStore))
+
+app.post(
+  '/api/public/events',
+  requireDb,
+  asyncRoute(async (req, res) => {
+    // Anonymous analytics are not an unbounded SQL input surface. Slugs are
+    // generated by slugify() (ASCII lower-case and hyphens, at most 60 chars).
+    // Ignore malformed traffic without creating bogus store-level events.
+    const validSlug = (value) => typeof value === 'string' && value.length <= 60 &&
+      /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value)
+    const body = req.body
+    if (!body || typeof body !== 'object' || Array.isArray(body) ||
+      Object.keys(body).some((key) => !['storeSlug', 'sellerSlug', 'kind'].includes(key))) {
+      return res.status(204).end()
+    }
+    const { storeSlug, sellerSlug, kind } = body
+    if (!validSlug(storeSlug) || (sellerSlug != null && sellerSlug !== '' && !validSlug(sellerSlug)) ||
+      !['view', 'cart', 'whatsapp'].includes(kind)) {
+      return res.status(204).end()
+    }
+    const storeResult = await pool.query(
+      'SELECT id FROM stores WHERE slug=$1 AND is_active=true LIMIT 1',
+      [storeSlug],
+    )
+    if (!storeResult.rowCount) return res.status(204).end()
+
+    let sellerId = null
+    if (sellerSlug) {
+      const seller = await pool.query(
+        'SELECT id FROM sellers WHERE store_id=$1 AND slug=$2 LIMIT 1',
+        [storeResult.rows[0].id, sellerSlug],
+      )
+      sellerId = seller.rows[0]?.id || null
+    }
+
+    await pool.query('INSERT INTO events (id,store_id,seller_id,kind) VALUES ($1,$2,$3,$4)', [
+      id(),
+      storeResult.rows[0].id,
+      sellerId,
+      kind,
+    ])
+    res.status(204).end()
+  }),
+)
+
+app.post(
+  '/api/public/orders',
+  requireDb,
+  asyncRoute(async (req, res) => {
+    const storeResult = await pool.query(
+      'SELECT * FROM stores WHERE slug=$1 AND is_active=true LIMIT 1',
+      [String(req.body?.storeSlug || '')],
+    )
+    if (!storeResult.rowCount) return res.status(404).json({ error: 'Loja não encontrada.' })
+
+    const store = storeResult.rows[0]
+    const requestedItems = Array.isArray(req.body?.items) ? req.body.items : []
+    if (!requestedItems.length) return res.status(400).json({ error: 'Carrinho vazio.' })
+
+    const productIds = [
+      ...new Set(requestedItems.map((item) => String(item.productId || '')).filter(Boolean)),
+    ]
+    const productsResult = await pool.query(
+      'SELECT * FROM products WHERE store_id=$1 AND active=true AND id=ANY($2::text[])',
+      [store.id, productIds],
+    )
+    const byId = new Map(productsResult.rows.map((product) => [product.id, product]))
+
+    const items = []
+    let total = 0
+    for (const requested of requestedItems) {
+      const product = byId.get(String(requested.productId || ''))
+      if (!product) continue
+
+      const quantity = Math.max(1, Math.min(999, Math.floor(Number(requested.quantity) || 1)))
+      const allowedGroups = Array.isArray(product.variations) ? product.variations : []
+      const selections = {}
+      for (const group of allowedGroups) {
+        const selected = String(requested.selections?.[group.name] || '')
+        if (!group.options.includes(selected)) {
+          return res.status(400).json({ error: `Escolha ${group.name} para ${product.name}.` })
+        }
+        selections[group.name] = selected
+      }
+
+      const unitPrice = Number(product.price)
+      const lineTotal = unitPrice * quantity
+      total += lineTotal
+      items.push({
+        productId: product.id,
+        sku: product.sku,
+        name: product.name,
+        quantity,
+        unitPrice,
+        lineTotal,
+        selections,
+      })
+    }
+
+    total = toMoney(total)
+    if (!items.length) return res.status(400).json({ error: 'Nenhum produto válido no carrinho.' })
+    if (total < Number(store.minimum_order)) {
+      return res
+        .status(400)
+        .json({
+          error: `O pedido mínimo é R$ ${Number(store.minimum_order).toFixed(2).replace('.', ',')}.`,
+        })
+    }
+
+    let seller = null
+    if (req.body?.sellerSlug) {
+      const sellerResult = await pool.query(
+        'SELECT * FROM sellers WHERE store_id=$1 AND slug=$2 AND is_active=true LIMIT 1',
+        [store.id, req.body.sellerSlug],
+      )
+      seller = sellerResult.rows[0] || null
+    }
+
+    if (!seller || digits(seller.phone).length < 10) {
+      const available = await pool.query(
+        'SELECT * FROM sellers WHERE store_id=$1 AND is_active=true AND length(regexp_replace(phone, \'[^0-9]\', \'\', \'g\'))>=10 ORDER BY created_at ASC,id ASC LIMIT 1',
+        [store.id],
+      )
+      seller = available.rows[0] || null
+    }
+    const phone = digits(seller?.phone || '')
+    if (phone.length < 10) {
+      return res.status(409).json({ code: 'NO_AVAILABLE_SELLER', error: 'Nenhuma vendedora disponível para receber o pedido. Ative uma vendedora antes de continuar.' })
+    }
+
+    const code = `AS-${Date.now().toString().slice(-6)}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`
+    await pool.query(
+      'INSERT INTO orders (id,code,store_id,seller_id,total,items) VALUES ($1,$2,$3,$4,$5,$6)',
+      [id(), code, store.id, seller?.id || null, total, JSON.stringify(items)],
+    )
+    await pool.query('INSERT INTO events (id,store_id,seller_id,kind) VALUES ($1,$2,$3,$4)', [
+      id(),
+      store.id,
+      seller?.id || null,
+      'whatsapp',
+    ])
+
+    const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
+    const lines = items.map((item) => {
+      const variations = Object.entries(item.selections)
+        .map(([key, value]) => `${key}: ${value}`)
+        .join(' · ')
+      return `${item.quantity}x ${item.name}${variations ? ` (${variations})` : ''} — ${money.format(item.lineTotal)}`
+    })
+    const attendant = seller?.name || 'atendimento'
+    const message = [
+      `Olá! Montei este pedido na ${store.name}:`,
+      '',
+      ...lines,
+      '',
+      `Total dos produtos: ${money.format(total)}`,
+      `Pedido: ${code}`,
+      '',
+      `Quero finalizar com ${attendant}.`,
+    ].join('\n')
+
+    res.status(201).json({
+      code,
+      whatsappUrl: `https://wa.me/${phone}?text=${encodeURIComponent(message)}`,
+    })
+  }),
+)
+
+app.use(express.static(distDir, { index: false, maxAge: '1h' }))
+app.get('*', (_req, res) => res.sendFile(path.join(distDir, 'index.html')))
+
+app.use((error, _req, res, _next) => {
+  console.error(error)
+  if (error?.code === 'LIMIT_FILE_SIZE') {
+    return res.status(413).json({ error: 'Arquivo maior que 30 MB. Tente uma foto menor.' })
+  }
+  if (error?.code === '23505') {
+    return res.status(409).json({ error: 'Esse dado já está em uso.' })
+  }
+  res.status(500).json({ error: 'Erro interno.' })
+})
+
+app.listen(port, '0.0.0.0', () => {
+  console.log(`[atacado-shop] listening on :${port} | db=${dbReady ? 'ready' : 'waiting'}`)
+})
++(params.length+2),[...params,limit,offset]),
     ])
     res.json({
       products:found.rows.map(item=>({...item,price:Number(item.price)})),
