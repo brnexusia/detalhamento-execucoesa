@@ -8,7 +8,7 @@ const transientCodes = new Set([
   'ENETUNREACH','EHOSTUNREACH','UND_ERR_SOCKET','ERR_STREAM_PREMATURE_CLOSE',
 ])
 const transientStatuses = new Set([408,425,429,500,502,503,504])
-const transientText = /\bECONNRESET\b|socket hang up|connection reset|read ECONNRESET|premature close|resposta interrompida|socket disconnected|tempo(?:u|ut) esgotado|demorou demais para responder|aborted/i
+const transientText = /\bECONNRESET\b|socket hang up|connection reset|read ECONNRESET|premature close|resposta interrompida|socket disconnected|tempo(?:u|ut) esgotado|demorou demais para responder|aborted|\bHTTP (?:408|425|429|500|502|503|504)\b/i
 
 export function isTransientScannerNetworkError(error) {
   let current = error
