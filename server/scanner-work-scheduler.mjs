@@ -30,7 +30,14 @@ export function createScannerWorkScheduler({
       polling = true
       try {
         await ensureSchema()
-        const recovered = await recover()
+        let recovered
+        try {
+          recovered = await recover()
+        } catch (error) {
+          // A broken recovery query must not block all new website/PDF jobs.
+          log('[scanner] stalled-job recovery failed; continuing import queue:', error)
+          recovered = []
+        }
         // Accept both the older rows-array return and PostgreSQL QueryResult.
         // A rolling deploy must never disable imports over a .rows mismatch.
         const abandoned = Array.isArray(recovered) ? recovered
