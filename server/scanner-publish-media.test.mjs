@@ -62,9 +62,9 @@ test('reuses already scanned FácilZap import with corrected store-scoped source
   const state=mockJob([{
     name:'Brinco Aço Inox',price:45,
     job_platform:'facilzap',
-    job_source_url:'https://facilzap.app.br/galego',
-    source_product_id:'2450312',
-    source_url:'https://facilzap.app.br/produto/2450312',
+    job_source_url:'https://facilzap.com.br/galegobijooux',
+    source_product_id:'4419956',
+    source_url:'https://facilzap.com.br/produto/4419956',
     media_url:'https://arquivos.facilzap.app.br/produtos/404.webp',
     images:['https://arquivos.facilzap.app.br/produtos/404.webp'],
   }])
@@ -76,7 +76,7 @@ test('reuses already scanned FácilZap import with corrected store-scoped source
       return {mediaUrl:'/media/brinco-inox',images:['/media/brinco-inox'],variantImages:[],failed:1}
     },
   })
-  assert.equal(source,'https://facilzap.app.br/galego/produto/2450312',
+  assert.equal(source,'https://facilzap.com.br/galegobijooux/produto/4419956',
     'Recover from shop-specific product detail URL, not /produto/ID without shop')
   assert.equal(state.updates[0].data.source_url,source,
     'Repair source URL in current review without scanning again')
