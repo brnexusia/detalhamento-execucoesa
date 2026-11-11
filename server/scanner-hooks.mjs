@@ -12,6 +12,7 @@ import { whatsappCatalogPhone, uazapiCatalogConfig } from './scanner-uazapi-cata
 import { sharedPhotoSourceKind } from './scanner-photo-albums.mjs'
 import { normalizeCandidates } from './scanner-normalizer.mjs'
 import { prepareReview } from './scanner-review.mjs'
+import { requeueInterruptedScans } from './scanner-scan-lease.mjs'
 
 const { Pool } = pg
 const databaseUrl = process.env.DATABASE_URL?.trim() || ''
@@ -383,7 +384,7 @@ export async function processImportJob(jobId, collector = collectCatalog) {
     const persistedCount = Number(countResult.rows[0]?.count || 0)
     const updated = await pool.query(
       `UPDATE import_jobs
-       SET status='processing',progress=95,result_count=$1,normalized_count=0,warning_count=0,duplicate_count=0,selected_count=0,review_changed_count=0,platform=$2,pages_scanned=$3,error='',updated_at=now()
+       SET status='processing',progress=95,result_count=$1,normalized_count=0,warning_count=0,duplicate_count=0,selected_count=0,review_changed_count=0,platform=$2,pages_scanned=$3,error='',scan_worker_token=NULL,scan_lease_at=NULL,updated_at=now()
        WHERE id=$4 AND status='scanning' AND scan_worker_token=$5 RETURNING *`,
       [persistedCount, String(result?.platform || 'generic'), Number(result?.pagesScanned || 0), job.id, workerToken],
     )
@@ -546,14 +547,7 @@ async function runNextWork() {
     // A restarted service previously left jobs stuck in 'scanning' forever.
     // Requeue only a scan whose heartbeat has expired. Any partial candidates
     // are rebuilt by processImportJob; they are never published as complete.
-    const orphaned = await pool.query(
-      `UPDATE import_jobs
-       SET status='queued',progress=0,result_count=0,pages_scanned=0,
-           error='',scan_worker_token=NULL,scan_lease_at=NULL,updated_at=now()
-       WHERE status='scanning'
-         AND COALESCE(scan_lease_at,updated_at) < now()-interval '120 seconds'
-       RETURNING id`,
-    )
+    const orphaned = await requeueInterruptedScans(pool.query.bind(pool))
     for (const row of orphaned.rows) console.warn('[scanner] restarting interrupted scan:', row.id)
     const processing = await pool.query("SELECT id FROM import_jobs WHERE status='processing' ORDER BY updated_at ASC LIMIT 1")
     if (processing.rowCount) await processNormalizationJob(processing.rows[0].id)
