@@ -591,6 +591,50 @@ app.get(
   }),
 )
 
+// Category chips are catalog-specific, not global store categories.
+// Keep this membership predicate identical to /api/admin/products, including
+// implicit catalogs with explicit hidden items.
+app.get(
+  '/api/admin/products/categories',
+  auth,
+  asyncRoute(async (req, res) => {
+    const ownerStore = await pool.query('SELECT id,plan_tier FROM stores WHERE owner_id=$1 LIMIT 1', [req.user.id])
+    if (!ownerStore.rowCount) return res.status(404).json({ error: 'Loja não encontrada.' })
+    const store = ownerStore.rows[0]
+    const catalogId = String(req.query.catalogId || '').trim().slice(0, 100)
+    const params = [store.id]
+    const filters = ['p.store_id=$1']
+    if (catalogId) {
+      const found = await pool.query(
+        'SELECT id,is_default,explicit_membership FROM catalogs WHERE id=$1 AND store_id=$2 LIMIT 1',
+        [catalogId, store.id],
+      )
+      if (!found.rowCount) return res.status(404).json({ error: 'Catálogo não encontrado.' })
+      if (!found.rows[0].is_default && store.plan_tier !== 'ouro') {
+        return res.status(403).json({ error: 'Este catálogo requer o plano Gold.', code: 'GOLD_REQUIRED' })
+      }
+      params.push(catalogId)
+      const idx = '$' + params.length
+      filters.push(found.rows[0].explicit_membership
+        ? `EXISTS (SELECT 1 FROM catalog_products cp WHERE cp.catalog_id=${idx} AND cp.product_id=p.id AND cp.visible=true)`
+        : `NOT EXISTS (SELECT 1 FROM catalog_products cp WHERE cp.catalog_id=${idx} AND cp.product_id=p.id AND cp.visible=false)`)
+    }
+    const grouped = await pool.query(
+      `SELECT COALESCE(NULLIF(BTRIM(p.category),''),'Geral') AS category,
+              count(*)::int AS count
+       FROM products p WHERE ${filters.join(' AND ')}
+       GROUP BY 1 ORDER BY 1`,
+      params,
+    )
+    const categories = grouped.rows.map((row) => ({ category: row.category, count: Number(row.count) }))
+    res.json({
+      catalogId: catalogId || null,
+      total: categories.reduce((sum, row) => sum + row.count, 0),
+      categories,
+    })
+  }),
+)
+
 // Tenant-scoped, bounded listing. Product count and filters apply to the
 // selected catalog (including unloaded pages); never trust client store IDs.
 app.get(
@@ -620,7 +664,7 @@ app.get(
     }
     if (category && category !== 'Todas') {
       params.push(category)
-      filters.push('p.category=$' + params.length)
+      filters.push("COALESCE(NULLIF(BTRIM(p.category),''),'Geral')=$" + params.length)
     }
     if (query) {
       params.push(query)
