@@ -560,6 +560,7 @@ async function publishJob(req, res) {
           `INSERT INTO catalog_products(catalog_id,product_id,price_override,visible)
            SELECT $1,p.product_id,p.price_override,true
            FROM jsonb_to_recordset($2::jsonb) AS p(product_id text,price_override numeric)
+           WHERE p.product_id IS NOT NULL
            ON CONFLICT(catalog_id,product_id)
            DO UPDATE SET price_override=EXCLUDED.price_override,visible=true,updated_at=now()`,
           [targetCatalogId, JSON.stringify(members)],
@@ -1009,6 +1010,7 @@ async function assignCompletedImportToCatalog(req,res) {
           AND n.published_product_id IS NOT NULL
         ORDER BY n.published_product_id,n.id
       ) src
+      WHERE src.product_id IS NOT NULL
       ON CONFLICT(catalog_id,product_id)
       DO UPDATE SET price_override=EXCLUDED.price_override,visible=true,updated_at=now()
       RETURNING product_id`,[job.id,store.store_id,catalogId])
