@@ -332,13 +332,20 @@ export async function recoverImportImagesFromSource(sourceUrl, product, { reques
   const facilZapDetail = extractFacilZapDetailProduct(response.body, response.url || source)
   const sku = normalizeText(product?.sku)
   const name = normalizeText(product?.name)
+  const generatedId = /^fz(\d+)$/i.exec(sku)?.[1] || ''
   const matches = (candidate) => {
     if (!candidate) return false
     const candidateSku = normalizeText(candidate.sku)
     const candidateName = normalizeText(candidate.title)
-    // If both sides have SKU, a conflicting SKU disqualifies a name-only match.
+    const candidateId = normalizeText(candidate.external_id)
+    const exactName = Boolean(name && candidateName && candidateName === name)
+    // FZ12345 is a synthetic ShopVax SKU built from the FácilZap product ID.
+    // The original page can legitimately carry a different merchant SKU.
+    // Require both the same immutable FácilZap ID and matching product name,
+    // rather than treating an artificial SKU mismatch as a different product.
+    if (generatedId && candidateId === generatedId && exactName) return true
     if (sku && candidateSku) return candidateSku === sku
-    return Boolean(name && candidateName && candidateName === name)
+    return exactName
   }
   const verified = [facilZapDetail, ...(Array.isArray(generic) ? generic : [])].filter(matches)
   if (!verified.length) return []
