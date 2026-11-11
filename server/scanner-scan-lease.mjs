@@ -9,7 +9,10 @@ export async function requeueInterruptedScans(query) {
      SET status='queued',progress=0,result_count=0,pages_scanned=0,
          error='',scan_worker_token=NULL,scan_lease_at=NULL,updated_at=now()
      WHERE status='scanning'
-       AND COALESCE(scan_lease_at,updated_at) < now()-interval '120 seconds'
+       AND (
+         COALESCE(scan_lease_at,updated_at) < now()-interval '120 seconds'
+         OR (COALESCE(platform,'')<>'pdf' AND updated_at < now()-interval '300 seconds')
+       )
      RETURNING id`,
   )
   return result.rows || []
