@@ -5,7 +5,8 @@
  * Never modifies data or prints URL query parameters/tokens.
  */
 import pg from 'pg'
-import { facilZapProductUrl } from '../server/scanner-platforms.mjs'
+import { facilZapProductUrl, extractFacilZapDetailProduct } from '../server/scanner-platforms.mjs'
+import { safeRequest } from '../server/scanner-collector.mjs'
 import { fetchBestImportImage, recoverImportImagesFromSource } from '../server/import-media-localizer.mjs'
 
 const [jobId, productId] = process.argv.slice(2)
@@ -78,6 +79,26 @@ try {
       ...(Array.isArray(item.variant_images) ? item.variant_images.flatMap(x => x.images || []) : []),
     ])
     await probe('url_armazenada', sourceImages)
+    try {
+      const page = await safeRequest(corrected, {
+        accept:'text/html,application/xhtml+xml',
+        maxBytes:6 * 1024 * 1024,
+      })
+      const detail = String(page.contentType || '').includes('html')
+        ? extractFacilZapDetailProduct(page.body, page.url || corrected) : null
+      console.log(JSON.stringify({
+        event:'pagina_produto',
+        httpStatus:page.status,
+        finalUrl:location(page.url || corrected),
+        contentType:String(page.contentType || '').slice(0, 60),
+        hasDadosProduto:Boolean(detail),
+        extractedProductId:detail?.external_id || '',
+        extractedProductName:String(detail?.title || '').slice(0, 90),
+        hasOgImage:/property=["']og:image["']/i.test(page.body || ''),
+      }))
+    } catch (error) {
+      console.log(JSON.stringify({event:'pagina_produto',result:'fetch_failed',reason:compactFailure(error)}))
+    }
     try {
       const recovered = await recoverImportImagesFromSource(corrected, item)
       console.log(JSON.stringify({event:'recovery',candidateImages:recovered.length,first3:recovered.slice(0, 3).map(location)}))
