@@ -109,6 +109,7 @@ export default function ScannerModule1() {
   const [reviewError, setReviewError] = useState('')
   const [selectionBusy, setSelectionBusy] = useState(false)
   const [recoveringId, setRecoveringId] = useState<string | null>(null)
+  const [retryingScanId, setRetryingScanId] = useState<string | null>(null)
 
   const [editing, setEditing] = useState<ImportReviewProduct | null>(null)
   const [draft, setDraft] = useState<ImportReviewData | null>(null)
@@ -217,6 +218,22 @@ export default function ScannerModule1() {
     return () => window.clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reviewFilter, reviewQuery])
+
+  const retryStalledScanner = async (job: ImportJob) => {
+    if (retryingScanId) return
+    setRetryingScanId(job.id)
+    setError('')
+    setSuccess('')
+    try {
+      const result = await api.retryStalledImportJob(job.id)
+      setSuccess(result.message || 'A recuperação do escaneamento foi solicitada.')
+      await loadJobs(true)
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Não foi possível retomar o scanner.')
+    } finally {
+      setRetryingScanId(null)
+    }
+  }
 
   const show = () => {
     activeReviewJobId.current = null
@@ -521,6 +538,13 @@ export default function ScannerModule1() {
                 {job.status==='failed' && job.error && <small className="scanner-job-error">{job.error}</small>}
               </div>
               <div className="scanner-job-actions">
+                {job.status === 'scanning' && Number.isFinite(Date.parse(job.updated_at)) &&
+                  Date.now()-Date.parse(job.updated_at)>120_000 && (
+                  <button type="button" className="scanner-review-open" disabled={retryingScanId===job.id}
+                    onClick={() => void retryStalledScanner(job)}>
+                    {retryingScanId===job.id ? 'Retomando…' : 'Retomar escaneamento'}
+                  </button>
+                )}
                 {job.status === 'failed' && ['alexandrebijoux.com.br', 'www.alexandrebijoux.com.br'].includes(job.source_host) &&
                   <button type="button" className="scanner-review-open" onClick={() => {
                     setSourceMode('site')
