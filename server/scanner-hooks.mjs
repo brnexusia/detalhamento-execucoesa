@@ -111,6 +111,8 @@ export async function ensureScannerSchema() {
       );
       ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS platform text NOT NULL DEFAULT '';
       ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS pages_scanned integer NOT NULL DEFAULT 0;
+      ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS scan_lease_at timestamptz;
+      ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS scan_worker_token text;
       ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS normalized_count integer NOT NULL DEFAULT 0;
       ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS warning_count integer NOT NULL DEFAULT 0;
       ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS duplicate_count integer NOT NULL DEFAULT 0;
@@ -285,15 +287,26 @@ function publicReviewProduct(row) {
 
 export async function processImportJob(jobId, collector = collectCatalog) {
   await ensureScannerSchema()
+  const workerToken = id()
   const claimed = await pool.query(
-    `UPDATE import_jobs SET status='scanning',progress=1,error='',updated_at=now()
+    `UPDATE import_jobs SET status='scanning',progress=1,error='',
+       scan_worker_token=$2,scan_lease_at=now(),updated_at=now()
      WHERE id=$1 AND status='queued' RETURNING *`,
-    [jobId],
+    [jobId, workerToken],
   )
   if (!claimed.rowCount) return null
   const job = claimed.rows[0]
   let persistedBatches = 0
   const storedImportAssetIds = []
+  // A process can die after claiming a job. Other replicas may reclaim it
+  // only after this lease stops being renewed; no in-flight job is reset.
+  const leaseTimer = setInterval(() => {
+    void pool.query(
+      "UPDATE import_jobs SET scan_lease_at=now() WHERE id=$1 AND status='scanning' AND scan_worker_token=$2",
+      [job.id, workerToken],
+    ).catch(error => console.warn('[scanner] scan heartbeat:', job.id, error.message))
+  }, 10000)
+  leaseTimer.unref()
 
   const persistBatch = async (rawBatch) => {
     const candidates = (Array.isArray(rawBatch) ? rawBatch : [])
@@ -307,8 +320,11 @@ export async function processImportJob(jobId, collector = collectCatalog) {
         source_url: candidate.source_url, raw_data: candidate,
       }))
       if (!rows.length) continue
-      const stillActive = await pool.query("SELECT 1 FROM import_jobs WHERE id=$1 AND store_id=$2 AND status='scanning' LIMIT 1", [job.id, job.store_id])
-      if (!stillActive.rowCount) return
+      const stillActive = await pool.query(
+        "SELECT 1 FROM import_jobs WHERE id=$1 AND store_id=$2 AND status='scanning' AND scan_worker_token=$3 LIMIT 1",
+        [job.id, job.store_id, workerToken],
+      )
+      if (!stillActive.rowCount) throw new Error('O scanner perdeu a reserva de execução; outra instância retomou o trabalho.')
       await pool.query(
         `INSERT INTO import_candidates (id,job_id,store_id,source_key,source_url,raw_data)
          SELECT x.id,x.job_id,x.store_id,x.source_key,x.source_url,x.raw_data
@@ -331,8 +347,8 @@ export async function processImportJob(jobId, collector = collectCatalog) {
         await pool.query(
           `UPDATE import_jobs
            SET progress=GREATEST(progress,$1),pages_scanned=GREATEST(pages_scanned,$2),result_count=GREATEST(result_count,$3),platform=CASE WHEN $4<>'' THEN $4 ELSE platform END,updated_at=now()
-           WHERE id=$5 AND status='scanning'`,
-          [Math.max(1, Math.min(95, Number(progress || 1))), Number(pagesScanned || 0), Number(candidates || 0), String(platform || ''), job.id],
+           WHERE id=$5 AND status='scanning' AND scan_worker_token=$6`,
+          [Math.max(1, Math.min(95, Number(progress || 1))), Number(pagesScanned || 0), Number(candidates || 0), String(platform || ''), job.id, workerToken],
         )
       },
       onImage: async (image, mime, filename) => {
@@ -368,11 +384,20 @@ export async function processImportJob(jobId, collector = collectCatalog) {
     const updated = await pool.query(
       `UPDATE import_jobs
        SET status='processing',progress=95,result_count=$1,normalized_count=0,warning_count=0,duplicate_count=0,selected_count=0,review_changed_count=0,platform=$2,pages_scanned=$3,error='',updated_at=now()
-       WHERE id=$4 RETURNING *`,
-      [persistedCount, String(result?.platform || 'generic'), Number(result?.pagesScanned || 0), job.id],
+       WHERE id=$4 AND status='scanning' AND scan_worker_token=$5 RETURNING *`,
+      [persistedCount, String(result?.platform || 'generic'), Number(result?.pagesScanned || 0), job.id, workerToken],
     )
+    if (!updated.rowCount) throw new Error('O scanner foi retomado por outra instância; resultado antigo descartado.')
     return publicJob(updated.rows[0])
   } catch (error) {
+    const ownership = await pool.query(
+      "SELECT 1 FROM import_jobs WHERE id=$1 AND status='scanning' AND scan_worker_token=$2",
+      [job.id, workerToken],
+    ).catch(() => ({ rowCount:0 }))
+    if (!ownership.rowCount) {
+      console.warn('[scanner] stale worker halted after losing lease:', job.id)
+      return null
+    }
     if (storedImportAssetIds.length) {
       await pool.query('DELETE FROM media_assets WHERE store_id=$1 AND id=ANY($2::text[])', [job.store_id, storedImportAssetIds]).catch((cleanupError) =>
         console.warn('[scanner] imported media cleanup:', cleanupError.message))
@@ -382,10 +407,14 @@ export async function processImportJob(jobId, collector = collectCatalog) {
       await pool.query('DELETE FROM import_candidates WHERE job_id=$1', [job.id])
     } catch {}
     const message = error instanceof Error ? error.message : String(error)
-    const failed = await pool.query(`UPDATE import_jobs SET status='failed',error=$1,updated_at=now() WHERE id=$2 RETURNING *`, [message.slice(0, 2000), job.id])
+    const failed = await pool.query(
+      "UPDATE import_jobs SET status='failed',error=$1,scan_worker_token=NULL,scan_lease_at=NULL,updated_at=now() WHERE id=$2 AND scan_worker_token=$3 AND status='scanning' RETURNING *",
+      [message.slice(0, 2000), job.id, workerToken],
+    )
     console.error('[scanner] job failed:', job.id, message)
     return publicJob(failed.rows[0])
   } finally {
+    clearInterval(leaseTimer)
     if (job.platform === 'pdf') {
       await pool.query('DELETE FROM import_pdf_uploads WHERE job_id=$1', [job.id]).catch((error) =>
         console.warn('[scanner] PDF cleanup:', error.message))
@@ -514,6 +543,18 @@ async function runNextWork() {
   workerBusy = true
   try {
     await ensureScannerSchema()
+    // A restarted service previously left jobs stuck in 'scanning' forever.
+    // Requeue only a scan whose heartbeat has expired. Any partial candidates
+    // are rebuilt by processImportJob; they are never published as complete.
+    const orphaned = await pool.query(
+      `UPDATE import_jobs
+       SET status='queued',progress=0,result_count=0,pages_scanned=0,
+           error='',scan_worker_token=NULL,scan_lease_at=NULL,updated_at=now()
+       WHERE status='scanning'
+         AND COALESCE(scan_lease_at,updated_at) < now()-interval '120 seconds'
+       RETURNING id`,
+    )
+    for (const row of orphaned.rows) console.warn('[scanner] restarting interrupted scan:', row.id)
     const processing = await pool.query("SELECT id FROM import_jobs WHERE status='processing' ORDER BY updated_at ASC LIMIT 1")
     if (processing.rowCount) await processNormalizationJob(processing.rows[0].id)
     else {
