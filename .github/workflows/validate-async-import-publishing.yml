@@ -13,6 +13,8 @@ on:
       - 'server/scanner-pdf.mjs'
       - 'server/scanner-pdf-chunks.mjs'
       - 'server/scanner-collector.mjs'
+      - 'server/scanner-network-retry.mjs'
+      - 'server/scanner-facilzap-resume.integration.mjs'
       - '.github/workflows/validate-async-import-publishing.yml'
   pull_request:
     branches: [main]
@@ -65,6 +67,7 @@ jobs:
           node server/scanner-module2.integration.mjs
           node server/scanner-module3.integration.mjs
           node server/scanner-pdf.integration.mjs
+          node server/scanner-facilzap-resume.integration.mjs
       - run: node server/scanner-publish-async.integration.mjs
       - if: failure()
         run: tail -140 /tmp/shopvax-alexandre-server.log || true
