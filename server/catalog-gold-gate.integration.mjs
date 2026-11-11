@@ -136,6 +136,12 @@ try{
  assert.equal(highPublic.activeCatalog.kind,'alto_atacado')
  assert.equal(highPublic.products[0].price,10,'Alto atacado uses default unit pricing without box multiplication')
  assert.equal(highPublic.products[0].unitsPerBox,1,'Alto atacado does not consume stock in boxes')
+ const highPriceUpdate=await post('/api/admin/catalogs/'+highWholesale.id,{
+   items:[{productId:product.id,priceOverride:8,visible:true}]
+ },gold.cookie,'PATCH')
+ assert.equal(highPriceUpdate.status,200,'Alto atacado permits a distinct price by catalog')
+ const highPriced=await (await get('/api/public/store/'+gold.slug+'?catalog='+highWholesale.slug)).json()
+ assert.equal(highPriced.products[0].price,8,'Alto atacado price override is independent of standard wholesale')
  const highOrder=await post('/api/business/orders',{
    storeSlug:gold.slug,catalogSlug:highWholesale.slug,
    items:[{productId:product.id,quantity:2,selections:{}}]
@@ -143,7 +149,7 @@ try{
  assert.equal(highOrder.status,201,'High wholesale products remain orderable')
  const highItems=(await pool.query('SELECT items FROM orders WHERE id=$1',[(await highOrder.json()).orderId])).rows[0].items
  assert.equal(Number(highItems[0].stockUnits),2)
- assert.equal(Number(highItems[0].unitPrice),10)
+ assert.equal(Number(highItems[0].unitPrice),8,'Pedido de alto atacado usa preço do catálogo')
 
  const invalidKind=await post('/api/admin/catalogs',{name:'Inválido',kind:'qualquer'},gold.cookie)
  assert.equal(invalidKind.status,400,'Tipos desconhecidos não devem virar Geral silenciosamente')
