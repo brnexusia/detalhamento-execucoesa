@@ -548,7 +548,7 @@ async function runNextWork() {
     // Requeue only a scan whose heartbeat has expired. Any partial candidates
     // are rebuilt by processImportJob; they are never published as complete.
     const orphaned = await requeueInterruptedScans(pool.query.bind(pool))
-    for (const row of orphaned.rows) console.warn('[scanner] restarting interrupted scan:', row.id)
+    for (const row of orphaned) console.warn('[scanner] restarting interrupted scan:', row.id)
     const processing = await pool.query("SELECT id FROM import_jobs WHERE status='processing' ORDER BY updated_at ASC LIMIT 1")
     if (processing.rowCount) await processNormalizationJob(processing.rows[0].id)
     else {
