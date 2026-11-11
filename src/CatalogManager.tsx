@@ -5,7 +5,7 @@ import type { AdminProduct } from './types'
 import { confirmAction } from './ui-dialogs'
 import './catalog-manager.css'
 
-type Kind = 'varejo'|'atacado'|'caixa_fechada'|'personalizado'
+type Kind = 'varejo'|'atacado'|'alto_atacado'|'personalizado'
 type Pane = 'create'|'settings'|'add'|null
 type Props = {
  storeSlug:string
@@ -14,7 +14,13 @@ type Props = {
  onChanged:()=>void
 }
 const currency=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'})
-const kindLabel=(catalog:AdminCatalog)=>catalog.kind==='personalizado'?catalog.customLabel||'Personalizado':catalog.kind==='caixa_fechada'?'Caixa fechada':catalog.kind==='atacado'?'Atacado':catalog.kind==='varejo'?'Varejo':'Catálogo geral'
+const presetCustomLabels=['Caixa fechada','Pacote','6 unidades'] as const
+const kindLabel=(catalog:AdminCatalog)=>catalog.kind==='personalizado'
+ ? 'Personalizado · '+(catalog.customLabel||'Outro')
+ : catalog.kind==='caixa_fechada'?'Personalizado · Caixa fechada'
+ : catalog.kind==='alto_atacado'?'Alto Atacado'
+ : catalog.kind==='atacado'?'Atacado'
+ : catalog.kind==='varejo'?'Varejo':'Catálogo geral'
 function download(blob:Blob,filename:string){
  const url=URL.createObjectURL(blob),a=document.createElement('a')
  a.href=url;a.download=filename;document.body.append(a);a.click();a.remove()
@@ -41,6 +47,15 @@ export default function CatalogManager({storeSlug,categories,onSelect,onChanged}
  const [message,setMessage]=useState('')
  const [linkFeedback,setLinkFeedback]=useState<{id:string;text:string;error:boolean}|null>(null)
  const selected=catalogs.find(c=>c.id===selectedId)||catalogs[0]||null
+ const customFormat = presetCustomLabels.some(preset=>preset===customLabel)
+   ? customLabel
+   : customLabel ? 'outro' : ''
+ const changeCustomFormat=(value:string)=>{
+   if(value==='outro'){setCustomLabel('');return}
+   setCustomLabel(value)
+   if(value==='Caixa fechada')setPriceMode('caixa_fechada')
+   else if(priceMode==='caixa_fechada')setPriceMode('base')
+ }
  const load=async(preferred?:string)=>{
    try{
      const response=await api.catalogs()
@@ -56,9 +71,9 @@ export default function CatalogManager({storeSlug,categories,onSelect,onChanged}
  useEffect(()=>{
    if(!selected)return
    setName(selected.name)
-   setKind(selected.kind==='geral'?'personalizado':selected.kind)
-   setCustomLabel(selected.kind==='geral'?selected.name:selected.customLabel||'')
-   setPriceMode(selected.priceMode||'base')
+   setKind(selected.kind==='geral'||selected.kind==='caixa_fechada'?'personalizado':selected.kind)
+   setCustomLabel(selected.kind==='geral'?selected.name:selected.kind==='caixa_fechada'?'Caixa fechada':selected.customLabel||'')
+   setPriceMode(selected.kind==='caixa_fechada'?'caixa_fechada':selected.priceMode||'base')
    setMinimum(selected.minimumOrder==null?'':String(selected.minimumOrder))
    setActive(selected.active)
  },[selected?.id])
@@ -199,11 +214,19 @@ export default function CatalogManager({storeSlug,categories,onSelect,onChanged}
          <label>Tipo<select value={kind} onChange={e=>setKind(e.target.value as Kind)} disabled={busy||Boolean(selected?.lockedByPlan)&&pane==='settings'}>
            <option value="varejo">Varejo</option>
            <option value="atacado">Atacado</option>
-           <option value="caixa_fechada">Caixa fechada</option>
+           <option value="alto_atacado">Alto Atacado</option>
            <option value="personalizado">Personalizado</option>
          </select></label>
+         {kind==='alto_atacado'&&<small>Preço unitário principal, podendo ser ajustado individualmente por catálogo. Não utiliza o preço por caixa fechada.</small>}
          {kind==='personalizado'&&<>
-           <label>Nome do tipo personalizado<input maxLength={60} required value={customLabel} onChange={e=>setCustomLabel(e.target.value)} placeholder="Ex.: Consignado ou Sob encomenda" disabled={busy||Boolean(selected?.lockedByPlan)&&pane==='settings'}/></label>
+           <label>Formato personalizado<select value={customFormat} onChange={e=>changeCustomFormat(e.target.value)} disabled={busy||Boolean(selected?.lockedByPlan)&&pane==='settings'}>
+             <option value="">Selecione um formato</option>
+             <option value="Caixa fechada">Caixa fechada</option>
+             <option value="Pacote">Pacote</option>
+             <option value="6 unidades">6 unidades</option>
+             <option value="outro">Outro formato</option>
+           </select></label>
+           {customFormat==='outro'&&<label>Nome do tipo personalizado<input maxLength={60} required value={customLabel} onChange={e=>setCustomLabel(e.target.value)} placeholder="Ex.: Consignado ou Sob encomenda" disabled={busy||Boolean(selected?.lockedByPlan)&&pane==='settings'}/></label>}
            <label>Qual preço utilizar?<select value={priceMode} onChange={e=>setPriceMode(e.target.value as typeof priceMode)} disabled={busy||Boolean(selected?.lockedByPlan)&&pane==='settings'}>
              <option value="base">Preço principal do produto</option>
              <option value="varejo">Preço de varejo</option>
