@@ -38,7 +38,8 @@ test('scanner lease: requeue only orphaned jobs after a crash, never live jobs',
     `)
     await db.query("UPDATE import_jobs SET platform='pdf' WHERE id='long-pdf'")
     const recovered = await requeueInterruptedScans(db.query.bind(db))
-    assert.deepEqual(recovered.map(x=>x.id).sort(),['hung-with-heartbeat','orphan-legacy','orphan-new'])
+    assert.ok(Array.isArray(recovered.rows), 'Recovery must preserve the QueryResult .rows contract')
+    assert.deepEqual(recovered.rows.map(x=>x.id).sort(),['hung-with-heartbeat','orphan-legacy','orphan-new'])
     const rows = (await db.query('SELECT * FROM import_jobs ORDER BY id')).rows
     assert.equal(rows.find(x=>x.id==='live-worker').status,'scanning')
     assert.equal(rows.find(x=>x.id==='new-legacy').status,'scanning')
@@ -53,7 +54,7 @@ test('scanner lease: requeue only orphaned jobs after a crash, never live jobs',
       assert.equal(row.scan_worker_token,null)
       assert.equal(row.scan_lease_at,null)
     }
-    assert.deepEqual(await requeueInterruptedScans(db.query.bind(db)),[],
+    assert.deepEqual((await requeueInterruptedScans(db.query.bind(db))).rows,[],
       'Recovered jobs must not requeue twice')
   } finally {
     await db.query('ROLLBACK').catch(()=>{})
