@@ -909,7 +909,11 @@ async function collectFacilZap(rootResponse, request, maxProducts, sink, onProgr
       throw new Error('FácilZap: a paginação repetiu a página ' + page + '; a importação completa não pôde ser confirmada.')
     seenPages.add(signature)
 
+    let detailFinished = 0
+    let detailReportAt = Date.now()
     const enriched = await mapLimit(mapped.products, 6, async (candidate) => {
+      try {
+        return await (async () => {
       const detailUrl = String(candidate?.source_url || '').trim()
       if (!detailUrl || detailUrl === rootResponse.url) return candidate
       try {
@@ -933,6 +937,20 @@ async function collectFacilZap(rootResponse, request, maxProducts, sink, onProgr
         return detail ? mergeDetailIntoCandidate(candidate, detail) : candidate
       } catch {
         return candidate
+      }
+        })()
+      } finally {
+        detailFinished += 1
+        // A large FácilZap page may contain hundreds of products. Update
+        // the server while reading detail pages, not just after the whole
+        // batch, or UI can appear frozen for several minutes.
+        if (Date.now() - detailReportAt >= 2500 || detailFinished === mapped.products.length) {
+          detailReportAt = Date.now()
+          await onProgress({
+            progress: Math.min(90, 15 + Math.floor(Math.log2(page + 1) * 8)),
+            pagesScanned, candidates: sink.count, platform: 'facilzap',
+          })
+        }
       }
     })
 
