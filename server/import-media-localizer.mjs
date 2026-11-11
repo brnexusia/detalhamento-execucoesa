@@ -136,29 +136,32 @@ async function imagePixels(buffer) {
   }
 }
 
-const FACILZAP_MEDIA_HOSTS = new Set([
-  'arquivos.facilzap.app.br',
+// File-serving hosts observed on public FácilZap storefronts. The scanner
+// used to invent arquivos.facilzap.app.br for relative product image paths.
+// Older URLs must remain accepted to recover existing review records; try
+// the product CDN before other documented provider-host aliases on HTTP 404.
+const FACILZAP_MEDIA_HOSTS = [
+  'assets-cdn.facilzap.app.br',
+  'assets.facilzap.app.br',
   'arquivos-cdn.facilzap.app.br',
+  'arquivos.facilzap.app.br',
   'arquivos.facilzap.com.br',
-])
+]
 
-// Troca somente entre domínios de arquivos conhecidos da própria FácilZap,
-// mantendo o caminho e a query idênticos. Nunca reutilizar foto de outro SKU.
+// Only replace the host. Preserve the exact file path and query parameters.
+// The response still must pass image validation before being stored.
 function facilZapMediaFallbacks(source) {
   try {
     const url = new URL(source)
-    if (url.protocol !== 'https:' || !FACILZAP_MEDIA_HOSTS.has(url.hostname.toLowerCase())) return []
-    const hosts = url.hostname.toLowerCase() === 'arquivos.facilzap.app.br'
-      ? ['arquivos-cdn.facilzap.app.br', 'arquivos.facilzap.com.br']
-      : url.hostname.toLowerCase() === 'arquivos-cdn.facilzap.app.br'
-        ? ['arquivos.facilzap.app.br', 'arquivos.facilzap.com.br']
-        : ['arquivos-cdn.facilzap.app.br', 'arquivos.facilzap.app.br']
-    return hosts.map((hostname) => {
-      const alternative = new URL(url)
-      alternative.hostname = hostname
-      alternative.hash = ''
-      return alternative.toString()
-    })
+    if (url.protocol !== 'https:' || !FACILZAP_MEDIA_HOSTS.includes(url.hostname.toLowerCase())) return []
+    return FACILZAP_MEDIA_HOSTS
+      .filter(hostname => hostname !== url.hostname.toLowerCase())
+      .map(hostname => {
+        const alternate = new URL(url)
+        alternate.hostname = hostname
+        alternate.hash = ''
+        return alternate.toString()
+      })
   } catch {
     return []
   }
