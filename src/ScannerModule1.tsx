@@ -86,6 +86,7 @@ export default function ScannerModule1() {
   const [open, setOpen] = useState(false)
   const [mode, setMode] = useState<'scan' | 'review'>('scan')
   const [url, setUrl] = useState('')
+  const [activeCatalogId,setActiveCatalogId] = useState('')
   const [sourceMode, setSourceMode] = useState<'site' | 'pdf' | 'album' | 'whatsapp'>('site')
   const [pdfFile, setPdfFile] = useState<File | null>(null)
   const [uploadVersion, setUploadVersion] = useState(0)
@@ -147,6 +148,12 @@ export default function ScannerModule1() {
     const onVisibility = () => setVisible(document.visibilityState === 'visible')
     document.addEventListener('visibilitychange', onVisibility)
     return () => document.removeEventListener('visibilitychange', onVisibility)
+  }, [])
+  useEffect(() => {
+    const onCatalog = (event: Event) => setActiveCatalogId(
+      (event as CustomEvent<{id:string}>).detail?.id || '')
+    window.addEventListener('shopvax:active-catalog',onCatalog)
+    return () => window.removeEventListener('shopvax:active-catalog',onCatalog)
   }, [])
   useEffect(() => {
     window.dispatchEvent(new CustomEvent('shopvax:scanner-visibility', { detail: { open } }))
@@ -262,7 +269,7 @@ export default function ScannerModule1() {
       }
       const result = sourceMode === 'pdf'
         ? await api.uploadPdfCatalog(pdfFile!, (sent, total) => setPdfTransferPercent(Math.round(sent / total * 100)))
-        : await api.createImportJob(url)
+        : await api.createImportJob(url,activeCatalogId)
       setSuccess(result.duplicated
         ? 'Essa loja já está sendo processada.'
         : sourceMode === 'pdf'
