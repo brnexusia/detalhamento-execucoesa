@@ -930,6 +930,99 @@ async function readPublishProgress(req,res) {
   return res.json({progress:await publishTasks.get(req.params.jobId,store.store_id)})
 }
 
+
+/**
+ * Recover a completed legacy import that had no catalog destination. Product
+ * rows, SKUs and media remain unchanged. Per-catalog prices are recovered from
+ * the imported review snapshot; shared products stay linked elsewhere.
+ */
+async function assignCompletedImportToCatalog(req,res) {
+  await ensurePublisherSchema()
+  const store=await currentStore(req)
+  if(!store)return res.status(401).json({error:'Sessão necessária.'})
+  const catalogId=String(req.body?.catalogId||'').trim().slice(0,100)
+  if(!catalogId)return res.status(400).json({error:'Escolha o catálogo de destino.'})
+  const client=await pool.connect()
+  try {
+    await client.query('BEGIN')
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1)::bigint)",[`scanner-publish-store:${store.store_id}`])
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1)::bigint)",[`scanner-publish-job:${req.params.jobId}`])
+    const existing=await client.query('SELECT * FROM import_jobs WHERE id=$1 AND store_id=$2 FOR UPDATE',
+      [req.params.jobId,store.store_id])
+    if(!existing.rowCount){await client.query('ROLLBACK');return res.status(404).json({error:'Importação não encontrada.'})}
+    const job=existing.rows[0]
+    if(job.status!=='completed'){await client.query('ROLLBACK');return res.status(409).json({error:'Somente importações concluídas podem ter o destino recuperado.'})}
+    if(job.target_catalog_id && job.target_catalog_id!==catalogId){
+      await client.query('ROLLBACK')
+      return res.status(409).json({error:'Esta importação já está vinculada a outro catálogo. Nenhum produto foi alterado.'})
+    }
+    if(job.target_catalog_id===catalogId){
+      await client.query('COMMIT')
+      return res.json({ok:true,idempotent:true,catalogId,assigned:0,hidden:0})
+    }
+    const target=await client.query(
+      'SELECT c.id,c.is_default,s.plan_tier FROM catalogs c JOIN stores s ON s.id=c.store_id WHERE c.id=$1 AND c.store_id=$2 AND c.active=true',
+      [catalogId,store.store_id])
+    if(!target.rowCount){await client.query('ROLLBACK');return res.status(404).json({error:'Catálogo de destino inválido.'})}
+    if(!target.rows[0].is_default&&target.rows[0].plan_tier!=='ouro'){
+      await client.query('ROLLBACK')
+      return res.status(403).json({error:'Catálogos adicionais exigem o plano Ouro.'})
+    }
+    const count=await client.query(
+      'SELECT count(DISTINCT published_product_id)::int AS n FROM import_normalized_products WHERE job_id=$1 AND store_id=$2 AND selected=true AND published_product_id IS NOT NULL',
+      [job.id,store.store_id])
+    if(!count.rows[0]?.n){
+      await client.query('ROLLBACK')
+      return res.status(409).json({error:'Não existem produtos vinculados a este histórico. Nada foi modificado.'})
+    }
+    // Never overwrite a manually visible membership. Hide only products first
+    // created by this import, and only from catalogs with implicit membership.
+    const hidden=await client.query(`
+      INSERT INTO catalog_products(catalog_id,product_id,price_override,visible)
+      SELECT c.id,src.product_id,NULL,false
+      FROM catalogs c
+      JOIN (
+        SELECT DISTINCT n.published_product_id AS product_id
+        FROM import_normalized_products n
+        WHERE n.job_id=$1 AND n.store_id=$2 AND n.selected=true
+          AND n.publish_result='created' AND n.published_product_id IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM import_normalized_products earlier
+            WHERE earlier.published_product_id=n.published_product_id
+              AND earlier.job_id<>n.job_id
+              AND earlier.published_at<n.published_at
+          )
+      ) src ON true
+      WHERE c.store_id=$2 AND c.id<>$3 AND c.explicit_membership=false
+      ON CONFLICT(catalog_id,product_id) DO NOTHING
+      RETURNING product_id`,[job.id,store.store_id,catalogId])
+    const linked=await client.query(`
+      INSERT INTO catalog_products(catalog_id,product_id,price_override,visible)
+      SELECT $3,src.product_id,src.imported_price,true
+      FROM (
+        SELECT DISTINCT ON (n.published_product_id)
+          n.published_product_id AS product_id,
+          COALESCE(NULLIF(COALESCE(n.review_data,n.normalized_data)->>'price','')::numeric,p.price) AS imported_price
+        FROM import_normalized_products n
+        JOIN products p ON p.id=n.published_product_id AND p.store_id=$2
+        WHERE n.job_id=$1 AND n.store_id=$2 AND n.selected=true
+          AND n.published_product_id IS NOT NULL
+        ORDER BY n.published_product_id,n.id
+      ) src
+      ON CONFLICT(catalog_id,product_id)
+      DO UPDATE SET price_override=EXCLUDED.price_override,visible=true,updated_at=now()
+      RETURNING product_id`,[job.id,store.store_id,catalogId])
+    await client.query(
+      'UPDATE import_jobs SET target_catalog_id=$1,updated_at=now() WHERE id=$2 AND store_id=$3',
+      [catalogId,job.id,store.store_id])
+    await client.query('COMMIT')
+    return res.json({ok:true,idempotent:false,catalogId,assigned:linked.rowCount,hidden:hidden.rowCount})
+  }catch(error){
+    try{await client.query('ROLLBACK')}catch{}
+    throw error
+  }finally{client.release()}
+}
+
 let publishWorkerBusy=false
 async function runPublishWorker(){
   if(!pool || !publishTasks || publishWorkerBusy)return
@@ -996,6 +1089,9 @@ function installPublisherRoute(app) {
   })
   app.post('/api/admin/imports/:jobId/publish-async', express.json({limit:'16kb'}), (req,res,next)=>{
     Promise.resolve(enqueuePublishJob(req,res)).catch(next)
+  })
+  app.post('/api/admin/imports/:jobId/assign-catalog',express.json({limit:'16kb'}),(req,res,next)=>{
+    Promise.resolve(assignCompletedImportToCatalog(req,res)).catch(next)
   })
   app.get('/api/admin/imports/:jobId/publish-progress', (req,res,next)=>{
     Promise.resolve(readPublishProgress(req,res)).catch(next)
