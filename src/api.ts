@@ -276,6 +276,7 @@ export const api = {
   updateSeller: (id: string, body: Record<string, unknown>) => request(`/api/admin/sellers/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   deleteSeller: (id: string) => request(`/api/admin/sellers/${id}`, { method: 'DELETE' }),
   listImportJobs: () => request<{ jobs: ImportJob[] }>('/api/admin/imports'),
+  retryStalledImportJob: (jobId: string) => request<{ restarted: boolean; job: ImportJob | null; message: string }>(`/api/admin/imports/${encodeURIComponent(jobId)}/retry-stalled`, {method:'POST',body:'{}'}),
   createImportJob: (url: string) => request<{ job: ImportJob; duplicated: boolean }>('/api/admin/imports', { method: 'POST', body: JSON.stringify({ url }) }),
   uploadPdfCatalog: async (file: File, onProgress?: (uploadedBytes: number, totalBytes: number) => void) => {
     const chunkLimit = 512 * 1024
