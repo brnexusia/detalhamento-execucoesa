@@ -13,7 +13,7 @@ import { whatsappCatalogPhone, uazapiCatalogConfig } from './scanner-uazapi-cata
 import { sharedPhotoSourceKind } from './scanner-photo-albums.mjs'
 import { normalizeCandidates } from './scanner-normalizer.mjs'
 import { prepareReview } from './scanner-review.mjs'
-import { requeueInterruptedScans } from './scanner-scan-lease.mjs'
+import { requeueInterruptedScans, requeueFailedTransientFacilZapScans } from './scanner-scan-lease.mjs'
 import { createScannerWorkScheduler } from './scanner-work-scheduler.mjs'
 
 const { Pool } = pg
@@ -629,7 +629,12 @@ export async function processNormalizationJob(jobId, normalizer = normalizeCandi
 // normalization. Jobs are claimed atomically by their existing worker functions.
 const scannerScheduler = createScannerWorkScheduler({
   ensureSchema: ensureScannerSchema,
-  recover: () => requeueInterruptedScans(pool.query.bind(pool)),
+  recover: async () => {
+    const query = pool.query.bind(pool)
+    const interrupted = await requeueInterruptedScans(query)
+    const failedNetwork = await requeueFailedTransientFacilZapScans(query)
+    return { rows:[...interrupted.rows,...failedNetwork.rows] }
+  },
   findNext: async (lane) => {
     if (lane === 'normalization') {
       const result = await pool.query(
