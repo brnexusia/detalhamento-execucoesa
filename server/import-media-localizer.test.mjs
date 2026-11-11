@@ -23,15 +23,15 @@ const aliasMedia = await fetchBestImportImage('https://arquivos.facilzap.app.br/
   referer:'https://galego.example/produto/12',
   request:async (url) => {
     facilZapRequests.push(url)
-    return url === 'https://arquivos-cdn.facilzap.app.br/produtos/brinco.webp'
+    return url === 'https://assets-cdn.facilzap.app.br/produtos/brinco.webp'
       ? { ok:true,status:200,contentType:'image/webp',buffer:Buffer.from([0x52,0x49,0x46,0x46,0,0,0,0,0x57,0x45,0x42,0x50]) }
       : { ok:false,status:404,contentType:'text/html',buffer:Buffer.alloc(0) }
   },
 })
-assert.equal(aliasMedia.resolvedUrl,'https://arquivos-cdn.facilzap.app.br/produtos/brinco.webp')
+assert.equal(aliasMedia.resolvedUrl,'https://assets-cdn.facilzap.app.br/produtos/brinco.webp')
 assert.deepEqual(facilZapRequests,[
   'https://arquivos.facilzap.app.br/produtos/brinco.webp',
-  'https://arquivos-cdn.facilzap.app.br/produtos/brinco.webp',
+  'https://assets-cdn.facilzap.app.br/produtos/brinco.webp',
 ])
 
 const unavailableRequests=[]
@@ -41,7 +41,7 @@ await assert.rejects(() => fetchBestImportImage('https://arquivos.facilzap.app.b
     return {ok:false,status:404,contentType:'text/html',buffer:Buffer.alloc(0)}
   },
 }),/HTTP 404/)
-assert.equal(unavailableRequests.length,3,'Tentar somente domínios de arquivos conhecidos da FácilZap')
+assert.equal(unavailableRequests.length,5,'Tentar somente domínios de arquivos conhecidos da FácilZap')
 
 const unrelatedRequests=[]
 await assert.rejects(()=>fetchBestImportImage('https://cdn.example/foto.webp',{
