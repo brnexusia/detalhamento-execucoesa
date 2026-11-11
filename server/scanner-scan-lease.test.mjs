@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import pg from 'pg'
-import { requeueInterruptedScans } from './scanner-scan-lease.mjs'
+import { requeueInterruptedScans, requeueFailedTransientFacilZapScans } from './scanner-scan-lease.mjs'
 
 test('orphaned recovery always exposes .rows for legacy scanner workers', async()=>{
   const empty = await requeueInterruptedScans(async()=>({rows:[]}))
@@ -71,3 +71,62 @@ test('scanner lease: requeue only orphaned jobs after a crash, never live jobs',
   }
 })
 
+
+test('auto-requeues recent failed FácilZap ECONNRESET only, with strict retry limit', {
+  skip: !process.env.DATABASE_URL,
+},async()=>{
+  const db=new pg.Client({connectionString:process.env.DATABASE_URL})
+  await db.connect()
+  try{
+    await db.query('BEGIN')
+    await db.query(`
+      CREATE TEMP TABLE import_jobs(
+        id text PRIMARY KEY,
+        store_id text NOT NULL,
+        source_url text NOT NULL,
+        source_host text NOT NULL,
+        status text NOT NULL,
+        platform text NOT NULL,
+        error text NOT NULL,
+        scan_network_retries integer NOT NULL DEFAULT 0,
+        scan_next_page integer NOT NULL DEFAULT 1,
+        scan_worker_token text,
+        scan_lease_at timestamptz,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      ) ON COMMIT DROP
+    `)
+    await db.query(`
+      INSERT INTO import_jobs
+        (id,store_id,source_url,source_host,status,platform,error,scan_next_page,created_at,updated_at)
+      VALUES
+        ('stalled','a','https://facilzap.com.br/galegobijoux/11952148150',
+          'facilzap.com.br','failed','facilzap','read ECONNRESET',24,
+          now()-interval '2 minutes',now()-interval '30 seconds'),
+        ('fatal','a','https://facilzap.com.br/galegobijoux/fatal',
+          'facilzap.com.br','failed','facilzap','pagina repetida',1,
+          now()-interval '2 minutes',now()-interval '30 seconds'),
+        ('another-site','b','https://site.example/catalog',
+          'site.example','failed','generic','read ECONNRESET',1,
+          now()-interval '2 minutes',now()-interval '30 seconds'),
+        ('older','c','https://facilzap.com.br/catalogo-antigo',
+          'facilzap.com.br','failed','facilzap','read ECONNRESET',1,
+          now()-interval '2 days',now()-interval '30 seconds')
+    `)
+    const first=await requeueFailedTransientFacilZapScans(db.query.bind(db))
+    assert.deepEqual(first.rows.map(x=>x.id),['stalled'])
+    let job=(await db.query("SELECT * FROM import_jobs WHERE id='stalled'")).rows[0]
+    assert.equal(job.status,'queued')
+    assert.equal(job.scan_next_page,24,'Must preserve last successfully persisted page')
+    assert.equal(job.scan_network_retries,1)
+    assert.deepEqual((await requeueFailedTransientFacilZapScans(db.query.bind(db))).rows,[])
+    await db.query("UPDATE import_jobs SET status='failed',error='read ECONNRESET',updated_at=now()-interval '30 seconds' WHERE id='stalled'")
+    assert.deepEqual((await requeueFailedTransientFacilZapScans(db.query.bind(db))).rows.map(x=>x.id),['stalled'])
+    await db.query("UPDATE import_jobs SET status='failed',error='read ECONNRESET',updated_at=now()-interval '30 seconds' WHERE id='stalled'")
+    assert.deepEqual((await requeueFailedTransientFacilZapScans(db.query.bind(db))).rows,[],
+      'After two automatic attempts leave a clear failed job rather than looping forever')
+  }finally{
+    await db.query('ROLLBACK').catch(()=>{})
+    await db.end()
+  }
+})
