@@ -592,7 +592,7 @@ async function publishJob(req, res) {
        SET status='completed',published_count=$1,skipped_existing_count=$2,publish_mode=$3,target_catalog_id=$6,published_at=now(),updated_at=now()
        WHERE id=$4 AND store_id=$5
        RETURNING *`,
-      [created, skippedExisting, mode, job.id, store.store_id],
+      [created, skippedExisting, mode, job.id, store.store_id, targetCatalogId],
     )
     await client.query('COMMIT')
     await onProgress({phase:'committed',completed:selectedParentCount,total:selectedParentCount})

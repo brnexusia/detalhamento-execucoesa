@@ -58,3 +58,24 @@
 .catalog-upload-progress{font-size:12px;font-weight:600;color:var(--ink);margin:0}
 .media-uploader .upload-button{cursor:pointer}
 .media-uploader .upload-button:focus-within,.product-inline-section__head .secondary-action:focus-within{outline:2px solid var(--ink);outline-offset:3px}
+
+/* Loading/restoration remains visible while auth/billing is revalidated. */
+.svx-panel-access-check, .svx-screen-recovery {
+  min-height: 60vh;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 16px;
+  padding: 24px;
+  text-align: center;
+  color: var(--ink, #161514);
+}
+.svx-panel-access-check p { margin: 0; color: #555; font-size: 14px; }
+.svx-screen-recovery__content { width: min(440px, 100%); }
+.svx-screen-recovery__content strong { display: block; font-size: 23px; line-height: 1.2; }
+.svx-screen-recovery__content p { font-size: 14px; line-height: 1.5; }
+.svx-screen-recovery__content button {
+  cursor: pointer; background: #f25c05; color: #161514;
+  padding: 12px 20px; border: 1px solid #161514;
+  border-radius: 9px; font-weight: 700;
+}

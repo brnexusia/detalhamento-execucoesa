@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import ShopvaxLoading from './ShopvaxLoading'
 import { apiRequest } from './api'
 import AdminApp from './AdminApp'
 import ScannerModule1 from './ScannerModule1'
@@ -31,14 +32,17 @@ export default function AdminRoute() {
 
   useEffect(() => {
     let live = true
-    // Revalidate on navigation without replacing the current panel with an
-    // intermediate billing screen. Initial mount still waits for server authorization.
-    apiRequest<{ required: boolean; accessGranted: boolean }>('/api/billing/status')
+    // Never mount protected modules before the billing check resolves.
+    // A stuck API request must not keep the UI in its loading state forever.
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => controller.abort(), 15_000)
+    apiRequest<{ required: boolean; accessGranted: boolean }>('/api/billing/status', { signal: controller.signal })
       .then((result) => { if (live) setBillingGate(!result.required || result.accessGranted ? 'paid' : 'payment') })
       .catch((error: Error & { status?: number }) => {
         if (live) setBillingGate(error.status === 401 ? 'anonymous' : 'unavailable')
       })
-    return () => { live = false }
+      .finally(() => window.clearTimeout(timeout))
+    return () => { live = false; window.clearTimeout(timeout); controller.abort() }
   }, [revision])
 
   useEffect(() => {
@@ -52,7 +56,10 @@ export default function AdminRoute() {
   // A tela de pagamento fica acessível mesmo sem assinatura ativa.
   // During the first load, keep the protected panel unmounted until the
   // backend confirms access; do not flash a full-screen payment verification.
-  if (billingGate === 'checking') return null
+  if (billingGate === 'checking') return <main className="svx-panel-access-check" role="status" aria-live="polite">
+    <ShopvaxLoading label="Verificando acesso ao painel…" />
+    <p>Verificando acesso ao painel…</p>
+  </main>
   if (billingGate === 'anonymous') return <RedirectTo path="/entrar" />
   if (billingGate === 'unavailable') return <section className="svx-billing" role="alert"><h1>Não foi possível confirmar a assinatura.</h1><p>Por segurança, o painel permanece bloqueado até que a verificação funcione.</p><button type="button" onClick={() => setRevision(x => x + 1)}>Verificar novamente</button></section>
   if (billingGate === 'payment' && !subscription) return <RedirectTo path="/painel/assinatura" />
