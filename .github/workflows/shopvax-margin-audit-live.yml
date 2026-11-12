@@ -1,0 +1,37 @@
+name: ShopVax - auditoria de margens live desktop mobile
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tests/shopvax-margin-audit-live.mjs'
+      - '.github/workflows/shopvax-margin-audit-live.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Instalar Playwright
+        run: |
+          npm install --no-fund --no-audit
+          npm install --no-save --no-fund --no-audit playwright@1.58.2
+          npx playwright install --with-deps chromium
+      - name: Conferir sintaxe do auditor
+        run: node --check tests/shopvax-margin-audit-live.mjs
+      - name: Inspecionar páginas públicas e tentar conta de teste sem pagamento
+        env:
+          SHOPVAX_ORIGIN: https://shopvax.com.br
+        run: node tests/shopvax-margin-audit-live.mjs
+      - name: Capturas e relatório completo
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shopvax-margin-report
+          path: artifacts/shopvax-margin-audit/
+          if-no-files-found: warn
