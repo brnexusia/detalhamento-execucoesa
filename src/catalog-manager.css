@@ -66,3 +66,51 @@
  .svx-catalog-card__actions :is(button,a){flex:1 1 auto}
 }
 .svx-catalog-inline :is(.svx-catalog-card__name,.svx-catalog-card__actions button,.svx-catalog-card__actions a,.svx-catalog-card__link input):focus-visible{outline:3px solid var(--svx-stamp,#2D2A8C);outline-offset:2px}
+
+
+/* Conserto da vitrine de catálogos no painel (nov/2026).
+ * O painel tem sidebar, e a largura disponível pode ser muito menor do que o
+ * viewport. Breakpoints globais deixavam a segunda coluna cortada em tablets
+ * e em janelas desktop estreitas.
+ */
+.panel-shell .svx-products .svx-catalog-inline {
+  box-sizing: border-box;
+  container-type: inline-size;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+.panel-shell .svx-products .svx-catalog-inline__header,
+.panel-shell .svx-products .svx-catalog-inline__cards {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+.panel-shell .svx-products .svx-catalog-card {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+}
+.panel-shell .svx-products .svx-catalog-card__link {
+  min-width: 0;
+  max-width: 100%;
+}
+.panel-shell .svx-products .svx-catalog-card__actions :is(button,a) {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+/* Breakpoint do componente, e não apenas da janela. Evita que sidebar e
+ * padding consumam a largura exigida por dois cartões com URL + ações. */
+@container (max-width: 850px) {
+  .svx-catalog-inline__cards { grid-template-columns: minmax(0, 1fr); }
+}
+/* Fallback para browsers antigos sem container queries. */
+@media (max-width: 1120px) {
+  .panel-shell .svx-products .svx-catalog-inline__cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
