@@ -1,0 +1,37 @@
+name: ShopVax - margin recheck read only
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tests/shopvax-margin-audit-v2-live.mjs'
+      - '.github/workflows/shopvax-margin-recheck-v2.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser
+        run: |
+          npm install --no-audit --no-fund
+          npm install --no-save --no-audit --no-fund playwright@1.58.2
+          npx playwright install --with-deps chromium
+      - name: Validate audit script
+        run: node --check tests/shopvax-margin-audit-v2-live.mjs
+      - name: Run public and protected route visual audit (no mutations)
+        env:
+          SHOPVAX_ORIGIN: https://shopvax.com.br
+        run: node tests/shopvax-margin-audit-v2-live.mjs
+      - name: Publish screenshots and JSON
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shopvax-margin-recheck-v2
+          path: artifacts/shopvax-margin-recheck/
+          if-no-files-found: warn
