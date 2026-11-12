@@ -1,4 +1,5 @@
 import ShopvaxLoading from './ShopvaxLoading'
+import AppRuntimeBoundary from './AppRuntimeBoundary'
 import BuyerAppNav from './BuyerAppNav'
 import ShopvaxLoginTransition from './ShopvaxLoginTransition'
 import { Fragment, lazy, Suspense, useEffect, useState } from 'react'
@@ -126,5 +127,5 @@ export default function App() {
   else if (page === 'platform') content = <PlatformRoute />
   else content = <AdminRoute />
 
-  return <><Suspense fallback={<RouteFallback />}><Fragment key={authRevision}>{content}</Fragment></Suspense>{['social','profile','explore','saved','carts','buyer'].includes(page)&&<BuyerAppNav pathname={pathname}/>}<Suspense fallback={null}>{helpAllowed && <ShopvaxSupport />}</Suspense><ShopvaxLoginTransition /></>
+  return <AppRuntimeBoundary key={`${pathname}:${authRevision}`}><Suspense fallback={<RouteFallback />}><Fragment key={authRevision}>{content}</Fragment></Suspense>{['social','profile','explore','saved','carts','buyer'].includes(page)&&<BuyerAppNav pathname={pathname}/>}<Suspense fallback={null}>{helpAllowed && <ShopvaxSupport />}</Suspense><ShopvaxLoginTransition /></AppRuntimeBoundary>
 }
