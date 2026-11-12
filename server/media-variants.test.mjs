@@ -35,3 +35,16 @@ test('não aumenta fotos pequenas e respeita a orientação', async () => {
   const image = await sharp({ create: { width: 240, height: 180, channels: 3, background: 'white' } }).jpeg().toBuffer()
   assert.deepEqual(await generateMediaVariants(image, 'image/jpeg'), [])
 })
+
+test('imagem importada de 750px também oferece variante WebP para ?w=960 sem ampliar', async () => {
+  const original = await sharp({
+    create: { width: 750, height: 1000, channels: 3, background: { r: 168, g: 120, b: 90 } },
+  }).png({ compressionLevel: 0 }).toBuffer()
+  const variants = await generateMediaVariants(original, 'image/png')
+  assert.deepEqual(variants.map(item => item.width), [320, 960])
+  const standard = variants.find(item => item.width === 960)
+  const metadata = await sharp(standard.bytes).metadata()
+  assert.equal(metadata.width, 750, 'Não ampliar a foto que era menor que 960px')
+  assert.equal(metadata.format, 'webp')
+  assert(standard.bytes.length < original.length)
+})

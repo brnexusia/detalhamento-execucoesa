@@ -27,6 +27,7 @@ try {
   assert(local, 'Foto local do catálogo não foi renderizada')
   assert.match(local.srcset || '', /\/media\/asset-local\?w=320 320w/)
   assert.match(local.srcset || '', /\/media\/asset-local\?w=960 960w/)
+  assert(!local.srcset.includes('2000w'), 'Não ofertar foto original pesada como candidato retina')
   assert(external, 'Foto externa da loja não foi renderizada')
   assert.equal(external.srcset, null, 'Não inventar variantes em URLs externas')
 } finally {
