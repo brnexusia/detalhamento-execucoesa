@@ -32,14 +32,17 @@ export default function AdminRoute() {
 
   useEffect(() => {
     let live = true
-    // Revalidate on navigation without replacing the current panel with an
-    // intermediate billing screen. Initial mount still waits for server authorization.
-    apiRequest<{ required: boolean; accessGranted: boolean }>('/api/billing/status')
+    // Never mount protected modules before the billing check resolves.
+    // A stuck API request must not keep the UI in its loading state forever.
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => controller.abort(), 15_000)
+    apiRequest<{ required: boolean; accessGranted: boolean }>('/api/billing/status', { signal: controller.signal })
       .then((result) => { if (live) setBillingGate(!result.required || result.accessGranted ? 'paid' : 'payment') })
       .catch((error: Error & { status?: number }) => {
         if (live) setBillingGate(error.status === 401 ? 'anonymous' : 'unavailable')
       })
-    return () => { live = false }
+      .finally(() => window.clearTimeout(timeout))
+    return () => { live = false; window.clearTimeout(timeout); controller.abort() }
   }, [revision])
 
   useEffect(() => {
