@@ -29,6 +29,8 @@ COPY --from=builder /app/dist ./dist
 COPY server ./server
 # Read-only diagnostic for imports; never starts automatically.
 COPY scripts/diagnose-facilzap-import.mjs ./scripts/diagnose-facilzap-import.mjs
+# Opt-in WebP media backfill. Does not run automatically on deployment.
+COPY scripts/backfill-media-variants.mjs ./scripts/backfill-media-variants.mjs
 # Tesseract OCR + Poppler stay in the main Node container; no Python ML runtime.
 EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD node -e "fetch('http://127.0.0.1/health').then(async r=>{const h=await r.json();if(!r.ok||h.ok!==true||h.database!==true)process.exit(1)}).catch(()=>process.exit(1))"
