@@ -1,6 +1,6 @@
 import sharp from 'sharp'
 
-const supported = new Set(['image/jpeg', 'image/png', 'image/webp'])
+const supported = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/avif'])
 const targets = [320, 960]
 
 /**
@@ -13,7 +13,9 @@ export async function generateMediaVariants(buffer, mimeType) {
     limitInputPixels: 40_000_000, failOn: 'error', animated: false,
   }).metadata()
   if (!Number.isFinite(metadata.width) || !Number.isFinite(metadata.height)) return []
-  return Promise.all(targets.filter(width => metadata.width > width).map(async width => {
+  return Promise.all(// Smaller sources still benefit from a 960-labelled WebP at native resolution.
+  // Never upscale; do not create redundant variants for thumbnails <= 320px.
+  targets.filter(() => metadata.width > 320).map(async width => {
     const bytes = await sharp(buffer, {
       limitInputPixels: 40_000_000, failOn: 'error', animated: false,
     }).rotate().resize({ width, fit: 'inside', withoutEnlargement: true })
