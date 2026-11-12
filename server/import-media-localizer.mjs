@@ -4,6 +4,31 @@ import { load } from 'cheerio'
 import { extractProductsFromHtml, safeRequest } from './scanner-collector.mjs'
 import { extractFacilZapDetailProduct } from './scanner-platforms.mjs'
 
+// Importações (FácilZap/scanner) não passavam pela fila de WebP dos uploads manuais.
+// Agendar somente após INSERT confirmado; nenhuma falha da fila bloqueia a publicação.
+// A fila BullMQ já existente na aplicação processa o ID, não bytes da imagem.
+let importVariantQueuePromise
+function enqueueImportedMediaVariant(assetId) {
+  if (!process.env.REDIS_URL) return // O backfill manual cobre instalações sem Redis.
+  if (!importVariantQueuePromise) {
+    importVariantQueuePromise = import('./redis-media-jobs.mjs')
+      .then(({ createRedisMediaVariantQueue }) => createRedisMediaVariantQueue({
+        onError: error => console.warn('[shopvax-import-media] queue:', error?.message || error),
+      }))
+      .catch(error => {
+        importVariantQueuePromise = null
+        console.warn('[shopvax-import-media] fila indisponível:', error?.message || error)
+        return null
+      })
+  }
+  void importVariantQueuePromise.then(queue => {
+    if (!queue) return
+    void queue.enqueue(assetId).done.then(ok => {
+      if (!ok) console.warn('[shopvax-import-media] variante não enfileirada:', assetId)
+    }).catch(error => console.warn('[shopvax-import-media] variante:', error?.message || error))
+  })
+}
+
 const MAX_REMOTE_IMAGE_BYTES = 12 * 1024 * 1024
 const MAX_LOCALIZED_ASSETS_PER_PRODUCT = 120
 const ALLOWED_IMAGE_TYPES = new Set([
@@ -247,7 +272,10 @@ async function persistRemoteImage(query, { storeId, url, referer, request }) {
      RETURNING id`,
     [assetId, storeId, fetched.mimeType, originalName(source), fetched.buffer.length, fetched.buffer, source],
   )
-  if (inserted.rows[0]?.id) return `/media/${inserted.rows[0].id}`
+  if (inserted.rows[0]?.id) {
+    enqueueImportedMediaVariant(inserted.rows[0].id)
+    return `/media/${inserted.rows[0].id}`
+  }
   // Reuse the asset stored by another concurrent job without an UPDATE lock.
   const existing = await query(
     'SELECT id FROM media_assets WHERE store_id=$1 AND source_url=$2 LIMIT 1',
