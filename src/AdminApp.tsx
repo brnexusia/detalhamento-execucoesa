@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ArrowRight, Boxes, Check, ChevronLeft, ChevronRight, Clipboard, CreditCard, Download, Eye, EyeOff, ExternalLink, ImagePlus, Link2, LogOut, Menu, MoreHorizontal, Package, Pencil, Plus, ReceiptText, Search, Settings, Store as StoreIcon, Trash2, TrendingUp, Upload, Users, X } from 'lucide-react'
 import { api, type AdminCatalog } from './api'
 import { isCatalogPhoto } from './catalog-photo-upload'
+import { responsiveLocalMedia } from './responsive-media'
 import { listenAuthChanges } from './auth-session-sync'
 import ShopvaxDashboard from './ShopvaxDashboard'
 import ShopvaxLoading from './ShopvaxLoading'
@@ -46,7 +47,7 @@ function AdminProductMedia({ product }: { product: AdminProduct }) {
   useEffect(() => { setFailed(false) }, [product.media_url])
   if (!product.media_url || failed) return <div className="media-fallback"><ImagePlus size={28}/><span>Imagem indisponível</span></div>
   if (product.media_type === 'video') return <video src={product.media_url} muted onError={() => setFailed(true)} />
-  return <img src={product.media_url} alt={product.name} onError={() => setFailed(true)} />
+  return <img src={product.media_url} srcSet={responsiveLocalMedia(product.media_url)} sizes="(max-width: 768px) 45vw, 180px" alt={product.name} loading="lazy" decoding="async" onError={() => setFailed(true)} />
 }
 function phoneDigits(value: string) { return value.replace(/\D/g, '') }
 function countLabel(value: number, singular: string, plural = `${singular}s`) { return `${value} ${value === 1 ? singular : plural}` }
