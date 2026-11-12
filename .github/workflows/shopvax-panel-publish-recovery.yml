@@ -1,0 +1,55 @@
+name: ShopVax - publish SQL and panel recovery
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'server/scanner-publish-hooks.mjs'
+      - 'src/AdminRoute.tsx'
+      - 'src/App.tsx'
+      - 'src/AppRuntimeBoundary.tsx'
+      - 'src/saas.css'
+      - 'tests/shopvax-panel-publish-regression.test.mjs'
+      - 'tests/shopvax-panel-white-screen.e2e.mjs'
+      - '.github/workflows/shopvax-panel-publish-recovery.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'server/scanner-publish-hooks.mjs'
+      - 'src/AdminRoute.tsx'
+      - 'src/App.tsx'
+      - 'src/AppRuntimeBoundary.tsx'
+      - 'src/saas.css'
+      - 'tests/shopvax-panel-publish-regression.test.mjs'
+      - 'tests/shopvax-panel-white-screen.e2e.mjs'
+      - '.github/workflows/shopvax-panel-publish-recovery.yml'
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Verify query parameters and recovery UI
+        run: |
+          node --check server/scanner-publish-hooks.mjs
+          node --test tests/shopvax-panel-publish-regression.test.mjs
+      - name: Build application
+        run: npm run build
+      - name: Install Playwright
+        run: |
+          npm install --no-save --no-audit --no-fund playwright@1.58.2
+          npx playwright install --with-deps chromium
+      - name: Launch local SPA
+        run: |
+          npx vite preview --host 127.0.0.1 --port 4173 > /tmp/shopvax-vite-preview.log 2>&1 &
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:4173/ >/dev/null && exit 0; sleep 1; done
+          cat /tmp/shopvax-vite-preview.log
+          exit 1
+      - name: Verify loading and failed-chunk recovery
+        run: node tests/shopvax-panel-white-screen.e2e.mjs
