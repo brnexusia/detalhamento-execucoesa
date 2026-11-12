@@ -53,10 +53,9 @@ export default function AdminRoute() {
   // A tela de pagamento fica acessível mesmo sem assinatura ativa.
   // During the first load, keep the protected panel unmounted until the
   // backend confirms access; do not flash a full-screen payment verification.
-  if (billingGate === 'checking') return <main className="svx-panel-access-check" role="status" aria-live="polite"
-    style={{ minHeight: '60vh', display: 'grid', alignContent: 'center', justifyItems: 'center', gap: 16, padding: 24 }}>
+  if (billingGate === 'checking') return <main className="svx-panel-access-check" role="status" aria-live="polite">
     <ShopvaxLoading label="Verificando acesso ao painel…" />
-    <p style={{ margin: 0, color: '#555', fontSize: 14, textAlign: 'center' }}>Verificando acesso ao painel…</p>
+    <p>Verificando acesso ao painel…</p>
   </main>
   if (billingGate === 'anonymous') return <RedirectTo path="/entrar" />
   if (billingGate === 'unavailable') return <section className="svx-billing" role="alert"><h1>Não foi possível confirmar a assinatura.</h1><p>Por segurança, o painel permanece bloqueado até que a verificação funcione.</p><button type="button" onClick={() => setRevision(x => x + 1)}>Verificar novamente</button></section>
