@@ -9,9 +9,15 @@ const targets = [320, 960]
  */
 export async function generateMediaVariants(buffer, mimeType) {
   if (!Buffer.isBuffer(buffer) || !supported.has(String(mimeType || '').toLowerCase())) return []
-  const metadata = await sharp(buffer, {
-    limitInputPixels: 40_000_000, failOn: 'error', animated: false,
-  }).metadata()
+  let metadata
+  try {
+    metadata = await sharp(buffer, {
+      limitInputPixels: 40_000_000, failOn: 'error', animated: false,
+    }).metadata()
+  } catch {
+    // Arquivo corrompido ou MIME incorreto: preservar original sem abortar lote/worker.
+    return []
+  }
   if (!Number.isFinite(metadata.width) || !Number.isFinite(metadata.height)) return []
   // Processar uma resolução por vez limita picos de RAM no worker/CLI.
   // 960 pode ter largura real menor (ex.: foto de 750px) sem upscaling.
