@@ -1,0 +1,48 @@
+name: ShopVax - WebP media backfill
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'server/media-variants.mjs'
+      - 'server/media-variants.test.mjs'
+      - 'server/import-media-localizer.mjs'
+      - 'src/AdminApp.tsx'
+      - 'src/PublicStoreV2.tsx'
+      - 'src/responsive-media.ts'
+      - 'scripts/backfill-media-variants.mjs'
+      - '.github/workflows/shopvax-media-backfill.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'server/media-variants.mjs'
+      - 'server/media-variants.test.mjs'
+      - 'server/import-media-localizer.mjs'
+      - 'src/AdminApp.tsx'
+      - 'src/PublicStoreV2.tsx'
+      - 'src/responsive-media.ts'
+      - 'scripts/backfill-media-variants.mjs'
+      - '.github/workflows/shopvax-media-backfill.yml'
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Instalar dependencias
+        run: npm install --no-audit --no-fund
+      - name: Validar sintaxe do backfill e do importador
+        run: |
+          node --check scripts/backfill-media-variants.mjs
+          node --check server/import-media-localizer.mjs
+          node --check server/media-variants.mjs
+      - name: Validar geracao WebP e fila local
+        run: node --test server/media-variants.test.mjs server/media-upload-queue.test.mjs
+      - name: Validar localizador de midias importadas
+        run: node server/import-media-localizer.test.mjs
+      - name: Validar build do front-end
+        run: npm run build
