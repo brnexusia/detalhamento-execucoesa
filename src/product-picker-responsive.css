@@ -269,3 +269,54 @@
     height: 38px;
   }
 }
+
+
+/* REF-20261113 | Variações no mobile: botões acessíveis e rolagem local */
+.picker-layer .product-picker {
+  max-width:100%;
+  border-radius:16px 16px 0 0;
+  background:#FCFBF8;
+}
+.picker-layer .product-picker__scroll {
+  overscroll-behavior:contain;
+}
+.picker-layer .product-picker h2 {
+  line-height:1.08;
+  text-wrap:balance;
+  overflow-wrap:anywhere;
+}
+.picker-layer .variant-options {
+  gap:8px;
+}
+.picker-layer .variant-options button {
+  min-height:41px;
+  border-radius:8px;
+}
+.picker-layer .variant-options button.is-active {
+  border-color:var(--accent,#F25C05);
+}
+.picker-layer .product-gallery__thumbs {
+  gap:8px;
+  scrollbar-width:thin;
+}
+.picker-layer .product-gallery__thumbs button {
+  border-radius:8px;
+  overflow:hidden;
+}
+.picker-layer .product-picker__footer {
+  gap:10px;
+  border-top:1px solid var(--svx-line,#D9D3C6);
+}
+.picker-layer .picker-add {
+  min-height:46px;
+  border-radius:8px;
+}
+.picker-layer :is(.product-picker__close,.product-gallery__prev,.product-gallery__next) {
+  min-width:38px;
+  min-height:38px;
+  border-radius:8px;
+}
+@media(max-width:430px) {
+  .picker-layer .product-picker__footer {padding-inline:12px;}
+  .picker-layer .variant-options button {min-height:40px;}
+}
