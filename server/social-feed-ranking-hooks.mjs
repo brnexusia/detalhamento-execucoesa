@@ -152,19 +152,14 @@ async function rankedFeed(req, res) {
   const key = visitorKey(req, res)
   const result = await pool.query(`
     WITH eligible AS (
-      SELECT p.id,p.sku,p.name,p.description,p.price,p.category,p.media_url,p.media_type,p.images,p.pack,p.variations,p.featured,p.social_published_at,
-        s.id AS store_id,s.slug AS store_slug,s.name AS store_name,s.logo_url AS store_logo_url,s.accent AS store_accent,
+      -- Rank only narrow identifiers; defer wide media/JSON columns and interaction counts
+      -- until the final page has been selected.
+      SELECT p.id,p.social_published_at,s.id AS store_id,
         CASE
           WHEN COALESCE(pp.social_weight, CASE WHEN s.plan_tier='ouro' THEN 3 WHEN s.plan_tier='prata' THEN 2 ELSE 1 END) >= 3 THEN 'ouro'
           WHEN COALESCE(pp.social_weight, CASE WHEN s.plan_tier='ouro' THEN 3 WHEN s.plan_tier='prata' THEN 2 ELSE 1 END) >= 2 THEN 'prata'
           ELSE 'bronze'
-        END AS tier,
-        (SELECT COUNT(*)::int FROM social_post_daily_views v WHERE v.product_id=p.id) AS social_views,
-        (SELECT COUNT(*)::int FROM social_post_likes l WHERE l.product_id=p.id) AS social_likes,
-        (SELECT COUNT(*)::int FROM social_actions a WHERE a.product_id=p.id AND a.kind='share') AS social_shares,
-        (SELECT COUNT(*)::int FROM social_store_follows f WHERE f.store_id=s.id) AS social_followers,
-        EXISTS(SELECT 1 FROM social_post_likes l WHERE l.product_id=p.id AND l.visitor_key=$4) AS social_liked,
-        EXISTS(SELECT 1 FROM social_store_follows f WHERE f.store_id=s.id AND f.visitor_key=$4) AS social_following
+        END AS tier
       FROM products p
       JOIN stores s ON s.id=p.store_id
       LEFT JOIN platform_plans pp ON pp.code=s.plan_tier
@@ -197,11 +192,29 @@ async function rankedFeed(req, res) {
         ELSE ((tier_pos-1)*6 + 4)
       END::bigint AS feed_slot
       FROM diversified
+    ), page AS MATERIALIZED (
+      -- Materialization guarantees that per-visitor interactions and product payloads
+      -- are fetched for at most limit+1 posts, never for the entire ranked universe.
+      SELECT id,store_id,tier,feed_slot FROM slotted
+      WHERE feed_slot > $2::bigint
+      ORDER BY feed_slot ASC
+      LIMIT $3
     )
-    SELECT * FROM slotted
-    WHERE feed_slot > $2::bigint
-    ORDER BY feed_slot ASC
-    LIMIT $3
+    SELECT
+      p.id,p.sku,p.name,p.description,p.category,p.media_url,p.media_type,
+      p.images,p.pack,p.variations,p.featured,p.social_published_at,
+      page.store_id,s.slug AS store_slug,s.name AS store_name,
+      s.logo_url AS store_logo_url,s.accent AS store_accent,page.tier,page.feed_slot,
+      (SELECT COUNT(*)::int FROM social_post_daily_views v WHERE v.product_id=p.id) AS social_views,
+      (SELECT COUNT(*)::int FROM social_post_likes l WHERE l.product_id=p.id) AS social_likes,
+      (SELECT COUNT(*)::int FROM social_actions a WHERE a.product_id=p.id AND a.kind='share') AS social_shares,
+      (SELECT COUNT(*)::int FROM social_store_follows f WHERE f.store_id=s.id) AS social_followers,
+      EXISTS(SELECT 1 FROM social_post_likes l WHERE l.product_id=p.id AND l.visitor_key=$4) AS social_liked,
+      EXISTS(SELECT 1 FROM social_store_follows f WHERE f.store_id=s.id AND f.visitor_key=$4) AS social_following
+    FROM page
+    JOIN products p ON p.id=page.id
+    JOIN stores s ON s.id=page.store_id
+    ORDER BY page.feed_slot ASC
   `, [cursor.snapshot, cursor.slot, limit + 1, key])
   const hasMore = result.rows.length > limit
   const rows = result.rows.slice(0, limit)

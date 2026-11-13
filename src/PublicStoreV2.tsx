@@ -271,6 +271,7 @@ export default function PublicStoreV2() {
     try {
       const data = await api.publicStore(route.storeSlug, route.sellerSlug, {
         cursor,
+        compactPage: true,
         q: query.trim() || undefined,
         category: category === 'Todos' ? undefined : category,
         sort,

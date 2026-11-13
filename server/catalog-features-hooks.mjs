@@ -534,6 +534,9 @@ async function protectedStore(req, res) {
     if (!valid) return res.status(400).json({ error: 'Página inválida. Atualize a loja para continuar.' })
   }
 
+  // Optional pagination-only response for our storefront. First load, search and
+  // external consumers retain the full response and all catalog metadata.
+  const compactPage = Boolean(cursor && req.query.compactPage === '1')
   const params = [store.id, catalog.id]
   const conditions = ['p.store_id=$1', 'p.active=true', '(CASE WHEN c.explicit_membership THEN cp.visible=true ELSE COALESCE(cp.visible,true)=true END)']
   const sqlParam = (index) => String.fromCharCode(36) + index
@@ -569,18 +572,22 @@ async function protectedStore(req, res) {
   const pageRows = productsResult.rows.slice(0, limit)
   const last = pageRows.at(-1)
   const nextCursor = hasMore && last ? encodeCursor({ storeId: store.id, visitor, sellerSlug: String(req.params.sellerSlug || ''), q, category, catalogSlug: catalog.slug, sort, price: Number(last.public_price), featured: last.featured ? 1 : 0, createdAt: last.created_at_cursor, id: last.id, expiresAt: Date.now() + 30 * 60_000 }) : null
-  const categoriesResult = await pool.query(
-    `SELECT DISTINCT p.category FROM products p LEFT JOIN catalog_products cp ON cp.product_id=p.id AND cp.catalog_id=$2
-     WHERE p.store_id=$1 AND p.active=true AND p.category<>'' AND EXISTS (SELECT 1 FROM catalogs c WHERE c.id=$2 AND (CASE WHEN c.explicit_membership THEN cp.visible=true ELSE COALESCE(cp.visible,true)=true END)) ORDER BY p.category ASC LIMIT 100`,
-    [store.id, catalog.id],
-  )
-  const catalogsResult = await pool.query("SELECT * FROM catalogs WHERE store_id=$1 AND active=true AND ($2::boolean OR is_default=true) ORDER BY is_default DESC,created_at ASC", [store.id,store.plan_tier==='ouro'])
+  const [categoriesResult, catalogsResult] = compactPage ? [null, null] : await Promise.all([
+    pool.query(
+      `SELECT DISTINCT p.category FROM products p LEFT JOIN catalog_products cp ON cp.product_id=p.id AND cp.catalog_id=$2
+       WHERE p.store_id=$1 AND p.active=true AND p.category<>'' AND EXISTS (SELECT 1 FROM catalogs c WHERE c.id=$2 AND (CASE WHEN c.explicit_membership THEN cp.visible=true ELSE COALESCE(cp.visible,true)=true END)) ORDER BY p.category ASC LIMIT 100`,
+      [store.id, catalog.id],
+    ),
+    pool.query("SELECT * FROM catalogs WHERE store_id=$1 AND active=true AND ($2::boolean OR is_default=true) ORDER BY is_default DESC,created_at ASC", [store.id,store.plan_tier==='ouro']),
+  ])
   return res.json({
     store: { slug: store.slug, name: store.name, eyebrow: store.eyebrow, tagline: store.tagline, minimumOrder: catalog.minimum_order == null ? Number(store.minimum_order) : Number(catalog.minimum_order), whatsapp: store.whatsapp, logoUrl: store.logo_url, accent: store.accent, seasonalTheme: store.seasonal_theme || 'padrao' },
     seller,
-    catalogs: catalogsResult.rows.map(catalogShape),
-    activeCatalog: catalogShape(catalog),
-    categories: categoriesResult.rows.map((row) => row.category),
+    ...(compactPage ? {} : {
+      catalogs: catalogsResult.rows.map(catalogShape),
+      activeCatalog: catalogShape(catalog),
+      categories: categoriesResult.rows.map((row) => row.category),
+    }),
     products: pageRows.map((product) => publicProduct(product, catalog)),
     page: { hasMore, nextCursor, limit },
   })

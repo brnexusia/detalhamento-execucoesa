@@ -211,9 +211,10 @@ function currentCatalogSlug() {
 }
 
 export const api = {
-  publicStore: (storeSlug: string, sellerSlug?: string, options: { cursor?: string | null; q?: string; category?: string; sort?: 'newest' | 'price_asc' | 'price_desc'; limit?: number; catalog?: string; signal?: AbortSignal } = {}) => {
+  publicStore: (storeSlug: string, sellerSlug?: string, options: { cursor?: string | null; q?: string; category?: string; sort?: 'newest' | 'price_asc' | 'price_desc'; limit?: number; catalog?: string; compactPage?: boolean; signal?: AbortSignal } = {}) => {
     const params = new URLSearchParams()
     if (options.cursor) params.set('cursor', options.cursor)
+    if (options.cursor && options.compactPage) params.set('compactPage', '1')
     if (options.q) params.set('q', options.q)
     if (options.category) params.set('category', options.category)
     if (options.sort && options.sort !== 'newest') params.set('sort', options.sort)
