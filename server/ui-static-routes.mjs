@@ -11,7 +11,7 @@ export function installUiStaticRoutes(app, distDir) {
     index: false,
     maxAge: '1h',
     setHeaders(res, filePath) {
-      if (/shopvax-ui-version\\.json$|shopvax-release-sha\\.txt$/i.test(filePath)) {
+      if (/shopvax-ui-version\.json$|shopvax-release-sha\.txt$/i.test(filePath)) {
         res.setHeader('Cache-Control', 'no-store, max-age=0, must-revalidate')
       }
     },
