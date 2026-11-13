@@ -114,3 +114,123 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+
+/* REF-20261113 | Catálogos do lojista: uma hierarquia por catálogo */
+.panel-shell .svx-catalog-inline {
+  gap:clamp(11px,1.7vw,18px);
+}
+.panel-shell .svx-catalog-inline__header {
+  align-items:flex-end;
+  row-gap:10px;
+}
+.panel-shell .svx-catalog-inline__header h2 {
+  line-height:1.1;
+  letter-spacing:-.03em;
+  text-wrap:balance;
+}
+.panel-shell .svx-catalog-inline__header p {
+  max-width:62ch;
+  line-height:1.5;
+}
+.panel-shell .svx-catalog-inline__cards {
+  gap:clamp(10px,1.5vw,16px);
+}
+.panel-shell .svx-catalog-card {
+  gap:12px;
+  padding:clamp(14px,1.6vw,20px);
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:12px;
+  background:#FCFBF8;
+  box-shadow:0 2px 10px rgba(22,21,20,.035);
+}
+.panel-shell .svx-catalog-card.is-selected {
+  border-color:var(--svx-orange,#F25C05);
+  box-shadow:inset 2px 0 var(--svx-orange,#F25C05);
+}
+.panel-shell .svx-catalog-card__top {
+  align-items:flex-start;
+  gap:10px;
+}
+.panel-shell .svx-catalog-card__name {
+  font-size:clamp(18px,2.1vw,24px);
+  line-height:1.12;
+  overflow-wrap:anywhere;
+}
+.panel-shell .svx-catalog-card__description {
+  line-height:1.5;
+  overflow-wrap:anywhere;
+}
+.panel-shell .svx-catalog-card__link {
+  display:grid;
+  gap:6px;
+  min-width:0;
+}
+.panel-shell .svx-catalog-card__link input {
+  min-width:0;
+  width:100%;
+  max-width:100%;
+  border-color:var(--svx-line,#D9D3C6);
+  border-radius:8px;
+  background:#fff;
+  text-overflow:ellipsis;
+}
+.panel-shell .svx-catalog-card__actions {
+  gap:7px;
+  flex-wrap:wrap;
+}
+.panel-shell .svx-catalog-card__actions :is(button,a) {
+  min-height:39px;
+  border-radius:8px;
+  border-color:var(--svx-line,#D9D3C6);
+  padding:9px 12px;
+  text-decoration:none;
+}
+.panel-shell .svx-catalog-card__actions :is(button,a):hover {
+  border-color:var(--svx-orange,#F25C05);
+}
+.panel-shell .svx-catalog-inline__buttons {
+  gap:8px;
+  flex-wrap:wrap;
+}
+.panel-shell .svx-catalog-inline__buttons button {
+  border-radius:8px;
+  min-height:40px;
+}
+.panel-shell .svx-catalog-inline__buttons .svx-catalog-inline__create {
+  border-color:var(--svx-orange,#F25C05);
+  background:var(--svx-orange,#F25C05);
+}
+.svx-catalog-dialog__card {
+  width:min(100%,540px);
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:16px;
+  background:#FCFBF8;
+  padding:clamp(16px,2.5vw,25px);
+}
+.svx-catalog-dialog__card header {
+  border-bottom:1px solid var(--svx-line,#D9D3C6);
+}
+.svx-catalog-dialog__card :is(input:not([type="checkbox"]),select) {
+  min-width:0;
+  width:100%;
+  border-radius:8px;
+}
+.svx-catalog-dialog__candidates label {
+  gap:12px;
+  min-height:47px;
+  line-height:1.4;
+}
+.svx-catalog-dialog__card :is(button,a,input,select):focus-visible {
+  outline:2px solid #2D2A8C;
+  outline-offset:3px;
+}
+@container(max-width:850px) {
+  .svx-catalog-inline__cards {grid-template-columns:minmax(0,1fr);}
+}
+@media(max-width:720px) {
+  .panel-shell .svx-catalog-inline__header {align-items:flex-start;}
+  .panel-shell .svx-catalog-card {padding:14px;}
+  .panel-shell .svx-catalog-card__actions :is(button,a) {flex:1 1 135px;}
+  .svx-catalog-dialog__card {max-height:calc(100dvh - 28px);}
+}
