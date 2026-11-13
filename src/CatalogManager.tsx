@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Check, Copy, Download, ExternalLink, MoreHorizontal, Plus, Search, Share2, Trash2, X } from 'lucide-react'
+import { Check, Copy, Download, ExternalLink, FolderClosed, FolderOpen, MoreHorizontal, Plus, Search, Share2, Trash2, X } from 'lucide-react'
 import { api, type AdminCatalog } from './api'
 import type { AdminProduct } from './types'
 import { confirmAction } from './ui-dialogs'
@@ -169,46 +169,57 @@ export default function CatalogManager({storeSlug,categories,onSelect,onChanged,
  }
  return <div className="svx-catalog-inline" aria-label="Catálogos da loja">
    <header className="svx-catalog-inline__header">
-     <div><h2>Meus catálogos</h2><p>Selecione o catálogo para organizar seus produtos. Cada catálogo publicado possui um link próprio.</p></div>
+     <div><h2>Minhas pastas</h2><p>Cada catálogo funciona como uma pasta: abra para ver apenas seus produtos e gerenciar o link público. Os produtos permanecem na base da loja.</p></div>
      <div className="svx-catalog-inline__buttons">
        {gold&&<button type="button" className="svx-catalog-inline__create" onClick={()=>{setName('');setKind('varejo');setCustomLabel('');setCustomFormat('');setPriceMode('base');setMinimum('');show('create')}}><Plus size={15}/> Criar catálogo</button>}
        <button type="button" className="svx-catalog-inline__more" disabled={!selected} aria-label="Opções do catálogo selecionado" onClick={()=>show('settings')}><MoreHorizontal size={20}/> <span>Opções</span></button>
      </div>
    </header>
-   <div className="svx-catalog-inline__cards">
+   <div className="svx-catalog-folders" role="group" aria-label="Pastas dos catálogos">
      {catalogs.map(c=>{
-       const available=c.active&&!c.lockedByPlan
-       const activeSelection=selected?.id===c.id
-       return <article
+       const opened=selected?.id===c.id
+       return <button
+         type="button"
          key={c.id}
-         className={'svx-catalog-card'+(activeSelection?' is-selected':'')}
-         data-selectable={!busy}
-         onClick={(event) => {
-           if (busy || activeSelection) return
-           // Botões de ação, link público e campo de URL conservam suas funções.
-           const target=event.target
-           if (target instanceof Element && target.closest('button, a, input, select, textarea, label, [contenteditable="true"]')) return
-           choose(c)
-         }}
+         className={'svx-catalog-folder'+(opened?' is-selected':'')}
+         aria-pressed={opened}
+         aria-label={c.name}
+         disabled={busy}
+         onClick={()=>choose(c)}
        >
-         <div className="svx-catalog-card__top">
-           <button type="button" className="svx-catalog-card__name" aria-pressed={activeSelection} disabled={busy} onClick={()=>choose(c)}>{c.name}</button>
-           <span className={'svx-catalog-card__status'+(available?' is-published':'')}>{c.lockedByPlan?'Bloqueado pelo plano':c.active?'Publicado':'Não publicado'}</span>
-         </div>
-         <p className="svx-catalog-card__description">{kindLabel(c)} · {c.minimumOrder==null?'Mínimo conforme configuração da loja':'Pedido mínimo '+currency.format(c.minimumOrder)}{c.isDefault?' · Principal':''}</p>
-         {available?<div className="svx-catalog-card__link">
-           <label htmlFor={'catalog-link-'+c.id}>Link deste catálogo</label>
-           <input id={'catalog-link-'+c.id} readOnly value={catalogLink(c)} onFocus={event=>event.currentTarget.select()} />
-           <div className="svx-catalog-card__actions">
-             <button type="button" onClick={()=>void copyLink(c)}><Copy size={15} aria-hidden="true"/> Copiar link</button>
-             {typeof navigator.share==='function'&&<button type="button" onClick={()=>void shareLink(c)}><Share2 size={15} aria-hidden="true"/> Compartilhar</button>}
-             <a href={catalogLink(c)} target="_blank" rel="noreferrer"><ExternalLink size={15} aria-hidden="true"/> Abrir catálogo</a>
-           </div>
-         </div>:<p className="svx-catalog-card__disabled">O link deste catálogo não está disponível enquanto ele estiver desativado ou bloqueado pelo plano.</p>}
-         {linkFeedback?.id===c.id&&<p className="svx-catalog-card__feedback" role={linkFeedback.error?'alert':'status'}>{linkFeedback.text}</p>}
-       </article>
+         <span className="svx-catalog-folder__icon" aria-hidden="true">{opened?<FolderOpen size={22}/>:<FolderClosed size={22}/>}</span>
+         <span className="svx-catalog-folder__text">
+           <strong>{c.name}</strong>
+           <small>{kindLabel(c)}</small>
+         </span>
+         <span className="svx-catalog-folder__state">{c.lockedByPlan?'Bloqueada':c.active?'Publicada':'Não publicada'}</span>
+         <span className="svx-catalog-folder__action" aria-hidden="true">{opened?'Pasta aberta':'Abrir pasta'}</span>
+       </button>
      })}
    </div>
+   {selected&&<section className="svx-catalog-folder-details" aria-label={'Pasta '+selected.name}>
+     <header className="svx-catalog-folder-details__header">
+       <span className="svx-catalog-folder-details__icon" aria-hidden="true"><FolderOpen size={20}/></span>
+       <div>
+         <h3>{selected.name}</h3>
+         <p>{kindLabel(selected)} · {selected.minimumOrder==null?'Mínimo conforme configuração da loja':'Pedido mínimo '+currency.format(selected.minimumOrder)}{selected.isDefault?' · Principal':''}</p>
+       </div>
+       <span className="svx-catalog-folder-details__count">Pasta selecionada</span>
+     </header>
+     {selected.active&&!selected.lockedByPlan
+       ?<div className="svx-catalog-card__link">
+         <label htmlFor={'catalog-link-'+selected.id}>Link público desta pasta</label>
+         <input id={'catalog-link-'+selected.id} readOnly value={catalogLink(selected)} onFocus={event=>event.currentTarget.select()}/>
+         <div className="svx-catalog-card__actions">
+           <button type="button" onClick={()=>void copyLink(selected)}><Copy size={15} aria-hidden="true"/> Copiar link</button>
+           {typeof navigator.share==='function'&&<button type="button" onClick={()=>void shareLink(selected)}><Share2 size={15} aria-hidden="true"/> Compartilhar</button>}
+           <a href={catalogLink(selected)} target="_blank" rel="noreferrer"><ExternalLink size={15} aria-hidden="true"/> Abrir catálogo</a>
+         </div>
+       </div>
+       :<p className="svx-catalog-card__disabled">Este catálogo não possui link público disponível enquanto estiver desativado ou bloqueado pelo plano.</p>}
+     {linkFeedback?.id===selected.id&&<p className="svx-catalog-card__feedback" role={linkFeedback.error?'alert':'status'}>{linkFeedback.text}</p>}
+     <p className="svx-catalog-folder-details__hint">Os produtos e as categorias exibidos abaixo pertencem à pasta <strong>{selected.name}</strong>. Alterar esta pasta não apaga produtos da base da loja.</p>
+   </section>}
    {error&&!pane&&<p className="svx-catalog-inline__error" role="alert">{error}</p>}
    {pane&&<div className="svx-catalog-dialog">
      <button type="button" className="svx-catalog-dialog__backdrop" aria-label="Fechar" onClick={()=>!busy&&setPane(null)}/>
