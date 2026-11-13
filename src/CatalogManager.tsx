@@ -12,6 +12,7 @@ type Props = {
  categories:string[]
  onSelect:(catalog:AdminCatalog|null)=>void
  onChanged:()=>void
+ onReady?:()=>void
 }
 const currency=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'})
 const presetCustomLabels=['Caixa fechada','Pacote','6 unidades'] as const
@@ -26,7 +27,7 @@ function download(blob:Blob,filename:string){
  a.href=url;a.download=filename;document.body.append(a);a.click();a.remove()
  setTimeout(()=>URL.revokeObjectURL(url),1000)
 }
-export default function CatalogManager({storeSlug,categories,onSelect,onChanged}:Props){
+export default function CatalogManager({storeSlug,categories,onSelect,onChanged,onReady}:Props){
  const [catalogs,setCatalogs]=useState<AdminCatalog[]>([])
  const [gold,setGold]=useState(false)
  const [selectedId,setSelectedId]=useState('')
@@ -65,6 +66,7 @@ export default function CatalogManager({storeSlug,categories,onSelect,onChanged}
      onSelect(next)
      setError('')
    }catch(err){setError(err instanceof Error?err.message:'Não foi possível carregar os catálogos.')}
+   finally{onReady?.()}
  }
  useEffect(()=>{void load()},[])
  useEffect(()=>{
