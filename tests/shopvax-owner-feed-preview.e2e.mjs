@@ -36,13 +36,13 @@ try {
       await modal.waitFor()
       if(sc.preview){
         await modal.getByText('Visualização do lojista.',{exact:false}).waitFor()
-        await modal.getByText('R$ 89,90').waitFor()
+        await modal.getByText('R$ 89,90').first().waitFor()
         assert.equal(await modal.getByRole('button',{name:/Adicionar ·/}).count(),0)
         assert.equal(await modal.getByText('Receber código no WhatsApp').count(),0)
         assert.equal(offerCalls,1)
       }else if(sc.buyer){
         await modal.getByRole('button',{name:/Adicionar ·/}).waitFor()
-        await modal.getByText('R$ 89,90').waitFor()
+        await modal.getByText('R$ 89,90').first().waitFor()
         assert.equal(offerCalls,1)
       }else{
         await modal.getByRole('button',{name:'Receber código no WhatsApp'}).waitFor()
