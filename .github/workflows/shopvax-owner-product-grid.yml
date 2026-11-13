@@ -1,0 +1,39 @@
+name: ShopVax - Owner product grid containment
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/shopvax-product-operations.css'
+      - 'src/styles.css'
+      - 'tests/shopvax-owner-product-grid.e2e.mjs'
+      - '.github/workflows/shopvax-owner-product-grid.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/shopvax-product-operations.css'
+      - 'src/styles.css'
+      - 'tests/shopvax-owner-product-grid.e2e.mjs'
+      - '.github/workflows/shopvax-owner-product-grid.yml'
+permissions:
+  contents: read
+jobs:
+  owner-product-grid:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-fund --no-audit
+      - run: npm install --no-save --no-fund --no-audit playwright@1.58.2
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - name: Servir frontend compilado
+        run: |
+          nohup npm run preview -- --host 127.0.0.1 --port 5173 > /tmp/shopvax-preview.log 2>&1 &
+          for i in $(seq 1 50); do curl -fsS http://127.0.0.1:5173/ >/dev/null && break; sleep 1; done
+      - name: Validar colunas e margens de produto com nomes longos
+        run: node tests/shopvax-owner-product-grid.e2e.mjs
+      - name: Validar operações existentes do painel Produtos
+        run: node tests/shopvax-product-list.e2e.mjs
