@@ -44,6 +44,12 @@ try {
     const ref=name.querySelector('small')
     return {
       width:innerWidth,docWidth:document.documentElement.scrollWidth,table:rect(table),
+      shell:rect(document.querySelector('.panel-shell')),
+      main:rect(document.querySelector('.panel-main')),
+      page:rect(document.querySelector('.panel-page')),
+      products:rect(document.querySelector('.svx-products')),
+      contentGrid:getComputedStyle(document.querySelector('.panel-shell')).gridTemplateColumns,
+      tableComputed:getComputedStyle(table).width,
       row1:rect(first),row2:rect(second),
       headers:getComputedStyle(head).display==='none'?[]:[...head.querySelectorAll('[role=columnheader]')].map(rect),
       cells:[...first.querySelectorAll(':scope > [role=cell]')].map(rect),
@@ -73,7 +79,7 @@ try {
       'Coluna do cabeçalho desalinhada com produto '+i+': '+JSON.stringify({width,geometry}))
   }
   console.log('SHOPVAX_OWNER_PRODUCTS_GEOMETRY_PASS',width,{
-    tableWidth:geometry.table.width,rowHeight:geometry.row1.height,columns:geometry.headers.length})
+    tableWidth:geometry.table.width, pageWidth:geometry.page.width, mainWidth:geometry.main.width, productsWidth:geometry.products.width, grid:geometry.contentGrid, rowHeight:geometry.row1.height,columns:geometry.headers.length})
   await page.close()
  }
 }finally{await browser.close()}
