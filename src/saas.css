@@ -79,3 +79,187 @@
   padding: 12px 20px; border: 1px solid #161514;
   border-radius: 9px; font-weight: 700;
 }
+
+
+/* REF-20261113 | Painel, vendedoras, editor de produto e dados da loja */
+.panel-shell {
+  background:var(--svx-paper,#F3F0E8);
+  font-family:var(--svx-font-body,'Archivo',sans-serif);
+}
+.panel-shell .panel-main {
+  min-width:0;
+}
+.panel-shell .panel-topbar {
+  border-bottom:1px solid var(--svx-line,#D9D3C6);
+  gap:12px;
+}
+.panel-shell .panel-store-link {
+  text-decoration:none;
+  border-bottom:1px solid var(--svx-orange,#F25C05);
+}
+.panel-shell .panel-nav {
+  gap:5px;
+}
+.panel-shell .panel-nav button {
+  min-height:40px;
+  border-radius:8px;
+  font-size:12px;
+}
+.panel-shell .panel-nav button.is-active {
+  border-radius:8px;
+  box-shadow:inset 2px 0 var(--svx-orange,#F25C05);
+}
+.panel-shell .panel-page {
+  padding-inline:clamp(16px,2.6vw,32px);
+}
+.panel-shell .page-title,
+.panel-shell .section-head {
+  row-gap:10px;
+}
+.panel-shell .page-title h1 {
+  line-height:1.02;
+  letter-spacing:-.035em;
+  overflow-wrap:anywhere;
+}
+.panel-shell .page-title p {
+  line-height:1.55;
+  max-width:70ch;
+}
+.panel-shell .secondary-action {
+  border-radius:8px;
+  min-height:40px;
+}
+.panel-shell .seller-list {
+  border-top:1px solid var(--svx-line,#D9D3C6);
+}
+.panel-shell .seller-list article {
+  gap:clamp(10px,1.6vw,18px);
+  border-bottom:1px solid var(--svx-line,#D9D3C6);
+  min-width:0;
+}
+.panel-shell .seller-main {
+  min-width:0;
+}
+.panel-shell .seller-main h3 {
+  line-height:1.25;
+  overflow-wrap:anywhere;
+}
+.panel-shell .seller-link {
+  min-width:0;
+}
+.panel-shell .seller-link code {
+  max-width:100%;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.panel-shell .seller-link button,
+.panel-shell .seller-actions button {
+  min-height:39px;
+  border-radius:8px;
+}
+.panel-shell .seller-stats {
+  gap:10px;
+}
+.panel-shell .settings-layout {
+  gap:clamp(12px,1.8vw,22px);
+  align-items:start;
+}
+.panel-shell .settings-card {
+  padding:clamp(16px,2vw,25px);
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:12px;
+  background:#FCFBF8;
+  box-shadow:0 2px 12px rgba(22,21,20,.035);
+  min-width:0;
+}
+.panel-shell .settings-card h2 {
+  line-height:1.15;
+  overflow-wrap:anywhere;
+}
+.panel-shell .settings-card :is(input,select,textarea),
+.panel-shell .editor-modal :is(input,select,textarea),
+.panel-shell .seller-modal :is(input,select,textarea) {
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:8px;
+  min-width:0;
+  max-width:100%;
+  background:#FCFBF8;
+  font-size:13px;
+}
+.panel-shell .settings-card :is(input,select,textarea):focus-visible,
+.panel-shell .editor-modal :is(input,select,textarea):focus-visible,
+.panel-shell .seller-modal :is(input,select,textarea):focus-visible {
+  outline:2px solid rgba(242,92,5,.33);
+  outline-offset:1px;
+  border-color:var(--svx-orange,#F25C05);
+}
+.panel-shell .settings-card>label {
+  gap:8px;
+}
+.panel-shell .settings-save {
+  gap:12px;
+  border-radius:10px;
+}
+.panel-shell .settings-save :is(button,a) {
+  min-height:42px;
+  border-radius:8px;
+}
+.panel-shell .store-tools-grid {
+  gap:clamp(10px,1.6vw,18px);
+}
+.panel-shell .store-tools-grid>button {
+  min-width:0;
+  min-height:82px;
+  gap:12px;
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:12px;
+  padding:clamp(14px,1.8vw,20px);
+  background:#FCFBF8;
+}
+.panel-shell .store-tools-grid>button:hover {
+  border-color:var(--svx-orange,#F25C05);
+}
+.panel-shell .store-tools-grid>button>div {
+  min-width:0;
+}
+.panel-shell .store-tools-grid strong,
+.panel-shell .store-tools-grid span {
+  overflow-wrap:anywhere;
+}
+.panel-shell .editor-modal,
+.panel-shell .seller-modal {
+  border-radius:16px;
+  max-width:calc(100vw - 24px);
+}
+.panel-shell :is(.editor-modal,.seller-modal) header {
+  border-bottom:1px solid var(--svx-line,#D9D3C6);
+  gap:10px;
+}
+.panel-shell .product-inline-gallery {
+  gap:8px;
+}
+.panel-shell .product-inline-gallery>div {
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:8px;
+  overflow:hidden;
+}
+.panel-shell .product-inline-gallery button {
+  min-height:35px;
+}
+.panel-shell .product-select-control {
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:7px;
+}
+.panel-shell .plan-context-note {
+  border:1px dashed var(--svx-line,#D9D3C6);
+  border-radius:8px;
+  line-height:1.5;
+}
+@media(max-width:760px) {
+  .panel-shell .panel-page {padding-inline:16px;}
+  .panel-shell .page-title-actions {gap:8px;}
+  .panel-shell .settings-layout {grid-template-columns:minmax(0,1fr);}
+  .panel-shell .settings-save {flex-wrap:wrap;}
+  .panel-shell .store-tools-grid {grid-template-columns:minmax(0,1fr);}
+  .panel-shell :is(.editor-modal,.seller-modal) {max-height:calc(100dvh - 20px);}
+}
