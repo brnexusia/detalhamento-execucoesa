@@ -66,3 +66,82 @@
 @media(max-width:680px){.pb-heading{flex-wrap:wrap}.pb-list-row{grid-template-columns:35px minmax(120px,1fr) auto 16px;gap:9px;padding:13px 3px}.pb-list-row .pb-list-fact:nth-last-child(4),.pb-list-row .pb-list-fact:nth-last-child(3),.pb-list-row .pb-list-fact:nth-last-child(2){display:none}.pb-top-metrics{grid-template-columns:1fr 1fr}.pb-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.pb-info-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.pb-store-list article{flex-wrap:wrap}.pb-store-list article>div:last-child{text-align:left}.pb-detail-head h2{font-size:22px}}
 @media(max-width:420px){.pb-top-metrics{grid-template-columns:1fr}.pb-info-grid{grid-template-columns:1fr}.pb-filters select,.pb-filters button{width:100%}.pb-list-row{grid-template-columns:30px minmax(0,1fr) 16px}.pb-list-row .pb-list-fact{display:none}.pb-avatar{width:30px;height:30px}}
 @media(prefers-reduced-motion:reduce){.pb-detail,.pb-detail-layer{transition:none}}
+
+
+/* REF-20261113 | Administração de compradores: lista e detalhe lateral */
+.platform-shell .pb-heading {
+  gap:12px;
+  align-items:flex-end;
+}
+.platform-shell .pb-heading h1 {line-height:1;text-wrap:balance;}
+.platform-shell .pb-heading p {max-width:72ch;line-height:1.55;}
+.platform-shell .pb-top-metrics {gap:clamp(9px,1.4vw,15px);}
+.platform-shell .pb-metric {
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:10px;
+  background:#FCFBF8;
+  min-width:0;
+}
+.platform-shell .pb-metric strong {font-variant-numeric:tabular-nums;overflow-wrap:anywhere;}
+.platform-shell .pb-filters {gap:9px;flex-wrap:wrap;}
+.platform-shell .pb-search {
+  min-width:0;
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:8px;
+  background:#FCFBF8;
+}
+.platform-shell .pb-search:focus-within {border-color:var(--svx-orange,#F25C05);}
+.platform-shell .pb-filters :is(select,button) {min-height:40px;border-radius:8px;}
+.platform-shell .pb-list-row {
+  gap:10px;
+  min-width:0;
+  border-bottom:1px solid var(--svx-line,#D9D3C6);
+}
+.platform-shell .pb-list-row:focus-visible {
+  outline:2px solid #2D2A8C;
+  outline-offset:-2px;
+}
+.platform-shell .pb-list-identity {min-width:0;}
+.platform-shell .pb-list-identity :is(strong,small) {overflow-wrap:anywhere;}
+.pb-detail {
+  border-radius:16px 0 0 16px;
+  background:#FCFBF8;
+  max-width:calc(100vw - 16px);
+}
+.pb-detail-head {
+  gap:12px;
+  border-bottom:1px solid var(--svx-line,#D9D3C6);
+}
+.pb-detail-head h2 {
+  line-height:1.05;
+  text-wrap:balance;
+}
+.pb-detail-head > button {
+  min-height:40px;
+  border-radius:8px;
+}
+.pb-section {
+  border-bottom:1px solid var(--svx-line,#D9D3C6);
+}
+.pb-section h3 {line-height:1.15;}
+.pb-info-grid {gap:10px;}
+.pb-info {
+  min-width:0;
+  border-radius:8px;
+  background:#F4F3EF;
+}
+.pb-info strong {overflow-wrap:anywhere;}
+.pb-store-list article {gap:12px;border-bottom-color:var(--svx-line,#D9D3C6);}
+.pb-table-scroller {
+  max-width:100%;
+  overflow-x:auto;
+  scrollbar-width:thin;
+}
+.pb-table {font-variant-numeric:tabular-nums;}
+.pb-pages {gap:10px;flex-wrap:wrap;}
+.pb-pages button,.pb-heading button {min-height:40px;border-radius:8px;}
+@media(max-width:680px) {
+  .platform-shell .pb-heading {align-items:flex-start;flex-wrap:wrap;}
+  .platform-shell .pb-top-metrics {grid-template-columns:repeat(2,minmax(0,1fr));}
+  .pb-detail {max-width:100%;border-radius:16px 16px 0 0;}
+}
