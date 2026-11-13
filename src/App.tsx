@@ -127,5 +127,7 @@ export default function App() {
   else if (page === 'platform') content = <PlatformRoute />
   else content = <AdminRoute />
 
-  return <AppRuntimeBoundary key={`${pathname}:${authRevision}`}><Suspense fallback={<RouteFallback />}><Fragment key={authRevision}>{content}</Fragment></Suspense>{['social','profile','explore','saved','carts','buyer'].includes(page)&&<BuyerAppNav pathname={pathname}/>}<Suspense fallback={null}>{helpAllowed && <ShopvaxSupport />}</Suspense><ShopvaxLoginTransition /></AppRuntimeBoundary>
+  // Preserve the mounted admin route across sidebar changes. Auth swaps still remount the protected tree.
+  // Store/profile/customer surfaces preserve their own pathname-specific keys.
+  return <AppRuntimeBoundary key={`${page}:${authRevision}`}><Suspense fallback={<RouteFallback />}><Fragment key={authRevision}>{content}</Fragment></Suspense>{['social','profile','explore','saved','carts','buyer'].includes(page)&&<BuyerAppNav pathname={pathname}/>}<Suspense fallback={null}>{helpAllowed && <ShopvaxSupport />}</Suspense><ShopvaxLoginTransition /></AppRuntimeBoundary>
 }
