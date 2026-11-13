@@ -311,3 +311,101 @@
   }
   .auth-shell .auth-form {overflow-wrap:anywhere;}
 }
+
+
+/* REF-20261113 | Cadastro e login: formulário leve, hierarquia e acessibilidade */
+.auth-shell .auth-panel {
+  padding-inline:clamp(18px,4vw,64px);
+}
+.auth-shell .auth-form {
+  gap:clamp(12px,1.7vw,17px);
+  width:min(100%,480px);
+}
+.auth-shell .auth-form__head {
+  gap:9px;
+}
+.auth-shell .auth-form__head h2 {
+  font-size:clamp(30px,4vw,43px);
+  line-height:1.05;
+  letter-spacing:-.032em;
+}
+.auth-shell .auth-form__head>p {
+  max-width:52ch;
+  line-height:1.55;
+}
+.auth-shell .auth-form>label {
+  gap:7px;
+  min-width:0;
+}
+.auth-shell .auth-form label>span {
+  font-size:12px;
+  line-height:1.4;
+}
+.auth-shell .auth-form input {
+  min-height:44px;
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:8px;
+  background:#FCFBF8;
+  font-size:14px;
+}
+.auth-shell .auth-form input:focus-visible {
+  border-color:var(--svx-orange,#F25C05);
+  outline:2px solid rgba(242,92,5,.26);
+  outline-offset:1px;
+}
+.auth-shell .auth-form .input-icon,
+.auth-shell .auth-form .password-input {
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:8px;
+  background:#FCFBF8;
+}
+.auth-shell .auth-form :is(.input-icon,.password-input):focus-within {
+  border-color:var(--svx-orange,#F25C05);
+}
+.auth-shell .auth-form :is(.input-icon,.password-input) input {
+  border:0;
+  background:transparent;
+}
+.auth-shell .auth-form>.primary-action {
+  min-height:46px;
+  border-radius:8px;
+}
+.auth-shell .auth-switch {
+  gap:8px;
+  line-height:1.5;
+}
+.auth-shell .auth-switch button,
+.auth-shell .auth-close {
+  min-height:39px;
+  border-radius:8px;
+}
+.auth-shell .auth-google-profile {
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:10px;
+  background:#FCFBF8;
+}
+.auth-shell .form-error {
+  border-radius:8px;
+  font-size:12px;
+  line-height:1.5;
+}
+.auth-shell .auth-poster__copy h1 {
+  text-wrap:balance;
+  overflow-wrap:anywhere;
+}
+.auth-shell .poster-note {
+  border-color:var(--svx-line,#D9D3C6);
+}
+.auth-shell .google-auth-button__mount {
+  min-width:0;
+  max-width:100%;
+}
+@media(max-width:700px) {
+  .auth-shell .auth-panel {padding-inline:clamp(16px,5vw,26px);}
+  .auth-shell .auth-form {width:100%;gap:13px;}
+  .auth-shell .auth-form__head h2 {font-size:clamp(29px,8vw,40px);}
+  .auth-shell .auth-form label>span {font-size:12px;}
+}
+@media(max-height:600px) and (min-width:701px) {
+  .auth-shell .auth-panel {align-content:start;}
+}
