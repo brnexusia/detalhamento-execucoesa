@@ -689,3 +689,131 @@
   .panel-shell .svx-products .svx-products__footer {align-items:flex-start;}
   .panel-shell .svx-products .svx-products__confirm-card {padding:16px;}
 }
+
+
+/* PRODUCT-LIST-GEOMETRY-20261113
+ * O sidebar consome ~238px. Breakpoints apenas por viewport não bastam:
+ * a grade deve reagir à largura REAL disponível, inclusive com zoom. */
+.panel-shell .svx-products,
+.panel-shell .svx-products__hero,
+.panel-shell .svx-products__toolbar,
+.panel-shell .svx-products__table {
+  box-sizing:border-box;
+  width:100%;
+  max-width:100%;
+  min-width:0;
+}
+.panel-shell .svx-products__catalog-heading {
+  min-width:0;
+  max-width:100%;
+  gap:clamp(12px,1.8vw,24px);
+}
+.panel-shell .svx-products__catalog-heading .svx-catalog-inline {
+  min-width:0;
+  max-width:100%;
+}
+.panel-shell .svx-products__table {
+  container-type:inline-size;
+  container-name:svx-products-table;
+  overflow:visible;
+}
+.panel-shell .svx-products .svx-products__headings,
+.panel-shell .svx-products .product-admin-card {
+  grid-template-columns:
+    minmax(180px,2.35fr)
+    minmax(90px,.9fr)
+    minmax(100px,1fr)
+    minmax(85px,.7fr)
+    minmax(90px,.8fr)
+    minmax(70px,.65fr);
+  gap:clamp(8px,.9vw,14px);
+  min-width:0;
+  max-width:100%;
+  box-sizing:border-box;
+  padding-inline:clamp(8px,.9vw,12px);
+}
+.panel-shell .svx-products .product-admin-card {
+  height:auto;
+  min-height:80px;
+  grid-template-rows:auto;
+  padding-block:10px;
+  overflow:visible;
+}
+.panel-shell .svx-products .product-admin-card > [role="cell"],
+.panel-shell .svx-products .svx-products__product,
+.panel-shell .svx-products .svx-products__name-ref,
+.panel-shell .svx-products .svx-products__name-line {
+  min-width:0;
+  max-width:100%;
+}
+.panel-shell .svx-products .svx-products__product {
+  gap:clamp(9px,1.2vw,17px);
+  align-items:center;
+}
+.panel-shell .svx-products .svx-products__name-line strong {
+  display:block;
+  max-width:100%;
+  min-width:0;
+  line-height:1.4;
+  white-space:normal;
+  overflow-wrap:anywhere;
+}
+.panel-shell .svx-products .svx-products__name-ref > small {
+  max-width:100%;
+  white-space:normal;
+  overflow-wrap:anywhere;
+  word-break:break-word;
+  line-height:1.5;
+}
+.panel-shell .svx-products .svx-products__category,
+.panel-shell .svx-products .svx-products__grade {
+  max-width:100%;
+  white-space:normal;
+  line-height:1.45;
+  overflow-wrap:anywhere;
+}
+.panel-shell .svx-products .svx-products__price,
+.panel-shell .svx-products .svx-products__visibility,
+.panel-shell .svx-products .svx-products__actions {
+  max-width:100%;
+  min-width:0;
+}
+.panel-shell .svx-products .svx-products__actions {
+  gap:7px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+@container svx-products-table (max-width:850px) {
+  .panel-shell .svx-products .svx-products__headings {display:none;}
+  .panel-shell .svx-products .product-admin-card {
+    grid-template-columns:minmax(0,1fr) minmax(0,.82fr);
+    gap:10px clamp(10px,2vw,18px);
+    padding:clamp(12px,1.8vw,17px);
+  }
+  .panel-shell .svx-products .svx-products__product {grid-column:1/-1;}
+  .panel-shell .svx-products .svx-products__category {grid-column:1;}
+  .panel-shell .svx-products .svx-products__grade {grid-column:2;}
+  .panel-shell .svx-products .svx-products__price {grid-column:1;}
+  .panel-shell .svx-products .svx-products__visibility {grid-column:2;}
+  .panel-shell .svx-products .svx-products__actions {
+    grid-column:1/-1;
+    justify-content:flex-end;
+    border-top:1px solid var(--svx-line,#D9D3C6);
+    padding-top:9px;
+  }
+  .panel-shell .svx-products .svx-products__mobile-label {display:block;}
+}
+@container svx-products-table (max-width:380px) {
+  .panel-shell .svx-products .product-admin-card {
+    grid-template-columns:minmax(0,1fr);
+  }
+  .panel-shell .svx-products .svx-products__product,
+  .panel-shell .svx-products .svx-products__category,
+  .panel-shell .svx-products .svx-products__grade,
+  .panel-shell .svx-products .svx-products__price,
+  .panel-shell .svx-products .svx-products__visibility,
+  .panel-shell .svx-products .svx-products__actions {
+    grid-column:1;
+  }
+  .panel-shell .svx-products .svx-products__actions {justify-content:flex-start;}
+}
