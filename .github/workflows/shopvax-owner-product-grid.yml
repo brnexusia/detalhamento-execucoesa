@@ -4,12 +4,14 @@ on:
     branches: [main]
     paths:
       - 'src/shopvax-product-operations.css'
+      - 'src/styles.css'
       - 'tests/shopvax-owner-product-grid.e2e.mjs'
       - '.github/workflows/shopvax-owner-product-grid.yml'
   push:
     branches: [main]
     paths:
       - 'src/shopvax-product-operations.css'
+      - 'src/styles.css'
       - 'tests/shopvax-owner-product-grid.e2e.mjs'
       - '.github/workflows/shopvax-owner-product-grid.yml'
 permissions:
