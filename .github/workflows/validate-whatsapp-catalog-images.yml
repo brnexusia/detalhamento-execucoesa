@@ -1,0 +1,30 @@
+name: validate-whatsapp-catalog-images
+on:
+  push:
+    branches: [fix/whatsapp-catalog-images-preview-20261113, main]
+    paths:
+      - 'server/scanner-uazapi-catalog.mjs'
+      - 'server/scanner-uazapi-catalog.test.mjs'
+      - 'server/security-hooks.mjs'
+      - '.github/workflows/validate-whatsapp-catalog-images.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'server/scanner-uazapi-catalog.mjs'
+      - 'server/scanner-uazapi-catalog.test.mjs'
+      - 'server/security-hooks.mjs'
+      - '.github/workflows/validate-whatsapp-catalog-images.yml'
+permissions:
+  contents: read
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check server/scanner-uazapi-catalog.mjs
+      - run: node --check server/security-hooks.mjs
+      - run: node --test server/scanner-uazapi-catalog.test.mjs
