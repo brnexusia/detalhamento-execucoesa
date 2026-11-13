@@ -600,3 +600,71 @@
   aspect-ratio:1;
   overflow:hidden;
 }
+
+
+/* SEARCH-20261113: somente UMA borda por campo.
+   O input não deve receber uma segunda borda/outline preto por dentro
+   do controle; o foco fica no wrapper, inclusive ao usar teclado. */
+.app:not(.app--feed) .catalog-toolbar label.search-box {
+  display:flex;
+  align-items:center;
+  flex-wrap:nowrap;
+  gap:10px;
+  min-height:44px;
+  padding:0 12px;
+  margin:0;
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:8px;
+  background:#FCFBF8;
+  box-shadow:none;
+  color:var(--svx-muted-strong,#4D4943);
+}
+.app:not(.app--feed) .catalog-toolbar label.search-box input,
+.app:not(.app--feed) .catalog-toolbar label.search-box input:focus-visible {
+  display:block;
+  flex:1;
+  width:100%;
+  min-width:0;
+  min-height:40px;
+  height:auto;
+  padding:0;
+  margin:0;
+  border:0 !important;
+  outline:0 !important;
+  border-radius:0;
+  box-shadow:none !important;
+  background:transparent;
+}
+.app:not(.app--feed) .catalog-toolbar label.search-box:focus-within {
+  border-color:var(--accent,#F25C05);
+  outline:2px solid color-mix(in srgb,var(--accent,#F25C05) 35%,transparent);
+  outline-offset:1px;
+  box-shadow:none;
+}
+.panel-shell .svx-products .svx-products__search {
+  min-height:42px;
+  padding-inline:12px;
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:8px;
+  background:#FCFBF8;
+  box-shadow:none;
+}
+.panel-shell .svx-products .svx-products__search input,
+.panel-shell .svx-products .svx-products__search input:focus-visible {
+  flex:1 1 auto;
+  min-width:0;
+  width:100%;
+  padding:0;
+  margin:0;
+  border:0 !important;
+  border-radius:0;
+  outline:0 !important;
+  box-shadow:none !important;
+  background:transparent;
+}
+.panel-shell .svx-products .svx-products__search:focus-within {
+  border-color:var(--svx-orange,#F25C05);
+  outline:2px solid rgba(242,92,5,.25);
+  outline-offset:1px;
+  box-shadow:none;
+}
