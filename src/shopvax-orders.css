@@ -200,3 +200,28 @@
   text-decoration:none;
   white-space:normal;
 }
+
+
+/* Exclusão solicitada: ação contornada, disponível só após o cancelamento.
+   Destaque suficiente para reconhecer o risco, sem dominar o painel. */
+.panel-shell .svx-orders__actions .svx-orders__delete {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  min-height:42px;
+  padding:10px 14px;
+  border:1px solid #9B3C2D;
+  border-radius:8px;
+  background:transparent;
+  color:#912E22;
+  font:700 12px/1.2 var(--svx-font-body,'Archivo',sans-serif);
+  cursor:pointer;
+}
+.panel-shell .svx-orders__actions .svx-orders__delete:hover:not(:disabled) {
+  background:rgba(155,60,45,.08);
+}
+.panel-shell .svx-orders__actions .svx-orders__delete:disabled {
+  opacity:.5;
+  cursor:not-allowed;
+}
