@@ -379,7 +379,7 @@ function registerPlatformInsights(router, requirePlatformAdmin, asyncRoute, pool
     const event = (expression) => tables.events
       ? `(SELECT ${expression} FROM intent_events e WHERE e.store_id=s.id AND ${period('e')})`
       : '0'
-    const order = (expression) => `(SELECT ${expression} FROM orders o WHERE o.store_id=s.id AND ${period('o')})`
+    const order = (expression) => `(SELECT ${expression} FROM orders o WHERE o.store_id=s.id AND o.deleted_at IS NULL AND ${period('o')})`
     const origins = (expression) => tables.origins && tables.buyers
       ? `(SELECT ${expression} FROM buyer_account_origins origin
         JOIN buyer_accounts buyer ON buyer.id=origin.buyer_id
@@ -474,15 +474,15 @@ function installPlatformRoutes(app) {
         (SELECT count(*)::int FROM stores) AS stores,
         (SELECT count(*)::int FROM stores WHERE is_active=true) AS active_stores,
         (SELECT count(*)::int FROM products) AS products,
-        (SELECT count(*)::int FROM orders) AS orders,
-        (SELECT coalesce(sum(total),0)::numeric FROM orders WHERE status<>'cancelled') AS order_value`),
+        (SELECT count(*)::int FROM orders WHERE deleted_at IS NULL) AS orders,
+        (SELECT coalesce(sum(total),0)::numeric FROM orders WHERE status<>'cancelled' AND deleted_at IS NULL) AS order_value`),
       pool.query(`SELECT s.id,s.slug,s.name,s.is_active,s.created_at,s.updated_at,s.plan_tier,
          s.admin_grant_active,s.admin_grant_expires_at,s.admin_grant_reason,s.admin_granted_at,
         u.id AS owner_id,u.name AS owner_name,u.email AS owner_email,
         (SELECT count(*)::int FROM products p WHERE p.store_id=s.id) AS products,
         (SELECT count(*)::int FROM sellers se WHERE se.store_id=s.id) AS sellers,
-        (SELECT count(*)::int FROM orders o WHERE o.store_id=s.id) AS orders,
-        (SELECT coalesce(sum(o.total),0)::numeric FROM orders o WHERE o.store_id=s.id AND o.status<>'cancelled') AS order_value
+        (SELECT count(*)::int FROM orders o WHERE o.store_id=s.id AND o.deleted_at IS NULL) AS orders,
+        (SELECT coalesce(sum(o.total),0)::numeric FROM orders o WHERE o.store_id=s.id AND o.status<>'cancelled' AND o.deleted_at IS NULL) AS order_value
         FROM stores s JOIN users u ON u.id=s.owner_id ORDER BY s.created_at DESC`),
       pool.query(`SELECT u.id,u.name,u.email,pa.created_at,
         EXISTS(SELECT 1 FROM stores s WHERE s.owner_id=u.id) AS has_store
