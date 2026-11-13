@@ -599,7 +599,10 @@ async function socialProductOffers(req, res) {
   res.setHeader('Cache-Control', 'private, no-store')
   res.setHeader('Vary', 'Cookie')
   const buyer = await currentSocialBuyer(req)
-  if (!buyer) return res.status(401).json({ code: 'BUYER_PROFILE_REQUIRED', error: 'Entre com WhatsApp e escolha seu perfil de compra para ver preços.' })
+  // Proprietário autenticado pode consultar as ofertas somente da própria loja.
+  // Não é uma sessão de comprador e NÃO autoriza preparar pedidos.
+  const owner = buyer ? null : await currentStore(req)
+  if (!buyer && !owner) return res.status(401).json({ code: 'BUYER_PROFILE_REQUIRED', error: 'Entre com WhatsApp e escolha seu perfil de compra para ver preços.' })
   await schemaReady()
   const slug = String(req.params.storeSlug || '').trim().slice(0, 80)
   const productId = String(req.params.productId || '').trim().slice(0, 100)
@@ -609,6 +612,8 @@ async function socialProductOffers(req, res) {
       AND p.active=true AND p.social_published=true LIMIT 1`, [slug, productId])
   if (!found.rowCount) return res.status(404).json({ error: 'Produto indisponível.' })
   const p = found.rows[0]
+  const ownerPreview = !buyer && owner?.store_id === p.store_id
+  if (!buyer && !ownerPreview) return res.status(401).json({ code: 'BUYER_PROFILE_REQUIRED', error: 'Entre com WhatsApp para consultar preços de outras lojas.' })
   await ensureDefaultCatalog(p.store_id)
   const available = await pool.query(`SELECT c.id,c.slug,c.name,c.kind,c.custom_label,c.price_mode,c.is_default,c.minimum_order,
     ${effectiveCatalogPrice} AS public_price
@@ -621,7 +626,8 @@ async function socialProductOffers(req, res) {
   return res.json({
     product: { id:p.id, sku:p.sku, name:p.name, description:p.description, category:p.category,
       images:Array.isArray(p.images)?p.images:[], mediaUrl:p.media_url||'', mediaType:p.media_type==='video'?'video':'image', variations:Array.isArray(p.variations)?p.variations:[] },
-    buyerPurpose: buyer.purpose,
+    buyerPurpose: buyer?.purpose || 'revenda',
+    ownerPreview,
     offers: available.rows.map(c => ({
       id:c.id, slug:c.slug, name:c.name, kind:c.kind, customLabel:c.custom_label||'', priceMode:c.price_mode||'base',
       price:Number(c.public_price), minimumOrder:c.minimum_order == null ? Number(p.store_minimum_order || 0) : Number(c.minimum_order),
