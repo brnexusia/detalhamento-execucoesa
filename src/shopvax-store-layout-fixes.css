@@ -310,3 +310,86 @@
     --svx-hero-ribbon-gutter:15px;
   }
 }
+
+
+/* REF-20261113 | Cabeçalho da loja e feed próprio: navegação sem colisões */
+.app .topbar {
+  border-bottom:1px solid var(--svx-line,#D9D3C6);
+  row-gap:9px;
+}
+.app .topbar>.brand {
+  min-width:0;
+  gap:10px;
+}
+.app .topbar .brand__text {
+  min-width:0;
+}
+.app .topbar .brand__text strong {
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.app .store-header-navigation {
+  gap:8px;
+  min-width:0;
+}
+.app .store-header-navigation .view-switch {
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:9px;
+  gap:3px;
+}
+.app .store-header-navigation .view-switch button,
+.app .store-social-nav button {
+  min-height:39px;
+  border-radius:7px;
+  padding-inline:11px;
+}
+.app .store-social-nav button:hover {
+  border-color:var(--accent,#F25C05);
+}
+.app .topbar>.cart-trigger {
+  min-height:40px;
+  border-radius:8px;
+  white-space:nowrap;
+}
+.app .store-nav-toggle {
+  border-radius:8px;
+  min-height:40px;
+}
+.app.app--feed .feed-card__info {
+  min-width:0;
+}
+.app.app--feed .feed-card__info h2 {
+  line-height:1.02;
+  overflow-wrap:anywhere;
+}
+.app.app--feed .feed-card__actions {
+  gap:9px;
+}
+.app.app--feed .feed-card__actions button {
+  border-radius:9px;
+}
+.app.app--feed .feed-card__buyline {
+  gap:8px;
+}
+.app.app--feed .feed-card__buyline button {
+  min-height:42px;
+  border-radius:8px;
+}
+@media(max-width:700px) {
+  .app .topbar {
+    column-gap:8px;
+    padding-inline:max(12px,env(safe-area-inset-left)) max(12px,env(safe-area-inset-right));
+  }
+  .app .topbar .store-header-navigation.is-open {
+    border:1px solid var(--svx-line,#D9D3C6);
+    border-radius:12px;
+    box-shadow:0 10px 25px rgba(22,21,20,.11);
+  }
+  .app .topbar .store-header-navigation .view-switch,
+  .app .topbar .store-header-navigation .store-social-nav {
+    min-width:0;
+  }
+  .app .topbar .store-header-navigation :is(button,a) {min-height:42px;}
+  .app.app--feed .feed-card__actions button {width:46px;min-height:46px;}
+}
