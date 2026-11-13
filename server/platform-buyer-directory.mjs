@@ -83,7 +83,7 @@ export function registerPlatformBuyerDirectory(router, requireAdmin, asyncRoute,
         "count(*) FILTER (WHERE o.status<>'cancelled')::int AS valid_orders, " +
         "COALESCE(sum(o.total) FILTER (WHERE o.status<>'cancelled'),0)::numeric AS orders_value, " +
         "max(o.created_at) AS last_order_at FROM orders o JOIN store_customers c " +
-        "ON c.id=o.customer_id AND c.store_id=o.store_id WHERE " + linked + ") o ON true "
+        "ON c.id=o.customer_id AND c.store_id=o.store_id WHERE o.deleted_at IS NULL AND " + linked + ") o ON true "
       : "LEFT JOIN LATERAL (SELECT 0::int AS orders_count,0::int AS valid_orders,0::numeric AS orders_value,NULL::timestamptz AS last_order_at) o ON true "
     const storeStats = caps.customers
       ? "LEFT JOIN LATERAL (SELECT count(DISTINCT c.store_id)::int AS stores_count " +
@@ -138,7 +138,7 @@ export function registerPlatformBuyerDirectory(router, requireAdmin, asyncRoute,
         ? "LEFT JOIN shopvax_growth_consents consent ON consent.customer_id=c.id AND consent.home_store_id=c.store_id "
         : ''
       const ordersJoin = caps.orderCustomers
-        ? "LEFT JOIN orders o ON o.customer_id=c.id AND o.store_id=c.store_id "
+        ? "LEFT JOIN orders o ON o.customer_id=c.id AND o.store_id=c.store_id AND o.deleted_at IS NULL "
         : ''
       const counts = caps.orderCustomers
         ? "count(DISTINCT o.id)::int AS orders_count," +
@@ -166,7 +166,7 @@ export function registerPlatformBuyerDirectory(router, requireAdmin, asyncRoute,
     if (caps.customers && caps.orderCustomers) {
       const from =
         "FROM chosen d JOIN store_customers c ON " + match +
-        " JOIN orders o ON o.customer_id=c.id AND o.store_id=c.store_id JOIN stores s ON s.id=o.store_id "
+        " JOIN orders o ON o.customer_id=c.id AND o.store_id=c.store_id AND o.deleted_at IS NULL JOIN stores s ON s.id=o.store_id "
       const aggregate = await pool.query(
         "WITH summary AS (" + cte +
         "SELECT count(*)::int AS orders_count," +

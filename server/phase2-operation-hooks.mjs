@@ -154,6 +154,8 @@ async function ensureSchema() {
 
         ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_id text REFERENCES store_customers(id) ON DELETE SET NULL;
         ALTER TABLE orders ADD COLUMN IF NOT EXISTS status_updated_at timestamptz NOT NULL DEFAULT now();
+        ALTER TABLE orders ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
+        ALTER TABLE orders ADD COLUMN IF NOT EXISTS deleted_by_user_id text;
         CREATE INDEX IF NOT EXISTS idx_orders_customer_created ON orders(customer_id,created_at DESC) WHERE customer_id IS NOT NULL;
       `)
 
@@ -374,12 +376,12 @@ async function phase2Context(req, res) {
     pool.query('SELECT id,slug,name,phone,active,created_at FROM franchisees WHERE store_id=$1 ORDER BY created_at ASC', [store.id]),
     pool.query(`SELECT c.id,c.name,c.email,c.phone,c.active,c.created_at,
       count(o.id)::int AS orders_count,COALESCE(sum(o.total) FILTER (WHERE o.status<>'cancelled'),0)::numeric AS orders_value
-      FROM store_customers c LEFT JOIN orders o ON o.customer_id=c.id AND o.store_id=c.store_id
+      FROM store_customers c LEFT JOIN orders o ON o.customer_id=c.id AND o.store_id=c.store_id AND o.deleted_at IS NULL
       WHERE c.store_id=$1 GROUP BY c.id ORDER BY c.created_at DESC LIMIT 500`, [store.id]),
     pool.query(`SELECT o.id,o.code,o.total,o.status,o.created_at,o.status_updated_at,o.customer_id,o.seller_id,o.items,
       c.name AS customer_name,c.email AS customer_email,s.name AS seller_name
       FROM orders o LEFT JOIN store_customers c ON c.id=o.customer_id AND c.store_id=o.store_id LEFT JOIN sellers s ON s.id=o.seller_id AND s.store_id=o.store_id
-      WHERE o.store_id=$1 ORDER BY o.created_at DESC LIMIT 200`, [store.id]),
+      WHERE o.store_id=$1 AND o.deleted_at IS NULL ORDER BY o.created_at DESC LIMIT 200`, [store.id]),
   ])
   const buyerProfiles = new Map((await buyerProfilesForStore(store.id)).map(row => [row.customer_id, row]))
   return res.json({
@@ -449,9 +451,24 @@ async function updateOrderStatus(req, res) {
   const allowed = ['whatsapp', 'em_atendimento', 'confirmado', 'arquivado']
   const status = String(req.body?.status || '')
   if (!allowed.includes(status)) return res.status(400).json({ error: 'Status inválido. Para cancelar e devolver estoque, use a ação de cancelamento.' })
-  const result = await pool.query('UPDATE orders SET status=$1,status_updated_at=now() WHERE id=$2 AND store_id=$3 AND status<>\'cancelled\' RETURNING id,code,status,status_updated_at', [status, req.params.orderId, req.phase2Store.id])
+  const result = await pool.query('UPDATE orders SET status=$1,status_updated_at=now() WHERE id=$2 AND store_id=$3 AND status<>\'cancelled\' AND deleted_at IS NULL RETURNING id,code,status,status_updated_at', [status, req.params.orderId, req.phase2Store.id])
   if (!result.rowCount) return res.status(404).json({ error: 'Pedido não encontrado ou já cancelado.' })
   return res.json({ order: result.rows[0] })
+}
+
+// A exclusão pedida pelo lojista apenas oculta um pedido já cancelado.
+ // O registro permanece íntegro no banco para auditoria e conciliação.
+async function hideCancelledOrder(req, res) {
+  const storeId = req.phase2Store.id
+  const orderId = String(req.params.orderId || '').slice(0, 120)
+  const updated = await pool.query(
+    "UPDATE orders SET deleted_at=now(),deleted_by_user_id=$3 WHERE id=$1 AND store_id=$2 AND status='cancelled' AND deleted_at IS NULL RETURNING id,code,deleted_at",
+    [orderId, storeId, req.phase2Store.user_id],
+  )
+  if (updated.rowCount) return res.json({ ok: true, order: updated.rows[0] })
+  const found = await pool.query('SELECT status,deleted_at FROM orders WHERE id=$1 AND store_id=$2', [orderId, storeId])
+  if (!found.rowCount || found.rows[0].deleted_at) return res.status(404).json({ error: 'Talão não encontrado.' })
+  return res.status(409).json({ code: 'CANCEL_FIRST', error: 'Cancele este talão e devolva o estoque antes de apagá-lo do painel.' })
 }
 
 async function registerCustomer(req, res) {
@@ -504,7 +521,7 @@ async function customerMe(req, res) {
   const customer = await currentCustomer(req, store.id, false)
   if (!customer) return res.status(401).json({ error: 'Entre para acessar sua conta.' })
   const orders = await pool.query(`SELECT o.id,o.code,o.total,o.items,o.status,o.created_at,o.status_updated_at,s.name AS seller_name
-    FROM orders o LEFT JOIN sellers s ON s.id=o.seller_id AND s.store_id=o.store_id WHERE o.customer_id=$1 AND o.store_id=$2 ORDER BY o.created_at DESC LIMIT 100`, [customer.id, store.id])
+    FROM orders o LEFT JOIN sellers s ON s.id=o.seller_id AND s.store_id=o.store_id WHERE o.customer_id=$1 AND o.store_id=$2 AND o.deleted_at IS NULL ORDER BY o.created_at DESC LIMIT 100`, [customer.id, store.id])
   return res.json({
     customer,
     store: { slug: store.slug, name: store.name, logoUrl: store.logo_url, accent: store.accent },
@@ -655,6 +672,7 @@ function install(app) {
   app.get('/api/admin/phase2', requireOwner, (req, res, next) => Promise.resolve(phase2Context(req, res)).catch(next))
   app.patch('/api/admin/phase2/store', express.json({ limit: '64kb' }), requireOwner, (req, res, next) => Promise.resolve(updatePhase2Store(req, res)).catch(next))
   app.patch('/api/admin/phase2/orders/:orderId/status', express.json({ limit: '32kb' }), requireOwner, (req, res, next) => Promise.resolve(updateOrderStatus(req, res)).catch(next))
+  app.delete('/api/admin/phase2/orders/:orderId', requireOwner, (req, res, next) => Promise.resolve(hideCancelledOrder(req, res)).catch(next))
 
   app.get('/api/admin/phase2/franchisees', requireOwner, (req, res, next) => Promise.resolve(listFranchisees(req, res)).catch(next))
   app.post('/api/admin/phase2/franchisees', express.json({ limit: '64kb' }), requireOwner, (req, res, next) => Promise.resolve(createFranchisee(req, res)).catch(next))

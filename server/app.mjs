@@ -128,6 +128,8 @@ CREATE TABLE IF NOT EXISTS orders (
   total numeric(12,2) NOT NULL,
   items jsonb NOT NULL,
   status text NOT NULL DEFAULT 'whatsapp',
+  deleted_at timestamptz,
+  deleted_by_user_id text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE TABLE IF NOT EXISTS events (
@@ -159,6 +161,8 @@ ALTER TABLE stores ADD COLUMN IF NOT EXISTS seasonal_theme text NOT NULL DEFAULT
 ALTER TABLE products ADD COLUMN IF NOT EXISTS retail_price numeric(12,2);
 ALTER TABLE products ADD COLUMN IF NOT EXISTS box_price numeric(12,2);
 ALTER TABLE products ADD COLUMN IF NOT EXISTS units_per_box integer;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS deleted_by_user_id text;
 `
 
 async function initDb() {
@@ -558,13 +562,13 @@ app.get(
     const [products, sellers, orders, stats, categoryCounts] = await Promise.all([
       compact ? Promise.resolve({ rows: [] }) : pool.query('SELECT * FROM products WHERE store_id=$1 ORDER BY created_at DESC', [store.id]),
       pool.query('SELECT * FROM sellers WHERE store_id=$1 ORDER BY created_at ASC', [store.id]),
-      pool.query('SELECT * FROM orders WHERE store_id=$1 ORDER BY created_at DESC LIMIT 100', [store.id]),
+      pool.query('SELECT * FROM orders WHERE store_id=$1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 100', [store.id]),
       pool.query(
         `SELECT
           (SELECT count(*)::int FROM events WHERE store_id=$1 AND kind='view') AS views,
           (SELECT count(*)::int FROM events WHERE store_id=$1 AND kind='cart') AS carts,
-          (SELECT count(*)::int FROM orders WHERE store_id=$1) AS orders,
-          (SELECT coalesce(sum(total),0)::numeric FROM orders WHERE store_id=$1 AND status<>'cancelled') AS value`,
+          (SELECT count(*)::int FROM orders WHERE store_id=$1 AND deleted_at IS NULL) AS orders,
+          (SELECT coalesce(sum(total),0)::numeric FROM orders WHERE store_id=$1 AND status<>'cancelled' AND deleted_at IS NULL) AS value`,
         [store.id],
       ),
       compact ? pool.query(
