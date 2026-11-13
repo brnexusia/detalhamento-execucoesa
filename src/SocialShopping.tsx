@@ -8,7 +8,7 @@ import './social-shopping.css'
 
 type Variant = { name: string; options: string[] }
 type Product = { id: string; sku: string; name: string; description: string; category: string; variations: Variant[]; images: string[]; mediaUrl?:string;mediaType?:'image'|'video' }
-type OfferPayload = { product: Product; offers: Offer[]; buyerPurpose: string }
+type OfferPayload = { product: Product; offers: Offer[]; buyerPurpose: string; ownerPreview?: boolean }
 type Buyer = { id: string; name: string; phone: string; city: string; profileCompleted: boolean }
 type Props = { storeSlug: string; storeName?: string; productId?: string; initialCart?: boolean; initialCatalogSlug?: string; onClose: () => void; onCartChanged?: () => void }
 const money = new Intl.NumberFormat('pt-BR', { style:'currency', currency:'BRL' })
@@ -17,10 +17,11 @@ const lineKey = (id:string,options:Record<string,string>) => id+':'+Object.entri
 const preferred = (offers:Offer[],purpose:string) => offers.find(x=>purpose==='pessoal'?x.kind==='varejo':purpose==='ambos'?x.kind==='varejo':x.kind==='atacado')||offers.find(x=>purpose!=='pessoal'&&x.kind==='caixa_fechada')||offers[0]
 
 export default function SocialShopping({storeSlug,storeName,productId,initialCart=false,initialCatalogSlug,onClose,onCartChanged}:Props){
-  const [step,setStep]=useState<'loading'|'auth'|'item'|'cart'|'review'|'ready'|'error'>('loading')
+  const [step,setStep]=useState<'loading'|'auth'|'owner-view'|'item'|'cart'|'review'|'ready'|'error'>('loading')
   const [offerData,setOfferData]=useState<OfferPayload|null>(null)
   const [offer,setOffer]=useState<Offer|null>(null)
   const [buyer,setBuyer]=useState<Buyer|null>(null)
+  const [ownerPreview,setOwnerPreview]=useState(false)
   const [seller,setSeller]=useState<{slug:string;name:string}|null>(null)
   const [catalogSlug,setCatalogSlug]=useState('')
   const [cartRevision,setCartRevision]=useState(0)
@@ -46,10 +47,26 @@ export default function SocialShopping({storeSlug,storeName,productId,initialCar
     setStep('loading');setError('')
     try{
       const session=await fetch('/api/public/buyer-auth/me',{credentials:'include',cache:'no-store'})
-      if(!session.ok){if(session.status===401||session.status===403){setStep('auth');return false};throw Error('Não foi possível verificar sua conta.')}
-      const body=await parseJson(session)
-      if(!body?.buyer?.profileCompleted){setStep('auth');return false}
-      setBuyer(body.buyer)
+      let preview=false
+      if(!session.ok){
+        if(session.status!==401&&session.status!==403)throw Error('Não foi possível verificar sua conta.')
+        // Só o proprietário desta loja pode ver o próprio preço sem perfil de comprador.
+        // Um lojista de outra loja NÃO ganha acesso aos preços deste vendedor.
+        const ownerResponse=await fetch('/api/auth/me',{credentials:'include',cache:'no-store'})
+        if(ownerResponse.ok){
+          const identity=await parseJson(ownerResponse)
+          preview=typeof identity?.user?.id==='string' && typeof identity?.store?.id==='string' && identity.store.slug===storeSlug
+        }else if(ownerResponse.status!==401&&ownerResponse.status!==403){
+          throw Error('Não foi possível verificar sua sessão de lojista. Tente novamente.')
+        }
+        if(!preview){setStep('auth');return false}
+        setBuyer(null)
+      }else{
+        const body=await parseJson(session)
+        if(!body?.buyer?.profileCompleted){setStep('auth');return false}
+        setBuyer(body.buyer)
+      }
+      setOwnerPreview(preview)
       fetch('/api/social/stores/'+encodeURIComponent(storeSlug)+'/seller-route',{credentials:'include'})
         .then(async r=>r.ok?parseJson(r):null)
         .then(result=>{if(result?.seller)setSeller(result.seller)})
@@ -60,11 +77,13 @@ export default function SocialShopping({storeSlug,storeName,productId,initialCar
         const data=await parseJson(response)
         if(!response.ok)throw Error(data.error||'Produto indisponível.')
         if(!Array.isArray(data.offers)||!data.offers.length)throw Error('Não há modalidade disponível para este produto.')
+        if(preview && data.ownerPreview!==true)throw Error('Não foi possível confirmar a visualização do proprietário.')
         const first=preferred(data.offers,data.buyerPurpose)
         setOfferData(data);setOffer(first);setCatalogSlug(first.slug);setImageIndex(0)
         setSelections(Object.fromEntries((data.product.variations||[]).filter((v:Variant)=>v.options.length===1).map((v:Variant)=>[v.name,v.options[0]])))
-        setStep(initialCart?'cart':'item')
+        setStep(preview?'item':initialCart?'cart':'item')
       }else{
+        if(preview){setStep('owner-view');return true}
         const carts=allCarts(storeSlug)
         if(carts.length)setCatalogSlug(carts.find(c=>c.catalog.slug===initialCatalogSlug)?.catalog.slug||carts[0].catalog.slug)
         setStep('cart')
@@ -157,6 +176,7 @@ export default function SocialShopping({storeSlug,storeName,productId,initialCar
         {step==='loading'&&<p role="status">Abrindo…</p>}
         {step==='error'&&<><p role="alert">{error}</p><button className="svx-social-shop-primary" onClick={()=>void load()}>Tentar novamente</button></>}
         {step==='auth'&&<><p className="svx-social-shop-description">Para ver valores e comprar, confirme seu WhatsApp e informe se compra no varejo, atacado ou em ambos. Você volta ao mesmo produto.</p><BuyerWhatsappLogin storeSlug={storeSlug} onVerified={load}/></>}
+        {step==='owner-view'&&<div className="svx-social-owner-preview"><p>Você está autenticado como proprietário desta loja. Para ver preços, abra um produto do feed. Para montar pedidos como comprador, use uma conta de comprador verificada.</p><button type="button" className="svx-social-shop-primary" onClick={()=>{onClose();window.history.pushState({},'', '/painel');window.dispatchEvent(new PopStateEvent('popstate'))}}>Ir ao painel da loja</button></div>}
         {step==='item'&&offerData&&offer&&<>
           {photos.length>0&&<div className="svx-social-gallery">
             <img className="svx-social-gallery__hero" src={photos[Math.min(imageIndex,photos.length-1)]} alt={offerData.product.name} loading="eager"/>
@@ -166,16 +186,17 @@ export default function SocialShopping({storeSlug,storeName,productId,initialCar
             <video className="svx-social-gallery__hero" src={offerData.product.mediaUrl} controls playsInline preload="metadata" aria-label={'Vídeo de '+offerData.product.name}/>}
 
           {offerData.product.description&&<p className="svx-social-shop-description">{offerData.product.description}</p>}
-          <p className="svx-social-shop-label">Como deseja comprar?</p>
+          <p className="svx-social-shop-label">{ownerPreview?'Preços cadastrados na sua loja':'Como deseja comprar?'}</p>
           <div className="svx-social-offers">{offerData.offers.map(x=><button type="button" key={x.id} className={offer.slug===x.slug?'is-selected':''} onClick={()=>selectOffer(x)}>
             <span><strong>{x.name}</strong><small>{x.kind==='caixa_fechada'?'Caixa fechada':x.kind==='atacado'?'Atacado':x.kind==='varejo'?'Varejo':x.kind==='personalizado'?x.customLabel||'Personalizado':'Catálogo da loja'}</small></span><b>{money.format(x.price)}</b>
           </button>)}</div>
           {offer.unitsPerBox>1&&<p className="svx-social-shop-hint">1 caixa contém {offer.unitsPerBox} unidades. O preço exibido é por caixa.</p>}
           <p className="svx-social-shop-hint">Pedido mínimo neste catálogo: {money.format(offer.minimumOrder)}</p>
-          {(offerData.product.variations||[]).map(v=><div key={v.name} className="svx-social-shop-field"><strong>{v.name}</strong><div className="svx-social-options">{v.options.map(o=><button type="button" key={o} className={selections[v.name]===o?'is-selected':''} onClick={()=>{setSelections(s=>({...s,[v.name]:o}));setError('')}}>{o}</button>)}</div></div>)}
-          <div className="svx-social-qty"><span>Quantidade {offer.unitsPerBox>1?'de caixas':'de itens'}</span><div><button type="button" aria-label="Diminuir" onClick={()=>setQuantity(n=>Math.max(1,n-1))}><Minus size={16}/></button><strong>{quantity}</strong><button type="button" aria-label="Aumentar" onClick={()=>setQuantity(n=>Math.min(999,n+1))}><Plus size={16}/></button></div></div>
-          <button className="svx-social-shop-primary" onClick={addItem}><ShoppingBag size={18}/> Adicionar · {money.format(offer.price*quantity)}</button>
-          <button className="svx-social-shop-secondary" disabled={busy} onClick={()=>void askSeller()}>{busy?'Abrindo…':'Perguntar à vendedora'}</button>
+          {ownerPreview&&<div className="svx-social-owner-preview" role="status">Visualização do lojista. Você pode conferir os preços dos seus catálogos sem cadastrar um WhatsApp. Pedidos exigem uma conta de comprador verificada.</div>}
+          {!ownerPreview&&(offerData.product.variations||[]).map(v=><div key={v.name} className="svx-social-shop-field"><strong>{v.name}</strong><div className="svx-social-options">{v.options.map(o=><button type="button" key={o} className={selections[v.name]===o?'is-selected':''} onClick={()=>{setSelections(s=>({...s,[v.name]:o}));setError('')}}>{o}</button>)}</div></div>)}
+          {!ownerPreview&&<div className="svx-social-qty"><span>Quantidade {offer.unitsPerBox>1?'de caixas':'de itens'}</span><div><button type="button" aria-label="Diminuir" onClick={()=>setQuantity(n=>Math.max(1,n-1))}><Minus size={16}/></button><strong>{quantity}</strong><button type="button" aria-label="Aumentar" onClick={()=>setQuantity(n=>Math.min(999,n+1))}><Plus size={16}/></button></div></div>}
+          {!ownerPreview&&<button className="svx-social-shop-primary" onClick={addItem}><ShoppingBag size={18}/> Adicionar · {money.format(offer.price*quantity)}</button>}
+          {!ownerPreview&&<button className="svx-social-shop-secondary" disabled={busy} onClick={()=>void askSeller()}>{busy?'Abrindo…':'Perguntar à vendedora'}</button>}
         </>}
         {step==='cart'&&<>
           {storedCarts.length>1&&<div className="svx-social-shop-tabs">{catalogOptions.map(c=><button type="button" key={c.slug} className={c.slug===catalogSlug?'is-selected':''} onClick={()=>setCatalogSlug(c.slug)}>{c.name}</button>)}</div>}

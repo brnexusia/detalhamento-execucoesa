@@ -349,3 +349,19 @@
 @media(max-width:360px) {
   .svx-social-offers {grid-template-columns:1fr;}
 }
+
+
+/* Word 04 — preços da própria loja em modo somente leitura.
+ * Não usar o bloco comercial de pedido nem solicitar WhatsApp ao proprietário. */
+.svx-social-owner-preview {
+  margin-block:12px;
+  padding:14px 16px;
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-left:2px solid var(--social-store-accent,var(--svx-orange,#F25C05));
+  border-radius:8px;
+  background:#FCFBF8;
+  color:var(--svx-muted-strong,#4D4943);
+  font:400 13px/1.55 var(--svx-font-body,'Archivo',sans-serif);
+}
+.svx-social-owner-preview p {margin:0 0 12px;}
+.svx-social-owner-preview .svx-social-shop-primary {min-height:42px;border-radius:8px;}
