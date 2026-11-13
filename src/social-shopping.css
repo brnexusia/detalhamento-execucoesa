@@ -222,3 +222,130 @@
   .svx-social-shop,.svx-social-ready h3{animation:none!important;translate:none!important}
   .svx-social-shop button{transition:none!important}
 }
+
+
+/* REF-20261113 | Compra social: variações, grade e revisão sem poluição visual */
+.svx-social-shop {
+  border-radius:16px;
+  border:1px solid var(--svx-line,#D9D3C6);
+  background:#FCFBF8;
+  box-shadow:0 18px 54px rgba(22,21,20,.18);
+  overflow:hidden;
+}
+.svx-social-shop-head {
+  align-items:center;
+  padding:clamp(15px,2vw,22px);
+  border-color:var(--svx-line,#D9D3C6);
+  gap:14px;
+}
+.svx-social-shop-head h2 {
+  font-size:clamp(23px,3.6vw,34px);
+  line-height:1.04;
+  overflow-wrap:anywhere;
+}
+.svx-social-shop-head button {
+  flex:0 0 auto;
+  min-width:38px;
+  min-height:38px;
+  border-radius:8px;
+}
+.svx-social-shop-body {
+  padding:clamp(14px,2vw,24px);
+  overscroll-behavior:contain;
+}
+.svx-social-shop-description {
+  line-height:1.55;
+  overflow-wrap:anywhere;
+}
+.svx-social-gallery__hero {
+  border-radius:10px;
+  overflow:hidden;
+  background:#E7E3DA;
+}
+.svx-social-gallery__thumbs {
+  gap:8px;
+  padding-block:8px;
+  scrollbar-width:thin;
+}
+.svx-social-gallery__thumbs button {
+  border-radius:8px;
+  overflow:hidden;
+}
+.svx-social-gallery__thumbs button.is-active {
+  outline:2px solid var(--social-store-accent,#F25C05);
+  outline-offset:2px;
+}
+.svx-social-offers {
+  gap:10px;
+}
+.svx-social-offers button {
+  min-width:0;
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:10px;
+  padding:12px;
+  background:transparent;
+}
+.svx-social-offers button.is-selected,
+.svx-social-options button.is-selected,
+.svx-social-shop-tabs button.is-selected {
+  border-color:var(--social-store-accent,#F25C05);
+  background:rgba(242,92,5,.06);
+  box-shadow:inset 0 -2px var(--social-store-accent,#F25C05);
+}
+.svx-social-options {
+  gap:8px;
+}
+.svx-social-options button,.svx-social-shop-tabs button {
+  border-radius:8px;
+  min-height:40px;
+}
+.svx-social-qty button,.svx-social-cart-qty button {
+  min-height:38px;
+  min-width:38px;
+  border-radius:8px;
+}
+.svx-social-shop-field textarea {
+  border-radius:8px;
+  border-color:var(--svx-line,#D9D3C6);
+  line-height:1.5;
+}
+.svx-social-cart-line,.svx-social-review-line {
+  border-color:var(--svx-line,#D9D3C6);
+  gap:12px;
+}
+.svx-social-cart-line > div:nth-child(2) {
+  min-width:0;
+}
+.svx-social-cart-line strong {
+  overflow-wrap:anywhere;
+}
+.svx-social-cart-totals {
+  border-top:1px solid var(--svx-line,#D9D3C6);
+  padding-top:14px;
+}
+.svx-social-ready {
+  border-radius:12px;
+  padding:clamp(18px,3vw,30px);
+}
+.svx-social-shop-primary,
+.svx-social-shop-secondary,
+.svx-social-shop-back {
+  min-height:44px;
+  border-radius:8px;
+}
+.svx-social-shop-primary:disabled {
+  opacity:.55;
+}
+.svx-social-shop :is(button,a,input,select,textarea):focus-visible {
+  outline:2px solid #2D2A8C;
+  outline-offset:3px;
+}
+@media(max-width:620px) {
+  .svx-social-shop-layer {padding:0;}
+  .svx-social-shop {max-width:100%;max-height:100dvh;border-radius:16px 16px 0 0;}
+  .svx-social-shop-body {padding:16px;}
+  .svx-social-offers {grid-template-columns:repeat(2,minmax(0,1fr));}
+}
+@media(max-width:360px) {
+  .svx-social-offers {grid-template-columns:1fr;}
+}

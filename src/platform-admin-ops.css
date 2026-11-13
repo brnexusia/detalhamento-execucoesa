@@ -34,3 +34,113 @@
 .platform-insights-table td small{display:block;color:var(--muted);margin-top:4px}
 @media(max-width:900px){.platform-unified-account{grid-template-columns:auto 1fr!important}.platform-unified-account .platform-account-operations{grid-column:1/-1;justify-items:start}.platform-account-operations select{max-width:280px}}
 @media(max-width:560px){.platform-unified-account{grid-template-columns:1fr!important}.platform-unified-account .platform-account-operations{grid-column:1}.platform-insights-filters>label{width:100%}}
+
+
+/* REF-20261113 | Gestão de lojas, planos, auditoria e exceções */
+.platform-shell .platform-account-list article,
+.platform-shell .platform-plan-grid article,
+.platform-shell .platform-audit-list article {
+  min-width:0;
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:10px;
+  background:#FCFBF8;
+}
+.platform-shell .platform-account-list {
+  gap:10px;
+}
+.platform-shell .platform-account-list article {
+  gap:12px;
+}
+.platform-shell .platform-account-list article>div:nth-child(2) {
+  min-width:0;
+}
+.platform-shell .platform-account-list h2 {
+  line-height:1.15;
+  overflow-wrap:anywhere;
+}
+.platform-shell .platform-account-operations {
+  gap:8px;
+  flex-wrap:wrap;
+}
+.platform-shell .platform-account-operations :is(select,button,a),
+.platform-shell .platform-store-actions select,
+.platform-shell .platform-load-more {
+  min-height:39px;
+  border-radius:8px;
+}
+.platform-shell .platform-account-operations select {
+  min-width:0;
+  max-width:100%;
+  border-color:var(--svx-line,#D9D3C6);
+}
+.platform-shell .platform-account-facts {
+  gap:9px;
+}
+.platform-shell .platform-plan-grid {
+  gap:clamp(10px,1.7vw,18px);
+}
+.platform-shell .platform-plan-grid article {
+  padding:clamp(15px,2vw,22px);
+}
+.platform-shell .platform-plan-grid header {
+  gap:12px;
+}
+.platform-shell .platform-plan-grid header>div {
+  min-width:0;
+}
+.platform-shell .platform-plan-grid header h2 {
+  line-height:1.1;
+}
+.platform-shell .platform-plan-grid header>strong {
+  font-variant-numeric:tabular-nums;
+  overflow-wrap:anywhere;
+}
+.platform-shell .platform-plan-cycles {
+  gap:10px;
+}
+.platform-shell .platform-plan-form {
+  min-width:0;
+}
+.platform-shell .platform-form-grid {
+  gap:10px;
+}
+.platform-shell .platform-form-grid :is(input,select,textarea) {
+  min-width:0;
+  max-width:100%;
+  border-radius:8px;
+  border-color:var(--svx-line,#D9D3C6);
+}
+.platform-shell .platform-audit-list {
+  gap:9px;
+}
+.platform-shell .platform-audit-list code {
+  white-space:normal;
+  overflow-wrap:anywhere;
+}
+.platform-shell .platform-insights-filters {
+  gap:10px;
+  flex-wrap:wrap;
+}
+.platform-shell .platform-insights-filters select {
+  min-height:40px;
+  max-width:100%;
+  border-radius:8px;
+  border-color:var(--svx-line,#D9D3C6);
+}
+.platform-shell .platform-insights-table-wrap {
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:9px;
+  max-width:100%;
+  overflow-x:auto;
+}
+.platform-shell .platform-insights-table {
+  font-variant-numeric:tabular-nums;
+}
+.platform-shell .platform-insights-warning {
+  border-radius:8px;
+}
+@media(max-width:760px) {
+  .platform-shell .platform-plan-grid {grid-template-columns:minmax(0,1fr);}
+  .platform-shell .platform-account-operations {align-items:stretch;}
+  .platform-shell .platform-form-grid {grid-template-columns:minmax(0,1fr);}
+}

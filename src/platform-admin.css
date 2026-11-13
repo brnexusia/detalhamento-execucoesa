@@ -67,3 +67,135 @@
 .platform-account-operations>div{display:flex;flex-wrap:wrap;gap:6px}
 .platform-account-operations>div>button,.platform-account-operations>div>a{white-space:normal;text-align:center;min-height:35px}
 @media(max-width:560px){.platform-account-operations>div{display:flex;flex-wrap:wrap}.platform-account-operations>div>button{flex:1 1 130px}}
+
+
+/* REF-20261113 | Administração da plataforma: dados, filtros e operações */
+.platform-shell {
+  background:var(--svx-paper,#F3F0E8);
+  font-family:var(--svx-font-body,'Archivo',sans-serif);
+}
+.platform-shell .platform-main {min-width:0;}
+.platform-shell .platform-topbar {
+  gap:12px;
+  border-bottom:1px solid var(--svx-line,#D9D3C6);
+}
+.platform-shell .platform-page {
+  min-width:0;
+  padding-inline:clamp(16px,2.7vw,36px);
+}
+.platform-shell .platform-title {
+  gap:12px;
+  align-items:flex-end;
+}
+.platform-shell .platform-title h1 {
+  line-height:1;
+  text-wrap:balance;
+  overflow-wrap:anywhere;
+}
+.platform-shell .platform-title p {
+  line-height:1.55;
+  max-width:72ch;
+}
+.platform-shell .platform-sidebar nav button {
+  min-height:40px;
+  border-radius:8px;
+}
+.platform-shell .platform-sidebar nav button.is-active {
+  border-radius:8px;
+  box-shadow:inset 2px 0 var(--svx-orange,#F25C05);
+}
+.platform-shell .platform-metrics {
+  gap:clamp(10px,1.7vw,18px);
+}
+.platform-shell .platform-metrics>div,
+.platform-shell .platform-card {
+  min-width:0;
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:12px;
+  background:#FCFBF8;
+  box-shadow:0 2px 10px rgba(22,21,20,.035);
+}
+.platform-shell .platform-metrics strong {
+  font-variant-numeric:tabular-nums;
+  overflow-wrap:anywhere;
+}
+.platform-shell .platform-grid-2 {
+  gap:clamp(12px,2vw,22px);
+}
+.platform-shell .platform-card__head {
+  gap:10px;
+  align-items:flex-start;
+}
+.platform-shell .platform-card__head h2 {
+  line-height:1.1;
+  text-wrap:balance;
+}
+.platform-shell .platform-toolbar {
+  gap:10px;
+  flex-wrap:wrap;
+  border-top:1px solid var(--svx-line,#D9D3C6);
+  border-bottom:1px solid var(--svx-line,#D9D3C6);
+}
+.platform-shell .platform-toolbar input {
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:8px;
+  min-height:40px;
+  min-width:0;
+}
+.platform-shell .platform-list>div,
+.platform-shell .platform-store-list article,
+.platform-shell .platform-admin-list article {
+  min-width:0;
+  border-bottom:1px solid var(--svx-line,#D9D3C6);
+  gap:12px;
+}
+.platform-shell .platform-store-main,
+.platform-shell .platform-admin-list article>div:nth-child(2) {
+  min-width:0;
+}
+.platform-shell .platform-store-main h2,
+.platform-shell .platform-store-main code {
+  overflow-wrap:anywhere;
+}
+.platform-shell .platform-store-actions {
+  flex-wrap:wrap;
+  gap:7px;
+}
+.platform-shell .platform-store-actions :is(button,a),
+.platform-shell .platform-admin-list article>button,
+.platform-shell .platform-primary,
+.platform-shell .platform-secondary {
+  min-height:40px;
+  border-radius:8px;
+}
+.platform-shell .platform-insights-table-wrap {
+  overflow-x:auto;
+  max-width:100%;
+  overscroll-behavior-x:contain;
+  scrollbar-width:thin;
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:9px;
+}
+.platform-shell .platform-insights-table {
+  font-variant-numeric:tabular-nums;
+}
+.platform-shell .platform-modal__body,
+.platform-shell .platform-plan-form {
+  min-width:0;
+}
+.platform-shell .platform-modal__body :is(input,select,textarea) {
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:8px;
+  min-width:0;
+  max-width:100%;
+}
+.platform-shell :is(button,a,input,select,textarea):focus-visible {
+  outline:2px solid #2D2A8C;
+  outline-offset:3px;
+}
+@media(max-width:850px) {
+  .platform-shell .platform-page {padding-inline:16px;}
+  .platform-shell .platform-title {flex-wrap:wrap;align-items:flex-start;}
+  .platform-shell .platform-grid-2 {grid-template-columns:minmax(0,1fr);}
+  .platform-shell .platform-store-actions {justify-content:flex-start;}
+}

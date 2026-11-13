@@ -1,0 +1,589 @@
+/*
+ * ShopVax — refinamento visual transversal · 13/11/2026
+ * Base: decisões de Produtos (cantos suaves, linhas finas, espaços e ações discretas).
+ * Adapta o sistema editorial oficial sem substituir a identidade de cada lojista.
+ *
+ * Somente apresentação: não interfere em feed ranking, filtros, seleção, carrinho,
+ * estoque, regras de planos, checkout, autenticação ou rastreamento.
+ * Importado por último em main.tsx para consolidar uma cascata previsível.
+ */
+
+/* 1. Escala única de forma, linhas, foco e superfícies */
+:root {
+  --svx-ui-radius-sm: 6px;
+  --svx-ui-radius-control: 8px;
+  --svx-ui-radius-card: 12px;
+  --svx-ui-radius-sheet: 16px;
+  --svx-ui-border: var(--svx-line, #D9D3C6);
+  --svx-ui-surface: #FCFBF8;
+  --svx-ui-muted-surface: #F4F3EF;
+  --svx-ui-shadow: 0 2px 14px rgba(22, 21, 20, .045);
+  --svx-ui-focus: #2D2A8C;
+}
+
+:where(.panel-shell, .platform-shell, .buyer-screen, .social-profile-page,
+  .home-shell, .auth-shell, .customer-page, .svx-partner) {
+  font-family: var(--svx-font-body, 'Archivo', Arial, sans-serif);
+}
+
+:where(.panel-shell, .platform-shell, .buyer-screen, .social-profile-page,
+  .home-shell, .auth-shell, .customer-page, .svx-partner)
+  :is(button, input:not([type='checkbox']):not([type='radio']):not([type='color']):not([type='file']),
+    select, textarea) {
+  border-radius: var(--svx-ui-radius-control);
+}
+
+:where(.panel-shell, .platform-shell, .buyer-screen, .social-profile-page,
+  .home-shell, .auth-shell, .customer-page, .svx-partner)
+  :is(button, a, input, select, textarea, summary):focus-visible {
+  outline: 2px solid var(--svx-ui-focus);
+  outline-offset: 3px;
+}
+
+:where(.panel-shell, .platform-shell, .buyer-screen, .social-profile-page,
+  .home-shell, .auth-shell, .customer-page, .svx-partner)
+  :is(button, a):disabled {
+  cursor: not-allowed;
+}
+
+:where(.panel-shell, .platform-shell, .buyer-screen, .customer-page, .svx-partner)
+  :is(input:not([type='checkbox']):not([type='radio']):not([type='color']):not([type='file']),
+    select, textarea) {
+  min-width: 0;
+}
+
+:where(.panel-shell, .platform-shell, .buyer-screen, .customer-page, .svx-partner)
+  :is(input:not([type='checkbox']):not([type='radio']), select, textarea):focus-visible {
+  border-color: var(--svx-orange, #F25C05);
+}
+
+/* 2. Painel do lojista: superfície estável, navegação e hierarquia */
+.panel-shell {
+  --svx-ui-accent: var(--svx-orange, #F25C05);
+  background: var(--svx-paper, #F3F0E8);
+}
+
+.panel-shell .panel-topbar {
+  border-bottom: 1px solid var(--svx-ui-border);
+}
+
+.panel-shell .panel-topbar span {
+  font-size: 10px;
+}
+
+.panel-shell .panel-nav {
+  gap: 5px;
+}
+
+.panel-shell .panel-nav button {
+  border-radius: var(--svx-ui-radius-control);
+  min-height: 40px;
+  font-size: 12px;
+}
+
+.panel-shell .panel-nav button.is-active {
+  border-radius: var(--svx-ui-radius-control);
+  box-shadow: inset 2px 0 var(--svx-ui-accent);
+}
+
+.panel-shell :is(.primary-action, .secondary-action, .panel-menu,
+  .svx-products__load-more, .svx-products__edit) {
+  border-radius: var(--svx-ui-radius-control);
+}
+
+.panel-shell .primary-action {
+  border-color: var(--svx-ui-accent);
+  background: var(--svx-ui-accent);
+  color: #161514;
+}
+
+.panel-shell :is(.settings-card, .product-admin-card, .seller-card,
+  .dashboard-stat, .dashboard-card, .svx-dashboard__card,
+  .svx-dashboard__metric, .svx-dashboard__section, .svx-themes__picker,
+  .svx-themes__preview, .svx-orders__card) {
+  border-radius: var(--svx-ui-radius-card);
+  border-color: var(--svx-ui-border);
+  background-color: var(--svx-ui-surface);
+  box-shadow: var(--svx-ui-shadow);
+}
+
+.panel-shell :is(.page-title, .section-head, .svx-dashboard__welcome) {
+  border-color: var(--svx-ui-border);
+}
+
+.panel-shell .panel-page {
+  min-width: 0;
+  padding-inline: clamp(16px, 2.75vw, 32px);
+}
+
+.panel-shell :is(.panel-card, .settings-card, .product-admin-card) :is(h2,h3,p,small) {
+  overflow-wrap: anywhere;
+}
+
+/* 3. Produtos: mantém grade, filtros, seleção e operações funcionais */
+.panel-shell .svx-products .product-admin-card {
+  border: 1px solid var(--svx-ui-border);
+  border-radius: var(--svx-ui-radius-card);
+  background: var(--svx-ui-surface);
+  box-shadow: var(--svx-ui-shadow);
+}
+
+.panel-shell .svx-products .product-admin-card.is-selected {
+  border-color: var(--svx-orange, #F25C05);
+  box-shadow: inset 2px 0 var(--svx-orange, #F25C05);
+}
+
+.panel-shell .svx-products__categories button {
+  border-radius: var(--svx-ui-radius-control);
+  border-color: var(--svx-ui-border);
+}
+
+.panel-shell .svx-products__categories button.is-active {
+  color: #161514;
+  border-color: var(--svx-orange, #F25C05);
+  background: rgba(242, 92, 5, .09);
+}
+
+.panel-shell .svx-products__category-scrollbar {
+  border-radius: 99px;
+}
+
+.panel-shell .svx-products__category-scrollbar-thumb {
+  border-radius: 99px;
+  background: var(--svx-orange, #F25C05);
+}
+
+.panel-shell .svx-products__search,
+.panel-shell .svx-products__search input {
+  border-radius: var(--svx-ui-radius-control);
+}
+
+.panel-shell .svx-products__search:focus-within {
+  border-color: var(--svx-orange, #F25C05);
+}
+
+.panel-shell .svx-products__top-actions :is(button, a),
+.panel-shell .svx-products__footer :is(button, a),
+.panel-shell .svx-products__more summary {
+  border-radius: var(--svx-ui-radius-control);
+}
+
+.panel-shell .svx-products__select {
+  text-decoration: none;
+}
+
+.panel-shell .svx-products .product-bulk-toolbar {
+  background: var(--svx-ui-muted-surface);
+  border-color: var(--svx-ui-border);
+  border-radius: var(--svx-ui-radius-control);
+}
+
+.panel-shell .svx-products__name-line strong,
+.panel-shell .svx-products__price strong {
+  overflow-wrap: anywhere;
+}
+
+/* 4. Catálogos: unidades claras e destaque fino, não grandes blocos coloridos */
+.panel-shell .svx-catalog-card {
+  border: 1px solid var(--svx-ui-border);
+  border-radius: var(--svx-ui-radius-card);
+  background: var(--svx-ui-surface);
+  box-shadow: var(--svx-ui-shadow);
+  min-width: 0;
+}
+
+.panel-shell .svx-catalog-card.is-selected {
+  border-color: var(--svx-orange, #F25C05);
+  box-shadow: inset 2px 0 var(--svx-orange, #F25C05);
+}
+
+.panel-shell .svx-catalog-card__actions :is(button,a),
+.panel-shell .svx-catalog-inline__buttons button,
+.svx-catalog-dialog__card :is(button, input, select) {
+  border-radius: var(--svx-ui-radius-control);
+}
+
+.panel-shell .svx-catalog-inline__buttons .svx-catalog-inline__create {
+  border-color: var(--svx-orange, #F25C05);
+  background: var(--svx-orange, #F25C05);
+  color: #161514;
+}
+
+.svx-catalog-dialog__card {
+  border: 1px solid var(--svx-ui-border);
+  border-radius: var(--svx-ui-radius-sheet);
+  background: var(--svx-ui-surface);
+  max-width: calc(100vw - 24px);
+}
+
+.svx-catalog-dialog__card header {
+  border-color: var(--svx-ui-border);
+}
+
+/* 5. Vitrine: cor configurada pelo lojista é a fonte de verdade */
+.app:not(.app--feed) .product-card {
+  border-radius: var(--svx-ui-radius-card);
+  border-color: var(--svx-ui-border);
+  background: var(--svx-ui-surface);
+  box-shadow: var(--svx-ui-shadow);
+  overflow: hidden;
+}
+
+.app:not(.app--feed) .product-card__media {
+  overflow: hidden;
+}
+
+.app:not(.app--feed) .product-card__footer button {
+  border-radius: var(--svx-ui-radius-control);
+  border-color: var(--accent, #F25C05);
+  background: var(--accent, #F25C05);
+  color: var(--svx-accent-text, #161514);
+}
+
+.app:not(.app--feed) .category-strip button,
+.app:not(.app--feed) .view-switch button,
+.app .store-social-nav button {
+  border-radius: var(--svx-ui-radius-control);
+}
+
+.app:not(.app--feed) .category-strip button.is-active {
+  background: transparent;
+  color: var(--ink, #161514);
+  border-color: var(--accent, #F25C05);
+  box-shadow: inset 0 -2px var(--accent, #F25C05);
+}
+
+.app:not(.app--feed) :is(.product-picker, .cart-panel, .modal-card, .checkout-card) {
+  border-radius: var(--svx-ui-radius-card);
+}
+
+.app:not(.app--feed) :is(.variant-options button, .quantity-control button,
+  .picker-add, .product-picker__close, .cart-trigger) {
+  border-radius: var(--svx-ui-radius-control);
+}
+
+/* 6. Feed da loja: interação leve, alto contraste e mídia intacta */
+.app--feed .feed-card__actions button {
+  border-radius: 10px;
+  border-width: 1px;
+}
+
+.app--feed .feed-card__actions button[aria-pressed='true'] {
+  border-color: var(--accent, #F25C05);
+}
+
+.app--feed .feed-card__buyline :is(button,a) {
+  border-radius: var(--svx-ui-radius-control);
+}
+
+.app--feed .svx-feed-notice {
+  border-radius: var(--svx-ui-radius-control);
+}
+
+/* 7. Feed social: preservar mídia full-bleed e avatar circular */
+.social-feed-page .social-feed-actions button:not(.social-feed-store) {
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.22);
+  background: rgba(22,21,20,.42);
+  backdrop-filter: blur(7px);
+}
+
+.social-feed-page .social-feed-actions button:not(.social-feed-store).is-active {
+  border-color: var(--social-store-accent, #F25C05);
+  color: var(--social-store-accent, #F25C05);
+}
+
+.social-feed-page .social-feed-actions .social-feed-store,
+.social-feed-page .social-feed-actions .social-feed-store__avatar {
+  border-radius: 50%;
+}
+
+.social-feed-page .social-feed-actions__metric {
+  border-radius: 10px;
+}
+
+.social-feed-page .social-feed-copy>span {
+  border-radius: var(--svx-ui-radius-sm);
+}
+
+.social-feed-page :is(.social-feed-add, .social-feed-play) {
+  border-radius: var(--svx-ui-radius-control);
+}
+
+.social-feed-page .feed-sheet {
+  border-radius: var(--svx-ui-radius-sheet) var(--svx-ui-radius-sheet) 0 0;
+}
+
+.social-feed-page .feed-sheet :is(button, input, select),
+.social-feed-page .feed-variant button,
+.social-feed-page .feed-picker-qty button,
+.social-feed-page .feed-cart-qty button {
+  border-radius: var(--svx-ui-radius-control);
+}
+
+.social-feed-page .feed-variant button.is-active {
+  border-color: var(--social-store-accent, #F25C05);
+}
+
+.social-feed-page :is(button,a,summary):focus-visible {
+  outline: 2px solid #F3F0E8;
+  outline-offset: 3px;
+}
+
+/* 8. Explorar, favoritos, carrinho social e perfil do comprador */
+.buyer-screen {
+  color: var(--svx-ink, #161514);
+  background: var(--svx-paper, #F3F0E8);
+}
+
+.buyer-app-nav,
+.buyer-screen {
+  font-family: var(--svx-font-body, 'Archivo', sans-serif);
+}
+
+.buyer-screen :is(.buyer-product-card, .buyer-store-card, .buyer-result-card,
+  .buyer-cart-card, .buyer-saved-card, .buyer-search-input) {
+  border-radius: var(--svx-ui-radius-card);
+  border: 1px solid var(--svx-ui-border);
+  background-color: var(--svx-ui-surface);
+  box-shadow: var(--svx-ui-shadow);
+  min-width: 0;
+}
+
+.buyer-screen .buyer-search-input:focus-within {
+  border-color: var(--svx-orange, #F25C05);
+}
+
+.buyer-screen .buyer-product-card__details {
+  min-width: 0;
+}
+
+.buyer-app-nav a.is-active::after {
+  background: var(--svx-orange, #F25C05);
+  height: 2px;
+}
+
+.buyer-app-nav a:focus-visible {
+  outline: 2px solid #F3F0E8;
+  outline-offset: -3px;
+}
+
+.social-profile-page .social-profile-card,
+.social-profile-page .social-profile-grid>button {
+  border-radius: var(--svx-ui-radius-card);
+  border-color: var(--svx-ui-border);
+  background: var(--svx-ui-surface);
+  overflow: hidden;
+}
+
+.social-profile-page .social-profile-avatar {
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.social-profile-page .social-profile-actions button {
+  border-radius: var(--svx-ui-radius-control);
+}
+
+.social-profile-page .social-profile-actions button.is-store {
+  background: var(--profile-accent, #F25C05);
+}
+
+/* 9. Marketing, planos, login, suporte e conta: mesmos detalhes, sem trocar layout */
+.home-shell .home-pricing__grid article,
+.home-shell .svx-home-ticket,
+.auth-shell .auth-form,
+.customer-page .customer-card,
+.svx-partner__grid article,
+.svx-partner__card {
+  border-radius: var(--svx-ui-radius-card);
+}
+
+.home-shell :is(.primary-action, .secondary-action, .nav-cta),
+.auth-shell :is(.primary-action, .auth-close),
+.customer-page :is(.customer-back, .customer-card button),
+.svx-partner :is(button,a.svx-partner__link) {
+  border-radius: var(--svx-ui-radius-control);
+}
+
+.auth-shell .auth-form :is(input, .input-icon, .password-input) {
+  border-radius: var(--svx-ui-radius-control);
+}
+
+.home-shell .home-pricing__grid article,
+.customer-page .customer-card {
+  border-color: var(--svx-ui-border);
+}
+
+/* 10. Gestão da plataforma: manter hierarquia e ações de administração */
+.platform-shell .platform-card,
+.platform-shell .platform-page :is(.platform-section, .platform-stat,
+  .platform-panel, .platform-metric) {
+  border-radius: var(--svx-ui-radius-card);
+  border-color: var(--svx-ui-border);
+  background: var(--svx-ui-surface);
+}
+
+.platform-shell :is(.platform-primary, .platform-secondary,
+  .platform-toolbar button, .platform-page input, .platform-page select) {
+  border-radius: var(--svx-ui-radius-control);
+}
+
+.platform-shell .platform-primary,
+.platform-shell .platform-toolbar button.is-active {
+  border-color: var(--svx-orange, #F25C05);
+  background: var(--svx-orange, #F25C05);
+  color: #161514;
+}
+
+/* 11. Módulos de operação, relatórios, tema, estoque e equipe */
+:where(.phase2-shell,.phase3-shell,.phase4-shell,.phase5-panel)
+  :is(.phase2-card,.phase3-card,.phase4-card,.phase5-card,.phase5-section) {
+  border-radius: var(--svx-ui-radius-card);
+}
+
+:where(.phase2-shell,.phase3-shell,.phase4-shell,.phase5-panel)
+  :is(.phase2-primary,.phase3-primary,.phase4-primary,button,input,select,textarea) {
+  border-radius: var(--svx-ui-radius-control);
+}
+
+:where(.phase2-shell,.phase3-shell,.phase4-shell,.phase5-panel)
+  :is(button,a,input,select,textarea):focus-visible {
+  outline: 2px solid var(--svx-ui-focus);
+  outline-offset: 3px;
+}
+
+.panel-shell .svx-themes__seasons button,
+.panel-shell .svx-themes__palettes button {
+  border-radius: var(--svx-ui-radius-control);
+}
+
+.panel-shell .svx-themes__seasons button.is-selected,
+.panel-shell .svx-themes__palettes button.is-selected {
+  border-color: var(--svx-orange, #F25C05);
+}
+
+
+/* 12. Componentes transversais e superfícies ainda não cobertas */
+.svx-button,
+.svx-tag {
+  border-radius: var(--svx-ui-radius-control);
+}
+
+.svx-button--outline {
+  border-color: var(--svx-ui-border);
+}
+
+.svx-button--primary {
+  background: var(--accent, var(--svx-orange, #F25C05));
+  color: var(--svx-accent-text, #161514);
+  border-color: var(--accent, var(--svx-orange, #F25C05));
+}
+
+.app:not(.app--feed) :is(.search-box, .catalog-toolbar input,
+  .catalog-toolbar select, .svx-store-catalog-switch button,
+  .svx-discovery__rail button, .minimum-box,
+  .svx-catalog-empty, .svx-desktop-ticket) {
+  border-radius: var(--svx-ui-radius-control);
+}
+
+.app:not(.app--feed) :is(.svx-catalog-split, .svx-discovery__image) {
+  border-radius: var(--svx-ui-radius-card);
+}
+
+.app:not(.app--feed) :is(.cart-drawer, .product-picker) {
+  border-radius: var(--svx-ui-radius-sheet) 0 0 var(--svx-ui-radius-sheet);
+}
+
+.app:not(.app--feed) :is(.whatsapp-button, .cart-drawer__foot button) {
+  border-radius: var(--svx-ui-radius-control);
+}
+
+.buyer-screen :is(.buyer-cart-group, .buyer-cart-line, .buyer-empty,
+  .buyer-state, .buyer-filter-field, .buyer-chips button,
+  .buyer-tabs button, .buyer-cart-stepper, .buyer-primary-button,
+  .buyer-secondary-button) {
+  border-radius: var(--svx-ui-radius-control);
+}
+
+.buyer-screen .buyer-cart-group {
+  border: 1px solid var(--svx-ui-border);
+  background: var(--svx-ui-surface);
+}
+
+.svx-social-shop,
+.svx-social-shop :is(.svx-social-gallery__hero, .svx-social-offers,
+  .svx-social-shop-field, .svx-social-cart-line, .svx-social-ready) {
+  border-radius: var(--svx-ui-radius-card);
+}
+
+.svx-social-shop :is(button, input, select, textarea),
+.social-profile-page :is(.social-profile-feed-post, .social-profile-viewer article,
+  .social-profile-feed-post__buy) {
+  border-radius: var(--svx-ui-radius-control);
+}
+
+.svx-social-shop :is(button, input, select, textarea):focus-visible {
+  outline: 2px solid var(--svx-ui-focus);
+  outline-offset: 3px;
+}
+
+.panel-shell :is(.svx-dashboard__primary-metric,
+  .svx-dashboard__orders, .svx-dashboard__sidebar,
+  .svx-dashboard__links, .svx-dashboard__link) {
+  border-radius: var(--svx-ui-radius-card);
+}
+
+.svx-plans :is(.svx-plans__offer, .svx-plans__reference,
+  .svx-plans__comparison, .svx-plans__benefit-grid) {
+  border-radius: var(--svx-ui-radius-card);
+}
+
+.svx-plans :is(button, a.svx-plans__cta-prefix) {
+  border-radius: var(--svx-ui-radius-control);
+}
+
+.platform-shell :is(.platform-modal__body, .platform-insights-table-wrap,
+  .platform-account-list, .platform-plan-grid) {
+  border-radius: var(--svx-ui-radius-card);
+}
+
+.panel-shell .svx-products__confirm-card {
+  border-radius: var(--svx-ui-radius-sheet);
+  background: var(--svx-ui-surface);
+}
+
+/* O acento pertence ao lojista; jamais aplicar a marca ShopVax sobre sua loja. */
+
+/* 13. Telas compactas: manter o conteúdo acessível, sem mexer na lógica */
+@media (max-width: 720px) {
+  .panel-shell .panel-page {
+    padding-inline: 16px;
+  }
+
+  .panel-shell .svx-catalog-card,
+  .panel-shell .svx-products .product-admin-card {
+    min-width: 0;
+  }
+
+  .svx-catalog-dialog__card {
+    border-radius: var(--svx-ui-radius-card);
+    padding: clamp(14px, 4vw, 20px);
+  }
+
+  .buyer-screen :is(.buyer-product-card, .buyer-store-card) {
+    min-width: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel-shell *,
+  .platform-shell *,
+  .buyer-screen *,
+  .social-profile-page *,
+  .app .product-card,
+  .social-feed-page .social-feed-actions button {
+    scroll-behavior: auto;
+    transition-duration: .01ms;
+  }
+}

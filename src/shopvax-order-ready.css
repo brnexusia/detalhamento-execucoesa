@@ -15,3 +15,61 @@
 .svx-order-ready>footer small{font-size:10px;line-height:1.4;color:#6B665C;}
 .svx-order-ready .form-error{margin:5px 25px;}
 @media(max-width:580px){.svx-order-ready{height:100%;}.svx-order-ready>header h2{font-size:clamp(42px,12vw,62px);}.svx-order-ready>header .svx-stamp{margin-bottom:14px;}.svx-order-ready__message textarea{height:min(23dvh,170px);}}
+
+
+/* REF-20261113 | Talão para WhatsApp: revisão antes do envio explícito */
+.svx-order-ready {
+  min-width:0;
+  background:#FCFBF8;
+}
+.svx-order-ready>header {
+  gap:12px;
+  border-bottom:1px solid var(--svx-line,#D9D3C6);
+}
+.svx-order-ready>header h2 {
+  line-height:1.06;
+  text-wrap:balance;
+}
+.svx-order-ready>header p {
+  line-height:1.55;
+}
+.svx-order-ready__message {
+  border-radius:10px;
+  background:#F4F3EF;
+}
+.svx-order-ready__message textarea {
+  width:100%;
+  min-width:0;
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:8px;
+  line-height:1.55;
+  font-size:13px;
+}
+.svx-order-ready>footer {
+  gap:9px;
+  flex-wrap:wrap;
+  border-top:1px solid var(--svx-line,#D9D3C6);
+}
+.svx-order-ready>footer :is(a,button) {
+  min-height:44px;
+  border-radius:8px;
+}
+.svx-order-ready__send {
+  background:var(--accent,#F25C05);
+  color:var(--svx-accent-text,#161514);
+}
+.svx-order-ready__copy {
+  background:transparent;
+  border-color:var(--svx-line,#D9D3C6);
+}
+.svx-order-ready .form-error {
+  border-radius:8px;
+  line-height:1.5;
+}
+.svx-order-ready :is(button,a,textarea):focus-visible {
+  outline:2px solid #2D2A8C;
+  outline-offset:3px;
+}
+@media(max-width:600px) {
+  .svx-order-ready>footer :is(a,button) {flex:1 1 145px;}
+}

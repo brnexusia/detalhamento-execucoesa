@@ -319,3 +319,55 @@
  .social-feed-page .social-feed-actions{bottom:calc(160px + env(safe-area-inset-bottom));gap:2px}
  .social-feed-page .social-feed-actions button{min-height:34px}
 }
+
+
+/* REF-20261113 | Feed imersivo: respiro entre texto e controles */
+.social-feed-page .social-feed-copy {
+  min-width:0;
+  gap:clamp(4px,1vh,9px);
+}
+.social-feed-page .social-feed-store-name {
+  min-width:0;
+  gap:7px;
+}
+.social-feed-page .social-feed-store-name strong {
+  overflow-wrap:anywhere;
+}
+.social-feed-page .social-feed-copy h2 {
+  line-height:1.04;
+  letter-spacing:-.035em;
+  text-wrap:balance;
+  overflow-wrap:anywhere;
+}
+.social-feed-page .social-feed-description {
+  max-width:min(100%,44ch);
+  line-height:1.5;
+}
+.social-feed-page .social-feed-copy>span {
+  border:1px solid rgba(243,240,232,.22);
+  border-radius:6px;
+  padding:5px 8px;
+}
+.social-feed-page .social-feed-actions button:not(.social-feed-store) {
+  border:1px solid rgba(243,240,232,.24);
+  border-radius:10px;
+  background:rgba(22,21,20,.42);
+}
+.social-feed-page .social-feed-actions button:not(.social-feed-store).is-active {
+  border-color:var(--social-store-accent,#F25C05);
+}
+.social-feed-page .social-feed-add {
+  border-radius:8px;
+  min-height:44px;
+}
+.social-feed-page .social-feed-play {
+  border-radius:12px;
+}
+@media(max-width:430px) {
+  .social-feed-page .social-feed-copy h2 {
+    font-size:clamp(24px,7vw,35px);
+  }
+  .social-feed-page .social-feed-actions button:not(.social-feed-store) {
+    min-height:44px;
+  }
+}

@@ -67,3 +67,119 @@
 .svx-dashboard__welcome h1{font-size:clamp(39px,4.5vw,72px);line-height:.96;max-width:18ch}
 .svx-dashboard__welcome p{font-size:clamp(13px,1.12vw,15px);line-height:1.5}
 @media(max-width:650px){.svx-dashboard__welcome{margin-top:16px;padding-top:24px}.svx-dashboard__welcome h1{font-size:clamp(39px,9.5vw,55px)}}
+
+
+/* REF-20261113 | Painel inicial: números, pedidos recentes e atalhos */
+.panel-shell .svx-dashboard__welcome {
+  border-bottom:1px solid var(--svx-line,#D9D3C6);
+  row-gap:14px;
+}
+.panel-shell .svx-dashboard__welcome h1 {
+  max-width:20ch;
+  line-height:.98;
+  text-wrap:balance;
+}
+.panel-shell .svx-dashboard__welcome-actions {
+  gap:9px;
+}
+.panel-shell .svx-dashboard__welcome-actions :is(button,a) {
+  min-height:42px;
+  border-radius:8px;
+  padding-inline:14px;
+  text-decoration:none;
+}
+.panel-shell .svx-dashboard__metrics {
+  border-bottom:1px solid var(--svx-line,#D9D3C6);
+  gap:0;
+  padding-block:clamp(18px,2.5vw,29px);
+}
+.panel-shell .svx-dashboard__metrics > div {
+  border-right-color:var(--svx-line,#D9D3C6);
+  min-width:0;
+}
+.panel-shell .svx-dashboard__metric .svx-number strong,
+.panel-shell .svx-dashboard__primary-metric .svx-number>strong {
+  font-variant-numeric:tabular-nums;
+  letter-spacing:-.045em;
+}
+.panel-shell .svx-dashboard__metric small {
+  line-height:1.35;
+}
+.panel-shell .svx-dashboard__columns {
+  gap:clamp(18px,2.4vw,34px);
+}
+.panel-shell .svx-dashboard__section-heading {
+  align-items:flex-end;
+  gap:10px;
+}
+.panel-shell .svx-dashboard__section-heading h2 {
+  line-height:1;
+  text-wrap:balance;
+}
+.panel-shell .svx-dashboard__section-heading button {
+  text-decoration:none;
+  border-bottom:1px solid var(--svx-orange,#F25C05);
+}
+.panel-shell .svx-dashboard__order-grid {
+  gap:12px;
+}
+.panel-shell .svx-dashboard__order-grid article,
+.panel-shell .svx-dashboard__setup {
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:12px;
+  background:#FCFBF8;
+  padding:clamp(14px,1.5vw,19px);
+  box-shadow:0 2px 10px rgba(22,21,20,.035);
+}
+.panel-shell .svx-dashboard__order-grid article {
+  gap:9px;
+}
+.panel-shell .svx-dashboard__order-grid article strong {
+  font-variant-numeric:tabular-nums;
+  overflow-wrap:anywhere;
+}
+.panel-shell .svx-dashboard__empty {
+  border-radius:12px;
+  background:#FCFBF8;
+}
+.panel-shell .svx-dashboard__links {
+  border-radius:12px;
+  overflow:hidden;
+  padding:clamp(15px,1.7vw,21px);
+}
+.panel-shell .svx-dashboard__link {
+  min-height:52px;
+  gap:12px;
+  border-bottom-color:rgba(243,240,232,.2);
+}
+.panel-shell .svx-dashboard__link:last-child {
+  border-bottom:0;
+}
+.panel-shell .svx-dashboard__setup-track {
+  border-radius:99px;
+  overflow:hidden;
+}
+.panel-shell .svx-dashboard__setup-track>span {
+  border-radius:99px;
+}
+.panel-shell .svx-dashboard__setup>button {
+  min-height:44px;
+  gap:12px;
+}
+.panel-shell .svx-dashboard__setup>button>span {
+  border-radius:7px;
+}
+.panel-shell .svx-dashboard :is(a,button):focus-visible {
+  outline:2px solid #2D2A8C;
+  outline-offset:3px;
+}
+@media(max-width:1100px) {
+  .panel-shell .svx-dashboard__metrics {row-gap:12px;}
+  .panel-shell .svx-dashboard__metrics>div {padding-block:14px;}
+}
+@media(max-width:680px) {
+  .panel-shell .svx-dashboard__welcome-actions {width:100%;}
+  .panel-shell .svx-dashboard__welcome-actions :is(button,a) {flex:1 1 145px;}
+  .panel-shell .svx-dashboard__metrics>div {border-right:0;}
+  .panel-shell .svx-dashboard__section-heading {flex-wrap:wrap;}
+}

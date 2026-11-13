@@ -557,3 +557,135 @@
 @media (prefers-reduced-motion: reduce) {
   .panel-shell .svx-products .svx-catalog-card { transition: none; }
 }
+
+
+/* REF-20261113 | Produtos: densidade comercial, filtros, seleção e edição */
+.panel-shell .svx-products .svx-products__hero {
+  border-bottom-color:var(--svx-line,#D9D3C6);
+  gap:clamp(10px,2vw,22px);
+}
+.panel-shell .svx-products__catalog-heading h1 {
+  letter-spacing:-.04em;
+  line-height:1;
+  overflow-wrap:anywhere;
+}
+.panel-shell .svx-products .svx-products__top-actions {
+  gap:8px;
+  align-items:center;
+}
+.panel-shell .svx-products .svx-products__top-actions :is(button,a) {
+  min-height:38px;
+  border-radius:8px;
+}
+.panel-shell .svx-products .svx-products__toolbar {
+  gap:clamp(12px,2vw,22px);
+  border-bottom:1px solid var(--svx-line,#D9D3C6);
+  padding-bottom:18px;
+}
+.panel-shell .svx-products .svx-products__categories {
+  scroll-padding-inline:6px;
+  scrollbar-width:none;
+  gap:6px;
+}
+.panel-shell .svx-products .svx-products__categories button {
+  border-radius:8px;
+  border:1px solid transparent;
+  min-height:37px;
+  white-space:nowrap;
+}
+.panel-shell .svx-products .svx-products__categories button.is-active {
+  border-color:var(--svx-orange,#F25C05);
+  box-shadow:inset 0 -2px var(--svx-orange,#F25C05);
+  background:rgba(242,92,5,.06);
+  color:#161514;
+}
+.panel-shell .svx-products .svx-products__category-scrollbar {
+  height:2px;
+  border-radius:99px;
+  overflow:hidden;
+}
+.panel-shell .svx-products .svx-products__category-scrollbar-thumb {
+  border-radius:99px;
+  background:var(--svx-orange,#F25C05);
+}
+.panel-shell .svx-products .svx-products__search {
+  border-radius:8px;
+  border-color:var(--svx-line,#D9D3C6);
+  background:#FCFBF8;
+}
+.panel-shell .svx-products .svx-products__search:focus-within {
+  border-color:var(--svx-orange,#F25C05);
+  box-shadow:0 0 0 2px rgba(242,92,5,.08);
+}
+.panel-shell .svx-products .svx-products__headings {
+  color:var(--svx-muted,#6B665C);
+  border-bottom:1px solid var(--svx-line,#D9D3C6);
+}
+.panel-shell .svx-products .product-admin-card {
+  border-color:var(--svx-line,#D9D3C6);
+  border-radius:10px;
+  background:#FCFBF8;
+  box-shadow:none;
+}
+.panel-shell .svx-products .product-admin-card.is-selected {
+  border-color:var(--svx-orange,#F25C05);
+  outline:none;
+  box-shadow:inset 2px 0 var(--svx-orange,#F25C05);
+}
+.panel-shell .svx-products .svx-products__name-ref {
+  min-width:0;
+}
+.panel-shell .svx-products .svx-products__name-line strong {
+  overflow-wrap:anywhere;
+  line-height:1.25;
+}
+.panel-shell .svx-products .svx-products__price > strong {
+  font-variant-numeric:tabular-nums;
+}
+.panel-shell .svx-products .svx-products__actions {
+  gap:5px;
+}
+.panel-shell .svx-products .svx-products__more summary,
+.panel-shell .svx-products .svx-products__edit {
+  border-radius:7px;
+}
+.panel-shell .svx-products .product-bulk-toolbar--sticky {
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:10px;
+  background:#F4F3EF;
+  box-shadow:0 4px 18px rgba(22,21,20,.06);
+}
+.panel-shell .svx-products .product-bulk-toolbar--sticky .svx-products__select {
+  border:1px solid var(--svx-orange,#F25C05);
+  border-radius:8px;
+  background:transparent;
+  text-decoration:none;
+}
+.panel-shell .svx-products .product-bulk-toolbar--sticky .svx-products__erase,
+.panel-shell .svx-products .product-bulk-toolbar--sticky .danger {
+  background:transparent;
+}
+.panel-shell .svx-products .svx-products__footer {
+  border-top:1px solid var(--svx-line,#D9D3C6);
+  margin-top:16px;
+  flex-wrap:wrap;
+}
+.panel-shell .svx-products .svx-products__confirm-card {
+  border-radius:16px;
+  max-width:calc(100vw - 24px);
+}
+.panel-shell .svx-products :is(button,summary,input):focus-visible {
+  outline:2px solid #2D2A8C;
+  outline-offset:3px;
+}
+@media(max-width:990px) {
+  .panel-shell .svx-products .svx-products__toolbar {flex-wrap:wrap;}
+  .panel-shell .svx-products .svx-products__search {max-width:100%;}
+}
+@media(max-width:580px) {
+  .panel-shell .svx-products .svx-products__hero {align-items:flex-start;}
+  .panel-shell .svx-products .svx-products__top-actions {flex-wrap:wrap;}
+  .panel-shell .svx-products .svx-products__categories {max-width:100%;}
+  .panel-shell .svx-products .svx-products__footer {align-items:flex-start;}
+  .panel-shell .svx-products .svx-products__confirm-card {padding:16px;}
+}

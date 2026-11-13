@@ -87,3 +87,57 @@
   .social-account-choice-dialog>h2{font-size:28px;}
 }
 
+
+
+/* REF-20261113 | Entrada social: decisão simples sem perder contexto */
+.social-account-choice-dialog {
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:16px;
+  background:#FCFBF8;
+  max-width:calc(100vw - 24px);
+  box-shadow:0 16px 50px rgba(22,21,20,.2);
+}
+.social-account-choice-dialog>h2 {
+  line-height:1.08;
+  text-wrap:balance;
+}
+.social-account-choice-dialog>p {
+  max-width:56ch;
+  line-height:1.55;
+}
+.social-account-choice-options {
+  gap:10px;
+}
+.social-account-choice-options>button {
+  min-width:0;
+  min-height:66px;
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:10px;
+  background:#FCFBF8;
+  gap:12px;
+}
+.social-account-choice-options>button:hover,
+.social-account-choice-options>button:focus-visible {
+  border-color:var(--svx-orange,#F25C05);
+}
+.social-account-choice-options strong,
+.social-account-choice-options small {
+  overflow-wrap:anywhere;
+  line-height:1.35;
+}
+.social-account-choice-icon {
+  border-radius:8px;
+}
+.social-account-choice-close {
+  min-height:38px;
+  min-width:38px;
+  border-radius:8px;
+}
+.social-account-choice-dialog .social-account-choice-hint {
+  border-top:1px solid var(--svx-line,#D9D3C6);
+  line-height:1.5;
+}
+@media(max-width:480px) {
+  .social-account-choice-dialog {padding:clamp(16px,4vw,22px);}
+  .social-account-choice-options>button {padding:13px;}
+}

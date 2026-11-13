@@ -114,3 +114,93 @@
  }
 }
 @media(prefers-reduced-motion:reduce){.svx-billing button{transition:none}}
+
+
+/* REF-20261113 | Assinatura: preço/estado visível e ações sem ambiguidade */
+.svx-billing__header {
+  gap:14px;
+  align-items:flex-end;
+}
+.svx-billing__header h1 {
+  line-height:1;
+  text-wrap:balance;
+}
+.svx-billing__header p {
+  max-width:70ch;
+  line-height:1.55;
+}
+.svx-billing__status,
+.svx-billing__guidance,
+.svx-billing__plans article {
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:12px;
+  background:#FCFBF8;
+  min-width:0;
+}
+.svx-billing__status {
+  padding:clamp(15px,2vw,23px);
+}
+.svx-billing__status-main {
+  gap:13px;
+  min-width:0;
+}
+.svx-billing__status-main>div {
+  min-width:0;
+}
+.svx-billing__status h2,
+.svx-billing__section-head h2 {
+  line-height:1.1;
+  text-wrap:balance;
+}
+.svx-billing__status-actions,
+.svx-billing__term,
+.svx-billing__plans {
+  gap:clamp(9px,1.5vw,16px);
+}
+.svx-billing button {
+  min-height:41px;
+  border-radius:8px;
+}
+.svx-billing__term button {
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:8px;
+}
+.svx-billing__term button.is-selected {
+  border-color:var(--svx-orange,#F25C05);
+  box-shadow:inset 0 -2px var(--svx-orange,#F25C05);
+}
+.svx-billing__plans article {
+  padding:clamp(14px,2vw,23px);
+  box-shadow:0 2px 12px rgba(22,21,20,.035);
+}
+.svx-billing__plans article.is-featured {
+  border-color:var(--svx-orange,#F25C05);
+  box-shadow:inset 0 2px var(--svx-orange,#F25C05);
+}
+.svx-billing__price strong {
+  font-variant-numeric:tabular-nums;
+  overflow-wrap:anywhere;
+}
+.svx-billing__plans button {
+  min-height:44px;
+  border-radius:8px;
+}
+.svx-billing__referral {
+  border-radius:10px;
+}
+.svx-billing__referral input {
+  min-width:0;
+  max-width:100%;
+  border-radius:8px;
+  border-color:var(--svx-line,#D9D3C6);
+}
+.svx-billing__notice,
+.svx-billing__error {
+  border-radius:9px;
+  line-height:1.55;
+}
+@media(max-width:760px) {
+  .svx-billing__header {align-items:flex-start;flex-wrap:wrap;}
+  .svx-billing__status-actions {flex-wrap:wrap;}
+  .svx-billing__plans {grid-template-columns:minmax(0,1fr);}
+}

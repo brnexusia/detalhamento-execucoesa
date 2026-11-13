@@ -135,3 +135,89 @@
 @media (prefers-reduced-motion: reduce) {
   .home-shell *, .home-shell *::before, .home-shell *::after { animation: none !important; scroll-behavior: auto !important; transition: none !important; }
 }
+
+
+/* REF-20261113 | Página para lojistas: narrativa concisa e plano legível */
+.home-shell .home-nav {
+  border-bottom-color:var(--svx-line,#D9D3C6);
+  row-gap:10px;
+}
+.home-shell .home-nav :is(button,a) {
+  min-height:40px;
+  border-radius:8px;
+}
+.home-shell .svx-home-hero__grid {
+  gap:clamp(18px,3.5vw,45px);
+}
+.home-shell .svx-home-hero__message h1 {
+  line-height:.98;
+  text-wrap:balance;
+  overflow-wrap:anywhere;
+}
+.home-shell .svx-home-hero__message .home-hero__lead {
+  max-width:63ch;
+  line-height:1.56;
+}
+.home-shell .svx-home-hero__message .home-hero__actions {
+  gap:9px;
+  flex-wrap:wrap;
+}
+.home-shell .svx-home-hero__message .home-hero__actions > :is(a,button) {
+  min-height:44px;
+  border-radius:8px;
+  padding-inline:16px;
+}
+.home-shell .svx-home-ticket {
+  border-radius:12px;
+  overflow:hidden;
+}
+.home-shell .svx-home-ticket__steps {
+  gap:10px;
+}
+.home-shell .home-strip {
+  border-color:var(--svx-line,#D9D3C6);
+}
+.home-shell .home-pricing__head h2 {
+  line-height:1;
+  letter-spacing:-.035em;
+  text-wrap:balance;
+}
+.home-shell .home-pricing__grid {
+  gap:clamp(10px,1.6vw,17px);
+  border:0;
+}
+.home-shell .home-pricing__grid article {
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:12px;
+  background:#FCFBF8;
+  box-shadow:0 2px 12px rgba(22,21,20,.04);
+  min-width:0;
+}
+.home-shell .home-pricing__grid article.is-featured {
+  border-color:var(--svx-orange,#F25C05);
+  box-shadow:inset 0 2px var(--svx-orange,#F25C05);
+}
+.home-shell .home-pricing__grid article :is(.primary-action,.secondary-action) {
+  min-height:44px;
+  border-radius:8px;
+}
+.home-shell .home-pricing__grid article header {
+  gap:7px;
+}
+.home-shell .home-pricing__grid article header strong {
+  font-variant-numeric:tabular-nums;
+  overflow-wrap:anywhere;
+}
+.home-shell .svx-home-footer {
+  border-top-color:var(--svx-line,#D9D3C6);
+}
+@media(max-width:900px) {
+  .home-shell .svx-home-hero__grid {gap:20px;}
+}
+@media(max-width:450px) {
+  .home-shell .svx-home-hero__message .home-hero__actions > :is(a,button) {
+    width:100%;
+  }
+  .home-shell .home-pricing__grid {gap:12px;}
+  .home-shell .home-pricing__grid article {padding:19px;}
+}

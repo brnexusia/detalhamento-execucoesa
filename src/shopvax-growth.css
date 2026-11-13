@@ -141,3 +141,104 @@ body:has(.svx-onboarding) .svx-support__panel {
     margin-top:12px;
   }
 }
+
+
+/* REF-20261113 | Guias, preferências do comprador e ajuda contextual */
+.svx-growth-guide,
+.svx-buyer-preferences,
+.svx-support__panel {
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:12px;
+  background:#FCFBF8;
+  min-width:0;
+}
+.svx-growth-guide__head {
+  gap:12px;
+}
+.svx-growth-guide__head h2,
+.svx-buyer-preferences h2,
+.svx-support__panel h2 {
+  line-height:1.1;
+  text-wrap:balance;
+}
+.svx-growth-guide__head p,
+.svx-buyer-preferences p,
+.svx-support__panel>p {
+  line-height:1.55;
+}
+.svx-growth-guide__steps {
+  gap:8px;
+}
+.svx-growth-guide__steps li {
+  min-width:0;
+  border-radius:8px;
+}
+.svx-growth-guide__track,
+.svx-growth-guide__track span {
+  border-radius:99px;
+}
+.svx-growth-guide__current {
+  border-radius:9px;
+}
+.svx-growth-guide__actions {
+  gap:9px;
+  flex-wrap:wrap;
+}
+.svx-growth-guide button,
+.svx-buyer-preferences button,
+.svx-support__panel button {
+  min-height:40px;
+  border-radius:8px;
+}
+.svx-buyer-preferences__channels,
+.svx-buyer-preferences fieldset {
+  gap:8px;
+  border-color:var(--svx-line,#D9D3C6);
+}
+.svx-buyer-preferences__channels label,
+.svx-buyer-preferences fieldset label {
+  border-radius:8px;
+  line-height:1.45;
+}
+.svx-buyer-preferences__actions {
+  gap:9px;
+  flex-wrap:wrap;
+}
+.svx-support__panel {
+  max-width:calc(100vw - 24px);
+  box-shadow:0 12px 38px rgba(22,21,20,.13);
+}
+.svx-support__panel header {
+  border-bottom:1px solid var(--svx-line,#D9D3C6);
+  gap:10px;
+}
+.svx-support__faqs details {
+  border-bottom:1px solid var(--svx-line,#D9D3C6);
+}
+.svx-support__faqs summary {
+  min-height:41px;
+  cursor:pointer;
+}
+.svx-support__form {
+  gap:9px;
+}
+.svx-support__form :is(input:not([type="checkbox"]),select,textarea) {
+  min-width:0;
+  max-width:100%;
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:8px;
+  background:#FCFBF8;
+}
+.svx-support__form textarea {
+  line-height:1.55;
+}
+.svx-growth-guide :is(button,a):focus-visible,
+.svx-buyer-preferences :is(button,input):focus-visible,
+.svx-support__panel :is(button,input,select,textarea,summary):focus-visible {
+  outline:2px solid #2D2A8C;
+  outline-offset:3px;
+}
+@media(max-width:600px) {
+  .svx-growth-guide__actions :is(button,a) {flex:1 1 130px;}
+  .svx-support__panel {max-height:calc(100dvh - 20px);}
+}

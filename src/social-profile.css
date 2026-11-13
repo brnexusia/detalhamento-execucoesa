@@ -38,3 +38,105 @@
 .social-profile-feed-post__buy{position:absolute;bottom:18px;left:18px;right:18px;border:0;border-radius:12px;min-height:46px;background:#F25C05;color:#161514;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:800;cursor:pointer}
 @media(max-width:720px){.social-profile-feed{width:100%;margin:4px auto 0;height:76dvh;min-height:380px;border-radius:0}.social-profile-feed-post__title{font-size:17px}.social-profile-feed-post__buy{bottom:14px}}
 @media(prefers-reduced-motion:reduce){.social-profile-feed{scroll-behavior:auto}}
+
+
+/* REF-20261113 | Perfil de loja: identidade do lojista, catálogo e feed visual */
+.social-profile-page .social-profile-shell {
+  width:min(100%,1120px);
+}
+.social-profile-page .social-profile-card {
+  padding:clamp(16px,3vw,32px);
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:12px;
+  background:#FCFBF8;
+  box-shadow:0 2px 14px rgba(22,21,20,.04);
+}
+.social-profile-page .social-profile-main {
+  gap:clamp(12px,2vw,22px);
+  align-items:center;
+  min-width:0;
+}
+.social-profile-page .social-profile-identity {
+  min-width:0;
+}
+.social-profile-page .social-profile-identity h1 {
+  font-size:clamp(27px,4vw,42px);
+  line-height:1;
+  letter-spacing:-.035em;
+  overflow-wrap:anywhere;
+}
+.social-profile-page .social-profile-identity p {
+  max-width:64ch;
+  line-height:1.48;
+  overflow-wrap:anywhere;
+}
+.social-profile-page .social-profile-actions {
+  flex-wrap:wrap;
+  gap:8px;
+}
+.social-profile-page .social-profile-actions button {
+  min-height:42px;
+  padding-inline:clamp(12px,1.7vw,18px);
+  border-radius:8px;
+}
+.social-profile-page .social-profile-stats {
+  border-block-color:var(--svx-line,#D9D3C6);
+}
+.social-profile-page .social-profile-tabs,
+.social-profile-page .social-profile-view-switch {
+  gap:7px;
+  overflow-x:auto;
+  scrollbar-width:thin;
+}
+.social-profile-page .social-profile-view-switch > button {
+  min-height:42px;
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:8px;
+}
+.social-profile-page .social-profile-view-switch > button.is-active {
+  border-color:var(--profile-accent,#F25C05);
+  box-shadow:inset 0 -2px var(--profile-accent,#F25C05);
+}
+.social-profile-page .social-profile-grid {
+  gap:clamp(6px,1vw,12px);
+  margin-top:16px;
+}
+.social-profile-page .social-profile-grid > button {
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:10px;
+  overflow:hidden;
+  min-width:0;
+  background:#FCFBF8;
+}
+.social-profile-page .social-profile-grid__name {
+  overflow-wrap:anywhere;
+}
+.social-profile-page .social-profile-feed {
+  border-radius:12px;
+  max-width:100%;
+}
+.social-profile-page .social-profile-feed-post {
+  overflow:hidden;
+}
+.social-profile-page .social-profile-feed-post__title {
+  text-wrap:balance;
+  overflow-wrap:anywhere;
+}
+.social-profile-page .social-profile-feed-post__buy {
+  min-height:42px;
+  border-radius:8px;
+}
+.social-profile-page .social-profile-viewer article {
+  border-radius:14px;
+  overflow:hidden;
+}
+.social-profile-page .social-profile-viewer__copy {
+  min-width:0;
+  overflow-wrap:anywhere;
+}
+@media(max-width:540px) {
+  .social-profile-page .social-profile-main {grid-template-columns:72px minmax(0,1fr);gap:12px;}
+  .social-profile-page .social-profile-avatar {width:72px;height:72px;}
+  .social-profile-page .social-profile-grid {gap:6px;}
+  .social-profile-page .social-profile-actions button {flex:1 1 auto;}
+}

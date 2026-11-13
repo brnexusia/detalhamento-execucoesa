@@ -19,3 +19,83 @@
 @media(prefers-reduced-motion:reduce){
  .scanner-publish-track span{transition:none}
 }
+
+
+/* REF-20261113 | Publicação do catálogo: progresso e confirmação */
+.scanner-publish-entry {
+  min-height:40px;
+  border-radius:8px;
+}
+.scanner-publish-modal {
+  max-width:calc(100vw - 24px);
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:16px;
+  background:#FCFBF8;
+}
+.scanner-publish-modal>header {
+  gap:12px;
+  border-bottom:1px solid var(--svx-line,#D9D3C6);
+}
+.scanner-publish-modal>header h2 {
+  line-height:1.1;
+  text-wrap:balance;
+}
+.scanner-publish-modal>header button {
+  min-width:38px;
+  min-height:38px;
+  border-radius:8px;
+}
+.scanner-publish-content {
+  overscroll-behavior:contain;
+}
+.scanner-publish-content>p {
+  line-height:1.55;
+}
+.scanner-publish-mode {
+  gap:10px;
+}
+.scanner-publish-mode select {
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:8px;
+  min-height:40px;
+  max-width:100%;
+}
+.scanner-publish-jobs {
+  gap:9px;
+}
+.scanner-publish-jobs article {
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:9px;
+  background:#FCFBF8;
+  min-width:0;
+}
+.scanner-publish-jobs article>div {
+  min-width:0;
+}
+.scanner-publish-jobs article :is(button,a),
+.scanner-publish-actions>button,
+.scanner-publish-refresh {
+  min-height:40px;
+  border-radius:8px;
+}
+.scanner-publish-progress {
+  border-radius:9px;
+  background:#F4F3EF;
+}
+.scanner-publish-track,
+.scanner-publish-track span {
+  border-radius:99px;
+  overflow:hidden;
+}
+.scanner-publish-message {
+  border-radius:9px;
+  line-height:1.5;
+}
+.scanner-publish-modal>footer {
+  gap:12px;
+  border-top:1px solid var(--svx-line,#D9D3C6);
+}
+@media(max-width:640px) {
+  .scanner-publish-modal {max-height:calc(100dvh - 20px);padding-inline:0;}
+  .scanner-publish-actions {flex-wrap:wrap;}
+}

@@ -88,3 +88,84 @@
 @media(max-width:560px){.svx-themes__seasons{grid-template-columns:1fr}.svx-themes__mini{height:120px}.svx-themes__palettes{gap:6px}.svx-themes__picker,.svx-themes__preview{padding:15px}.svx-themes__sample-hero{padding:25px 19px}}
 @media(max-width:420px){.svx-themes__palettes{grid-template-columns:repeat(3,minmax(0,1fr))}.svx-themes__actions button{flex:1 1 100%}}
 @media(prefers-reduced-motion:reduce){.svx-themes__palettes button,.svx-themes__seasons button{transition:none!important}}
+
+
+/* REF-20261113 | Tema, paleta, sazonalidade e prévia da loja */
+.panel-shell .svx-themes__grid {
+  gap:clamp(16px,2vw,30px);
+}
+.panel-shell .svx-themes__picker,
+.panel-shell .svx-themes__preview {
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:12px;
+  background:#FCFBF8;
+  box-shadow:0 2px 12px rgba(22,21,20,.035);
+}
+.panel-shell .svx-themes__intro h2 {
+  line-height:1.12;
+  letter-spacing:-.03em;
+  text-wrap:balance;
+}
+.panel-shell .svx-themes__intro p {
+  max-width:64ch;
+  line-height:1.55;
+}
+.panel-shell .svx-themes__palettes {
+  gap:9px;
+}
+.panel-shell .svx-themes__palettes button,
+.panel-shell .svx-themes__default-line button,
+.panel-shell .svx-themes__seasons button {
+  border-radius:9px;
+  border-color:var(--svx-line,#D9D3C6);
+  min-height:44px;
+}
+.panel-shell .svx-themes__palettes button.is-selected,
+.panel-shell .svx-themes__default-line button.is-selected,
+.panel-shell .svx-themes__seasons button.is-selected {
+  border-color:var(--svx-orange,#F25C05);
+  box-shadow:inset 0 -2px var(--svx-orange,#F25C05);
+}
+.panel-shell .svx-themes__seasons {
+  gap:9px;
+}
+.panel-shell .svx-themes__mini {
+  border-radius:8px;
+  overflow:hidden;
+}
+.panel-shell .svx-themes__preview-bar {
+  border-bottom:1px solid var(--svx-line,#D9D3C6);
+  line-height:1.4;
+}
+.panel-shell .svx-themes__sample {
+  min-width:0;
+}
+.panel-shell .svx-themes__sample-hero h3 {
+  overflow-wrap:anywhere;
+  line-height:1.05;
+}
+.panel-shell .svx-themes__sample-product {
+  border-radius:8px;
+  overflow:hidden;
+}
+.panel-shell .svx-themes__tip {
+  border-radius:9px;
+  border-color:var(--svx-line,#D9D3C6);
+}
+.panel-shell .svx-themes__actions {
+  gap:10px;
+  flex-wrap:wrap;
+}
+.panel-shell .svx-themes__actions button,
+.panel-shell .svx-themes__restore {
+  min-height:42px;
+  border-radius:8px;
+}
+@media(max-width:950px) {
+  .panel-shell .svx-themes__grid {grid-template-columns:minmax(0,1fr);}
+}
+@media(max-width:560px) {
+  .panel-shell .svx-themes__picker,
+  .panel-shell .svx-themes__preview {padding:16px;}
+  .panel-shell .svx-themes__seasons {gap:7px;}
+}
