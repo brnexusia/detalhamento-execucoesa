@@ -519,3 +519,99 @@
 @media(prefers-reduced-motion:reduce){
   .social-feed-page .social-feed-nav{animation:none!important;translate:none!important}
 }
+
+
+/* REF-20261113 | Feed social: clareza sobre mídia, CTA e ações do comprador */
+.social-feed-page .social-feed-nav {
+  min-height: 58px;
+  border-bottom-color: rgba(243,240,232,.17);
+  background: linear-gradient(180deg,rgba(22,21,20,.91),rgba(22,21,20,.54) 72%,transparent);
+}
+.social-feed-page .social-feed-nav__right {
+  gap: clamp(8px,1.4vw,16px);
+}
+.social-feed-page .social-feed-card {
+  isolation:isolate;
+}
+.social-feed-page .social-feed-copy {
+  gap: clamp(5px,1.2vh,10px);
+  min-width: 0;
+}
+.social-feed-page .social-feed-copy h2 {
+  font-size: clamp(25px, 6vw, 45px);
+  line-height:1.04;
+  letter-spacing:-.032em;
+  text-wrap:balance;
+  overflow-wrap:anywhere;
+}
+.social-feed-page .social-feed-description {
+  max-width:min(100%,44ch);
+}
+.social-feed-page .social-feed-description p {
+  line-height:1.48;
+}
+.social-feed-page .social-feed-copy > span {
+  padding:5px 9px;
+  border:1px solid rgba(255,255,255,.2);
+  border-radius:6px;
+}
+.social-feed-page .social-feed-buyline {
+  gap:7px;
+}
+.social-feed-page .social-feed-buyline > div {
+  gap:8px;
+}
+.social-feed-page .social-feed-actions {
+  gap:8px;
+}
+.social-feed-page .social-feed-actions button:not(.social-feed-store) {
+  width:52px;
+  min-height:50px;
+  border:1px solid rgba(255,255,255,.25);
+  border-radius:10px;
+  background:rgba(22,21,20,.42);
+}
+.social-feed-page .social-feed-actions button:not(.social-feed-store):focus-visible {
+  outline:2px solid #F3F0E8;
+  outline-offset:2px;
+}
+.social-feed-page .social-feed-actions button:not(.social-feed-store):active {
+  background:rgba(22,21,20,.66);
+}
+.social-feed-page .social-feed-actions .social-feed-store {
+  border-radius:50%;
+  border-color:rgba(243,240,232,.86);
+}
+.social-feed-page .social-feed-add {
+  min-height:44px;
+  padding-inline:clamp(12px,2vw,20px);
+  border-radius:8px;
+}
+.social-feed-page .feed-sheet {
+  border-radius:16px 16px 0 0;
+  max-height:min(88dvh,850px);
+}
+.social-feed-page .feed-sheet > header,
+.social-feed-page .feed-sheet > footer {
+  gap:12px;
+}
+.social-feed-page .feed-sheet-body {
+  overscroll-behavior:contain;
+}
+.social-feed-page .feed-variant button.is-active {
+  border-color:var(--social-store-accent,#F25C05);
+  box-shadow:inset 0 -2px var(--social-store-accent,#F25C05);
+}
+@media(max-width:430px) {
+  .social-feed-page .social-feed-copy h2 {font-size:clamp(24px,7vw,34px);}
+  .social-feed-page .social-feed-actions button:not(.social-feed-store) {
+    width:47px;
+    min-height:45px;
+  }
+  .social-feed-page .social-feed-buyline>div {max-width:100%;}
+}
+@media(max-height:620px) and (max-width:799px) {
+  .social-feed-page .social-feed-copy {gap:3px;}
+  .social-feed-page .social-feed-copy h2 {font-size:clamp(20px,6vw,30px);}
+  .social-feed-page .social-feed-actions button:not(.social-feed-store) {min-height:35px;}
+}
