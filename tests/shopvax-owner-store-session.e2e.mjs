@@ -27,9 +27,14 @@ try{
       :json({error:'Sessão necessária.'},401)))
     await context.route('**/api/public/events',route=>route.fulfill(json({ok:true})))
     const page=await context.newPage()
+    page.on('pageerror',error=>console.log('PAGEERROR',scenario.name,error.message))
+    page.on('console',entry=>{if(entry.type()==='error')console.log('CONSOLEERROR',scenario.name,entry.text().slice(0,350))})
     try{
       await page.goto('http://127.0.0.1:5173/galego-bijux',{waitUntil:'domcontentloaded'})
-      await page.getByRole('button',{name:scenario.expected,exact:true}).waitFor({timeout:18000})
+      await page.waitForTimeout(1200)
+      console.log('DEBUG_OWNER_SESSION',scenario.name,(await page.locator('body').innerText()).slice(0,1100))
+      console.log('DEBUG_BUTTONS',scenario.name,await page.locator('button').allTextContents())
+      await page.getByRole('button',{name:scenario.expected,exact:true}).waitFor({timeout:8000})
       assert.equal(await page.getByRole('button',{name:'Entrar',exact:true}).count(),scenario.expected==='Entrar'?1:0,
         scenario.name+': não deve mostrar Entrar para sessão reconhecida')
       if(scenario.expected==='Meu painel'){
