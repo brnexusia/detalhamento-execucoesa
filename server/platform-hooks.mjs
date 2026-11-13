@@ -475,14 +475,14 @@ function installPlatformRoutes(app) {
         (SELECT count(*)::int FROM stores WHERE is_active=true) AS active_stores,
         (SELECT count(*)::int FROM products) AS products,
         (SELECT count(*)::int FROM orders) AS orders,
-        (SELECT coalesce(sum(total),0)::numeric FROM orders) AS order_value`),
+        (SELECT coalesce(sum(total),0)::numeric FROM orders WHERE status<>'cancelled') AS order_value`),
       pool.query(`SELECT s.id,s.slug,s.name,s.is_active,s.created_at,s.updated_at,s.plan_tier,
          s.admin_grant_active,s.admin_grant_expires_at,s.admin_grant_reason,s.admin_granted_at,
         u.id AS owner_id,u.name AS owner_name,u.email AS owner_email,
         (SELECT count(*)::int FROM products p WHERE p.store_id=s.id) AS products,
         (SELECT count(*)::int FROM sellers se WHERE se.store_id=s.id) AS sellers,
         (SELECT count(*)::int FROM orders o WHERE o.store_id=s.id) AS orders,
-        (SELECT coalesce(sum(o.total),0)::numeric FROM orders o WHERE o.store_id=s.id) AS order_value
+        (SELECT coalesce(sum(o.total),0)::numeric FROM orders o WHERE o.store_id=s.id AND o.status<>'cancelled') AS order_value
         FROM stores s JOIN users u ON u.id=s.owner_id ORDER BY s.created_at DESC`),
       pool.query(`SELECT u.id,u.name,u.email,pa.created_at,
         EXISTS(SELECT 1 FROM stores s WHERE s.owner_id=u.id) AS has_store

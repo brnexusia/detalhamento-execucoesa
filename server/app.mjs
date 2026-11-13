@@ -564,7 +564,7 @@ app.get(
           (SELECT count(*)::int FROM events WHERE store_id=$1 AND kind='view') AS views,
           (SELECT count(*)::int FROM events WHERE store_id=$1 AND kind='cart') AS carts,
           (SELECT count(*)::int FROM orders WHERE store_id=$1) AS orders,
-          (SELECT coalesce(sum(total),0)::numeric FROM orders WHERE store_id=$1) AS value`,
+          (SELECT coalesce(sum(total),0)::numeric FROM orders WHERE store_id=$1 AND status<>'cancelled') AS value`,
         [store.id],
       ),
       compact ? pool.query(
