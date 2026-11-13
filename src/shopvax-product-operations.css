@@ -803,17 +803,3 @@
   }
   .panel-shell .svx-products .svx-products__mobile-label {display:block;}
 }
-@container svx-products-table (max-width:380px) {
-  .panel-shell .svx-products .product-admin-card {
-    grid-template-columns:minmax(0,1fr);
-  }
-  .panel-shell .svx-products .svx-products__product,
-  .panel-shell .svx-products .svx-products__category,
-  .panel-shell .svx-products .svx-products__grade,
-  .panel-shell .svx-products .svx-products__price,
-  .panel-shell .svx-products .svx-products__visibility,
-  .panel-shell .svx-products .svx-products__actions {
-    grid-column:1;
-  }
-  .panel-shell .svx-products .svx-products__actions {justify-content:flex-start;}
-}
