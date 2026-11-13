@@ -128,3 +128,66 @@
 @media(min-width:1200px){
  .app:not(.app--feed) .svx-catalog-split .product-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
 }
+
+
+/* REF-20261113 | Talão lateral desktop: resumo de itens, mínimo e revisão */
+.app:not(.app--feed) .svx-catalog-split {
+  gap:clamp(16px,2vw,28px);
+}
+.app:not(.app--feed) .svx-catalog-split__products {
+  min-width:0;
+}
+.app:not(.app--feed) .svx-desktop-ticket {
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:12px;
+  background:#FCFBF8;
+  box-shadow:0 2px 13px rgba(22,21,20,.04);
+  overflow:hidden;
+}
+.app:not(.app--feed) .svx-desktop-ticket__top,
+.app:not(.app--feed) .svx-desktop-ticket__bottom {
+  gap:10px;
+}
+.app:not(.app--feed) .svx-desktop-ticket h2 {
+  line-height:1.08;
+  text-wrap:balance;
+}
+.app:not(.app--feed) .svx-desktop-ticket__items {
+  overscroll-behavior:contain;
+}
+.app:not(.app--feed) .svx-desktop-ticket__item {
+  gap:10px;
+  border-bottom:1px solid var(--svx-line,#D9D3C6);
+}
+.app:not(.app--feed) .svx-desktop-ticket__thumb {
+  border-radius:7px;
+  overflow:hidden;
+}
+.app:not(.app--feed) .svx-desktop-ticket__details {
+  min-width:0;
+}
+.app:not(.app--feed) .svx-desktop-ticket__details strong {
+  line-height:1.25;
+  overflow-wrap:anywhere;
+}
+.app:not(.app--feed) .svx-desktop-ticket__price,
+.app:not(.app--feed) .svx-desktop-ticket__total strong {
+  font-variant-numeric:tabular-nums;
+}
+.app:not(.app--feed) .svx-desktop-ticket__progress,
+.app:not(.app--feed) .svx-desktop-ticket__progress>span {
+  border-radius:99px;
+  overflow:hidden;
+}
+.app:not(.app--feed) .svx-desktop-ticket__review {
+  min-height:44px;
+  border-radius:8px;
+}
+.app:not(.app--feed) .svx-desktop-ticket__hint,
+.app:not(.app--feed) .svx-desktop-ticket__notice {
+  border-radius:8px;
+  line-height:1.45;
+}
+@media(max-width:990px) {
+  .app:not(.app--feed) .svx-catalog-split {gap:14px;}
+}
