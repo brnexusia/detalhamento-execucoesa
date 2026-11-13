@@ -172,6 +172,9 @@
 
 
 /* REF-20261113 | Vitrine pública: media em primeiro plano, catálogo legível e compra */
+/* A grade anterior tinha borda preta externa mesmo com gaps entre cartões. */
+.app:not(.app--feed) .product-grid {border:0;}
+
 .app:not(.app--feed) .catalog-heading {
   border-top:1px solid var(--svx-line,#D9D3C6);
   padding-top:clamp(18px,3vw,34px);
