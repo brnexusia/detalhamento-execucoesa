@@ -14,7 +14,12 @@ async function get(path, cookie = '') {
   })
   const payload = await response.json().catch(() => ({}))
   assert.equal(response.status, 200, path + ': ' + JSON.stringify(payload))
-  return { payload, cookie: response.headers.get('set-cookie')?.split(';')[0] || cookie }
+  // An earlier middleware may set other cookies first; the cursor is bound
+  // specifically to the atacado_public visitor cookie.
+  const setCookies = response.headers.getSetCookie()
+  const visitorCookie = setCookies.map((value) => value.split(';')[0])
+    .find((value) => value.startsWith('atacado_public='))
+  return { payload, cookie: visitorCookie || cookie }
 }
 
 try {
