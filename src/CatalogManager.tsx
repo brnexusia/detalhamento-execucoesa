@@ -183,7 +183,7 @@ export default function CatalogManager({storeSlug,categories,onSelect,onChanged,
          key={c.id}
          className={'svx-catalog-folder'+(opened?' is-selected':'')}
          aria-pressed={opened}
-         aria-label={(opened?'Pasta aberta: ':'Abrir pasta: ')+c.name}
+         aria-label={c.name}
          disabled={busy}
          onClick={()=>choose(c)}
        >
