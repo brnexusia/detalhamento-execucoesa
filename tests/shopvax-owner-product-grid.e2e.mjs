@@ -58,6 +58,12 @@ try {
     }
   })
   assert(geometry.docWidth<=width+2,'Página com overflow horizontal: '+JSON.stringify({width,geometry}))
+  if(width>=1024){
+    assert(geometry.main.width>=width-300,
+      'O painel administrativo está sendo encolhido pela regra global de main: '+JSON.stringify({width,geometry}))
+    assert(geometry.table.width>=geometry.main.width-110,
+      'A tabela desperdiça espaço horizontal do painel: '+JSON.stringify({width,geometry}))
+  }
   assert(geometry.row1.left>=geometry.table.left-1 && geometry.row1.right<=geometry.table.right+1,
     'Linha não cabe dentro da tabela: '+JSON.stringify({width,geometry}))
   assert(geometry.row2.top>=geometry.row1.bottom-2,'Linhas sobrepostas: '+JSON.stringify({width,geometry}))
