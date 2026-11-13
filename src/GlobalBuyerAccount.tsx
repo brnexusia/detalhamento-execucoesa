@@ -9,7 +9,7 @@ import './customer-account.css'
 import './buyer-app.css'
 
 type GlobalBuyer={
- id:string;phone:string;name:string;email:string;purpose:string;city:string;state:string;profileCompleted:boolean
+ id:string;phone:string;name:string;document?:string;profileCompleted:boolean
 }
 type BuyerOrder={
  id:string;code:string;total:number;status:string;createdAt:string;catalogName:string
@@ -95,14 +95,14 @@ export default function GlobalBuyerAccount(){
    {Icon:Bookmark,title:'Salvos',detail:'Produtos favoritos',path:'/salvos'},
    {Icon:Store,title:'Seguindo',detail:'Lojas que acompanho',path:'/salvos?aba=lojas'},
    {Icon:ShoppingBag,title:'Carrinhos',detail:'Pedidos em montagem',path:'/carrinhos'},
-   {Icon:UserRoundPen,title:'Meus dados',detail:'Modalidade de compra',path:''}
+   {Icon:UserRoundPen,title:'Meus dados',detail:'Nome e CPF/CNPJ',path:''}
  ]
  return <main className="buyer-screen"><div className="buyer-screen__inner">
    <header className="buyer-screen__head"><div><small>Minha experiência</small><h1>Meu perfil</h1></div><UserRound size={24}/></header>
    {loading?<p className="buyer-state" role="status">Abrindo sua conta…</p>:
     buyer?.profileCompleted?<div>
       <section className="buyer-profile-identity"><span className="buyer-profile-identity__avatar"><UserRound size={29}/></span>
-        <div><h2>{buyer.name}</h2><p>{buyer.phone} · {buyer.purpose==='pessoal'?'Varejo':buyer.purpose==='ambos'?'Varejo e atacado':'Atacado'}</p></div></section>
+        <div><h2>{buyer.name}</h2><p>{buyer.phone} · Telefone verificado</p></div></section>
       <div className="buyer-profile-grid">{cards.map(({Icon,title,detail,path})=>path
         ? <a key={title} href={path} onClick={e=>{if(e.button||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;e.preventDefault();buyerGo(path)}}>
             <Icon size={24}/><strong>{title}</strong><small>{detail}</small><ChevronRight size={14}/></a>
