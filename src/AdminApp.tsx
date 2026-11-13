@@ -235,6 +235,8 @@ function Products({ data, revision, query, setQuery, onCreate, onEdit, onVisibil
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [activeCatalog,setActiveCatalog]=useState<AdminCatalog|null>(null)
+  // Avoid unfiltered product/category requests before CatalogManager resolves the initial catalog.
+  const [catalogReady,setCatalogReady]=useState(false)
   const [catalogCategoryStats,setCatalogCategoryStats]=useState<{
     catalogId:string|null;total:number;categories:Array<{category:string;count:number}>
   }|null>(null)
@@ -276,6 +278,7 @@ function Products({ data, revision, query, setQuery, onCreate, onEdit, onVisibil
 
   useEffect(() => { window.dispatchEvent(new Event('shopvax:products-ready')) }, [])
   useEffect(() => {
+    if(!catalogReady)return
     let current=true
     setCatalogCategoryStats(null)
     setCategoryStatsError('')
@@ -291,13 +294,14 @@ function Products({ data, revision, query, setQuery, onCreate, onEdit, onVisibil
         if(current)setCategoryStatsError(err instanceof Error?err.message:'Não foi possível carregar as categorias.')
       })
     return ()=>{current=false}
-  },[activeCatalog?.id,data.store.id,revision,retry])
+  },[catalogReady,activeCatalog?.id,data.store.id,revision,retry])
   useEffect(() => { setPage(1); setProducts([]); setSelectedIds([]); setAllMatching(false);setExcludedIds([]) }, [query, activeCategory, activeCatalog?.id, revision])
   useEffect(() => {
     const timeout = window.setTimeout(() => setSearchTerm(query), 250)
     return () => window.clearTimeout(timeout)
   }, [query])
   useEffect(() => {
+    if(!catalogReady)return
     let active = true
     setPageBusy(true)
     setPageError('')
@@ -313,7 +317,7 @@ function Products({ data, revision, query, setQuery, onCreate, onEdit, onVisibil
       .catch((err) => { if (active) setPageError(err instanceof Error ? err.message : 'Falha ao carregar produtos.') })
       .finally(() => { if (active) setPageBusy(false) })
     return () => { active = false }
-  }, [page, searchTerm, activeCategory, activeCatalog?.id, revision, data.store.id, retry])
+  }, [catalogReady, page, searchTerm, activeCategory, activeCatalog?.id, revision, data.store.id, retry])
 
   const toggleSelectionMode=()=>{setSelectionMode(v=>!v);setSelectedIds([]);setAllMatching(false);setExcludedIds([])}
   const toggleProduct=(id:string)=>{
@@ -440,6 +444,7 @@ function Products({ data, revision, query, setQuery, onCreate, onEdit, onVisibil
       </div>
     </header>
     <CatalogManager storeSlug={data.store.slug} categories={categories.map(x=>x.category)}
+      onReady={() => setCatalogReady(true)}
       onSelect={(catalog)=>{
         if(activeCatalog?.id!==catalog?.id)setActiveCategory('Todas')
         setActiveCatalog(catalog)
