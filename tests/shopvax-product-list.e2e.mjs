@@ -47,6 +47,18 @@ try {
         }),
       })
     })
+    // Since catalogs became folders, categories are loaded from a dedicated endpoint.
+    const generalCatalog={id:'catalog-geral',slug:'geral',name:'Catálogo principal',kind:'geral',minimumOrder:null,isDefault:true,active:true,lockedByPlan:false,explicitMembership:false,items:[]}
+    await page.route('**/api/admin/catalogs', route => route.fulfill({
+      status:200,contentType:'application/json',body:JSON.stringify({catalogs:[generalCatalog],canCreateMultiple:true})
+    }))
+    await page.route('**/api/admin/products/categories**', route => {
+      const categories=[...new Set(items.map(item=>item.category))]
+      route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
+        catalogId:generalCatalog.id,total:items.length,
+        categories:categories.map(category=>({category,count:items.filter(item=>item.category===category).length}))
+      })})
+    })
     await page.route('**/api/admin/products?*', (route) => {
       const url = new URL(route.request().url())
       const q = (url.searchParams.get('q') || '').toLowerCase()
