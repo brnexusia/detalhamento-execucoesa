@@ -463,7 +463,99 @@
   border-color: var(--svx-orange, #F25C05);
 }
 
-/* 12. Telas compactas: manter o conteúdo acessível, sem mexer na lógica */
+
+/* 12. Componentes transversais e superfícies ainda não cobertas */
+.svx-button,
+.svx-tag {
+  border-radius: var(--svx-ui-radius-control);
+}
+
+.svx-button--outline {
+  border-color: var(--svx-ui-border);
+}
+
+.svx-button--primary {
+  background: var(--accent, var(--svx-orange, #F25C05));
+  color: var(--svx-accent-text, #161514);
+  border-color: var(--accent, var(--svx-orange, #F25C05));
+}
+
+.app:not(.app--feed) :is(.search-box, .catalog-toolbar input,
+  .catalog-toolbar select, .svx-store-catalog-switch button,
+  .svx-discovery__rail button, .minimum-box,
+  .svx-catalog-empty, .svx-desktop-ticket) {
+  border-radius: var(--svx-ui-radius-control);
+}
+
+.app:not(.app--feed) :is(.svx-catalog-split, .svx-discovery__image) {
+  border-radius: var(--svx-ui-radius-card);
+}
+
+.app:not(.app--feed) :is(.cart-drawer, .product-picker) {
+  border-radius: var(--svx-ui-radius-sheet) 0 0 var(--svx-ui-radius-sheet);
+}
+
+.app:not(.app--feed) :is(.whatsapp-button, .cart-drawer__foot button) {
+  border-radius: var(--svx-ui-radius-control);
+}
+
+.buyer-screen :is(.buyer-cart-group, .buyer-cart-line, .buyer-empty,
+  .buyer-state, .buyer-filter-field, .buyer-chips button,
+  .buyer-tabs button, .buyer-cart-stepper, .buyer-primary-button,
+  .buyer-secondary-button) {
+  border-radius: var(--svx-ui-radius-control);
+}
+
+.buyer-screen .buyer-cart-group {
+  border: 1px solid var(--svx-ui-border);
+  background: var(--svx-ui-surface);
+}
+
+.svx-social-shop,
+.svx-social-shop :is(.svx-social-gallery__hero, .svx-social-offers,
+  .svx-social-shop-field, .svx-social-cart-line, .svx-social-ready) {
+  border-radius: var(--svx-ui-radius-card);
+}
+
+.svx-social-shop :is(button, input, select, textarea),
+.social-profile-page :is(.social-profile-feed-post, .social-profile-viewer article,
+  .social-profile-feed-post__buy) {
+  border-radius: var(--svx-ui-radius-control);
+}
+
+.svx-social-shop :is(button, input, select, textarea):focus-visible {
+  outline: 2px solid var(--svx-ui-focus);
+  outline-offset: 3px;
+}
+
+.panel-shell :is(.svx-dashboard__primary-metric,
+  .svx-dashboard__orders, .svx-dashboard__sidebar,
+  .svx-dashboard__links, .svx-dashboard__link) {
+  border-radius: var(--svx-ui-radius-card);
+}
+
+.svx-plans :is(.svx-plans__offer, .svx-plans__reference,
+  .svx-plans__comparison, .svx-plans__benefit-grid) {
+  border-radius: var(--svx-ui-radius-card);
+}
+
+.svx-plans :is(button, a.svx-plans__cta-prefix) {
+  border-radius: var(--svx-ui-radius-control);
+}
+
+.platform-shell :is(.platform-modal__body, .platform-insights-table-wrap,
+  .platform-account-list, .platform-plan-grid) {
+  border-radius: var(--svx-ui-radius-card);
+}
+
+.panel-shell .svx-products__confirm-card {
+  border-radius: var(--svx-ui-radius-sheet);
+  background: var(--svx-ui-surface);
+}
+
+/* O acento pertence ao lojista; jamais aplicar a marca ShopVax sobre sua loja. */
+
+/* 13. Telas compactas: manter o conteúdo acessível, sem mexer na lógica */
 @media (max-width: 720px) {
   .panel-shell .panel-page {
     padding-inline: 16px;
