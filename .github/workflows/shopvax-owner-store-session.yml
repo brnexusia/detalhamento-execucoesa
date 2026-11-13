@@ -1,0 +1,39 @@
+name: ShopVax - Owner storefront session
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/CustomerAccountLauncher.tsx'
+      - 'tests/shopvax-owner-store-session.e2e.mjs'
+      - '.github/workflows/shopvax-owner-store-session.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/CustomerAccountLauncher.tsx'
+      - 'tests/shopvax-owner-store-session.e2e.mjs'
+      - '.github/workflows/shopvax-owner-store-session.yml'
+permissions:
+  contents: read
+jobs:
+  owner-session:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-fund --no-audit
+      - run: npm install --no-save --no-fund --no-audit playwright@1.58.2
+      - run: npx playwright install --with-deps chromium
+      - name: Iniciar frontend local
+        run: |
+          nohup npm run dev -- --host 127.0.0.1 > /tmp/shopvax-vite.log 2>&1 &
+          for i in $(seq 1 40); do
+            curl -fsS http://127.0.0.1:5173/galego-bijux > /dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/shopvax-vite.log
+          exit 1
+      - name: Validar dono da própria loja, dono de outra, comprador e visitante
+        run: node tests/shopvax-owner-store-session.e2e.mjs
