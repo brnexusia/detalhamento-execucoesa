@@ -204,7 +204,7 @@ export default function CatalogManager({storeSlug,categories,onSelect,onChanged,
          <h3>{selected.name}</h3>
          <p>{kindLabel(selected)} · {selected.minimumOrder==null?'Mínimo conforme configuração da loja':'Pedido mínimo '+currency.format(selected.minimumOrder)}{selected.isDefault?' · Principal':''}</p>
        </div>
-       <span className="svx-catalog-folder-details__count">{categories.length} {categories.length===1?'categoria':'categorias'}</span>
+       <span className="svx-catalog-folder-details__count">Pasta selecionada</span>
      </header>
      {selected.active&&!selected.lockedByPlan
        ?<div className="svx-catalog-card__link">
