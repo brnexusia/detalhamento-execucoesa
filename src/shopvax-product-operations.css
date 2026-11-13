@@ -689,3 +689,185 @@
   .panel-shell .svx-products .svx-products__footer {align-items:flex-start;}
   .panel-shell .svx-products .svx-products__confirm-card {padding:16px;}
 }
+
+
+/* Corrige a margem/sobreposição no painel Produtos.
+ * O breakpoint segue a largura REAL da área útil, depois da sidebar.
+ * Não modifica paginação, seleção, catálogo ativo ou operações.
+ */
+.panel-shell .svx-products {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin-inline: 0;
+  padding-inline: clamp(14px, 2.5vw, 30px);
+}
+.panel-shell .svx-products .svx-products__table {
+  box-sizing: border-box;
+  container-type: inline-size;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+.panel-shell .svx-products .svx-products__headings,
+.panel-shell .svx-products .product-admin-card {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  grid-template-columns:
+    minmax(220px, 2.4fr)
+    minmax(82px, .85fr)
+    minmax(100px, 1.05fr)
+    minmax(95px, .76fr)
+    minmax(92px, .8fr)
+    minmax(85px, .7fr);
+  column-gap: clamp(9px, 1vw, 16px);
+}
+.panel-shell .svx-products .product-admin-card {
+  margin: 0;
+  padding: 12px 10px;
+  border: 0;
+  border-bottom: 1px solid var(--svx-line,#D9D3C6);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.panel-shell .svx-products .product-admin-card.is-selected {
+  background: rgba(242,92,5,.045);
+  box-shadow: inset 2px 0 var(--svx-orange,#F25C05);
+}
+.panel-shell .svx-products .svx-products__product {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  max-width: 100%;
+}
+.panel-shell .svx-products .product-admin-card__media {
+  flex: 0 0 48px;
+  width: 48px;
+  height: 58px;
+  border-radius: 8px;
+}
+.panel-shell .svx-products .svx-products__name-ref {
+  min-width: 0;
+  max-width: 100%;
+  flex: 1 1 auto;
+  overflow-wrap: anywhere;
+}
+.panel-shell .svx-products .svx-products__name-line {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 5px 8px;
+  min-width: 0;
+}
+.panel-shell .svx-products .svx-products__name-line strong {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  line-height: 1.35;
+}
+.panel-shell .svx-products .svx-products__name-ref > small {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  letter-spacing: .02em;
+}
+.panel-shell .svx-products :is(.svx-products__category,
+  .svx-products__grade, .svx-products__price,
+  .svx-products__visibility, .svx-products__actions) {
+  min-width: 0;
+  max-width: 100%;
+}
+.panel-shell .svx-products .svx-products__grade,
+.panel-shell .svx-products .svx-products__category {
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.panel-shell .svx-products .svx-products__price {
+  white-space: normal;
+  flex-wrap: wrap;
+  row-gap: 3px;
+}
+.panel-shell .svx-products .svx-products__actions {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 6px;
+}
+.panel-shell .svx-products .svx-products__switch {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.panel-shell .svx-products .svx-products__headings span:first-child {
+  padding-left: 60px;
+}
+
+/* A sidebar consome largura, mas o @media (viewport) não percebe isso.
+   A grade vira ficha quando a TABELA chega a 900px, em qualquer monitor. */
+@container (max-width: 900px) {
+  .panel-shell .svx-products .svx-products__headings {
+    display: none;
+  }
+  .panel-shell .svx-products .product-admin-card {
+    grid-template-columns: minmax(0, 1fr) minmax(0, .95fr);
+    column-gap: clamp(12px, 2vw, 24px);
+    row-gap: 12px;
+    padding: 16px 12px;
+  }
+  .panel-shell .svx-products .svx-products__product {
+    grid-column: 1 / -1;
+  }
+  .panel-shell .svx-products .svx-products__category {
+    grid-column: 1;
+  }
+  .panel-shell .svx-products .svx-products__grade {
+    grid-column: 2;
+  }
+  .panel-shell .svx-products .svx-products__price {
+    grid-column: 1;
+  }
+  .panel-shell .svx-products .svx-products__visibility {
+    grid-column: 2;
+  }
+  .panel-shell .svx-products .svx-products__actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    border-top: 1px solid var(--svx-line,#D9D3C6);
+    padding-top: 10px;
+  }
+  .panel-shell .svx-products .svx-products__mobile-label {
+    display: block;
+    width: 100%;
+    margin-bottom: 4px;
+    font: 500 9px/1.25 var(--svx-font-mono,monospace);
+    color: var(--svx-muted,#6B665C);
+    text-transform: uppercase;
+  }
+}
+@container (max-width: 440px) {
+  .panel-shell .svx-products .product-admin-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .panel-shell .svx-products .product-admin-card > [role="cell"] {
+    grid-column: 1;
+  }
+  .panel-shell .svx-products .product-admin-card__media {
+    flex-basis: 48px;
+    width: 48px;
+    height: 58px;
+  }
+  .panel-shell .svx-products .svx-products__actions {
+    justify-content: flex-start;
+  }
+}
+@media (max-width: 540px) {
+  .panel-shell .svx-products {
+    padding-inline: 12px;
+  }
+  .panel-shell .svx-products .svx-products__hero {
+    margin-inline: 0;
+  }
+}
