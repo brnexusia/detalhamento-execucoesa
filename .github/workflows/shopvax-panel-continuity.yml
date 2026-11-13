@@ -1,0 +1,35 @@
+name: ShopVax - Panel navigation continuity
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/App.tsx'
+      - 'tests/shopvax-panel-continuity.e2e.mjs'
+      - '.github/workflows/shopvax-panel-continuity.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/App.tsx'
+      - 'tests/shopvax-panel-continuity.e2e.mjs'
+      - '.github/workflows/shopvax-panel-continuity.yml'
+permissions:
+  contents: read
+jobs:
+  panel-nav:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-fund --no-audit
+      - run: npm install --no-save --no-fund --no-audit playwright@1.58.2
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - name: Abrir build de produção
+        run: |
+          nohup npm run preview -- --host 127.0.0.1 --port 5173 > /tmp/shopvax-preview.log 2>&1 &
+          for i in $(seq 1 50); do curl -fsS http://127.0.0.1:5173/ >/dev/null && break; sleep 1; done
+      - name: Verificar continuidade do painel no desktop e mobile
+        run: node tests/shopvax-panel-continuity.e2e.mjs
