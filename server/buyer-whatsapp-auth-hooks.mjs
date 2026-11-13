@@ -3,6 +3,7 @@ import express from 'express'
 import pg from 'pg'
 import { revokeAllBrowserSessions, clearAllBrowserSessionCookies, browserSessionCookies } from './global-logout.mjs'
 import { buyerWhatsappDeliveryConfigured, deliverBuyerVerificationCode } from './buyer-whatsapp-delivery.mjs'
+import { normalizeBuyerDocument, isValidBuyerDocument } from './buyer-document.mjs'
 
 // Serviço independente: jamais modifica o webhook da central, o Chatwoot ou o n8n.
 const pool = process.env.DATABASE_URL ? new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 4 }) : null
@@ -33,10 +34,6 @@ export function normalizeBuyerPhone(value) {
   const phone = raw.startsWith('55') && raw.length >= 12 ? raw : '55' + raw
   return /^55\d{10,11}$/.test(phone) ? phone : null
 }
-const purposes = new Set(['revenda', 'negocio', 'pessoal', 'ambos', 'futuro'])
-const channelsAllowed = new Set(['loja', 'virtual', 'social', 'whatsapp', 'market', 'autonomo', 'outros'])
-const businesses = new Set(['sim', 'nao', 'abrindo'])
-const cnpjStatuses = new Set(['sim', 'nao', 'processo'])
 const clean = (v, max) => String(v ?? '').trim().slice(0, max)
 function cookies(req) {
   return Object.fromEntries(String(req.headers.cookie || '').split(';').map(v => v.trim()).filter(Boolean).map(v => {
@@ -61,7 +58,9 @@ async function schema() {
       await new Promise(resolve => setTimeout(resolve, 100))
     }
     await pool.query([
-      "CREATE TABLE IF NOT EXISTS buyer_accounts (id text PRIMARY KEY, phone text UNIQUE NOT NULL, name text NOT NULL DEFAULT '', email text NOT NULL DEFAULT '', city text NOT NULL DEFAULT '', state text NOT NULL DEFAULT '', purpose text NOT NULL DEFAULT '', business_status text NOT NULL DEFAULT '', business_name text NOT NULL DEFAULT '', cnpj text NOT NULL DEFAULT '', cnpj_status text NOT NULL DEFAULT '', segment text NOT NULL DEFAULT '', instagram text NOT NULL DEFAULT '', channels jsonb NOT NULL DEFAULT '[]'::jsonb, profile_completed boolean NOT NULL DEFAULT false, marketing_consent boolean NOT NULL DEFAULT false, privacy_accepted_at timestamptz, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now())",
+      "CREATE TABLE IF NOT EXISTS buyer_accounts (id text PRIMARY KEY, phone text UNIQUE NOT NULL, name text NOT NULL DEFAULT '', document text NOT NULL DEFAULT '', email text NOT NULL DEFAULT '', city text NOT NULL DEFAULT '', state text NOT NULL DEFAULT '', purpose text NOT NULL DEFAULT '', business_status text NOT NULL DEFAULT '', business_name text NOT NULL DEFAULT '', cnpj text NOT NULL DEFAULT '', cnpj_status text NOT NULL DEFAULT '', segment text NOT NULL DEFAULT '', instagram text NOT NULL DEFAULT '', channels jsonb NOT NULL DEFAULT '[]'::jsonb, profile_completed boolean NOT NULL DEFAULT false, marketing_consent boolean NOT NULL DEFAULT false, privacy_accepted_at timestamptz, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now())",
+      "ALTER TABLE buyer_accounts ADD COLUMN IF NOT EXISTS document text NOT NULL DEFAULT ''",
+      "UPDATE buyer_accounts SET document=cnpj WHERE document='' AND cnpj<>''",
       'CREATE TABLE IF NOT EXISTS buyer_sessions (token_hash text PRIMARY KEY, buyer_id text NOT NULL REFERENCES buyer_accounts(id) ON DELETE CASCADE, expires_at timestamptz NOT NULL, created_at timestamptz NOT NULL DEFAULT now())',
       'CREATE INDEX IF NOT EXISTS idx_buyer_sessions_lookup ON buyer_sessions(buyer_id,expires_at DESC)',
       'CREATE TABLE IF NOT EXISTS buyer_otp_challenges (id text PRIMARY KEY, phone text NOT NULL, code_mac text NOT NULL, expires_at timestamptz NOT NULL, attempts integer NOT NULL DEFAULT 0, consumed_at timestamptz, created_at timestamptz NOT NULL DEFAULT now())',
@@ -78,7 +77,7 @@ async function schema() {
   return schemaPromise
 }
 const publicBuyer = (b) => b ? ({
-  id: b.id, phone: b.phone, name: b.name, email: b.email, city: b.city, state: b.state,
+  id: b.id, phone: b.phone, name: b.name, document: b.document || b.cnpj || '', email: b.email, city: b.city, state: b.state,
   purpose: b.purpose, businessStatus: b.business_status, businessName: b.business_name,
   cnpj: b.cnpj, cnpjStatus: b.cnpj_status, segment: b.segment, instagram: b.instagram,
   channels: b.channels, profileCompleted: b.profile_completed, marketingConsent: b.marketing_consent,
@@ -173,37 +172,29 @@ async function verifyCode(req, res) {
   return res.json({ ok: true, created: account.id === createdId, needsProfile: !account.profile_completed, buyer: publicBuyer(account) })
 }
 function profileFields(body) {
-  const name = clean(body?.name, 120), email = clean(body?.email, 240).toLowerCase(), purpose = String(body?.purpose || '')
-  if (name.length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !purposes.has(purpose) || body?.privacyAccepted !== true)
-    return { error: 'Informe nome, e-mail, finalidade e aceite a política de privacidade.' }
-  const personal = purpose === 'pessoal'
-  const businessStatus = personal ? '' : String(body?.businessStatus || '')
-  const cnpjStatus = personal ? '' : String(body?.cnpjStatus || '')
-  // Empresa/MEI e CNPJ são dados complementares; a pessoa pode informar depois.
-  if (!personal && ((businessStatus && !businesses.has(businessStatus)) || (cnpjStatus && !cnpjStatuses.has(cnpjStatus))))
-    return { error: 'Confira a situação do negócio e do CNPJ.' }
-  const channels = personal ? [] : Array.isArray(body?.channels) ? [...new Set(body.channels)].filter(v => channelsAllowed.has(v)).slice(0, 7) : []
-  const cnpj = cnpjStatus === 'sim' ? digits(body?.cnpj).slice(0, 14) : ''
-  if (cnpj && cnpj.length !== 14) return { error: 'CNPJ deve ter 14 dígitos.' }
-  return {
-    name, email, purpose, businessStatus, cnpjStatus, cnpj, channels,
-    businessName: personal ? '' : clean(body?.businessName, 160),
-    city: clean(body?.city, 100), state: clean(body?.state, 2).toUpperCase(),
-    segment: personal ? '' : clean(body?.segment, 100), instagram: personal ? '' : clean(body?.instagram, 100),
-  }
+  const name = clean(body?.name, 120)
+  const document = normalizeBuyerDocument(body?.document)
+  if (name.length < 2) return { error: 'Informe seu nome completo.' }
+  if (!isValidBuyerDocument(document)) return { error: 'Informe um CPF ou CNPJ válido.' }
+  return { name, document }
 }
-async function saveProfile(req,res) {
+async function saveProfile(req, res) {
   if (!buyerWhatsappReady()) return fail(res, 503, 'Serviço indisponível.')
   await schema()
   const account = await buyer(req)
   if (!account) return fail(res, 401, 'Verifique seu WhatsApp para continuar.')
-  const f = profileFields(req.body)
-  if (f.error) return fail(res, 400, f.error)
-  const updated = await pool.query('UPDATE buyer_accounts SET name=$1,email=$2,purpose=$3,business_status=$4,cnpj_status=$5,cnpj=$6,channels=$7::jsonb,business_name=$8,city=$9,state=$10,segment=$11,instagram=$12,marketing_consent=CASE WHEN profile_completed=false THEN true ELSE marketing_consent END,profile_completed=true,privacy_accepted_at=COALESCE(privacy_accepted_at,now()),updated_at=now() WHERE id=$13 RETURNING *',
-    [f.name,f.email,f.purpose,f.businessStatus,f.cnpjStatus,f.cnpj,JSON.stringify(f.channels),f.businessName,f.city,f.state,f.segment,f.instagram,account.id])
-  await pool.query('UPDATE store_customers SET name=$1,phone=$2,updated_at=now() WHERE buyer_account_id=$3', [f.name,account.phone,account.id])
+  const form = profileFields(req.body)
+  if (form.error) return fail(res, 400, form.error)
+  // Não exige e-mail, finalidade, localização, dados comerciais nem consentimento de marketing.
+  // Os dados antigos de compradores existentes são preservados, mas não são obrigatórios.
+  const updated = await pool.query(
+    "UPDATE buyer_accounts SET name=$1,document=$2,cnpj=CASE WHEN length($2)=14 THEN $2 ELSE '' END,cnpj_status=CASE WHEN length($2)=14 THEN 'sim' ELSE '' END,profile_completed=true,updated_at=now() WHERE id=$3 RETURNING *",
+    [form.name,form.document,account.id],
+  )
+  await pool.query('UPDATE store_customers SET name=$1,phone=$2,updated_at=now() WHERE buyer_account_id=$3', [form.name,account.phone,account.id])
   return res.json({ ok: true, buyer: publicBuyer(updated.rows[0]) })
 }
+
 // A frente social exige uma sessão de comprador com perfil completo.
 export async function currentSocialBuyer(req) {
   if (!pool || !buyerWhatsappReady() || !cookies(req)[COOKIE]) return null
@@ -237,8 +228,14 @@ export async function currentBuyerCustomer(req,storeId,{createIfMissing=true}={}
         result = await client.query('UPDATE store_customers SET buyer_account_id=$1,name=$2,updated_at=now() WHERE id=$3 RETURNING id', [account.id,account.name,legacy.rows[0].id])
       } else {
         const customerId = uuid()
-        const collision = await client.query('SELECT 1 FROM store_customers WHERE store_id=$1 AND email=$2 LIMIT 1', [storeId,account.email])
-        const storedEmail = collision.rowCount ? 'buyer+' + customerId + '@shopvax.invalid' : account.email
+        // O cadastro não coleta e-mail; clientes antigos continuam compatíveis.
+        // Para vínculo à loja, o campo legado NOT NULL recebe um alias interno único.
+        const collision = account.email
+          ? await client.query('SELECT 1 FROM store_customers WHERE store_id=$1 AND email=$2 LIMIT 1', [storeId,account.email])
+          : null
+        const storedEmail = !account.email || collision?.rowCount
+          ? 'buyer+' + customerId + '@shopvax.invalid'
+          : account.email
         result = await client.query("INSERT INTO store_customers(id,store_id,name,email,phone,password_hash,buyer_account_id) VALUES($1,$2,$3,$4,$5,'',$6) RETURNING id", [customerId,storeId,account.name,storedEmail,account.phone,account.id])
       }
     }

@@ -4,27 +4,21 @@ import { apiRequest } from './api'
 import { notifyAuthChange } from './auth-session-sync'
 
 type Buyer = {
-  phone: string; name: string; email: string; purpose: string; city: string; state: string;
-  businessStatus: string; businessName: string; cnpjStatus: string; cnpj: string;
-  channels: string[]; segment: string; instagram: string; profileCompleted: boolean;
+  phone: string
+  name: string
+  document?: string
+  cnpj?: string // Compatibilidade de perfis existentes.
+  profileCompleted: boolean
 }
 type Stage = 'phone' | 'code' | 'profile'
-type Form = {
-  name: string; email: string; purpose: string; city: string; state: string;
-  businessStatus: string; businessName: string; cnpjStatus: string; cnpj: string;
-  channels: string[]; segment: string; instagram: string;
-}
-const empty: Form = {
-  name: '', email: '', purpose: '', city: '', state: '',
-  businessStatus: '', businessName: '', cnpjStatus: '',
-  cnpj: '', channels: [], segment: '', instagram: '',
-}
-const channels = [
-  ['loja', 'Loja física'], ['virtual', 'Loja virtual'], ['social', 'Instagram e redes sociais'],
-  ['whatsapp', 'WhatsApp'], ['market', 'Marketplaces'], ['autonomo', 'Revenda autônoma'], ['outros', 'Outros'],
-]
+type Form = { name: string; document: string }
+const empty: Form = { name: '', document: '' }
+const cleanDocument = (value: string) => value.toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, 14)
+
 export default function BuyerWhatsappLogin({ storeSlug = '', onVerified, editOnly = false }: {
-  storeSlug?: string; onVerified: () => Promise<boolean>; editOnly?: boolean;
+  storeSlug?: string
+  onVerified: () => Promise<boolean>
+  editOnly?: boolean
 }) {
   const [open, setOpen] = useState(!editOnly)
   const [stage, setStage] = useState<Stage>('phone')
@@ -32,7 +26,6 @@ export default function BuyerWhatsappLogin({ storeSlug = '', onVerified, editOnl
   const [freshSignup, setFreshSignup] = useState(false)
   const [code, setCode] = useState('')
   const [form, setForm] = useState<Form>(empty)
-  const [privacy, setPrivacy] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [cooldown, setCooldown] = useState(0)
@@ -40,21 +33,19 @@ export default function BuyerWhatsappLogin({ storeSlug = '', onVerified, editOnl
 
   useEffect(() => {
     let active = true
-    setStage('phone'); setOpen(!editOnly); setPhone(''); setCode(''); setError(''); setCooldown(0); setExpiresIn(0)
+    setStage('phone')
+    setOpen(!editOnly)
+    setPhone('')
+    setCode('')
+    setError('')
+    setCooldown(0)
+    setExpiresIn(0)
     apiRequest<{ buyer: Buyer }>('/api/public/buyer-auth/me')
       .then(({ buyer }) => {
         if (!active) return
         setPhone(buyer.phone)
-        setForm({
-          name: buyer.name || '', email: buyer.email || '', purpose: buyer.purpose || '',
-          city: buyer.city || '', state: buyer.state || '', businessStatus: buyer.businessStatus || '',
-          businessName: buyer.businessName || '', cnpjStatus: buyer.cnpjStatus || '', cnpj: buyer.cnpj || '',
-          channels: buyer.channels || [], segment: buyer.segment || '', instagram: buyer.instagram || '',
-        })
-        if (!buyer.profileCompleted || editOnly) {
-          setStage('profile')
-          setPrivacy(buyer.profileCompleted)
-        }
+        setForm({ name: buyer.name || '', document: cleanDocument(buyer.document || buyer.cnpj || '') })
+        if (!buyer.profileCompleted || editOnly) setStage('profile')
       }).catch(() => undefined)
     return () => { active = false }
   }, [storeSlug, editOnly])
@@ -68,12 +59,10 @@ export default function BuyerWhatsappLogin({ storeSlug = '', onVerified, editOnl
     return () => window.clearTimeout(timer)
   }, [cooldown, expiresIn])
 
-  const change = (field: keyof Form, value: string | boolean | string[]) => {
-    setForm((old) => ({ ...old, [field]: value }))
-  }
   const act = async (action: () => Promise<void>) => {
     if (busy) return
-    setError(''); setBusy(true)
+    setError('')
+    setBusy(true)
     try { await action() }
     catch (err) { setError(err instanceof Error ? err.message : 'Tente novamente.') }
     finally { setBusy(false) }
@@ -82,7 +71,8 @@ export default function BuyerWhatsappLogin({ storeSlug = '', onVerified, editOnl
     const response = await apiRequest<{ expiresInSeconds: number; resendAfterSeconds: number }>('/api/public/buyer-auth/request-code', {
       method: 'POST', body: JSON.stringify({ phone }),
     })
-    setCode(''); setStage('code')
+    setCode('')
+    setStage('code')
     setCooldown(Math.max(0, Number(response.resendAfterSeconds) || 0))
     setExpiresIn(Math.max(0, Number(response.expiresInSeconds) || 0))
   })
@@ -92,8 +82,11 @@ export default function BuyerWhatsappLogin({ storeSlug = '', onVerified, editOnl
     })
     if (response.needsProfile) {
       setFreshSignup(response.created === true)
+      setForm({
+        name: response.buyer.name || '',
+        document: cleanDocument(response.buyer.document || response.buyer.cnpj || ''),
+      })
       setStage('profile')
-      setPrivacy(false)
     } else {
       notifyAuthChange('customer')
       await onVerified()
@@ -101,9 +94,12 @@ export default function BuyerWhatsappLogin({ storeSlug = '', onVerified, editOnl
   })
   const save = () => act(async () => {
     await apiRequest('/api/public/buyer-auth/profile', {
-      method: 'PUT', body: JSON.stringify({ ...form, privacyAccepted: privacy }),
+      method: 'PUT', body: JSON.stringify({
+        name: form.name.trim(),
+        document: cleanDocument(form.document),
+      }),
     })
-    // Origem comercial é opcional, posterior à autenticação global e só para novas contas.
+    // A associação comercial a uma loja continua opcional e posterior ao cadastro global.
     if (freshSignup && storeSlug && !editOnly) {
       await apiRequest('/api/public/buyer-auth/attribute-origin', {
         method: 'POST', body: JSON.stringify({ storeSlug }),
@@ -114,19 +110,20 @@ export default function BuyerWhatsappLogin({ storeSlug = '', onVerified, editOnl
     await onVerified()
   })
 
-  if (editOnly && !open) return <button className="buyer-profile-open" type="button" onClick={() => setOpen(true)}>Editar perfil comercial</button>
+  if (editOnly && !open) return <button className="buyer-profile-open" type="button" onClick={() => setOpen(true)}>Editar dados do comprador</button>
 
   return <section className="customer-card customer-auth buyer-whatsapp-auth">
     <div className="buyer-whatsapp-title">
       <ShieldCheck size={24} aria-hidden="true"/>
-      <div><small>{editOnly ? 'Minha conta' : 'ShopVax · Conta do comprador'}</small>
-        <h1>{stage === 'phone' ? 'Entrar com WhatsApp' : stage === 'code' ? 'Verificar WhatsApp' : 'Seu perfil de comprador'}</h1>
-        <p>{stage === 'phone' ? 'Sua conta é geral do ShopVax: um único WhatsApp para comprar e seguir lojas diferentes.' :
-          stage === 'code' ? 'Digite o código enviado pela central ShopVax. Sua conta não pertence a nenhuma loja.' : 'Preencha seu perfil uma única vez. Ele será válido em todas as lojas do ShopVax.'}</p>
+      <div><small>{editOnly ? 'Minha conta' : 'ShopVax · Comprador'}</small>
+        <h1>{stage === 'phone' ? 'Entrar com WhatsApp' : stage === 'code' ? 'Verificar telefone' : editOnly ? 'Editar meus dados' : 'Cadastro de comprador'}</h1>
+        <p>{stage === 'phone' ? 'Use seu telefone para entrar ou criar sua conta. Sem e-mail e sem senha.' :
+          stage === 'code' ? 'Confirme o código enviado ao seu WhatsApp para proteger sua conta.' :
+            'Somente nome, CPF/CNPJ e telefone. O mesmo cadastro funciona em todas as lojas.'}</p>
       </div>
     </div>
     {stage === 'phone' && <form onSubmit={(event) => { event.preventDefault(); void send() }}>
-      <label><span>Número com DDD</span>
+      <label><span>Telefone com DDD</span>
         <input type="tel" inputMode="tel" autoComplete="tel" placeholder="(71) 99999-9999"
           value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={20} required/>
       </label>
@@ -135,8 +132,8 @@ export default function BuyerWhatsappLogin({ storeSlug = '', onVerified, editOnl
       </button>
     </form>}
     {stage === 'code' && <form onSubmit={(event) => { event.preventDefault(); void verify() }}>
-      <p className="buyer-code-explanation" role="status">Enviamos um código para <strong>{phone}</strong>. {expiresIn > 0 ? `Ele expira em ${Math.ceil(expiresIn / 60)} min.` : 'O código expirou; solicite outro.'}</p>
-      <label><span>Código de 6 dígitos</span>
+      <p className="buyer-code-explanation" role="status">Código enviado para <strong>{phone}</strong>. {expiresIn > 0 ? `Expira em ${Math.ceil(expiresIn / 60)} min.` : 'O código expirou; solicite outro.'}</p>
+      <label><span>Código de verificação</span>
         <input className="buyer-otp-input" type="text" inputMode="numeric" autoComplete="one-time-code"
           pattern="[0-9]{6}" maxLength={6} placeholder="000000" value={code}
           onChange={(e) => setCode(e.target.value.replace(/\D/g,'').slice(0,6))} required/>
@@ -145,65 +142,30 @@ export default function BuyerWhatsappLogin({ storeSlug = '', onVerified, editOnl
         <CheckCircle2 size={17}/> {busy ? 'Validando…' : 'Confirmar código'}
       </button>
       <div className="buyer-inline-actions">
-        <button type="button" disabled={busy} onClick={() => { setStage('phone'); setCode(''); setCooldown(0); setExpiresIn(0) }}>Alterar número</button>
+        <button type="button" disabled={busy} onClick={() => { setStage('phone'); setCode(''); setCooldown(0); setExpiresIn(0) }}>Alterar telefone</button>
         <button type="button" disabled={busy || cooldown > 0} onClick={() => void send()}>
           {cooldown ? 'Reenviar em ' + cooldown + 's' : 'Reenviar código'}
         </button>
       </div>
     </form>}
     {stage === 'profile' && <form onSubmit={(event) => { event.preventDefault(); void save() }}>
-      <label><span>Nome completo *</span><input autoComplete="name" maxLength={120} required value={form.name} onChange={(e) => change('name', e.target.value)}/></label>
-      <label><span>E-mail *</span><input type="email" autoComplete="email" maxLength={240} required value={form.email} onChange={(e) => change('email', e.target.value)}/></label>
-      <label><span>Qual é a finalidade das suas compras? *</span>
-        <select value={form.purpose} required onChange={(e) => change('purpose',e.target.value)}>
-          <option value="" disabled>Selecione uma opção</option>
-          <option value="pessoal">Varejo — comprar para mim</option>
-          <option value="revenda">Atacado — empresa, MEI ou revenda</option>
-          <option value="ambos">Ambos — varejo e atacado</option>
-          {form.purpose==='negocio'&&<option value="negocio">Atacado — minha empresa</option>}
-          {form.purpose==='futuro'&&<option value="futuro">Atacado — começando a vender</option>}
-        </select>
+      <label><span>Nome completo</span>
+        <input autoComplete="name" maxLength={120} minLength={2} required
+          value={form.name} onChange={(e) => setForm((old) => ({ ...old, name: e.target.value }))}/>
       </label>
-      {Boolean(form.purpose) && form.purpose !== 'pessoal' && <details className="buyer-business-details">
-        <summary>Adicionar informações do negócio (opcional)</summary>
-        <p>Se você é MEI, empresa ou revendedor autônomo, pode completar esses dados agora ou depois.</p>
-        <label><span>Você possui um negócio?</span>
-          <select value={form.businessStatus} onChange={(e) => change('businessStatus',e.target.value)}>
-            <option value="">Informar depois</option>
-            <option value="sim">Sim, já tenho negócio</option><option value="nao">Sou revendedor(a) autônomo(a)</option><option value="abrindo">Estou começando</option>
-          </select>
-        </label>
-        <fieldset className="buyer-channels">
-          <legend>Onde vende ou pretende vender?</legend>
-          {channels.map(([value, label]) => <label key={value}><input type="checkbox"
-            checked={form.channels.includes(value)}
-            onChange={(e) => change('channels', e.target.checked ? [...form.channels, value] : form.channels.filter((c) => c !== value))}/>
-            {label}</label>)}
-        </fieldset>
-        <label><span>Nome da loja ou empresa (opcional)</span><input maxLength={160} value={form.businessName} onChange={(e) => change('businessName',e.target.value)}/></label>
-        <label><span>Possui CNPJ?</span>
-          <select value={form.cnpjStatus} onChange={(e) => change('cnpjStatus',e.target.value)}>
-            <option value="">Informar depois</option>
-            <option value="nao">Não</option><option value="sim">Sim</option><option value="processo">Em processo de abertura</option>
-          </select>
-        </label>
-        {form.cnpjStatus === 'sim' && <label><span>CNPJ (opcional)</span><input inputMode="numeric" maxLength={18}
-          value={form.cnpj} onChange={(e) => change('cnpj',e.target.value)}/></label>}
-        <label><span>Segmento comercial</span><select value={form.segment} onChange={(e) => change('segment',e.target.value)}>
-          <option value="">Selecionar (opcional)</option>
-          <option value="Moda e vestuário">Moda e vestuário</option><option value="Joias e acessórios">Joias e acessórios</option>
-          <option value="Cosméticos e beleza">Cosméticos e beleza</option><option value="Casa e decoração">Casa e decoração</option>
-          <option value="Eletrônicos">Eletrônicos</option><option value="Variedades">Variedades</option><option value="Outros">Outros</option>
-        </select></label>
-        <label><span>Instagram comercial (opcional)</span><input maxLength={100} value={form.instagram} onChange={(e) => change('instagram',e.target.value)}/></label>
-      </details>}
-      <div className="buyer-two-columns">
-        <label><span>Cidade (opcional)</span><input autoComplete="address-level2" value={form.city} onChange={(e) => change('city',e.target.value)}/></label>
-        <label><span>UF (opcional)</span><input maxLength={2} autoComplete="address-level1" placeholder="BA" value={form.state} onChange={(e) => change('state',e.target.value.toUpperCase())}/></label>
-      </div>
-      <label className="buyer-consent"><input type="checkbox" checked={privacy} onChange={(e) => setPrivacy(e.target.checked)} required/>
-        <span className="buyer-consent__copy">Li e aceito a <a className="buyer-policy-link" href="/politica-de-privacidade.html" target="_blank" rel="noopener noreferrer" aria-label="Ler a política de privacidade">política de privacidade</a> e o compartilhamento dos dados comerciais com lojas com as quais eu interagir.</span></label>
-      <button type="submit" className="customer-submit" disabled={busy || !privacy}>{busy ? 'Salvando…' : 'Salvar perfil e continuar'}</button>
+      <label><span>CPF ou CNPJ</span>
+        <input autoComplete="off" inputMode="text" maxLength={18} required
+          placeholder="CPF (11) ou CNPJ (14 caracteres)"
+          value={form.document} onChange={(e) => setForm((old) => ({ ...old, document: cleanDocument(e.target.value) }))}/>
+      </label>
+      <label><span>Telefone verificado</span>
+        <input type="tel" autoComplete="off" value={phone} readOnly aria-readonly="true"/>
+      </label>
+      <p className="buyer-simple-privacy">Seus dados serão usados para identificar sua conta e seus pedidos.
+        Consulte nossa <a href="/politica-de-privacidade.html" target="_blank" rel="noopener noreferrer">política de privacidade</a>.</p>
+      <button type="submit" className="customer-submit" disabled={busy || form.name.trim().length < 2 || ![11, 14].includes(cleanDocument(form.document).length)}>
+        {busy ? 'Salvando…' : editOnly ? 'Salvar alterações' : 'Concluir cadastro'}
+      </button>
       {editOnly && <button type="button" className="buyer-secondary" onClick={() => setOpen(false)}>Cancelar</button>}
     </form>}
     {error && <div role="alert" className="customer-error">{error}</div>}

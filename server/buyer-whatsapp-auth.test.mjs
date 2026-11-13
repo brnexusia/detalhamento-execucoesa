@@ -182,35 +182,37 @@ test('resposta após OTP válido conserva o identificador do comprador fora da t
 })
 
 
-test('perfil requer aceite obrigatório, sem segunda caixa promocional', () => {
+test('cadastro pede somente nome, CPF/CNPJ e telefone verificado', () => {
   const client = readFileSync(new URL('../src/BuyerWhatsappLogin.tsx', import.meta.url), 'utf8')
-  const match = client.match(/<label className="buyer-consent">([\s\S]*?)<\/label>/)
-  assert.ok(match, 'a primeira e única caixa de aceite deve existir')
-  assert.equal(client.match(/className="buyer-consent"/g)?.length, 1, 'o formulário não pode exigir uma segunda caixa')
-  assert.match(match[1], /type="checkbox"/)
-  assert.match(match[1], /required/)
-  const copy = match[1].replace(/<input[\s\S]*?\/>/, '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()
-  assert.equal(copy, 'Li e aceito a política de privacidade e o compartilhamento dos dados comerciais com lojas com as quais eu interagir.')
-  assert.doesNotMatch(client, /Aceito receber comunicações promocionais/)
-  assert.match(client, /href="\/politica-de-privacidade.html"/, 'o comprador deve poder consultar a política')
+  const form = client.slice(client.indexOf("{stage === 'profile' && <form"),client.indexOf('{error && <div role="alert"'))
+  assert.match(form, /Nome completo/)
+  assert.match(form, /CPF ou CNPJ/)
+  assert.match(form, /Telefone verificado/)
+  assert.match(form, /readOnly/)
+  assert.doesNotMatch(form, /type="email"|<select|buyer-channels|buyer-consent|buyer-business-details|type="checkbox"/)
+  assert.doesNotMatch(form, /Cidade|finalidade das suas compras|Nome da loja ou empresa/)
+  assert.match(form, /href="\/politica-de-privacidade.html"/)
+  assert.match(client, /verify-code/, 'o telefone continua verificado por OTP')
 })
 
-test('aceite do primeiro cadastro registra marketing sem parâmetro promocional separado', () => {
+test('API persiste documento válido sem exigir e-mail ou consentir automaticamente marketing', () => {
   const auth = readFileSync(new URL('./buyer-whatsapp-auth-hooks.mjs', import.meta.url), 'utf8')
-  assert.match(auth, /body\?\.privacyAccepted !== true/, 'o cadastro deve exigir aceite expresso da política')
-  assert.match(auth, /marketing_consent=CASE WHEN profile_completed=false THEN true ELSE marketing_consent END/,
-    'a confirmação inicial define marketing sem alterar retroativamente escolhas de perfis já concluídos')
-  assert.doesNotMatch(auth, /f\.marketingConsent/, 'nenhum segundo campo de consentimento é enviado pelo formulário')
+  const profile = auth.slice(auth.indexOf('function profileFields(body)'), auth.indexOf('// A frente social exige'))
+  assert.match(profile, /normalizeBuyerDocument\(body\?\.document\)/)
+  assert.match(profile, /isValidBuyerDocument\(document\)/)
+  assert.match(profile, /document=\$2/)
+  assert.doesNotMatch(profile, /body\?\.email|body\?\.purpose|privacyAccepted/)
+  assert.doesNotMatch(profile, /marketing_consent=CASE WHEN profile_completed=false THEN true/)
+  assert.match(auth, /ALTER TABLE buyer_accounts ADD COLUMN IF NOT EXISTS document/)
+  assert.match(auth, /buyer\+' \+ customerId \+ '@shopvax.invalid'/)
 })
 
-test('documentos públicos descrevem marketing abrangido pelo aceite único', () => {
+test('termos e política de privacidade refletem o cadastro simplificado sem marketing automático', () => {
   const terms = readFileSync(new URL('../public/termos-de-uso.html', import.meta.url), 'utf8')
   const privacy = readFileSync(new URL('../public/politica-de-privacidade.html', import.meta.url), 'utf8')
-  for (const document of [terms, privacy]) {
-    assert.match(document, /aceite/i)
-    assert.match(document, /marketing/i)
-    assert.match(document, /WhatsApp/)
-    assert.match(document, /e-mail/)
-    assert.match(document, /promoções/)
-  }
+  assert.match(terms, /nome completo, CPF ou CNPJ e telefone verificado/)
+  assert.match(privacy, /nome completo, CPF ou CNPJ e telefone verificado/)
+  assert.match(terms, /não equivale a uma autorização/)
+  assert.match(privacy, /não ativa automaticamente/)
+  assert.doesNotMatch(terms, /marcar a caixa obrigatória/)
 })
