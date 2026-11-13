@@ -1,0 +1,56 @@
+name: ShopVax - Delete cancelled order safely
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'server/app.mjs'
+      - 'server/phase2-operation-hooks.mjs'
+      - 'server/platform-hooks.mjs'
+      - 'server/platform-buyer-directory.mjs'
+      - 'src/ShopvaxOrders.tsx'
+      - 'src/api.ts'
+      - 'src/shopvax-orders.css'
+      - 'tests/shopvax-hide-cancelled-order.pg.test.mjs'
+      - '.github/workflows/shopvax-hide-cancelled-order.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'server/app.mjs'
+      - 'server/phase2-operation-hooks.mjs'
+      - 'server/platform-hooks.mjs'
+      - 'server/platform-buyer-directory.mjs'
+      - 'src/ShopvaxOrders.tsx'
+      - 'src/api.ts'
+      - 'src/shopvax-orders.css'
+      - 'tests/shopvax-hide-cancelled-order.pg.test.mjs'
+      - '.github/workflows/shopvax-hide-cancelled-order.yml'
+permissions:
+  contents: read
+jobs:
+  orders:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: shopvax
+          POSTGRES_PASSWORD: shopvax
+          POSTGRES_DB: shopvax_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U shopvax -d shopvax_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://shopvax:shopvax@127.0.0.1:5432/shopvax_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-fund --no-audit
+      - run: npm run build
+      - name: Executar SQL real e política de exclusão
+        run: node --test tests/shopvax-hide-cancelled-order.pg.test.mjs
