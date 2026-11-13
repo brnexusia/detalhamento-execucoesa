@@ -181,3 +181,22 @@
   .panel-shell .svx-orders__item {grid-template-columns:22px minmax(0,1fr);}
   .panel-shell .svx-orders__item > strong {grid-column:2;justify-self:start;}
 }
+
+
+/* Pedidos cancelados preservam o valor histórico, mas não compõem os totais. */
+.panel-shell .svx-orders__voided-value {
+  display:inline-flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:3px;
+  color:var(--svx-muted,#6B665C);
+  font-variant-numeric:tabular-nums;
+  text-decoration:line-through;
+  text-decoration-color:#A3261C;
+  text-decoration-thickness:1px;
+}
+.panel-shell .svx-orders__voided-value small {
+  font:500 10px/1.3 var(--svx-font-body,'Archivo',sans-serif);
+  text-decoration:none;
+  white-space:normal;
+}
