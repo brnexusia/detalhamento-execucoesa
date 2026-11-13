@@ -337,3 +337,24 @@ html body .app, html body .panel-shell, html body .home-shell, html body .auth-s
 @media (max-width: 370px) {
   .svx-palette-selector__choices { grid-template-columns: minmax(0, 1fr); }
 }
+
+
+/* Word 02: marcas das lojas no catálogo são avatares, não cartões quadrados.
+ * Preserva a arte original inteira (object-fit:contain) dentro do recorte redondo. */
+.app .brand__logo,
+.app .brand__mark,
+.app .store-intro__logo {
+  aspect-ratio:1;
+  border-radius:50%;
+  overflow:hidden;
+  flex-shrink:0;
+}
+.app .brand__logo,
+.app .store-intro__logo {
+  display:block;
+  object-fit:contain;
+  background:var(--svx-paper,#F3F0E8);
+}
+.app .store-intro__logo {
+  border:1px solid var(--accent,var(--svx-line,#D9D3C6));
+}
