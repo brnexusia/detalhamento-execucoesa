@@ -1,0 +1,34 @@
+name: ShopVax - Merchant avatars circular
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/shopvax-brand.css'
+      - 'src/shopvax-social-official.css'
+      - 'src/shopvax-ui-refinement.css'
+      - 'tests/shopvax-avatar-round.e2e.mjs'
+      - '.github/workflows/shopvax-avatar-round.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/shopvax-brand.css'
+      - 'src/shopvax-social-official.css'
+      - 'src/shopvax-ui-refinement.css'
+      - 'tests/shopvax-avatar-round.e2e.mjs'
+      - '.github/workflows/shopvax-avatar-round.yml'
+permissions:
+  contents: read
+jobs:
+  avatar-round:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-fund --no-audit
+      - run: npm install --no-save --no-fund --no-audit playwright@1.58.2
+      - run: npx playwright install --with-deps chromium
+      - name: Conferir avatares circulares de loja, feed e perfil no desktop e mobile
+        run: node tests/shopvax-avatar-round.e2e.mjs

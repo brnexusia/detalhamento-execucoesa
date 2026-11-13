@@ -615,3 +615,22 @@
   .social-feed-page .social-feed-copy h2 {font-size:clamp(20px,6vw,30px);}
   .social-feed-page .social-feed-actions button:not(.social-feed-store) {min-height:35px;}
 }
+
+
+/* Word 02: foto/identidade circular no feed e perfil social,
+ * independentemente da ordem de CSS de rotas carregadas sob demanda. */
+.social-feed-page .social-feed-store__avatar,
+.social-feed-page .social-feed-actions .social-feed-store__avatar,
+.social-profile-page .social-profile-avatar {
+  border-radius:50%;
+  overflow:hidden;
+  aspect-ratio:1;
+  flex-shrink:0;
+}
+.social-feed-page .social-feed-store__avatar img,
+.social-profile-page .social-profile-avatar img {
+  display:block;
+  width:100%;
+  height:100%;
+  object-fit:contain;
+}
