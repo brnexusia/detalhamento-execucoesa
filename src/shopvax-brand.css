@@ -358,3 +358,15 @@ html body .app, html body .panel-shell, html body .home-shell, html body .auth-s
 .app .store-intro__logo {
   border:1px solid var(--accent,var(--svx-line,#D9D3C6));
 }
+
+
+/* O fallback com a inicial da loja é um span, não uma imagem.
+ * Fixar as duas dimensões evita elipse em flex/grid ou sem CSS legado. */
+.app .brand__mark {
+  display:grid;
+  place-items:center;
+  width:clamp(38px,4vw,58px);
+  height:clamp(38px,4vw,58px);
+  min-width:38px;
+  min-height:38px;
+}
