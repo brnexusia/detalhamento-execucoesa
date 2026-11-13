@@ -1,0 +1,54 @@
+name: ShopVax - Cancelled order totals
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'server/app.mjs'
+      - 'server/platform-hooks.mjs'
+      - 'server/phase2-operation-hooks.mjs'
+      - 'src/ShopvaxDashboard.tsx'
+      - 'src/ShopvaxOrders.tsx'
+      - 'src/shopvax-orders.css'
+      - 'tests/shopvax-cancelled-totals.pg.test.mjs'
+      - '.github/workflows/shopvax-cancelled-totals.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'server/app.mjs'
+      - 'server/platform-hooks.mjs'
+      - 'server/phase2-operation-hooks.mjs'
+      - 'src/ShopvaxDashboard.tsx'
+      - 'src/ShopvaxOrders.tsx'
+      - 'src/shopvax-orders.css'
+      - 'tests/shopvax-cancelled-totals.pg.test.mjs'
+      - '.github/workflows/shopvax-cancelled-totals.yml'
+permissions:
+  contents: read
+jobs:
+  order-totals:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: shopvax
+          POSTGRES_PASSWORD: shopvax
+          POSTGRES_DB: shopvax_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U shopvax -d shopvax_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://shopvax:shopvax@127.0.0.1:5432/shopvax_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-fund --no-audit
+      - run: npm run build
+      - name: Conferir totais reais em PostgreSQL com cancelamentos
+        run: node --test tests/shopvax-cancelled-totals.pg.test.mjs
