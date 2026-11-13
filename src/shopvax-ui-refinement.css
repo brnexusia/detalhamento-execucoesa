@@ -587,3 +587,16 @@
     transition-duration: .01ms;
   }
 }
+
+
+/* Word 02: regra final para avatares da vitrine e do feed.
+ * Logo da loja não é mídia de produto; não mudar imagens dos cards. */
+.app .brand__logo,
+.app .brand__mark,
+.app .store-intro__logo,
+.social-feed-page .social-feed-store__avatar,
+.social-profile-page .social-profile-avatar {
+  border-radius:50%;
+  aspect-ratio:1;
+  overflow:hidden;
+}
