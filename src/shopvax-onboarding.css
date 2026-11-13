@@ -32,3 +32,52 @@
 .svx-onboarding__continue:disabled{opacity:.5;cursor:wait;}
 @media(max-width:750px){.svx-onboarding__intro{flex-direction:column;align-items:flex-start;}.svx-onboarding__choices{grid-template-columns:1fr;}.svx-onboarding__card{grid-template-columns:minmax(115px,.8fr) minmax(0,1fr);grid-template-rows:auto;}.svx-onboarding__preview{min-height:160px;padding:8px;}.svx-onboarding__phone{height:158px;width:110px;border-width:4px;}.svx-onboarding__phone>strong{font-size:13px;padding:4px;}.svx-onboarding__phone-head{font-size:8px;}.svx-onboarding__phone-band{font-size:5px;}.svx-onboarding__phone-bottom{padding:4px;font-size:7px;}.svx-onboarding__phone-bottom span:last-child{font-size:6px;padding:4px 2px;}.svx-onboarding__card-copy{padding:15px;}.svx-onboarding__card-copy>strong{font-size:25px;}}
 @media(max-width:350px){.svx-onboarding__top>span{font-size:8px;}.svx-onboarding__card-copy>strong{font-size:23px;}.svx-onboarding__card-copy>small{font-size:10px;}}
+
+
+/* REF-20261113 | Primeiros passos: escolhas legíveis, prévias e CTA */
+.svx-onboarding__intro h1 {
+  line-height:1.02;
+  text-wrap:balance;
+}
+.svx-onboarding__intro>p {
+  line-height:1.55;
+  max-width:68ch;
+}
+.svx-onboarding__choices {
+  gap:clamp(10px,1.5vw,17px);
+}
+.svx-onboarding__card {
+  min-width:0;
+  border:1px solid var(--svx-line,#D9D3C6);
+  border-radius:12px;
+  background:#FCFBF8;
+  overflow:hidden;
+}
+.svx-onboarding__card.is-active {
+  border-color:var(--svx-orange,#F25C05);
+  box-shadow:inset 0 2px var(--svx-orange,#F25C05);
+}
+.svx-onboarding__card-copy {
+  gap:8px;
+}
+.svx-onboarding__card-copy>strong {
+  line-height:1.15;
+}
+.svx-onboarding__preview {
+  border-radius:9px;
+  overflow:hidden;
+}
+.svx-onboarding__footer {
+  gap:12px;
+  flex-wrap:wrap;
+  border-top:1px solid var(--svx-line,#D9D3C6);
+}
+.svx-onboarding__continue,
+.svx-onboarding__top>button {
+  min-height:43px;
+  border-radius:8px;
+}
+@media(max-width:680px) {
+  .svx-onboarding__choices {grid-template-columns:minmax(0,1fr);}
+  .svx-onboarding__footer {align-items:stretch;}
+}
