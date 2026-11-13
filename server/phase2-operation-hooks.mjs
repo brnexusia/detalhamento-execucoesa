@@ -373,7 +373,7 @@ async function phase2Context(req, res) {
     pool.query('SELECT id,slug,name,phone,is_active,created_at FROM sellers WHERE store_id=$1 ORDER BY created_at ASC', [store.id]),
     pool.query('SELECT id,slug,name,phone,active,created_at FROM franchisees WHERE store_id=$1 ORDER BY created_at ASC', [store.id]),
     pool.query(`SELECT c.id,c.name,c.email,c.phone,c.active,c.created_at,
-      count(o.id)::int AS orders_count,COALESCE(sum(o.total),0)::numeric AS orders_value
+      count(o.id)::int AS orders_count,COALESCE(sum(o.total) FILTER (WHERE o.status<>'cancelled'),0)::numeric AS orders_value
       FROM store_customers c LEFT JOIN orders o ON o.customer_id=c.id AND o.store_id=c.store_id
       WHERE c.store_id=$1 GROUP BY c.id ORDER BY c.created_at DESC LIMIT 500`, [store.id]),
     pool.query(`SELECT o.id,o.code,o.total,o.status,o.created_at,o.status_updated_at,o.customer_id,o.seller_id,o.items,
