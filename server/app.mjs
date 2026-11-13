@@ -4,6 +4,7 @@ import { ensureReferralSchema, captureReferral } from './referral-program-core.m
 import { traceUpload } from './upload-request-logging.mjs'
 import crypto from 'node:crypto'
 import path from 'node:path'
+import { installUiStaticRoutes } from './ui-static-routes.mjs'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import express from 'express'
@@ -1251,8 +1252,7 @@ app.post(
   }),
 )
 
-app.use(express.static(distDir, { index: false, maxAge: '1h' }))
-app.get('*', (_req, res) => res.sendFile(path.join(distDir, 'index.html')))
+installUiStaticRoutes(app, distDir)
 
 app.use((error, _req, res, _next) => {
   console.error(error)
