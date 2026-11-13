@@ -34,7 +34,7 @@ export default function ShopvaxDashboard({ data, storeUrl, onSection, onCopy }: 
   const statusName = (status: string) => ({
     whatsapp:'WhatsApp aberto',em_atendimento:'Em conversa',confirmado:'Confirmado',cancelled:'Cancelado',arquivado:'Arquivado'
   } as Record<string,string>)[status] || status
-  const allItems = data.orders.reduce((n,order)=>n+order.items.reduce((subtotal,item)=>subtotal+item.quantity,0),0)
+  const allItems = data.orders.filter((order)=>order.status!=='cancelled').reduce((n,order)=>n+order.items.reduce((subtotal,item)=>subtotal+item.quantity,0),0)
   return <div className="panel-page svx-dashboard">
     <SVRibbon className="svx-dashboard__ribbon"><span>SHOPVAX · PAINEL DE QUEM VENDE</span><span>SEUS PEDIDOS NUM SÓ LUGAR</span></SVRibbon>
     <div className="svx-dashboard__welcome"><div><span className="svx-kicker">O BALCÃO ESTÁ ABERTO</span><h1>{greeting}, {firstName}.</h1><p>{data.store.name} · {data.store.is_active ? 'Loja publicada' : 'Loja pausada'}</p></div><div className="svx-dashboard__welcome-actions"><a href={storeUrl} target="_blank" rel="noreferrer"><ExternalLink size={15}/> Abrir loja</a><button onClick={() => onSection('produtos')}><Package size={15}/> Produtos <ArrowRight size={15}/></button></div></div>
