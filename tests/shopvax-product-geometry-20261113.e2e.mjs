@@ -14,6 +14,7 @@ try {
   const page=await browser.newPage({viewport:{width,height}})
   await page.route('**/api/public/store/**',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify(payload)}))
   await page.route('**/api/public/events',r=>r.fulfill({status:204,body:''}))
+  await page.route('**/api/social/stores/sw-moda/products/p0',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({product:products[0]})}))
   // Deep-link directly to modal: no unstable locator click is needed to open it.
   await page.goto('http://127.0.0.1:5173/sw-moda?produto=p0',{waitUntil:'domcontentloaded'})
   await page.locator('.product-picker .svx-grade__head h3').waitFor({timeout:20000})
