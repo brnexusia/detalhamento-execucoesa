@@ -51,7 +51,8 @@ function labelName(lines, priceIndex) {
     const tokens = line.match(/\p{L}+|\d+/gu) || []
     for (const token of tokens) {
       const key = token.toLocaleLowerCase('pt-BR')
-      if (/^\d+$/.test(token) || (token.length < 4 && !connectors.has(key))) break
+      if (/^\d+$/.test(token) || (token.length < 4 && !connectors.has(key) &&
+          !new Set(['aço','aco','kit','sol','lua','mar']).has(key) && !PRODUCT_WORD.test(token))) break
       pieces.push(token)
     }
   }
