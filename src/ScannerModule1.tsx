@@ -109,6 +109,9 @@ export default function ScannerModule1() {
   const [reviewLoading, setReviewLoading] = useState(false)
   const [reviewError, setReviewError] = useState('')
   const [selectionBusy, setSelectionBusy] = useState(false)
+  const [photoOcrBusy,setPhotoOcrBusy] = useState(false)
+  const [photoOcrProgress,setPhotoOcrProgress] = useState(0)
+  const [photoOcrResult,setPhotoOcrResult] = useState('')
   const [recoveringId, setRecoveringId] = useState<string | null>(null)
   const [availableCatalogs,setAvailableCatalogs] = useState<Array<{id:string;name:string;lockedByPlan?:boolean}>>([])
   const [recoveryDestinations,setRecoveryDestinations] = useState<Record<string,string>>({})
@@ -388,6 +391,7 @@ export default function ScannerModule1() {
     setReviewProducts([])
     setReviewSummary(null)
     setReviewError('')
+    setPhotoOcrResult('')
     setReviewLoading(true)
     setMode('review')
     setReviewJob(job)
@@ -420,6 +424,39 @@ export default function ScannerModule1() {
     } catch (err) {
       setReviewError(err instanceof Error ? err.message : 'Não foi possível alterar a seleção.')
     }
+  }
+
+  const reprocessPhotoLabels = async () => {
+    if (!reviewJob || photoOcrBusy) return
+    const jobId=reviewJob.id
+    setPhotoOcrBusy(true)
+    setPhotoOcrProgress(0)
+    setPhotoOcrResult('')
+    setReviewError('')
+    let processed=0,updated=0,cursor='',done=false
+    try {
+      for(let page=0;page<5000;page++){
+        if(activeReviewJobId.current!==jobId)break
+        const result=await api.reprocessImportPhotoLabels(jobId,cursor,3)
+        processed+=result.processed
+        updated+=result.updated
+        setPhotoOcrProgress(processed)
+        if(result.done){done=true;break}
+        if(result.next_cursor===cursor)throw new Error('Não foi possível avançar na reanálise. Atualize a página.')
+        cursor=result.next_cursor
+      }
+      if(done && activeReviewJobId.current===jobId){
+        await loadReview(jobId,{offset:0,filter:reviewFilter,q:reviewQuery})
+        await loadJobs(true)
+        setPhotoOcrResult(
+          'Reanálise concluída: '+updated+' produto(s) com dados atualizados. '+
+          'Confira os nomes, preços e quantidades antes de selecionar para publicação.',
+        )
+      }
+    } catch (error) {
+      if(activeReviewJobId.current===jobId)
+        setReviewError(error instanceof Error?error.message:'Não foi possível reanalisar as etiquetas.')
+    } finally { setPhotoOcrBusy(false) }
   }
 
   const bulkSelection = async (action: 'ready' | 'none') => {
@@ -621,6 +658,13 @@ export default function ScannerModule1() {
               <div><small>Selecionados</small><strong>{reviewSummary?.selected_count ?? reviewJob?.selected_count ?? 0}</strong></div>
             </div>
 
+            {reviewJob && ['google-photos','image-link'].includes(reviewJob.platform) && <div className="scanner-review-ocr-action">
+              <span>As etiquetas nas fotos podem conter nome, preço e quantidade. Revise os dados reconhecidos antes de publicar.</span>
+              <button type="button" disabled={photoOcrBusy} onClick={() => void reprocessPhotoLabels()}>
+                <Search size={15}/>
+                {photoOcrBusy ? 'Lendo etiquetas… '+photoOcrProgress+' foto(s)' : 'Ler nomes e preços das fotos'}
+              </button>
+            </div>}
             <div className="scanner-review-toolbar">
               <label className="scanner-review-search"><Search size={16} /><input value={reviewQuery} onChange={(event) => setReviewQuery(event.target.value)} placeholder="Buscar nome, SKU ou categoria" /></label>
               <div className="scanner-review-filters">
@@ -635,6 +679,7 @@ export default function ScannerModule1() {
             </div>
 
             {reviewError && <p className="scanner-message scanner-message--error scanner-review-error">{reviewError}</p>}
+            {photoOcrResult && <p className="scanner-message scanner-message--success scanner-review-ocr-result">{photoOcrResult}</p>}
 
             <div className="scanner-review-list" aria-busy={reviewLoading}>
               {reviewLoading && !reviewProducts.length ? <div className="scanner-review-empty">Carregando produtos…</div> : null}
