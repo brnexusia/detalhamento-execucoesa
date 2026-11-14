@@ -278,7 +278,7 @@ export default function ScannerModule1() {
         : sourceMode === 'pdf'
           ? 'PDF recebido. Vamos identificar os produtos para sua revisão.'
           : sourceMode === 'album'
-            ? 'Fotos importadas para revisão. Preencha nome e preço antes de publicar.'
+            ? 'Fotos recebidas. O sistema tentará reconhecer nome, preço e quantidade nas etiquetas; confira os dados antes de publicar.'
             : sourceMode === 'whatsapp'
               ? 'Consulta do catálogo WhatsApp iniciada. Você poderá revisar todos os itens retornados.'
               : 'Scanner iniciado. Você pode acompanhar o progresso abaixo.')
@@ -559,7 +559,7 @@ export default function ScannerModule1() {
               <p className="scanner-help">Cole o endereço público da loja que pertence à sua empresa. O sistema identificará os produtos disponíveis.</p>
             </> : sourceMode === 'album' ? <>
               <label><span>Link público do álbum ou da foto</span><input value={url} onChange={(event) => setUrl(event.target.value)} inputMode="url" autoComplete="url" placeholder="https://photos.app.goo.gl/..." required autoFocus /></label>
-              <p className="scanner-help">Aceita até 10.000 fotos por importação de álbuns públicos do Google Fotos, conforme as imagens disponibilizadas pelo link, e links públicos diretos para imagens. As fotos ficam em revisão: informe nome e preço antes de publicar. Álbuns privados ou que exijam login não são acessíveis.</p>
+              <p className="scanner-help">Aceita até 10.000 fotos por importação de álbuns públicos do Google Fotos, conforme as imagens disponibilizadas pelo link, e links públicos diretos para imagens. As fotos ficam em revisão. Quando houver etiquetas legíveis, o sistema tentará reconhecer nome, preço e quantidade; confira antes de publicar. Álbuns privados ou que exijam login não são acessíveis.</p>
             </> : <>
               <label><span>Seu catálogo em PDF</span><input key={uploadVersion} type="file" accept=".pdf,application/pdf" required onChange={(event) => setPdfFile(event.target.files?.[0] || null)} /></label>
               <p className="scanner-help">PDF de até 100 MB e 200 páginas. O Shopvax lê nomes, referências, preços e fotos quando possível. Também reconhece catálogos editoriais com preços numerados em uma página e as fotos das peças em outra. Catálogos digitalizados podem usar OCR. Confira cada produto e as imagens antes de publicar.</p>
