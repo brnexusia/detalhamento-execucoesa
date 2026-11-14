@@ -560,7 +560,7 @@ export async function processNormalizationJob(jobId, normalizer = normalizeCandi
           // Editorial PDF lookbooks require an explicit review/selection
           // before publication, even when prices and images appear complete.
           // Simple named product PDFs keep the previous selection behavior.
-          // OCR-derived values from public photos must be explicitly reviewed.
+          // Photo labels require human review even when OCR recognizes a price.
           selected: warnings.length === 0 && !['whatsapp','google-photos','image-link'].includes(job.platform) && !(job.platform === 'pdf' &&
             /^pdf-(?:lookbook|fashion)-/.test(String(sourceById.get(product.source_candidate_id)?.external_id || ''))),
         }
@@ -849,240 +849,80 @@ function installScannerRoutes(app) {
     })
   }))
 
-  // Re-read stored photos from existing reviews without repeating Google album
-  // downloads, changing edited records, or publishing any products.
+  // Re-run OCR on photos already staged in the tenant's review. Never rescan
+  // the shared Google album, change manual edits, or auto-select products.
   router.post('/:jobId/reprocess-photo-labels', requireStore, asyncRoute(async (req, res) => {
     const job = await reviewJob(req, res)
     if (!job) return
-    if (!['google-photos', 'image-link'].includes(job.platform)) {
-      return res.status(400).json({ error: 'Reanálise disponível apenas para importações de fotos.' })
-    }
+    if (!['google-photos','image-link'].includes(job.platform))
+      return res.status(400).json({ error:'Reanálise disponível apenas para importações de fotos.' })
     const cursor = String(req.body?.cursor || '').trim()
-    if (cursor && !/^[0-9a-f-]{36}$/i.test(cursor)) {
-      return res.status(400).json({ error: 'Cursor da revisão inválido.' })
-    }
-    const limit = Math.max(1, Math.min(3, Number(req.body?.limit) || 3))
-    const result = await pool.query(
-      [
-        'SELECT id,updated_at::text AS revision,normalized_data,review_data,selected',
-        'FROM import_normalized_products',
-        'WHERE job_id=$1 AND store_id=$2 AND id>$3 AND review_data IS NULL AND selected=false',
-        "AND ((normalized_data->>'name') ~* '^Foto importada [0-9]+  // Review writers MUST use the same order or concurrent edits/publication
-  // can deadlock (40P01) and leave repeated failing publication attempts.
-  router.patch('/:jobId/review/:productId', requireStore, asyncRoute(async (req, res) => {
-    const client = await pool.connect()
-    try {
-      await client.query('BEGIN')
-      const lockedJob = await client.query(
-        'SELECT id,status FROM import_jobs WHERE id=$1 AND store_id=$2 FOR UPDATE',
-        [req.params.jobId, req.scannerStore.store_id],
-      )
-      if (!lockedJob.rowCount) {
-        await client.query('ROLLBACK')
-        return res.status(404).json({ error: 'Importação não encontrada.' })
-      }
-      if (lockedJob.rows[0].status !== 'review') {
-        await client.query('ROLLBACK')
-        return res.status(409).json({ error: 'Essa importação não está mais em revisão.' })
-      }
-      const current = await client.query(
-        'SELECT * FROM import_normalized_products WHERE id=$1 AND job_id=$2 AND store_id=$3 LIMIT 1 FOR UPDATE',
-        [req.params.productId, req.params.jobId, req.scannerStore.store_id],
-      )
-      if (!current.rowCount) {
-        await client.query('ROLLBACK')
-        return res.status(404).json({ error: 'Produto da revisão não encontrado.' })
-      }
-      const row = current.rows[0]
-      const baseData = row.review_data || row.normalized_data
-      const prepared = prepareReview({ ...baseData, ...(req.body?.data && typeof req.body.data === 'object' ? req.body.data : {}) })
-      const selected = typeof req.body?.selected === 'boolean' ? req.body.selected : Boolean(row.selected)
-      if (selected && !prepared.publishable) {
-        await client.query('ROLLBACK')
-        return res.status(400).json({ error: 'Para selecionar este produto, informe pelo menos nome e preço válido.' })
-      }
-      const updated = await client.query(
-        `UPDATE import_normalized_products
-         SET review_data=$1,warnings=$2,confidence=$3,selected=$4,review_updated_at=now(),updated_at=now()
-         WHERE id=$5 AND job_id=$6 AND store_id=$7 RETURNING *`,
-        [JSON.stringify(prepared.data), JSON.stringify(prepared.warnings), prepared.confidence, selected, row.id, req.params.jobId, req.scannerStore.store_id],
-      )
-      const summary = await refreshReviewStats(client, req.params.jobId, req.scannerStore.store_id)
-      const updatedJob = await client.query('SELECT * FROM import_jobs WHERE id=$1', [req.params.jobId])
-      await client.query('COMMIT')
-      return res.json({ product: publicReviewProduct(updated.rows[0]), summary, job: publicJob(updatedJob.rows[0]) })
-    } catch (error) {
-      await client.query('ROLLBACK').catch(() => {})
-      throw error
-    } finally {
-      client.release()
-    }
-  }))
-
-  router.patch('/:jobId/review-selection', requireStore, asyncRoute(async (req, res) => {
-    const action = String(req.body?.action || '')
-    if (!['ready', 'none'].includes(action)) return res.status(400).json({ error: 'Ação de seleção inválida.' })
-    const client = await pool.connect()
-    try {
-      await client.query('BEGIN')
-      const lockedJob = await client.query(
-        'SELECT id,status FROM import_jobs WHERE id=$1 AND store_id=$2 FOR UPDATE',
-        [req.params.jobId, req.scannerStore.store_id],
-      )
-      if (!lockedJob.rowCount) {
-        await client.query('ROLLBACK')
-        return res.status(404).json({ error: 'Importação não encontrada.' })
-      }
-      if (lockedJob.rows[0].status !== 'review') {
-        await client.query('ROLLBACK')
-        return res.status(409).json({ error: 'Essa importação não está mais em revisão.' })
-      }
-      if (action === 'none') {
-        await client.query('UPDATE import_normalized_products SET selected=false,updated_at=now() WHERE job_id=$1 AND store_id=$2', [req.params.jobId, req.scannerStore.store_id])
-      } else {
-        await client.query(
-          `UPDATE import_normalized_products SET selected=(jsonb_array_length(warnings)=0),updated_at=now()
-           WHERE job_id=$1 AND store_id=$2`,
-          [req.params.jobId, req.scannerStore.store_id],
-        )
-      }
-      const summary = await refreshReviewStats(client, req.params.jobId, req.scannerStore.store_id)
-      const updatedJob = await client.query('SELECT * FROM import_jobs WHERE id=$1', [req.params.jobId])
-      await client.query('COMMIT')
-      return res.json({ summary, job: publicJob(updatedJob.rows[0]) })
-    } catch (error) {
-      await client.query('ROLLBACK').catch(() => {})
-      throw error
-    } finally {
-      client.release()
-    }
-  }))
-
-  router.post('/', requireStore, asyncRoute(async (req, res) => {
-    let normalized
-    try { normalized = normalizeImportUrl(req.body?.url) }
-    catch (error) { return res.status(400).json({ error: error instanceof Error ? error.message : 'URL inválida.' }) }
-
-    // Known lookalike URL: the Alexandre Bijoux catalog belongs to
-    // bijouxalexandre.com.br (name order reversed). Never queue a generic
-    // crawler against the lookalike and report a misleading empty catalog.
-    if (['alexandrebijoux.com.br', 'www.alexandrebijoux.com.br'].includes(normalized.host)) {
-      return res.status(400).json({
-        error: 'Endereço diferente: você informou alexandrebijoux.com.br. Para a loja Alexandre Bijoux, use https://bijouxalexandre.com.br (Bijoux antes de Alexandre). Nenhum scanner foi iniciado.',
-        suggested_url: 'https://bijouxalexandre.com.br',
-      })
-    }
-    if (normalized.host === 'wa.me' && !whatsappCatalogPhone(normalized.url)) {
-      return res.status(400).json({ error:'Use o link do catálogo do WhatsApp no formato https://wa.me/c/55DDDNUMERO.' })
-    }
-    if (whatsappCatalogPhone(normalized.url)) {
-      try { uazapiCatalogConfig() }
-      catch(error) { return res.status(503).json({ error:error instanceof Error ? error.message : 'Integração de catálogo WhatsApp indisponível.' }) }
-    }
-    const targetCatalogId=String(req.body?.catalogId||'').trim().slice(0,100)
-    if(targetCatalogId){
-      const destination=await pool.query(
-        'SELECT c.id,c.is_default,s.plan_tier FROM catalogs c JOIN stores s ON s.id=c.store_id WHERE c.id=$1 AND c.store_id=$2 AND c.active=true',
-        [targetCatalogId,req.scannerStore.store_id])
-      if(!destination.rowCount)return res.status(404).json({error:'Catálogo de destino não encontrado.'})
-      if(!destination.rows[0].is_default&&destination.rows[0].plan_tier!=='ouro')
-        return res.status(403).json({error:'Catálogos adicionais exigem o plano Ouro.'})
-    }
-    const existing = await pool.query(
-      `SELECT * FROM import_jobs WHERE store_id=$1 AND source_url=$2
-       AND target_catalog_id IS NOT DISTINCT FROM $3
-       AND status IN ('queued','scanning','processing') ORDER BY created_at DESC LIMIT 1`,
-      [req.scannerStore.store_id, normalized.url,targetCatalogId||null],
-    )
-    if (existing.rowCount) return res.json({ job: publicJob(existing.rows[0]), duplicated: true })
-
-    const result = await pool.query(
-      `INSERT INTO import_jobs (id,store_id,source_url,source_host,status,target_catalog_id) VALUES ($1,$2,$3,$4,'queued',$5) RETURNING *`,
-      [id(), req.scannerStore.store_id, normalized.url, normalized.host,targetCatalogId||null],
-    )
-    if (!workerDisabled) setImmediate(() => void runNextWork())
-    res.status(201).json({ job: publicJob(result.rows[0]), duplicated: false })
-  }))
-
-  app.use('/api/admin/imports', router)
-  void ensureScannerSchema().then(startWorker).catch((error) => console.error('[scanner] schema:', error.message))
-}
-
-const originalInit = express.application.init
-express.application.init = function scannerPatchedInit(...args) {
-  const result = originalInit.apply(this, args)
-  installScannerRoutes(this)
-  return result
-}
-",
-        "OR COALESCE(normalized_data->>'price','')='')",
-        'ORDER BY id ASC LIMIT $4',
-      ].join(' '),
-      [job.id,req.scannerStore.store_id,cursor,limit],
-    )
-    const pending = []
-    let checked=0
-    for (const row of result.rows) {
-      checked += 1
-      const data = row.normalized_data || {}
-      const mediaUrl = String(data.media_url || data.images?.[0] || '')
-      const assetId = /^\/media\/([0-9a-f-]{36})$/i.exec(mediaUrl)?.[1]
-      if (!assetId) continue
-      const image = await pool.query(
-        'SELECT data FROM media_assets WHERE id=$1 AND store_id=$2 LIMIT 1',
-        [assetId,req.scannerStore.store_id],
-      )
-      if (!image.rows[0]?.data) continue
-      const label = await recognizePhotoProductLabel(image.rows[0].data)
-      if (!label) continue
-      const name = /^Foto importada \d+$/i.test(String(data.name || '')) && label.title
+    if (cursor && !/^[0-9a-f-]{36}$/i.test(cursor))
+      return res.status(400).json({ error:'Cursor da revisão inválido.' })
+    const limit = Math.max(1,Math.min(3,Math.floor(Number(req.body?.limit)||3)))
+    const result = await pool.query([
+      'SELECT id,updated_at::text AS revision,normalized_data',
+      'FROM import_normalized_products WHERE job_id=$1 AND store_id=$2 AND id>$3',
+      'AND review_data IS NULL AND selected=false',
+      "AND ((normalized_data->>'name') ILIKE 'Foto importada %'",
+      "OR COALESCE(normalized_data->>'price','')='')",
+      'ORDER BY id ASC LIMIT $4',
+    ].join(' '),[job.id,req.scannerStore.store_id,cursor,limit])
+    const pending=[]
+    for(const row of result.rows){
+      const data=row.normalized_data||{}
+      const mediaUrl=String(data.media_url||data.images?.[0]||'')
+      const assetId=/^\/media\/([0-9a-f-]{36})$/i.exec(mediaUrl)?.[1]
+      if(!assetId)continue
+      const image=await pool.query('SELECT data FROM media_assets WHERE id=$1 AND store_id=$2 LIMIT 1',
+        [assetId,req.scannerStore.store_id])
+      if(!image.rows[0]?.data)continue
+      const label=await recognizePhotoProductLabel(image.rows[0].data)
+      if(!label)continue
+      const name=/^Foto importada \d+$/i.test(String(data.name||'')) && label.title
         ? label.title : data.name
-      const price = data.price == null ? label.price : data.price
-      const pack = data.pack || label.pack || ''
-      const description = data.description || (pack
-        ? 'Quantidade indicada na etiqueta: ' + pack + '. Confira antes de publicar.' : '')
-      if (name === data.name && price === data.price &&
-          pack === data.pack && description === data.description) continue
-      const prepared = prepareReview({ ...data,name,price,pack,description })
+      const price=data.price==null ? label.price : data.price
+      const pack=data.pack||label.pack||''
+      const description=data.description||(pack
+        ? 'Quantidade indicada na etiqueta: '+pack+'. Confira antes de publicar.' : '')
+      if(name===data.name && price===data.price && pack===data.pack && description===data.description)continue
+      const prepared=prepareReview({...data,name,price,pack,description})
       pending.push({id:row.id,revision:row.revision,...prepared})
     }
-    let updated=0
-    // OCR and blob reads complete before the transaction; lock the job first
-    // as required by the review editor and publisher.
-    const client = await pool.connect()
-    let summary
+    // Job-first lock order matches the review editor and publisher. OCR happens
+    // outside this short transaction. A compare-and-swap protects concurrent edits.
+    const client=await pool.connect()
+    let updated=0,summary
     try {
       await client.query('BEGIN')
-      const active = await client.query(
+      const active=await client.query(
         'SELECT status FROM import_jobs WHERE id=$1 AND store_id=$2 FOR UPDATE',
-        [job.id,req.scannerStore.store_id],
-      )
-      if (active.rows[0]?.status !== 'review') {
+        [job.id,req.scannerStore.store_id])
+      if(active.rows[0]?.status!=='review'){
         await client.query('ROLLBACK')
-        return res.status(409).json({ error: 'A importação deixou o estado de revisão.' })
+        return res.status(409).json({ error:'A importação deixou o estado de revisão.' })
       }
-      for (const candidate of pending) {
-        const write = await client.query(
-          [
-            'UPDATE import_normalized_products',
-            'SET normalized_data=$1,warnings=$2,confidence=$3,selected=false,updated_at=now()',
-            'WHERE id=$4 AND job_id=$5 AND store_id=$6 AND review_data IS NULL',
-            'AND selected=false AND updated_at=$7::timestamptz',
-          ].join(' '),
-          [JSON.stringify(candidate.data),JSON.stringify(candidate.warnings),
-            candidate.confidence,candidate.id,job.id,req.scannerStore.store_id,candidate.revision],
-        )
-        updated+=write.rowCount
+      for(const item of pending){
+        const written=await client.query([
+          'UPDATE import_normalized_products',
+          'SET normalized_data=$1,warnings=$2,confidence=$3,selected=false,updated_at=now()',
+          'WHERE id=$4 AND job_id=$5 AND store_id=$6 AND review_data IS NULL',
+          'AND selected=false AND updated_at=$7::timestamptz',
+        ].join(' '),[
+          JSON.stringify(item.data),JSON.stringify(item.warnings),item.confidence,
+          item.id,job.id,req.scannerStore.store_id,item.revision,
+        ])
+        updated+=written.rowCount
       }
       summary=await refreshReviewStats(client,job.id,req.scannerStore.store_id)
       await client.query('COMMIT')
-    } catch (error) {
+    } catch(error){
       await client.query('ROLLBACK').catch(()=>{})
       throw error
     } finally { client.release() }
     res.json({
-      processed:checked, updated, next_cursor:result.rows.at(-1)?.id || cursor,
-      done:result.rows.length < limit, summary,
+      processed:result.rows.length,updated,next_cursor:result.rows.at(-1)?.id||cursor,
+      done:result.rows.length<limit,summary,
     })
   }))
 
