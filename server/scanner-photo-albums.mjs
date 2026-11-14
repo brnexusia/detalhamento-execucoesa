@@ -1,4 +1,5 @@
 import sharp from 'sharp'
+import { recognizePhotoProductLabel } from './scanner-photo-ocr.mjs'
 
 // Shared Google Photos pages expose some public photo URLs in their HTML.
 // Private albums and JS-only pages cannot be read with a server-side link.
@@ -142,7 +143,7 @@ export function googlePhotosHighResolutionUrl(raw) {
   return url.toString()
 }
 
-async function savePhoto(url, request, onImage, filename) {
+async function savePhoto(url, request, onImage, filename, readLabel = recognizePhotoProductLabel) {
   // Prefer original-quality Google images instead of 54x72 HTML thumbnails.
   // If resizing is rejected by the CDN, retry the supplied link unchanged.
   const fullSize = googlePhotosHighResolutionUrl(url)
@@ -169,7 +170,9 @@ async function savePhoto(url, request, onImage, filename) {
       if (optimized.length > 5 * 1024 * 1024) throw new Error('Imagem convertida excedeu o limite.')
       const stored = await onImage(optimized, 'image/webp', filename)
       if (!/^\/media\/[A-Za-z0-9_-]+$/.test(String(stored || ''))) throw new Error('A imagem não pôde ser salva no catálogo.')
-      return { url: stored, bytes: optimized.length }
+      // Reading the image is optional; storage succeeds even if OCR fails.
+      const label = await Promise.resolve().then(() => readLabel(optimized)).catch(() => null)
+      return { url: stored, bytes: optimized.length, label }
     } catch (error) {
       failure = error
     }
@@ -177,7 +180,7 @@ async function savePhoto(url, request, onImage, filename) {
   throw failure || new Error('Imagem pública indisponível.')
 }
 
-export async function collectSharedPhotos(sourceUrl, { request, onImage, onBatch, onProgress, maxProducts = MAX_ALBUM_ITEMS, collectInMemory = true, photoSaver = savePhoto } = {}) {
+export async function collectSharedPhotos(sourceUrl, { request, onImage, onBatch, onProgress, maxProducts = MAX_ALBUM_ITEMS, collectInMemory = true, photoSaver = savePhoto, readLabel = recognizePhotoProductLabel } = {}) {
   if (typeof request !== 'function' || typeof onImage !== 'function') throw new Error('Importação de fotos não configurada no servidor.')
   const kind = sharedPhotoSourceKind(sourceUrl)
   if (!kind) throw new Error('Informe um álbum público do Google Fotos ou um link direto de imagem.')
@@ -224,21 +227,27 @@ export async function collectSharedPhotos(sourceUrl, { request, onImage, onBatch
     if (accepted >= safeMax) break
     let saved
     try {
-      saved = await photoSaver(imageUrls[i], request, onImage, `foto-album-${String(i + 1).padStart(3, '0')}.webp`)
+      saved = await photoSaver(imageUrls[i], request, onImage, `foto-album-${String(i + 1).padStart(3, '0')}.webp`, readLabel)
     } catch {
       skipped += 1
     }
     if (saved) {
       storedBytes += saved.bytes
       accepted += 1
+      const ocr = saved.label || {}
+      const recognizedPrice = Number(ocr.price)
+      const price = ocr.price != null && Number.isFinite(recognizedPrice) && recognizedPrice > 0
+        ? Math.round(recognizedPrice * 100) / 100 : null
+      const pack = String(ocr.pack || '').slice(0, 160)
       const candidate = {
         source_url: `${albumUrl.split('#')[0]}#foto-${String(i + 1).padStart(4, '0')}`,
         external_id: `foto-${String(i + 1).padStart(4, '0')}`,
-        title: `Foto importada ${String(i + 1).padStart(3, '0')}`,
-        description: '',
+        title: String(ocr.title || '').trim().slice(0, 180) || `Foto importada ${String(i + 1).padStart(3, '0')}`,
+        description: pack ? `Quantidade indicada na etiqueta: ${pack}. Confira antes de publicar.` : '',
+        pack,
         category: 'Geral',
         images: [saved.url],
-        price: null,
+        price,
         currency: 'BRL',
         source: kind === 'google-photos' ? 'google-photos-shared' : 'public-image-url',
       }
