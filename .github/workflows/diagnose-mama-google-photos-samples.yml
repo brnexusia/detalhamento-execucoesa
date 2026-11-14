@@ -4,6 +4,8 @@ on:
     branches: [test/google-photos-mama-samples-20261114]
     paths:
       - 'scripts/diagnose-mama-google-photos-samples.mjs'
+      - 'server/scanner-photo-albums.mjs'
+      - 'server/scanner-google-photos-high-res.test.mjs'
       - '.github/workflows/diagnose-mama-google-photos-samples.yml'
   workflow_dispatch:
 permissions:
@@ -18,4 +20,6 @@ jobs:
         with:
           node-version: '22'
       - run: npm install --no-audit --no-fund --package-lock=false
+      - run: node --test server/scanner-google-photos-high-res.test.mjs
+      - run: node server/scanner-photo-albums.test.mjs
       - run: node scripts/diagnose-mama-google-photos-samples.mjs
