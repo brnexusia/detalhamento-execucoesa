@@ -541,6 +541,10 @@ export async function processNormalizationJob(jobId, normalizer = normalizeCandi
       const sourceById = new Map(candidates.map((candidate) => [candidate.__candidate_id, candidate]))
       const rows = products.map((product) => {
         const warnings = Array.isArray(product.warnings) ? [...product.warnings] : []
+        // A numbered photo placeholder is not a verified product name.
+        if (['google-photos','image-link'].includes(job.platform) &&
+            /^Foto importada \d+$/i.test(String(product.normalized?.name || '')) &&
+            !warnings.includes('missing_name')) warnings.push('missing_name')
         if (job.platform === 'pdf') {
           const original = sourceById.get(product.source_candidate_id)
           const normalized = product.normalized || {}
@@ -887,6 +891,8 @@ function installScannerRoutes(app) {
         ? 'Quantidade indicada na etiqueta: '+pack+'. Confira antes de publicar.' : '')
       if(name===data.name && price===data.price && pack===data.pack && description===data.description)continue
       const prepared=prepareReview({...data,name,price,pack,description})
+      if (/^Foto importada \d+$/i.test(String(prepared.data.name || '')) &&
+          !prepared.warnings.includes('missing_name')) prepared.warnings.push('missing_name')
       pending.push({id:row.id,revision:row.revision,...prepared})
     }
     // Job-first lock order matches the review editor and publisher. OCR happens
