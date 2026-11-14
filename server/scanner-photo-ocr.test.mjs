@@ -11,6 +11,13 @@ test('reads the real label layout BRINCO PALHA SINTÉTICA / 1 PÇ / R$12,00',()=
   })
 })
 
+test('discards unrelated OCR fragments rather than putting gibberish into product names',()=>{
+  assert.equal(parsePhotoProductLabel('BRINCO ”\n1 PÇ R$ 16,00').title,'Brinco')
+  assert.equal(parsePhotoProductLabel('BRINCO ait 1 PG\n1 PÇ R$ 16,00').title,'Brinco')
+  assert.equal(parsePhotoProductLabel('BRINCO ‘the\n1 PÇ R$ 16,00').title,'Brinco')
+  assert.equal(parsePhotoProductLabel('BOLSA COM ALÇA AS 1 PG\n1 PÇ R$ 85,00').title,'Bolsa Com Alça')
+})
+
 test('parses quantity separately from monetary amount, including pieces and pairs',()=>{
   assert.deepEqual(parsePhotoProductLabel('CONJUNTO AÇO INOX\n2 PÇS\nR$ 29,90'),{
     title:'Conjunto Aço Inox',price:29.9,pack:'2 peças',
