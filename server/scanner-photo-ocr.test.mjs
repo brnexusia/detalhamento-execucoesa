@@ -86,3 +86,31 @@ test('the OCR preprocessor accepts real image bytes and merges recognized fields
   assert.equal(calls,1)
   assert.deepEqual(result,{title:'Brinco Palha Sintética',price:12,pack:'1 peça'})
 })
+
+
+test('recovers R$ 7,00 after upscaling small printed price labels rather than guessing R$ 700',async()=>{
+  const image=await sharp({create:{width:600,height:750,channels:3,
+    background:{r:242,g:242,b:240}}}).webp().toBuffer()
+  let calls=0
+  const result=await recognizePhotoProductLabel(image,{
+    ocr:async prepared=>{
+      calls++
+      const meta=await sharp(prepared).metadata()
+      assert.equal(meta.width,1200, 'printed label must be enlarged for OCR')
+      return {text:'BRINCO\n1 PÇ R$ 7,00'}
+    },
+  })
+  assert.equal(calls,1)
+  assert.deepEqual(result,{title:'Brinco',price:7,pack:'1 peça'})
+  assert.equal(parsePhotoProductLabel('BRINCO\n1 PÇ R$ 700').price,null,
+    'never infer decimal position from 700')
+})
+
+test('recognizes conservative OCR currency variants with explicit decimal cents',()=>{
+  assert.equal(parsePhotoProductLabel('BRINCO\n1 PÇ RS 7,00').price,7)
+  assert.equal(parsePhotoProductLabel('BRINCO\n1 PÇ R§ 7,00').price,7)
+  assert.equal(parsePhotoProductLabel('BRINCO\n1 PÇ R$ 7.00').price,7)
+  assert.equal(parsePhotoProductLabel('BRINCO\n1 PÇ 7,00').price,null)
+  assert.equal(parsePhotoProductLabel('BRINCO\n1 PÇ RS 700').price,null)
+  assert.equal(parsePhotoProductLabel('BRINCO\nVAREJO RS 10,00\nATACADO R$ 7,00').price,null)
+})
