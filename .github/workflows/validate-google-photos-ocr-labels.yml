@@ -1,0 +1,30 @@
+name: validate-google-photos-ocr-labels
+on:
+  push:
+    branches: [main, fix/google-photos-ocr-labels-20261114]
+    paths:
+      - 'server/scanner-photo-ocr.mjs'
+      - 'server/scanner-photo-ocr.test.mjs'
+      - 'server/scanner-photo-albums.mjs'
+      - 'server/scanner-normalizer.mjs'
+      - 'server/scanner-hooks.mjs'
+      - '.github/workflows/validate-google-photos-ocr-labels.yml'
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  ocr-labels:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-por tesseract-ocr-eng util-linux
+      - run: npm install --no-audit --no-fund --package-lock=false
+      - run: node --check server/scanner-photo-ocr.mjs && node --check server/scanner-photo-albums.mjs && node --check server/scanner-normalizer.mjs && node --check server/scanner-hooks.mjs
+      - run: node --test server/scanner-photo-ocr.test.mjs
+      - run: node server/scanner-photo-albums.test.mjs
+      - run: node --test server/scanner-google-photos-high-res.test.mjs
