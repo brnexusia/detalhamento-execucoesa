@@ -12,6 +12,7 @@ import { isTransientScannerNetworkError } from './scanner-network-retry.mjs'
 import { whatsappCatalogPhone, uazapiCatalogConfig } from './scanner-uazapi-catalog.mjs'
 import { sharedPhotoSourceKind } from './scanner-photo-albums.mjs'
 import { normalizeCandidates } from './scanner-normalizer.mjs'
+import { recognizePhotoProductLabel } from './scanner-photo-ocr.mjs'
 import { prepareReview } from './scanner-review.mjs'
 import { requeueInterruptedScans, requeueFailedTransientFacilZapScans } from './scanner-scan-lease.mjs'
 import { createScannerWorkScheduler } from './scanner-work-scheduler.mjs'
@@ -245,6 +246,7 @@ function compactCandidate(candidate) {
     properties: Array.isArray(candidate?.properties) ? candidate.properties.slice(0, 50) : [],
     price: candidate?.price != null && candidate.price !== '' && Number.isFinite(Number(candidate.price)) ? Number(candidate.price) : null,
     price_text: String(candidate?.price_text || '').slice(0, 100),
+    pack: String(candidate?.pack || '').trim().slice(0, 160),
     currency: String(candidate?.currency || '').slice(0, 20),
     availability: String(candidate?.availability || '').slice(0, 200),
     source: String(candidate?.source || 'generic').slice(0, 80),
@@ -539,6 +541,10 @@ export async function processNormalizationJob(jobId, normalizer = normalizeCandi
       const sourceById = new Map(candidates.map((candidate) => [candidate.__candidate_id, candidate]))
       const rows = products.map((product) => {
         const warnings = Array.isArray(product.warnings) ? [...product.warnings] : []
+        // A numbered photo placeholder is not a verified product name.
+        if (['google-photos','image-link'].includes(job.platform) &&
+            /^Foto importada \d+$/i.test(String(product.normalized?.name || '')) &&
+            !warnings.includes('missing_name')) warnings.push('missing_name')
         if (job.platform === 'pdf') {
           const original = sourceById.get(product.source_candidate_id)
           const normalized = product.normalized || {}
@@ -558,7 +564,8 @@ export async function processNormalizationJob(jobId, normalizer = normalizeCandi
           // Editorial PDF lookbooks require an explicit review/selection
           // before publication, even when prices and images appear complete.
           // Simple named product PDFs keep the previous selection behavior.
-          selected: warnings.length === 0 && job.platform !== 'whatsapp' && !(job.platform === 'pdf' &&
+          // Photo labels require human review even when OCR recognizes a price.
+          selected: warnings.length === 0 && !['whatsapp','google-photos','image-link'].includes(job.platform) && !(job.platform === 'pdf' &&
             /^pdf-(?:lookbook|fashion)-/.test(String(sourceById.get(product.source_candidate_id)?.external_id || ''))),
         }
       })
@@ -843,6 +850,85 @@ function installScannerRoutes(app) {
       products: result.rows.map(publicReviewProduct),
       summary: Object.fromEntries(Object.entries(summary.rows[0]).map(([key, value]) => [key, Number(value || 0)])),
       pagination: { limit, offset, total: Number(countResult.rows[0]?.count || 0) },
+    })
+  }))
+
+  // Re-run OCR on photos already staged in the tenant's review. Never rescan
+  // the shared Google album, change manual edits, or auto-select products.
+  router.post('/:jobId/reprocess-photo-labels', requireStore, asyncRoute(async (req, res) => {
+    const job = await reviewJob(req, res)
+    if (!job) return
+    if (!['google-photos','image-link'].includes(job.platform))
+      return res.status(400).json({ error:'Reanálise disponível apenas para importações de fotos.' })
+    const cursor = String(req.body?.cursor || '').trim()
+    if (cursor && !/^[0-9a-f-]{36}$/i.test(cursor))
+      return res.status(400).json({ error:'Cursor da revisão inválido.' })
+    const limit = Math.max(1,Math.min(3,Math.floor(Number(req.body?.limit)||3)))
+    const result = await pool.query([
+      'SELECT id,updated_at::text AS revision,normalized_data',
+      'FROM import_normalized_products WHERE job_id=$1 AND store_id=$2 AND id>$3',
+      'AND review_data IS NULL AND selected=false',
+      "AND ((normalized_data->>'name') ILIKE 'Foto importada %'",
+      "OR COALESCE(normalized_data->>'price','')='')",
+      'ORDER BY id ASC LIMIT $4',
+    ].join(' '),[job.id,req.scannerStore.store_id,cursor,limit])
+    const pending=[]
+    for(const row of result.rows){
+      const data=row.normalized_data||{}
+      const mediaUrl=String(data.media_url||data.images?.[0]||'')
+      const assetId=/^\/media\/([0-9a-f-]{36})$/i.exec(mediaUrl)?.[1]
+      if(!assetId)continue
+      const image=await pool.query('SELECT data FROM media_assets WHERE id=$1 AND store_id=$2 LIMIT 1',
+        [assetId,req.scannerStore.store_id])
+      if(!image.rows[0]?.data)continue
+      const label=await recognizePhotoProductLabel(image.rows[0].data)
+      if(!label)continue
+      const name=/^Foto importada \d+$/i.test(String(data.name||'')) && label.title
+        ? label.title : data.name
+      const price=data.price==null ? label.price : data.price
+      const pack=data.pack||label.pack||''
+      const description=data.description||(pack
+        ? 'Quantidade indicada na etiqueta: '+pack+'. Confira antes de publicar.' : '')
+      if(name===data.name && price===data.price && pack===data.pack && description===data.description)continue
+      const prepared=prepareReview({...data,name,price,pack,description})
+      if (/^Foto importada \d+$/i.test(String(prepared.data.name || '')) &&
+          !prepared.warnings.includes('missing_name')) prepared.warnings.push('missing_name')
+      pending.push({id:row.id,revision:row.revision,...prepared})
+    }
+    // Job-first lock order matches the review editor and publisher. OCR happens
+    // outside this short transaction. A compare-and-swap protects concurrent edits.
+    const client=await pool.connect()
+    let updated=0,summary
+    try {
+      await client.query('BEGIN')
+      const active=await client.query(
+        'SELECT status FROM import_jobs WHERE id=$1 AND store_id=$2 FOR UPDATE',
+        [job.id,req.scannerStore.store_id])
+      if(active.rows[0]?.status!=='review'){
+        await client.query('ROLLBACK')
+        return res.status(409).json({ error:'A importação deixou o estado de revisão.' })
+      }
+      for(const item of pending){
+        const written=await client.query([
+          'UPDATE import_normalized_products',
+          'SET normalized_data=$1,warnings=$2,confidence=$3,selected=false,updated_at=now()',
+          'WHERE id=$4 AND job_id=$5 AND store_id=$6 AND review_data IS NULL',
+          'AND selected=false AND updated_at=$7::timestamptz',
+        ].join(' '),[
+          JSON.stringify(item.data),JSON.stringify(item.warnings),item.confidence,
+          item.id,job.id,req.scannerStore.store_id,item.revision,
+        ])
+        updated+=written.rowCount
+      }
+      summary=await refreshReviewStats(client,job.id,req.scannerStore.store_id)
+      await client.query('COMMIT')
+    } catch(error){
+      await client.query('ROLLBACK').catch(()=>{})
+      throw error
+    } finally { client.release() }
+    res.json({
+      processed:result.rows.length,updated,next_cursor:result.rows.at(-1)?.id||cursor,
+      done:result.rows.length<limit,summary,
     })
   }))
 

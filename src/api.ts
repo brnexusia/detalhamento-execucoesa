@@ -377,6 +377,7 @@ export const api = {
   },
   updateImportReviewProduct: (jobId: string, productId: string, body: { data?: Partial<ImportReviewData>; selected?: boolean }) => request<{ product: ImportReviewProduct; summary: ImportReviewSummary; job: ImportJob }>(`/api/admin/imports/${encodeURIComponent(jobId)}/review/${encodeURIComponent(productId)}`, { method: 'PATCH', body: JSON.stringify(body) }),
   updateImportReviewSelection: (jobId: string, action: 'ready' | 'none') => request<{ summary: ImportReviewSummary; job: ImportJob }>(`/api/admin/imports/${encodeURIComponent(jobId)}/review-selection`, { method: 'PATCH', body: JSON.stringify({ action }) }),
+  reprocessImportPhotoLabels: (jobId: string, cursor = '', limit = 3) => request<{ processed: number; updated: number; next_cursor: string; done: boolean; summary: ImportReviewSummary }>(`/api/admin/imports/${encodeURIComponent(jobId)}/reprocess-photo-labels`, { method: 'POST', body: JSON.stringify({ cursor, limit }) }),
   upload: async (file: File) => {
     // Reduz fotos de câmera antes do proxy, evitando HTTP 413 e timeout.
     const prepared = await prepareCatalogPhoto(file)

@@ -203,6 +203,35 @@
 .scanner-review-summary small { display: block; color: var(--muted); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
 .scanner-review-summary strong { display: block; margin-top: 3px; font-size: 22px; }
 .scanner-review-summary [data-alert="true"] strong { color: #9d3026; }
+.scanner-review-ocr-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  padding: 9px 18px;
+  border-bottom: 1px solid var(--line);
+  background: #f9f8f5;
+}
+.scanner-review-ocr-action span { font-size: 11px; line-height: 1.4; color: var(--muted); }
+.scanner-review-ocr-action button {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: 1px solid #c8c0b1;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.scanner-review-ocr-action button:disabled { opacity: .6; cursor: default; }
+.scanner-review-ocr-result { margin: 8px 18px; padding: 10px; font-size: 12px; }
+
 
 .scanner-review-toolbar {
   display: grid;

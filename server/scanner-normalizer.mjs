@@ -278,7 +278,7 @@ export function normalizeCandidate(candidate) {
     variant_images: normalizeVariantImages(candidate),
     media_url: '',
     media_type: 'image',
-    pack: '',
+    pack: text(candidate?.pack, 160),
     variations: normalizeVariations(candidate),
     availability: text(candidate?.availability, 100),
     source_url: text(candidate?.source_url, 2048),
