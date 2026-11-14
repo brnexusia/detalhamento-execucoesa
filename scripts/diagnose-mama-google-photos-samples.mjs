@@ -94,6 +94,39 @@ try {
     results.push(outcome)
     console.log('MAMA_GOOGLE_PHOTOS_SAMPLE '+JSON.stringify(outcome))
   }
+  // Diagnose Google Photos' 54x72px inline thumbnails with a few
+  // full-resolution URL variations, without retaining original signed URLs.
+  for (const [label, link] of albums.slice(0, 2)) {
+    const resp = await safeRequest(link, {
+      accept:'text/html,application/xhtml+xml', maxBytes: 24*1024*1024, timeout:18000,
+    })
+    if(!resp.ok) continue
+    const urls = googlePhotosImageUrls(resp.body,7).slice(1,4)
+    for(let i=0; i<urls.length; i++) {
+      const u = new URL(urls[i])
+      const trailing = /=[^/=]+$/.exec(u.pathname)?.[0] || ''
+      const variants = ['=w1600-h1600', '=s1600', '=w1200']
+      const attempt = { album:label, imageIndex:i+2, originalSizeParam:trailing.slice(0,28), variants:[] }
+      for (const dimensions of variants) {
+        if (!trailing) continue
+        const alternative=new URL(u)
+        alternative.pathname=alternative.pathname.slice(0,-trailing.length)+dimensions
+        try {
+          const response=await safeRequest(alternative, {
+            accept:'image/avif,image/webp,image/png,image/jpeg,*/*',
+            responseType:'buffer', maxBytes:8*1024*1024,timeout:18000,
+          })
+          let media={}
+          if(response.ok&&response.buffer?.length) {
+            try{const meta=await sharp(response.buffer).metadata();media={format:meta.format,width:meta.width,height:meta.height}}
+            catch(e){media={decodeError:String(e?.message||e).slice(0,70)}}
+          }
+          attempt.variants.push({parameter:dimensions,http:response.status,bytes:response.buffer?.length||0,...media})
+        }catch(e){attempt.variants.push({parameter:dimensions,error:String(e?.message||e).slice(0,85)})}
+      }
+      console.log('MAMA_GOOGLE_PHOTOS_RESOLUTION '+JSON.stringify(attempt))
+    }
+  }
   const ok=results.filter(r=>r.result==='ok').length
   console.log('MAMA_GOOGLE_PHOTOS_SUMMARY '+JSON.stringify({albumsTested:results.length,worked:ok,failed:results.length-ok,photoLimitPerAlbum:4,published:0}))
   if (ok!==results.length) process.exitCode=1
