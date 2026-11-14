@@ -42,7 +42,21 @@ function labelName(lines, priceIndex) {
   // being silently inserted as the product name.
   const start = names.findIndex(x => PRODUCT_WORD.test(x))
   if (start < 0) return ''
-  const value = names.slice(start, start + 3).join(' ').trim().slice(0, 180)
+  // OCR may append tiny fragments from the photographed jewelry itself:
+  // "BRINCO ‘the", "BRINCO ait 1 PG", etc. Keep the actual product word,
+  // not those meaningless fragments or misread quantity glyphs.
+  const connectors = new Set(['de','da','do','das','dos','com','sem','em','e','as','os','um','uma'])
+  const pieces = []
+  for (const line of names.slice(start, start + 3)) {
+    const tokens = line.match(/\p{L}+|\d+/gu) || []
+    for (const token of tokens) {
+      const key = token.toLocaleLowerCase('pt-BR')
+      if (/^\d+$/.test(token) || (token.length < 4 && !connectors.has(key))) break
+      pieces.push(token)
+    }
+  }
+  while (pieces.length > 1 && connectors.has(pieces.at(-1).toLocaleLowerCase('pt-BR'))) pieces.pop()
+  const value = pieces.join(' ').trim().slice(0, 180)
   if (value.length < 4 || value.length > 150) return ''
   if (value === value.toLocaleUpperCase('pt-BR')) {
     return value.toLocaleLowerCase('pt-BR').replace(/(^|[\s/-])(\p{L})/gu, (_m, sep, letter) =>
@@ -116,12 +130,12 @@ export async function recognizePhotoProductLabel(imageBytes, { ocr = ocrTsv } = 
     const crop = await sharp(imageBytes, {limitInputPixels:40_000_000})
       .extract({
         left:0, top:0,
-        width:Math.min(width, Math.ceil(width * 0.82)),
-        height:Math.min(height, Math.ceil(height * 0.38)),
+        width:Math.min(width, Math.ceil(width * 0.55)),
+        height:Math.min(height, Math.ceil(height * 0.20)),
       })
       .resize({width:Math.min(1800,Math.round(width * 1.5)),withoutEnlargement:true})
       .grayscale().normalize().png().toBuffer()
-    const first = parsePhotoProductLabel((await ocr(crop, 6)).text)
+    const first = parsePhotoProductLabel((await ocr(crop, 11)).text)
     if (first.title && first.price !== null) return first
     // Additional fallback for labels outside the crop or split lines.
     const image = await sharp(imageBytes, {limitInputPixels:40_000_000})
