@@ -22,7 +22,7 @@ const folder = await mkdtemp(path.join(os.tmpdir(), 'shopvax-google-photos-diagn
 try {
   for (const [label, link] of albums) {
     const outcome = { album:label, sourceKind:sharedPhotoSourceKind(link) }
-    const files = new Map(), products = []
+    const files = new Map(), products = [], imageAttempts = []
     try {
       const response = await safeRequest(link, {
         accept: 'text/html,application/xhtml+xml',
@@ -37,8 +37,31 @@ try {
       outcome.detailUrls = googlePhotosDetailUrls(response.body,response.url,5).length
       if (!response.ok) throw new Error('Falha HTTP no álbum: '+ response.status)
       const result = await collectSharedPhotos(link, {
-        request: safeRequest,
-        maxProducts:2,
+        request: async (url, options) => {
+          if (options.responseType !== 'buffer') return safeRequest(url, options)
+          const report={host:new URL(url).hostname}
+          try {
+            const response=await safeRequest(url,options)
+            report.http=response.status
+            report.contentType=response.contentType.slice(0,55)
+            report.bytes=response.buffer?.length||0
+            if (report.bytes && report.http===200) {
+              try {
+                const meta=await sharp(response.buffer).metadata()
+                report.width=meta.width
+                report.height=meta.height
+                report.format=meta.format
+              } catch (error) { report.decodeError=String(error?.message||error).slice(0,75) }
+            }
+            imageAttempts.push(report)
+            return response
+          } catch (e) {
+            report.error=String(e?.message||e).slice(0,150)
+            imageAttempts.push(report)
+            throw e
+          }
+        },
+        maxProducts:4,
         collectInMemory:false,
         onProgress:async()=>{},
         onImage:async(bytes,type,filename)=>{
@@ -67,11 +90,12 @@ try {
       outcome.result='error'
       outcome.error=String(e?.message||e).slice(0,220)
     }
+    outcome.imageAttempts=imageAttempts
     results.push(outcome)
     console.log('MAMA_GOOGLE_PHOTOS_SAMPLE '+JSON.stringify(outcome))
   }
   const ok=results.filter(r=>r.result==='ok').length
-  console.log('MAMA_GOOGLE_PHOTOS_SUMMARY '+JSON.stringify({albumsTested:results.length,worked:ok,failed:results.length-ok,photoLimitPerAlbum:2,published:0}))
+  console.log('MAMA_GOOGLE_PHOTOS_SUMMARY '+JSON.stringify({albumsTested:results.length,worked:ok,failed:results.length-ok,photoLimitPerAlbum:4,published:0}))
   if (ok!==results.length) process.exitCode=1
 } finally {
   await rm(folder,{recursive:true,force:true})
