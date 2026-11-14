@@ -1,0 +1,21 @@
+name: diagnose-mama-google-photos-public-albums
+on:
+  push:
+    branches: [test/google-photos-mama-samples-20261114]
+    paths:
+      - 'scripts/diagnose-mama-google-photos-samples.mjs'
+      - '.github/workflows/diagnose-mama-google-photos-samples.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  sample:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund --package-lock=false
+      - run: node scripts/diagnose-mama-google-photos-samples.mjs
