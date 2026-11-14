@@ -7,7 +7,7 @@ import { parseTesseractTsv } from './scanner-pdf-tesseract.mjs'
 // second-party assets or sends photos to an external AI service.
 const OCR_TIMEOUT_MS = 9_000
 const MAX_OCR_OUTPUT = 256 * 1024
-const PRICE_MARKED = /(?:R\s*\$|BRL\b|PRE[CÇ]O\b|VALOR\b)\s*[:=\-]?\s*(\d{1,6}(?:\.\d{3})*,\d{2}|\d{1,6}\.\d{2})/giu
+const PRICE_MARKED = /(?:R\s*[$S§]|BRL\b|PRE[CÇ]O\b|VALOR\b)\s*[:=\-]?\s*(\d{1,6}(?:\.\d{3})*,\d{2}|\d{1,6}\.\d{2})/giu
 const QUANTITY = /(?:^|[\s(])(\d{1,4})\s*(P\s*[ÇC]S?|PE[ÇC]AS?|UNIDADES?|UNID\.?|UND\.?|PARES?|PAR|KITS?|D[UÚ]ZIAS?|DZ)(?=$|[\s,.;:)\]]|R\s*\$)/iu
 const PRODUCT_WORD = /^(?:BRINCO|BRINCOS|COLAR|COLARES|ANEL|ANEIS|ANÉIS|PULSEIRA|PULSEIRAS|CONJUNTO|CONJUNTOS|CHOKER|TORNOZELEIRA|TORNOZELEIRAS|BRACELETE|BRACELETES|TIARA|TIARAS|PRESILHA|PRESILHAS|BOLSA|BOLSAS|ARCO|ARCOS|KIT|LA[CÇ]O|LA[CÇ]OS|PIERCING|GARGANTILHA|GARGANTILHAS|PINGENTE|PINGENTES|ACESS[OÓ]RIO|ACESS[OÓ]RIOS)\b/iu
 
@@ -28,7 +28,7 @@ function labelName(lines, priceIndex) {
     ? lines.slice(Math.max(0, priceIndex - 4), priceIndex + 1)
     : lines.slice(0, 4)
   const names = relevant.map(line => line
-    .replace(/(?:R\s*\$|BRL\b|PRE[CÇ]O\b|VALOR\b)\s*[:=\-]?\s*\d{1,6}(?:\.\d{3})*[,.]\d{2}/giu, '')
+    .replace(/(?:R\s*[$S§]|BRL\b|PRE[CÇ]O\b|VALOR\b)\s*[:=\-]?\s*\d{1,6}(?:\.\d{3})*[,.]\d{2}/giu, '')
     .replace(QUANTITY, ' ')
     .replace(/\b(?:REF(?:ER[EÊ]NCIA)?|COD(?:IGO)?|SKU)\s*[:#.\-]\s*[A-Z0-9\-\/]+\b/giu, '')
     .replace(/^[\s|:;,.!#-]+|[\s|:;,.!#-]+$/g, '')
@@ -134,7 +134,9 @@ export async function recognizePhotoProductLabel(imageBytes, { ocr = ocrTsv } = 
         width:Math.min(width, Math.ceil(width * 0.55)),
         height:Math.min(height, Math.ceil(height * 0.20)),
       })
-      .resize({width:Math.min(1800,Math.round(width * 1.5)),withoutEnlargement:true})
+      // Small price labels need upscaling for punctuation (R$ 7,00 vs R$ 700).
+      // Previous withoutEnlargement:true kept 330px crops tiny and lost commas.
+      .resize({width:1200,kernel:'lanczos3'})
       .grayscale().normalize().png().toBuffer()
     const first = parsePhotoProductLabel((await ocr(crop, 11)).text)
     if (first.title && first.price !== null) return first
