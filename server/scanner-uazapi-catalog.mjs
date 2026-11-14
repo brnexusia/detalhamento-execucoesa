@@ -1,4 +1,5 @@
 // WhatsApp Business catalog reader using the official UAZAPI catalog-list contract.
+import crypto from 'node:crypto'
 // All requests run server-side with a configured instance token; the user supplies
 // only a public wa.me/c link. No scraping, inferred products or auto-publication.
 export function whatsappCatalogPhone(raw) {
@@ -64,6 +65,16 @@ function publicImage(raw) {
   } catch { return '' }
 }
 
+function whatsappImageSources(product) {
+  if (!Array.isArray(product?.media?.images)) return []
+  return product.media.images.map((item) => {
+    const choices = typeof item === 'string'
+      ? [item]
+      : [item?.original_image_url, item?.request_image_url, item?.url]
+    return [...new Set(choices.map(publicImage).filter(Boolean))]
+  }).filter((choices) => choices.length).slice(0, 30)
+}
+
 export function normalizeWhatsAppCatalogPayload(payload, phone, sourceUrl) {
   // UAZAPI 2.6.x returns {response:{products:[...],next?:string}}.
   const products = payload?.response?.products
@@ -78,8 +89,8 @@ export function normalizeWhatsAppCatalogPayload(payload, phone, sourceUrl) {
     const unique = id || title.toLowerCase()
     if (seen.has(unique)) continue
     seen.add(unique)
-    const images = Array.isArray(product.media?.images)
-      ? [...new Set(product.media.images.map(publicImage).filter(Boolean))].slice(0,30) : []
+    const imageSources = whatsappImageSources(product)
+    const images = [...new Set(imageSources.map((choices) => choices[0]))]
     const price = productPrice(product)
     const sourceProductUrl = id && /^\d+$/.test(id)
       ? 'https://wa.me/p/'+id+'/'+phone
@@ -89,6 +100,8 @@ export function normalizeWhatsAppCatalogPayload(payload, phone, sourceUrl) {
       description: String(product.description || '').trim().slice(0,12000),
       sku: String(product.retailer_id || '').trim().slice(0,200),
       category:'', brand:'', images,
+      // Scan-only alternatives: the original WhatsApp CDN link may be expired.
+      whatsapp_image_sources:imageSources,
       price,price_text:price == null ? '' : String(price),
       currency: String(product.currency || 'BRL').slice(0,20),
       availability: String(product.product_availability || (product.is_hidden ? 'oculto' : '')).slice(0,200),
@@ -96,6 +109,86 @@ export function normalizeWhatsAppCatalogPayload(payload, phone, sourceUrl) {
     })
   }
   return candidates
+}
+
+async function saveWhatsAppCatalogImages(candidates, options) {
+  // Keep the existing pure catalog parser useful for diagnostics/tests without
+  // database access. In production onImage writes validated bytes to /media.
+  if (typeof options.onImage !== 'function' || !candidates.length) return
+  const fetchImage = options.fetchImage ||
+    (await import('./import-media-localizer.mjs')).fetchImportImage
+  const cache = new Map()
+  let nextIndex = 0
+  let processed = 0
+  let localized = 0
+  let unavailable = 0
+
+  function saveImage(url) {
+    if (!cache.has(url)) {
+      const task = (async () => {
+        const image = await fetchImage(url, { request: options.request })
+        if (!Buffer.isBuffer(image?.buffer) || !/^image\/(jpeg|png|webp|gif|avif)$/.test(image?.mimeType || '')) {
+          throw new Error('Mídia do catálogo não é uma imagem válida.')
+        }
+        const ext = { 'image/jpeg':'jpg', 'image/png':'png', 'image/webp':'webp',
+          'image/gif':'gif', 'image/avif':'avif' }[image.mimeType]
+        const stored = await options.onImage(
+          image.buffer, image.mimeType, 'whatsapp-catalog-' + crypto.randomUUID() + '.' + ext,
+        )
+        if (!/^\/media\/[A-Za-z0-9_-]+$/.test(stored || '')) {
+          throw new Error('Armazenamento local de imagem indisponível.')
+        }
+        return stored
+      })()
+      cache.set(url, task)
+    }
+    return cache.get(url)
+  }
+
+  async function worker() {
+    while (nextIndex < candidates.length) {
+      const candidate = candidates[nextIndex++]
+      const groups = Array.isArray(candidate.whatsapp_image_sources)
+        ? candidate.whatsapp_image_sources : []
+      const stored = []
+      for (const urls of groups) {
+        let local = ''
+        for (const url of urls) {
+          try {
+            local = await saveImage(url)
+            break
+          } catch {
+            // Try the alternate URL furnished by UAZAPI for this same photo.
+          }
+        }
+        if (local) stored.push(local)
+        else unavailable += 1
+      }
+      if (stored.length) {
+        candidate.images = [...new Set(stored)]
+        localized += stored.length
+      }
+      // Only the normalized local /media paths or the original public URLs
+      // are stored in the import_candidates records; not these alternatives.
+      delete candidate.whatsapp_image_sources
+      processed += 1
+      if (processed % 25 === 0 || processed === candidates.length) {
+        await options.onProgress?.({
+          progress: 85 + Math.floor(5 * processed / candidates.length),
+          pagesScanned: options.pagesScanned || 0,
+          candidates: candidates.length,
+          platform: 'whatsapp',
+        })
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(4, candidates.length) }, () => worker()))
+  if (unavailable) {
+    // Do not put temporary signed photo URLs, tokens or phone numbers in logs.
+    console.warn('[scanner whatsapp] catalog images unavailable', {
+      unavailable, localized, products: candidates.length,
+    })
+  }
 }
 
 export async function collectWhatsAppCatalog(sourceUrl, options={}) {
@@ -148,6 +241,10 @@ export async function collectWhatsAppCatalog(sourceUrl, options={}) {
     await onProgress({progress:Math.min(85,10+page*2),pagesScanned:page,candidates:count,platform:'whatsapp'})
   }
   if(!all.length)throw new Error('A UAZAPI não encontrou produtos. Confira o catálogo público e o acesso da instância WhatsApp conectada.')
+  await saveWhatsAppCatalogImages(all, {
+    ...options,
+    pagesScanned: page,
+  })
   if(typeof options.onBatch==='function') {
     for(let start=0;start<all.length;start+=250)await options.onBatch(all.slice(start,start+250))
   }

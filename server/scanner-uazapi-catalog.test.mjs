@@ -91,3 +91,72 @@ test('rejects pagination loops and avoids publishing a partial catalog',async()=
   }),/Paginação repetida/)
   assert.equal(batches,0)
 })
+
+
+test('stores WhatsApp catalog gallery photos locally before review and tries request_image_url after the original fails', async () => {
+  const photos = []
+  const uploaded = []
+  const candidates = []
+  const source = {
+    response: { products: [{
+      id: '1005', name: 'Camisa com galeria', price: '30000',
+      media: { images: [
+        { original_image_url: 'https://mmg.whatsapp.net/expired.jpg',
+          request_image_url: 'https://mmg.whatsapp.net/valid.jpg' },
+        { request_image_url: 'https://lookaside.whatsapp.net/second.jpg' },
+      ] },
+    }] },
+  }
+  const result = await collectWhatsAppCatalog(link, {
+    env,
+    request: async () => ({ ok: true, status: 200, body: JSON.stringify(source) }),
+    fetchImage: async (url) => {
+      photos.push(url)
+      if (url.includes('expired.jpg')) throw new Error('Imagem respondeu HTTP 403.')
+      return { buffer: Buffer.from([0xff, 0xd8, 0xff, 0xe0]), mimeType: 'image/jpeg' }
+    },
+    onImage: async (bytes, mime, filename) => {
+      assert.ok(Buffer.isBuffer(bytes))
+      assert.equal(mime, 'image/jpeg')
+      assert.match(filename, /^whatsapp-catalog-[a-f0-9-]+\.jpg$/)
+      uploaded.push(filename)
+      return '/media/image-' + uploaded.length
+    },
+    onBatch: async (batch) => candidates.push(...batch),
+    onProgress: async () => {},
+  })
+  assert.equal(result.candidateCount, 1)
+  assert.equal(uploaded.length, 2)
+  assert.deepEqual(photos, [
+    'https://mmg.whatsapp.net/expired.jpg',
+    'https://mmg.whatsapp.net/valid.jpg',
+    'https://lookaside.whatsapp.net/second.jpg',
+  ])
+  assert.deepEqual(candidates[0].images, ['/media/image-1', '/media/image-2'])
+  assert.equal(candidates[0].whatsapp_image_sources, undefined)
+})
+
+test('preserves catalog candidates when both WhatsApp CDN URLs are inaccessible', async () => {
+  const candidates = []
+  const response = { response: { products: [{
+    id: '1006', name: 'Item sem acesso à foto', price: '19000',
+    media: { images: [{
+      original_image_url: 'https://mmg.whatsapp.net/unavailable-original.jpg',
+      request_image_url: 'https://mmg.whatsapp.net/unavailable-request.jpg',
+    }] },
+  }] } }
+  const oldWarn = console.warn
+  console.warn = () => {}
+  try {
+    await collectWhatsAppCatalog(link, {
+      env,
+      request: async () => ({ ok: true, status: 200, body: JSON.stringify(response) }),
+      fetchImage: async () => { throw new Error('Imagem respondeu HTTP 403.') },
+      onImage: async () => { throw new Error('Should not store inaccessible photos') },
+      onBatch: async batch => candidates.push(...batch),
+      onProgress: async () => {},
+    })
+  } finally { console.warn = oldWarn }
+  assert.equal(candidates.length, 1)
+  assert.deepEqual(candidates[0].images, ['https://mmg.whatsapp.net/unavailable-original.jpg'])
+})

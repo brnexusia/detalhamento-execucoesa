@@ -56,6 +56,10 @@ const defaultImageOrigins = [
   'https://storage.googleapis.com',
   'https://firebasestorage.googleapis.com',
   'https://lh3.googleusercontent.com',
+  // Temporary WhatsApp Business catalog images while an import is being reviewed.
+  // New scans copy valid images to /media, avoiding dependence on expiring URLs.
+  'https://mmg.whatsapp.net',
+  'https://lookaside.whatsapp.net',
   // Public product photos used by catalog-cloning review. These exact hosts
   // are trusted for images only; scripts and API connections remain blocked.
   'https://ilsnxeayzpgdjzktwowq.supabase.co', // Alexandre Bijoux
