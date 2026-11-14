@@ -245,6 +245,7 @@ function compactCandidate(candidate) {
     properties: Array.isArray(candidate?.properties) ? candidate.properties.slice(0, 50) : [],
     price: candidate?.price != null && candidate.price !== '' && Number.isFinite(Number(candidate.price)) ? Number(candidate.price) : null,
     price_text: String(candidate?.price_text || '').slice(0, 100),
+    pack: String(candidate?.pack || '').trim().slice(0, 160),
     currency: String(candidate?.currency || '').slice(0, 20),
     availability: String(candidate?.availability || '').slice(0, 200),
     source: String(candidate?.source || 'generic').slice(0, 80),
@@ -558,7 +559,8 @@ export async function processNormalizationJob(jobId, normalizer = normalizeCandi
           // Editorial PDF lookbooks require an explicit review/selection
           // before publication, even when prices and images appear complete.
           // Simple named product PDFs keep the previous selection behavior.
-          selected: warnings.length === 0 && job.platform !== 'whatsapp' && !(job.platform === 'pdf' &&
+          // OCR-derived values from public photos must be explicitly reviewed.
+          selected: warnings.length === 0 && !['whatsapp','google-photos','image-link'].includes(job.platform) && !(job.platform === 'pdf' &&
             /^pdf-(?:lookbook|fashion)-/.test(String(sourceById.get(product.source_candidate_id)?.external_id || ''))),
         }
       })
