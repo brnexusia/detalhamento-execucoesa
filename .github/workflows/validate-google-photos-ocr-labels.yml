@@ -8,6 +8,9 @@ on:
       - 'server/scanner-photo-albums.mjs'
       - 'server/scanner-normalizer.mjs'
       - 'server/scanner-hooks.mjs'
+      - 'src/api.ts'
+      - 'src/ScannerModule1.tsx'
+      - 'src/scanner-module1.css'
       - '.github/workflows/validate-google-photos-ocr-labels.yml'
   pull_request:
     branches: [main]
@@ -28,3 +31,4 @@ jobs:
       - run: node --test server/scanner-photo-ocr.test.mjs
       - run: node server/scanner-photo-albums.test.mjs
       - run: node --test server/scanner-google-photos-high-res.test.mjs
+      - run: npm run build
