@@ -1,0 +1,20 @@
+name: diagnose-mama-missing-photo-links
+on:
+  push:
+    branches: [test/mama-ocr-missing-price-20261114]
+    paths:
+      - 'scripts/diagnose-mama-missing-photo-links.mjs'
+      - '.github/workflows/diagnose-mama-missing-photo-links.yml'
+permissions:
+  contents: read
+jobs:
+  links:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund --package-lock=false
+      - run: node scripts/diagnose-mama-missing-photo-links.mjs
