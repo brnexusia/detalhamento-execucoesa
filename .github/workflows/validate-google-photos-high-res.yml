@@ -1,0 +1,31 @@
+name: validate-google-photos-high-res
+on:
+  push:
+    branches: [main, fix/google-photos-original-resolution-20261114]
+    paths:
+      - 'server/scanner-photo-albums.mjs'
+      - 'server/scanner-photo-albums.test.mjs'
+      - 'server/scanner-google-photos-high-res.test.mjs'
+      - '.github/workflows/validate-google-photos-high-res.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'server/scanner-photo-albums.mjs'
+      - 'server/scanner-photo-albums.test.mjs'
+      - 'server/scanner-google-photos-high-res.test.mjs'
+      - '.github/workflows/validate-google-photos-high-res.yml'
+permissions:
+  contents: read
+jobs:
+  photo-import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund --package-lock=false
+      - run: node --check server/scanner-photo-albums.mjs
+      - run: node --test server/scanner-google-photos-high-res.test.mjs
+      - run: node server/scanner-photo-albums.test.mjs
