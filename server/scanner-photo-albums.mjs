@@ -129,27 +129,52 @@ async function resolvePhotoDetails(detailUrls,request,onProgress) {
   return results.filter(Boolean)
 }
 
+// Google Photos often embeds 54x72 thumbnail URLs in the public album HTML.
+// The same public image ID supports higher resolution if the trailing Google
+// size directive is replaced. Keep the rest of the URL, including query data,
+// intact and only rewrite known Google image hosts.
+export function googlePhotosHighResolutionUrl(raw) {
+  const url = parsedUrl(raw)
+  if (!url || url.protocol !== 'https:' || !GOOGLE_IMAGE_HOST.test(url.hostname.toLowerCase())) return ''
+  const match = /=(?:[whs]\d{1,5})(?:-[A-Za-z0-9]+)*$/.exec(url.pathname)
+  if (!match || preferredPixels(url) >= 1600) return ''
+  url.pathname = url.pathname.slice(0, -match[0].length) + '=w1600-h1600'
+  return url.toString()
+}
+
 async function savePhoto(url, request, onImage, filename) {
-  const response = await request(url, {
-    accept: 'image/avif,image/webp,image/png,image/jpeg,image/gif,*/*;q=0.2',
-    responseType: 'buffer',
-    maxBytes: MAX_IMAGE_BYTES,
-    maxOutputBytes: MAX_IMAGE_BYTES,
-  })
-  if (!response?.ok) throw new Error('Imagem pública indisponível.')
-  const buffer = response.buffer
-  if (!Buffer.isBuffer(buffer) || !buffer.length || buffer.length > MAX_IMAGE_BYTES) throw new Error('Imagem inválida ou muito grande.')
-  // Sharp inspects real image bytes rather than trusting Content-Type headers.
-  const image = sharp(buffer, { failOn: 'error', limitInputPixels: 40_000_000 })
-  const meta = await image.metadata()
-  if (Number(meta.width || 0) < 220 || Number(meta.height || 0) < 220) throw new Error('Miniatura insuficiente.')
-  const optimized = await image.rotate()
-    .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
-    .webp({ quality: 85 }).toBuffer()
-  if (optimized.length > 5 * 1024 * 1024) throw new Error('Imagem convertida excedeu o limite.')
-  const stored = await onImage(optimized, 'image/webp', filename)
-  if (!/^\/media\/[A-Za-z0-9_-]+$/.test(String(stored || ''))) throw new Error('A imagem não pôde ser salva no catálogo.')
-  return { url: stored, bytes: optimized.length }
+  // Prefer original-quality Google images instead of 54x72 HTML thumbnails.
+  // If resizing is rejected by the CDN, retry the supplied link unchanged.
+  const fullSize = googlePhotosHighResolutionUrl(url)
+  const sources = fullSize && fullSize !== url ? [fullSize, url] : [url]
+  let failure
+  for (const source of sources) {
+    try {
+      const response = await request(source, {
+        accept: 'image/avif,image/webp,image/png,image/jpeg,image/gif,*/*;q=0.2',
+        responseType: 'buffer',
+        maxBytes: MAX_IMAGE_BYTES,
+        maxOutputBytes: MAX_IMAGE_BYTES,
+      })
+      if (!response?.ok) throw new Error('Imagem pública indisponível.')
+      const buffer = response.buffer
+      if (!Buffer.isBuffer(buffer) || !buffer.length || buffer.length > MAX_IMAGE_BYTES) throw new Error('Imagem inválida ou muito grande.')
+      // Sharp inspects real image bytes rather than trusting Content-Type.
+      const image = sharp(buffer, { failOn: 'error', limitInputPixels: 40_000_000 })
+      const meta = await image.metadata()
+      if (Number(meta.width || 0) < 220 || Number(meta.height || 0) < 220) throw new Error('Miniatura insuficiente.')
+      const optimized = await image.rotate()
+        .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
+        .webp({ quality: 85 }).toBuffer()
+      if (optimized.length > 5 * 1024 * 1024) throw new Error('Imagem convertida excedeu o limite.')
+      const stored = await onImage(optimized, 'image/webp', filename)
+      if (!/^\/media\/[A-Za-z0-9_-]+$/.test(String(stored || ''))) throw new Error('A imagem não pôde ser salva no catálogo.')
+      return { url: stored, bytes: optimized.length }
+    } catch (error) {
+      failure = error
+    }
+  }
+  throw failure || new Error('Imagem pública indisponível.')
 }
 
 export async function collectSharedPhotos(sourceUrl, { request, onImage, onBatch, onProgress, maxProducts = MAX_ALBUM_ITEMS, collectInMemory = true, photoSaver = savePhoto } = {}) {
