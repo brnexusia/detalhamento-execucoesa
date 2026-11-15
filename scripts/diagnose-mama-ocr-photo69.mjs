@@ -67,3 +67,28 @@ console.log('MAMA_PHOTO69_FORCED_HIGHRES '+JSON.stringify({
  index:position,http:highResponse.status,originalDimensions:[highMeta.width,highMeta.height],
  result:highResult,attempts:highAttempts,
 }))
+
+const bareResponse=await safeRequest(images[position-1],{
+ responseType:'buffer',accept:'image/*',maxBytes:8*1024*1024,timeout:18000,
+})
+if(!bareResponse.ok)throw Error('Bare image unavailable')
+const bareMeta=await sharp(bareResponse.buffer).metadata()
+const bareOptimized=await sharp(bareResponse.buffer).rotate()
+ .resize({width:1600,height:1600,fit:'inside',withoutEnlargement:true})
+ .webp({quality:85}).toBuffer()
+const bareAttempts=[]
+const bareResult=await recognizePhotoProductLabel(bareOptimized,{ocr:async(bytes,psm)=>{
+ const meta=await sharp(bytes).metadata()
+ const p=spawnSync('prlimit',[
+  '--as=1073741824','--cpu=12','--fsize=10485760','--',
+  'tesseract','stdin','stdout','-l','por+eng','--psm',String(psm),'tsv',
+ ],{input:bytes,encoding:'utf8',timeout:14000,maxBuffer:1024*1024})
+ const parsed=parseTesseractTsv(p.stdout||'')
+ bareAttempts.push({psm,dimensions:[meta.width,meta.height],exit:p.status,
+   lines:parsed.lines.slice(0,16).map(x=>x.text)})
+ return parsed
+}})
+console.log('MAMA_PHOTO69_LOWRES_NEW_OCR '+JSON.stringify({
+ index:position,originalDimensions:[bareMeta.width,bareMeta.height],
+ result:bareResult,attempts:bareAttempts,
+}))
