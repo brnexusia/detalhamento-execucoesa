@@ -190,12 +190,14 @@ test('accepts Tesseract 1 PÇ glyph substitutions only with explicit BRL cents',
   assert.equal(parsePhotoProductLabel('BICO DE PATO JUNINA\nIPÇ R$ 10,00\nDZ R$ 110,00').price,10)
   assert.equal(parsePhotoProductLabel('BICO DE PATO\n1P¢ R$ 9,00\nDZ R$ 100,00').price,9)
   assert.equal(parsePhotoProductLabel('CACHECOL\nal 1 PÇ R$ 38,00\nDE R$ 440,00').price,38)
-  assert.equal(parsePhotoProductLabel('IPG R$ 100\nDZ R$ 110,00').price,110,
-    'a bare integer cannot be interpreted as a decimal unit price')
+  assert.equal(parsePhotoProductLabel('IPG R$ 100\nDZ R$ 110,00').price,null,
+    'a dozen-only price must never be mistaken for the product unit price')
 })
 
 test('does not guess a price for several different unit tags in the same image',()=>{
   assert.equal(parsePhotoProductLabel('TIARA\nIPC R$ 38,00\nLENÇO\nIPÇ R$ 35,00').price,null)
   assert.equal(parsePhotoProductLabel('CACHECOL\nIPC R$ 20,00\nVAREJO R$ 30,00').price,20)
   assert.equal(parsePhotoProductLabel('CACHECOL\nIPG R$ 2000').price,null)
+  assert.equal(parsePhotoProductLabel('CACHECOL\nDZ R$ 220,00').price,null)
+  assert.equal(parsePhotoProductLabel('CACHECOL\nDE R$ 440,00').price,null)
 })
