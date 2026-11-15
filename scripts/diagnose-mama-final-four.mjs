@@ -26,6 +26,10 @@ for(const [name,link,indices] of samples){
   const file=await safeRequest(imgUrl,{responseType:'buffer',accept:'image/*',maxBytes:8*1024*1024,timeout:18000})
   const meta=await sharp(file.buffer).metadata()
   const current=await recognizePhotoProductLabel(file.buffer)
+  const optimized=await sharp(file.buffer).rotate().resize({
+     width:1600,height:1600,fit:'inside',withoutEnlargement:true,
+   }).webp({quality:85}).toBuffer()
+  const currentOptimized=await recognizePhotoProductLabel(optimized)
   const reads=[]
   for(const v of variants){
     const left=Math.floor(meta.width*v.x),top=Math.floor(meta.height*v.y)
@@ -45,6 +49,6 @@ for(const [name,link,indices] of samples){
     const item=parsePhotoProductLabel(output.text)
     reads.push({name:v.name,result:item,text:output.text.slice(0,440),exit:run.status})
   }
-  console.log('MAMA_FINAL_FOUR '+JSON.stringify({album:name,index:pos,dimensions:[meta.width,meta.height],current,reads}))
+  console.log('MAMA_FINAL_FOUR '+JSON.stringify({album:name,index:pos,dimensions:[meta.width,meta.height],current,currentOptimized,reads}))
  }
 }
