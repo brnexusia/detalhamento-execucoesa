@@ -153,7 +153,7 @@ export async function recognizePhotoProductLabel(imageBytes, { ocr = ocrTsv } = 
       {leftFraction:0,topFraction:0,widthFraction:0.55,heightFraction:0.20,psm:11},
       // A hard threshold can reveal printed decimal commas that grayscale
       // hides on light stickers or patterned jewelry backgrounds.
-      {leftFraction:0,topFraction:0,widthFraction:0.45,heightFraction:0.25,psm:11,binary:true},
+      {leftFraction:0,topFraction:0,widthFraction:0.45,heightFraction:0.25,psm:11,binary:true,targetWidth:1700},
       // Scarves, winter garments and gift sets often place their labels in
       // the middle or lower portion of the photo rather than the corner.
       {leftFraction:0.20,topFraction:0.28,widthFraction:0.70,heightFraction:0.35,psm:11},
@@ -171,7 +171,7 @@ export async function recognizePhotoProductLabel(imageBytes, { ocr = ocrTsv } = 
           width:Math.min(width-Math.floor(width*attempt.leftFraction),Math.ceil(width*attempt.widthFraction)),
           height:Math.min(height-Math.floor(height*attempt.topFraction),Math.ceil(height*attempt.heightFraction)),
         })
-        .resize({width:attempt.binary ? 1600 : 1200,kernel:'lanczos3'})
+        .resize({width:attempt.targetWidth || (attempt.binary ? 1600 : 1200),kernel:'lanczos3'})
         .grayscale()
       const prepared = await (attempt.binary ? transform.threshold(160) : transform.normalize())
         .png().toBuffer()
