@@ -1,0 +1,27 @@
+name: audit-mama-all-linktree-photo-albums
+on:
+  push:
+    branches: [test/mama-all-21-linktree-albums-20261114]
+    paths:
+      - 'scripts/audit-mama-all-albums.mjs'
+      - '.github/workflows/audit-mama-all-albums.yml'
+permissions:
+  contents: read
+jobs:
+  albums:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [0, 1, 2]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-por tesseract-ocr-eng util-linux
+      - run: npm install --no-audit --no-fund --package-lock=false
+      - run: node scripts/audit-mama-all-albums.mjs
+        env:
+          MAMA_AUDIT_PART: ${{ matrix.part }}
