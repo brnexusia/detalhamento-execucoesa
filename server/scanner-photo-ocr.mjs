@@ -11,6 +11,7 @@ const PRICE_MARKED = /(?:R\s*[$S§]|BRL\b|PRE[CÇ]O\b|VALOR\b)\s*[:=\-]?\s*(\d{1
 // OCR commonly reads '1 PÇ' as 'IPC', 'IPG' or '1P¢' on small tags.
 // Accept these glyphs ONLY immediately before a monetary value with cents.
 const ONE_PIECE_PRICE = /(?:^|[^\p{L}\d])[1I|l]\s*(?:P\s*[ÇCG¢]S?|PE[ÇC]AS?|PAR|UN(?:D(?:IDADE)?S?)?)\s*[:=\-]?\s*(?:R\s*[$S§]|BRL\b)\s*[:=\-]?\s*(\d{1,6}(?:\.\d{3})*,\d{2}|\d{1,6}\.\d{2})/giu
+const DOZEN_PRICE = /(?:^|[^\p{L}\d])(?:DZ|D[UÚ]ZIAS?|DE)\s*[:=\-]?\s*(?:R\s*[$S§]|BRL\b)\s*[:=\-]?\s*(\d{1,6}(?:\.\d{3})*,\d{2}|\d{1,6}\.\d{2})/giu
 const QUANTITY = /(?:^|[\s(])(\d{1,4}|[I|l])\s*(P\s*[ÇCG¢]S?|PE[ÇC]AS?|UNIDADES?|UNID\.?|UND\.?|PARES?|PAR|KITS?|D[UÚ]ZIAS?|DZ)(?=$|[\s,.;:)\]]|R\s*\$)/iu
 const PRODUCT_WORD = /^(?:BRINCO|BRINCOS|COLAR|COLARES|ANEL|ANEIS|ANÉIS|PULSEIRA|PULSEIRAS|CONJUNTO|CONJUNTOS|CHOKER|TORNOZELEIRA|TORNOZELEIRAS|BRACELETE|BRACELETES|TIARA|TIARAS|PRESILHA|PRESILHAS|BOLSA|BOLSAS|ARCO|ARCOS|KIT|LA[CÇ]O|LA[CÇ]OS|PIERCING|GARGANTILHA|GARGANTILHAS|PINGENTE|PINGENTES|ACESS[OÓ]RIO|ACESS[OÓ]RIOS|LEN[CÇ]O|LEN[CÇ]OS|CINTO|CINTOS|BROCHE|BROCHES|CHAVEIRO|CHAVEIROS|COPO|COPOS|PORTA.J[OÓ]IAS?|NECESSAIRES?|CACHECOL|CACHEC[OÓ]IS|CAL[CÇ]A|CAL[CÇ]AS|MEIA|MEIAS|GORRO|GORROS|BICO|BLUSA|BLUSAS|CAMISA|CAMISAS|MANTA|MANTAS|ESTOJO|ESTOJOS)\b/iu
 
@@ -80,8 +81,13 @@ export function parsePhotoProductLabel(rawText) {
   // ambiguous and require manual review.
   const piecePrices = [...new Set(lines.flatMap(line =>
     [...line.matchAll(ONE_PIECE_PRICE)].map(hit => priceOf(hit[1])).filter(x => x !== null)))]
-  const price = prices.length === 1 ? prices[0] :
-    piecePrices.length === 1 ? piecePrices[0] : null
+  // Never assign a standalone dozen price to the unit product when the
+  // '1 PÇ' row is unreadable. This would overprice the product dramatically.
+  const dozenPrices = [...new Set(lines.flatMap(line =>
+    [...line.matchAll(DOZEN_PRICE)].map(hit => priceOf(hit[1])).filter(x => x !== null)))]
+  const price = piecePrices.length > 1 ? null :
+    piecePrices.length === 1 ? piecePrices[0] :
+    prices.length === 1 && !dozenPrices.includes(prices[0]) ? prices[0] : null
   const priceIndex = lines.findIndex(x => [...x.matchAll(PRICE_MARKED)].length > 0)
   const quantityMatch = QUANTITY.exec(all)
   const rawQuantity = quantityMatch?.[1] || ''
