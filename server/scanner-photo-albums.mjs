@@ -137,9 +137,20 @@ async function resolvePhotoDetails(detailUrls,request,onProgress) {
 export function googlePhotosHighResolutionUrl(raw) {
   const url = parsedUrl(raw)
   if (!url || url.protocol !== 'https:' || !GOOGLE_IMAGE_HOST.test(url.hostname.toLowerCase())) return ''
+  // The Google album frequently provides bare URLs without a size suffix.
+  // Requesting the bare path may silently return only a 384x512 preview,
+  // while appending =w1600-h1600 returns a much clearer product label.
+  const imagePath = /^\/(?:pw|p)\/[A-Za-z0-9_-]{40,}/.test(url.pathname) ||
+    /^\/[A-Za-z0-9_-]{64,}/.test(url.pathname)
+  if (!imagePath || preferredPixels(url) >= 1600) return ''
   const match = /=(?:[whs]\d{1,5})(?:-[A-Za-z0-9]+)*$/.exec(url.pathname)
-  if (!match || preferredPixels(url) >= 1600) return ''
-  url.pathname = url.pathname.slice(0, -match[0].length) + '=w1600-h1600'
+  if (match) {
+    url.pathname = url.pathname.slice(0, -match[0].length) + '=w1600-h1600'
+  } else {
+    // Never rewrite a URI with an unrecognized image transformation.
+    if (url.pathname.includes('=')) return ''
+    url.pathname += '=w1600-h1600'
+  }
   return url.toString()
 }
 
