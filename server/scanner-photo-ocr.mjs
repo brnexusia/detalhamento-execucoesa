@@ -8,8 +8,9 @@ import { parseTesseractTsv } from './scanner-pdf-tesseract.mjs'
 const OCR_TIMEOUT_MS = 9_000
 const MAX_OCR_OUTPUT = 256 * 1024
 const PRICE_MARKED = /(?:R\s*[$S§]|BRL\b|PRE[CÇ]O\b|VALOR\b)\s*[:=\-]?\s*(\d{1,6}(?:\.\d{3})*,\d{2}|\d{1,6}\.\d{2})/giu
+const ONE_PIECE_PRICE = /(?:^|[^\p{L}\d])1\s*(?:P\s*[ÇC]S?|PE[ÇC]AS?|PAR|UN(?:D(?:IDADE)?S?)?)\s*[:=\-]?\s*(?:R\s*[$S§]|BRL\b)\s*[:=\-]?\s*(\d{1,6}(?:\.\d{3})*,\d{2}|\d{1,6}\.\d{2})/giu
 const QUANTITY = /(?:^|[\s(])(\d{1,4})\s*(P\s*[ÇC]S?|PE[ÇC]AS?|UNIDADES?|UNID\.?|UND\.?|PARES?|PAR|KITS?|D[UÚ]ZIAS?|DZ)(?=$|[\s,.;:)\]]|R\s*\$)/iu
-const PRODUCT_WORD = /^(?:BRINCO|BRINCOS|COLAR|COLARES|ANEL|ANEIS|ANÉIS|PULSEIRA|PULSEIRAS|CONJUNTO|CONJUNTOS|CHOKER|TORNOZELEIRA|TORNOZELEIRAS|BRACELETE|BRACELETES|TIARA|TIARAS|PRESILHA|PRESILHAS|BOLSA|BOLSAS|ARCO|ARCOS|KIT|LA[CÇ]O|LA[CÇ]OS|PIERCING|GARGANTILHA|GARGANTILHAS|PINGENTE|PINGENTES|ACESS[OÓ]RIO|ACESS[OÓ]RIOS)\b/iu
+const PRODUCT_WORD = /^(?:BRINCO|BRINCOS|COLAR|COLARES|ANEL|ANEIS|ANÉIS|PULSEIRA|PULSEIRAS|CONJUNTO|CONJUNTOS|CHOKER|TORNOZELEIRA|TORNOZELEIRAS|BRACELETE|BRACELETES|TIARA|TIARAS|PRESILHA|PRESILHAS|BOLSA|BOLSAS|ARCO|ARCOS|KIT|LA[CÇ]O|LA[CÇ]OS|PIERCING|GARGANTILHA|GARGANTILHAS|PINGENTE|PINGENTES|ACESS[OÓ]RIO|ACESS[OÓ]RIOS|LEN[CÇ]O|LEN[CÇ]OS|CINTO|CINTOS|BROCHE|BROCHES|CHAVEIRO|CHAVEIROS|COPO|COPOS|PORTA.J[OÓ]IAS?|NECESSAIRES?|CACHECOL|CACHEC[OÓ]IS|CAL[CÇ]A|CAL[CÇ]AS|MEIA|MEIAS|GORRO|GORROS|BICO|BLUSA|BLUSAS|CAMISA|CAMISAS|MANTA|MANTAS|ESTOJO|ESTOJOS)\b/iu
 
 function lineText(raw) {
   return String(raw ?? '').normalize('NFKC')
@@ -71,8 +72,14 @@ export function parsePhotoProductLabel(rawText) {
   const all = lines.join('\n')
   const occurrences = [...all.matchAll(PRICE_MARKED)].map(x => priceOf(x[1])).filter(x => x !== null)
   const prices = [...new Set(occurrences)]
-  // Competing price labels (e.g. retail versus wholesale) must not be guessed.
-  const price = prices.length === 1 ? prices[0] : null
+  // A sticker may show a price for 1 piece and a different price per dozen:
+  // "1 PÇ R$ 20,00 / DZ R$ 220,00". Treat that as ONE unit price.
+  // Two different "1 PÇ" prices (two different items in the photo) remain
+  // ambiguous and require manual review.
+  const piecePrices = [...new Set(lines.flatMap(line =>
+    [...line.matchAll(ONE_PIECE_PRICE)].map(hit => priceOf(hit[1])).filter(x => x !== null)))]
+  const price = prices.length === 1 ? prices[0] :
+    piecePrices.length === 1 ? piecePrices[0] : null
   const priceIndex = lines.findIndex(x => [...x.matchAll(PRICE_MARKED)].length > 0)
   const quantityMatch = QUANTITY.exec(all)
   const quantity = quantityMatch && Number(quantityMatch[1]) > 0 ? Number(quantityMatch[1]) : null
@@ -132,16 +139,22 @@ export async function recognizePhotoProductLabel(imageBytes, { ocr = ocrTsv } = 
     // OCR a focused top-left region first (Tesseract's page mode 3).
     // A wider crop is retained for different sticker positions.
     const attempts = [
-      {widthFraction:0.35,heightFraction:0.20,psm:3},
-      {widthFraction:0.55,heightFraction:0.20,psm:11},
+      {leftFraction:0,topFraction:0,widthFraction:0.35,heightFraction:0.20,psm:3},
+      {leftFraction:0,topFraction:0,widthFraction:0.55,heightFraction:0.20,psm:11},
+      // Scarves, winter garments and gift sets often place their labels in
+      // the middle or lower portion of the photo rather than the corner.
+      {leftFraction:0.20,topFraction:0.28,widthFraction:0.70,heightFraction:0.35,psm:11},
+      {leftFraction:0.10,topFraction:0.46,widthFraction:0.75,heightFraction:0.30,psm:11},
+      {leftFraction:0,topFraction:0.32,widthFraction:0.60,heightFraction:0.30,psm:11},
     ]
     const combined = {title:'',price:null,pack:''}
     for(const attempt of attempts) {
       const prepared = await sharp(imageBytes, {limitInputPixels:40_000_000})
         .extract({
-          left:0,top:0,
-          width:Math.min(width,Math.ceil(width*attempt.widthFraction)),
-          height:Math.min(height,Math.ceil(height*attempt.heightFraction)),
+          left:Math.floor(width*attempt.leftFraction),
+          top:Math.floor(height*attempt.topFraction),
+          width:Math.min(width-Math.floor(width*attempt.leftFraction),Math.ceil(width*attempt.widthFraction)),
+          height:Math.min(height-Math.floor(height*attempt.topFraction),Math.ceil(height*attempt.heightFraction)),
         })
         .resize({width:1200,kernel:'lanczos3'})
         .grayscale().normalize().png().toBuffer()
