@@ -74,3 +74,37 @@ test('falls back to original Google Photos URL when high-resolution variant is d
   assert.equal(requests.length,3)
   assert.equal(requests[2],thumb)
 })
+
+
+test('requests full-size versions when Google Photos provides a bare image CDN URL',async()=>{
+  const bare=googlePhoto.replace('=w54-h72-no','')
+  assert.equal(googlePhotosHighResolutionUrl(bare),bare+'=w1600-h1600')
+  assert.equal(googlePhotosHighResolutionUrl(bare+'?foo=bar'),bare+'=w1600-h1600?foo=bar')
+  assert.equal(googlePhotosHighResolutionUrl('https://lh3.googleusercontent.com/pw/x'),'')
+
+  const large=await sharp({create:{width:1086,height:1448,channels:3,
+    background:'#4499aa'}}).jpeg().toBuffer()
+  const preview=await sharp({create:{width:384,height:512,channels:3,
+    background:'#4499aa'}}).jpeg().toBuffer()
+  const requested=[],sizes=[]
+  const result=await collectSharedPhotos(album,{
+    maxProducts:1,collectInMemory:false,
+    request:async(url)=>{
+      requested.push(url)
+      if(url===album)return {ok:true,url:'https://photos.google.com/share/sample-public',
+        contentType:'text/html',body:'<script>"'+bare+'"</script>'}
+      return {ok:true,buffer:url.endsWith('=w1600-h1600')?large:preview}
+    },
+    onImage:async(bytes)=>{
+      const m=await sharp(bytes).metadata()
+      sizes.push([m.width,m.height])
+      return '/media/photo-large'
+    },
+    onProgress:async()=>{},
+  })
+  assert.equal(result.candidateCount,1)
+  assert.equal(requested.length,2)
+  assert.equal(requested[1],bare+'=w1600-h1600')
+  assert.ok(sizes[0][0]>384 && sizes[0][1]>512,
+    'must store a high-resolution source instead of the 384x512 default preview')
+})

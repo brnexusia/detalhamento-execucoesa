@@ -114,3 +114,32 @@ test('recognizes conservative OCR currency variants with explicit decimal cents'
   assert.equal(parsePhotoProductLabel('BRINCO\n1 PÇ RS 700').price,null)
   assert.equal(parsePhotoProductLabel('BRINCO\nVAREJO RS 10,00\nATACADO R$ 7,00').price,null)
 })
+
+
+test('reads top-left R$ 18,00 price before competing magazine text can mislead OCR',async()=>{
+  const photo=await sharp({create:{width:640,height:800,channels:3,
+    background:{r:245,g:245,b:245}}}).webp().toBuffer()
+  const calls=[]
+  const result=await recognizePhotoProductLabel(photo,{ocr:async (prepared,psm)=>{
+    const meta=await sharp(prepared).metadata()
+    calls.push({psm,width:meta.width,height:meta.height})
+    if(psm===3)return {text:'BRINCO\nPÇ R$ 18,00'}
+    return {text:'BRINCO\n1 PÇ R$ 15,00'}
+  }})
+  assert.deepEqual(calls.map(c=>c.psm),[3,11])
+  assert.equal(calls[0].width,1200)
+  assert.ok(calls[0].height > 300)
+  assert.deepEqual(result,{title:'Brinco',price:18,pack:'1 peça'})
+})
+
+test('wide second-pass OCR recovers price when the narrow label crop lacks it',async()=>{
+  const photo=await sharp({create:{width:640,height:800,channels:3,
+    background:{r:245,g:245,b:245}}}).webp().toBuffer()
+  const calls=[]
+  const result=await recognizePhotoProductLabel(photo,{ocr:async (_prepared,psm)=>{
+    calls.push(psm)
+    return {text:psm===3?'BRINCO':'BRINCO\n1 PÇ R$ 22,90'}
+  }})
+  assert.deepEqual(calls,[3,11])
+  assert.deepEqual(result,{title:'Brinco',price:22.9,pack:'1 peça'})
+})
