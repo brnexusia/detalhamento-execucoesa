@@ -1,0 +1,17 @@
+name: diagnose-mama-photo-match
+on:
+  push:
+    branches: [test/mama-photos-match-20261114]
+permissions:
+  contents: read
+jobs:
+  match:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund --package-lock=false
+      - run: node scripts/diagnose-mama-photo-match.mjs
