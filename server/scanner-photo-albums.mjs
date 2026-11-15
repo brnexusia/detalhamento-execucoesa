@@ -183,9 +183,11 @@ async function savePhoto(url, request, onImage, filename, readLabel = recognizeP
       if (!/^\/media\/[A-Za-z0-9_-]+$/.test(String(stored || ''))) throw new Error('A imagem não pôde ser salva no catálogo.')
       // Read from the original downloaded pixels *before* lossy WebP
       // compression erases tiny commas and currency symbols on price stickers.
-      // Only retry with the stored WebP when the source has no readable price.
+      // Only retry when the OCR itself fails on the source format. A missing
+      // price is a legitimate review state; running Tesseract twice for every
+      // unlabelled image would make large catalogs unnecessarily expensive.
       let label = await Promise.resolve().then(() => readLabel(buffer)).catch(() => null)
-      if (label?.price == null) {
+      if (label === null) {
         const alternative = await Promise.resolve().then(() => readLabel(optimized)).catch(() => null)
         if (alternative) label = {
           title: label?.title || alternative.title,
