@@ -1,3 +1,4 @@
+// Final verification uses direct-source OCR once per photo (WebP only as decoder fallback).
 // Read-only smoke test for ALL 21 Google Photos links listed in
 // https://linktr.ee/CatalogoMAMAbijoux on 2026-11-14.
 // Checks album access and inventory of image URLs; downloads at most EIGHT
