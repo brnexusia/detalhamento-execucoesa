@@ -178,3 +178,24 @@ test('tries middle and lower OCR regions when sticker is not in a corner',async(
   assert.deepEqual(calls,[3,11,11,11])
   assert.deepEqual(actual,{title:'Cachecol',price:38,pack:'1 peça'})
 })
+
+
+test('accepts Tesseract 1 PÇ glyph substitutions only with explicit BRL cents',()=>{
+  assert.deepEqual(parsePhotoProductLabel('CACHECOL CRIANÇA\nIPC R$ 20,00\nDZ R$ 220,00'),{
+    title:'Cachecol Criança',price:20,pack:'1 peça',
+  })
+  assert.deepEqual(parsePhotoProductLabel('CALÇA MEIA\nIPG R$ 25,00\nDZ R$ 280,00'),{
+    title:'Calça Meia',price:25,pack:'1 peça',
+  })
+  assert.equal(parsePhotoProductLabel('BICO DE PATO JUNINA\nIPÇ R$ 10,00\nDZ R$ 110,00').price,10)
+  assert.equal(parsePhotoProductLabel('BICO DE PATO\n1P¢ R$ 9,00\nDZ R$ 100,00').price,9)
+  assert.equal(parsePhotoProductLabel('CACHECOL\nal 1 PÇ R$ 38,00\nDE R$ 440,00').price,38)
+  assert.equal(parsePhotoProductLabel('IPG R$ 100\nDZ R$ 110,00').price,110,
+    'a bare integer cannot be interpreted as a decimal unit price')
+})
+
+test('does not guess a price for several different unit tags in the same image',()=>{
+  assert.equal(parsePhotoProductLabel('TIARA\nIPC R$ 38,00\nLENÇO\nIPÇ R$ 35,00').price,null)
+  assert.equal(parsePhotoProductLabel('CACHECOL\nIPC R$ 20,00\nVAREJO R$ 30,00').price,20)
+  assert.equal(parsePhotoProductLabel('CACHECOL\nIPG R$ 2000').price,null)
+})
