@@ -126,31 +126,47 @@ export async function recognizePhotoProductLabel(imageBytes, { ocr = ocrTsv } = 
     const meta = await sharp(imageBytes, {limitInputPixels:40_000_000}).metadata()
     const width = Number(meta.width || 0), height = Number(meta.height || 0)
     if (width < 220 || height < 220) return null
-    // Labels in jewelry lookbooks are typically in the upper-left corner.
-    // First crop avoids hallucinating text from the actual product photograph.
-    const crop = await sharp(imageBytes, {limitInputPixels:40_000_000})
-      .extract({
-        left:0, top:0,
-        width:Math.min(width, Math.ceil(width * 0.55)),
-        height:Math.min(height, Math.ceil(height * 0.20)),
-      })
-      // Small price labels need upscaling for punctuation (R$ 7,00 vs R$ 700).
-      // Previous withoutEnlargement:true kept 330px crops tiny and lost commas.
-      .resize({width:1200,kernel:'lanczos3'})
-      .grayscale().normalize().png().toBuffer()
-    const first = parsePhotoProductLabel((await ocr(crop, 11)).text)
-    if (first.title && first.price !== null) return first
-    // Additional fallback for labels outside the crop or split lines.
+
+    // Prices printed on a small sticker in the corner are easily lost when
+    // the crop includes the magazine/background next to the sticker.
+    // OCR a focused top-left region first (Tesseract's page mode 3).
+    // A wider crop is retained for different sticker positions.
+    const attempts = [
+      {widthFraction:0.35,heightFraction:0.20,psm:3},
+      {widthFraction:0.55,heightFraction:0.20,psm:11},
+    ]
+    const combined = {title:'',price:null,pack:''}
+    for(const attempt of attempts) {
+      const prepared = await sharp(imageBytes, {limitInputPixels:40_000_000})
+        .extract({
+          left:0,top:0,
+          width:Math.min(width,Math.ceil(width*attempt.widthFraction)),
+          height:Math.min(height,Math.ceil(height*attempt.heightFraction)),
+        })
+        .resize({width:1200,kernel:'lanczos3'})
+        .grayscale().normalize().png().toBuffer()
+      const recognized = parsePhotoProductLabel((await ocr(prepared,attempt.psm)).text)
+      combined.title ||= recognized.title
+      combined.price ??= recognized.price
+      combined.pack ||= recognized.pack
+      // When a complete sticker was read, don't run OCR against jewelry or
+      // printed magazine text, which could produce a conflicting false price.
+      if (combined.title && combined.price !== null && combined.pack) return combined
+    }
+    if (combined.title && combined.price !== null) return combined
+
+    // Fallback when the label is not in the corner. Do not derive prices
+    // from standalone 3-4 digit numbers; require a marked decimal price.
     const image = await sharp(imageBytes, {limitInputPixels:40_000_000})
       .resize({width:1600,withoutEnlargement:true}).png().toBuffer()
-    const second = parsePhotoProductLabel((await ocr(image, 11)).text)
+    const last = parsePhotoProductLabel((await ocr(image,11)).text)
     return {
-      title: first.title || second.title,
-      price: first.price ?? second.price,
-      pack: first.pack || second.pack,
+      title:combined.title || last.title,
+      price:combined.price ?? last.price,
+      pack:combined.pack || last.pack,
     }
   } catch {
-    // OCR failure must never prevent downloading or reviewing a public photo.
+    // No product may be blocked from review because OCR could not read it.
     return null
   }
 }
