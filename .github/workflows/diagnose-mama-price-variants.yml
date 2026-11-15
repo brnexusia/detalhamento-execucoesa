@@ -1,0 +1,21 @@
+name: diagnose-mama-price-ocr-variants
+on:
+  push:
+    branches: [test/mama-prices-visual-audit-20261114]
+    paths:
+      - 'scripts/diagnose-mama-price-variants.mjs'
+      - '.github/workflows/diagnose-mama-price-variants.yml'
+permissions:
+  contents: read
+jobs:
+  sample:
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-por tesseract-ocr-eng util-linux
+      - run: npm install --no-audit --no-fund --package-lock=false
+      - run: node scripts/diagnose-mama-price-variants.mjs
