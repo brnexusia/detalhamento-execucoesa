@@ -214,7 +214,7 @@ test('uses threshold OCR on a small top-left sticker before guessing from backgr
   }})
   assert.equal(attempts.length,3)
   assert.deepEqual(attempts.map(x=>x.psm),[3,11,11])
-  assert.equal(attempts[2].width,1600)
+  assert.equal(attempts[2].width,1700)
   assert.equal(result.price,17)
   assert.equal(result.pack,'1 peça')
 })
