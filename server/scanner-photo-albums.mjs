@@ -181,8 +181,18 @@ async function savePhoto(url, request, onImage, filename, readLabel = recognizeP
       if (optimized.length > 5 * 1024 * 1024) throw new Error('Imagem convertida excedeu o limite.')
       const stored = await onImage(optimized, 'image/webp', filename)
       if (!/^\/media\/[A-Za-z0-9_-]+$/.test(String(stored || ''))) throw new Error('A imagem não pôde ser salva no catálogo.')
-      // Reading the image is optional; storage succeeds even if OCR fails.
-      const label = await Promise.resolve().then(() => readLabel(optimized)).catch(() => null)
+      // Read from the original downloaded pixels *before* lossy WebP
+      // compression erases tiny commas and currency symbols on price stickers.
+      // Only retry with the stored WebP when the source has no readable price.
+      let label = await Promise.resolve().then(() => readLabel(buffer)).catch(() => null)
+      if (label?.price == null) {
+        const alternative = await Promise.resolve().then(() => readLabel(optimized)).catch(() => null)
+        if (alternative) label = {
+          title: label?.title || alternative.title,
+          price: alternative.price ?? label?.price ?? null,
+          pack: label?.pack || alternative.pack,
+        }
+      }
       return { url: stored, bytes: optimized.length, label }
     } catch (error) {
       failure = error
