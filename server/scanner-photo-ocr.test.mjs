@@ -143,3 +143,38 @@ test('wide second-pass OCR recovers price when the narrow label crop lacks it',a
   assert.deepEqual(calls,[3,11])
   assert.deepEqual(result,{title:'Brinco',price:22.9,pack:'1 peça'})
 })
+
+
+test('chooses the explicitly labelled single-piece price over dozen discount',()=>{
+  assert.deepEqual(parsePhotoProductLabel('CACHECOL CRIANÇA\n1 PÇ R$ 20,00\nDZ R$ 220,00'),{
+    title:'Cachecol Criança',price:20,pack:'1 peça',
+  })
+  assert.deepEqual(parsePhotoProductLabel('BICO DE PATO\n1 PÇ R$ 9,00\nDZ R$ 100,00'),{
+    title:'Bico De Pato',price:9,pack:'1 peça',
+  })
+  assert.deepEqual(parsePhotoProductLabel('CALÇA MEIA\n1 PC R$ 25,00\nDZ RS 280,00'),{
+    title:'Calça Meia',price:25,pack:'1 peça',
+  })
+})
+
+test('does not choose an arbitrary unit price when photo contains two separate products',()=>{
+  const two='TIARA INSPIRAÇÃO BRASIL\n1 PÇ R$ 38,00\nLENÇO BRASIL\n1 PÇ R$ 35,00'
+  assert.equal(parsePhotoProductLabel(two).price,null)
+  assert.equal(parsePhotoProductLabel('CACHECOL\n1 PÇ R$ 38,00\nDZ R$ 440,00').price,38)
+  assert.equal(parsePhotoProductLabel('CACHECOL\nATACADO R$ 33,00\nVAREJO R$ 44,00').price,null)
+})
+
+test('tries middle and lower OCR regions when sticker is not in a corner',async()=>{
+  const image=await sharp({create:{width:900,height:1600,channels:3,background:'#fff'}})
+    .jpeg().toBuffer()
+  const calls=[]
+  const actual=await recognizePhotoProductLabel(image,{
+    ocr:async (_buffer,psm)=>{
+      calls.push(psm)
+      if(calls.length===4)return {text:'CACHECOL\n1 PÇ R$ 38,00\nDZ R$ 440,00'}
+      return {text:'CACHECOL'}
+    },
+  })
+  assert.deepEqual(calls,[3,11,11,11])
+  assert.deepEqual(actual,{title:'Cachecol',price:38,pack:'1 peça'})
+})
