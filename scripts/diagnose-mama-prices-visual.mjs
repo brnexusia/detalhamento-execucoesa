@@ -1,52 +1,48 @@
 import sharp from 'sharp'
 import {safeRequest} from '../server/scanner-collector.mjs'
 import {googlePhotosImageUrls,googlePhotosHighResolutionUrl} from '../server/scanner-photo-albums.mjs'
-import {recognizePhotoProductLabel} from '../server/scanner-photo-ocr.mjs'
 const cases=[
-  ['Colares Verniz','https://photos.app.goo.gl/4z14SLH91bxMENMX9',[1]],
-  ['Chokers','https://photos.app.goo.gl/4qNDWNyoEig83Dhn9',[1]],
-  ['Brasil Core','https://photos.app.goo.gl/XYcPE4m8Ejoam4yF7',[1,3]],
-  ['Inverno','https://photos.app.goo.gl/GmkVR55GHRgRmHP88',[1,2,3]],
-  ['Inverno Infantil','https://photos.app.goo.gl/xfKFgSB6R5m9xqnk9',[2,3]],
-  ['Festa Junina','https://photos.app.goo.gl/nHmUk4GjrziN5npD9',[1]],
+ ['Lenços Verão','https://photos.app.goo.gl/uZJuTkVXgEcqDNye7',[4]],
+ ['Colares Aros','https://photos.app.goo.gl/q3bgsGmWQjVRBP8J9',[4]],
+ ['Colares Verniz','https://photos.app.goo.gl/4z14SLH91bxMENMX9',[1]],
+ ['Chokers','https://photos.app.goo.gl/4qNDWNyoEig83Dhn9',[3,8]],
+ ['Brasil Core','https://photos.app.goo.gl/XYcPE4m8Ejoam4yF7',[1,3,4,5]],
+ ['Inverno','https://photos.app.goo.gl/GmkVR55GHRgRmHP88',[1,2,3,7]],
+ ['Inverno Infantil','https://photos.app.goo.gl/xfKFgSB6R5m9xqnk9',[2,3,4,7,8]],
+ ['Festa Junina','https://photos.app.goo.gl/nHmUk4GjrziN5npD9',[1,5,6,7]],
 ]
-const tiles=[],crops=[],results=[]
-let idx=0
-function label(s,width,number) {
-  const safe=s.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')
-  return Buffer.from('<svg width="'+width+'" height="45"><rect width="100%" height="100%" fill="#e8e8e8"/><text x="14" y="30" font-size="19" font-family="sans-serif" fill="#111">'+number+' '+safe+'</text></svg>')
-}
+const data=[]
+const photo=[]
 for(const [name,album,indices] of cases){
-  const page=await safeRequest(album,{accept:'text/html,application/xhtml+xml',maxBytes:24*1024*1024,timeout:20000})
-  if(!page.ok)throw Error('Album not accessible: '+name)
-  const urls=googlePhotosImageUrls(page.body,10)
-  for(const n of indices){
-    const source=urls[n-1],final=googlePhotosHighResolutionUrl(source)||source
-    const res=await safeRequest(final,{responseType:'buffer',accept:'image/*',maxBytes:8*1024*1024,timeout:20000})
-    if(!res.ok||!res.buffer?.length)throw Error('Photo unavailable: '+name+' '+n)
-    const image=await sharp(res.buffer).metadata()
-    const recognized=await recognizePhotoProductLabel(res.buffer)
-    const x=idx%2*550,y=Math.floor(idx/2)*740
-    const picture=await sharp(res.buffer).resize({width:530,height:675,fit:'inside'})
-      .jpeg({quality:79}).toBuffer()
-    const picMeta=await sharp(picture).metadata()
-    tiles.push({input:label(name+' · foto '+n,550,idx+1),left:x,top:y})
-    tiles.push({input:picture,left:x+Math.floor((550-picMeta.width)/2),top:y+50})
-    const crop=await sharp(res.buffer).extract({
-      left:0,top:0,width:Math.ceil(image.width*.6),height:Math.ceil(image.height*.3),
-    }).resize({width:530}).jpeg({quality:83}).toBuffer()
-    crops.push({input:label(name+' · foto '+n,550,idx+1),left:x,top:Math.floor(idx/2)*440})
-    crops.push({input:crop,left:x+10,top:Math.floor(idx/2)*440+50})
-    results.push({index:idx+1,album:name,photo:n,dimensions:[image.width,image.height],ocr:recognized})
-    idx++
-  }
+ const page=await safeRequest(album,{accept:'text/html,application/xhtml+xml',maxBytes:24*1024*1024,timeout:20000})
+ if(!page.ok)throw Error('Album not accessible: '+name)
+ const urls=googlePhotosImageUrls(page.body,10)
+ for(const n of indices){
+   const raw=urls[n-1]
+   if(!raw)throw Error('No image '+name+' #'+n)
+   const url=googlePhotosHighResolutionUrl(raw)||raw
+   const res=await safeRequest(url,{responseType:'buffer',accept:'image/*',maxBytes:8*1024*1024,timeout:20000})
+   if(!res.ok||!res.buffer?.length)throw Error('Photo missing '+name+' #'+n)
+   const resized=await sharp(res.buffer).resize({width:500,height:620,fit:'inside'})
+      .jpeg({quality:75}).toBuffer()
+   const meta=await sharp(resized).metadata()
+   data.push({album:name,index:n,order:data.length+1})
+   photo.push({bytes:resized,width:meta.width,height:meta.height})
+ }
 }
-const h=Math.ceil(idx/2)
-const sheet=await sharp({create:{width:1100,height:740*h,channels:3,background:'#fff'}})
- .composite(tiles).jpeg({quality:75}).toBuffer()
-const sheetCrop=await sharp({create:{width:1100,height:440*h,channels:3,background:'#fff'}})
- .composite(crops).jpeg({quality:76}).toBuffer()
-for(const x of results) console.log('MAMA_MISSING_VISUAL_ITEM '+JSON.stringify(x))
-console.log('MAMA_MISSING_VISUAL_SHEET '+sheet.toString('base64'))
-console.log('MAMA_MISSING_CROP_SHEET '+sheetCrop.toString('base64'))
-console.log('MAMA_MISSING_VISUAL_SUMMARY '+JSON.stringify({count:results.length,missingOCR:results.filter(x=>x.ocr?.price==null).length}))
+for(let sheetId=0;sheetId<2;sheetId++){
+ const selected=data.slice(sheetId*11,sheetId*11+11)
+ const composites=[],colW=540,rowH=700
+ for(let i=0;i<selected.length;i++){
+   const d=selected[i],img=photo[d.order-1],x=(i%2)*colW,y=Math.floor(i/2)*rowH
+   const title=(d.order+'. '+d.album+' foto '+d.index)
+     .replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')
+   const svg=Buffer.from('<svg width="'+colW+'" height="54"><rect width="100%" height="100%" fill="#eee"/><text x="12" y="34" font-family="sans-serif" font-size="24" fill="#111">'+title+'</text></svg>')
+   composites.push({input:svg,left:x,top:y})
+   composites.push({input:img.bytes,left:x+Math.floor((colW-img.width)/2),top:y+60})
+ }
+ const image=await sharp({create:{width:1080,height:Math.ceil(selected.length/2)*rowH,channels:3,background:'#fff'}})
+  .composite(composites).jpeg({quality:76,mozjpeg:true}).toBuffer()
+ console.log('MAMA_EXPANDED_VISUAL_SHEET_'+sheetId+' '+image.toString('base64'))
+}
+console.log('MAMA_EXPANDED_VISUAL_LIST '+JSON.stringify(data))
