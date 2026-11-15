@@ -42,3 +42,24 @@ await Promise.all(Array.from({length:6},()=>worker()))
 matches.sort((a,b)=>a.distance-b.distance)
 console.log('MAMA_MATCH_SUMMARY '+JSON.stringify({urlCount:urls.length,completed,errors}))
 for(const item of matches.slice(0,15))console.log('MAMA_MATCH_TOP '+JSON.stringify(item))
+
+const tiles=[]
+for(const [j,item] of matches.slice(0,24).entries()) {
+  try{
+    const u=new URL(item.url)
+    u.pathname=u.pathname.replace(/=[^/=]+$/,'=w360-h360')
+    const response=await safeRequest(u.toString(),{
+      responseType:'buffer',accept:'image/*',maxBytes:1500000,timeout:15000,
+    })
+    const square=await sharp(response.buffer)
+      .resize({width:190,height:190,fit:'cover'}).jpeg({quality:76}).toBuffer()
+    const label=Buffer.from('<svg width="200" height="30"><rect width="200" height="30" fill="#eee"/><text font-size="19" font-family="sans-serif" x="9" y="22">#'+item.index+' D='+item.distance+'</text></svg>')
+    const left=(j%6)*200,top=Math.floor(j/6)*228
+    tiles.push({input:label,left,top})
+    tiles.push({input:square,left:left+5,top:top+31})
+  }catch(e){}
+}
+const contact=await sharp({create:{width:1200,height:912,channels:3,background:'#fff'}})
+  .composite(tiles).jpeg({quality:70,mozjpeg:true}).toBuffer()
+console.log('MAMA_MATCH_SHEET_BASE64 '+contact.toString('base64'))
+
