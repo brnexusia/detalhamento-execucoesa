@@ -108,3 +108,36 @@ test('requests full-size versions when Google Photos provides a bare image CDN U
   assert.ok(sizes[0][0]>384 && sizes[0][1]>512,
     'must store a high-resolution source instead of the 384x512 default preview')
 })
+
+
+test('reads price from original JPEG bytes before compressing the stored image to WebP',async()=>{
+  const raw=await sharp({create:{width:1086,height:1448,channels:3,background:'#998877'}})
+    .jpeg({quality:98}).toBuffer()
+  const albumLink='https://photos.app.goo.gl/ocr-raw-test'
+  const url='https://lh3.googleusercontent.com/pw/'+'J'.repeat(90)+'=w1600-h1600'
+  const candidates=[]
+  let originalOcrReads=0
+  const result=await collectSharedPhotos(albumLink,{
+    collectInMemory:false,maxProducts:1,onProgress:async()=>{},
+    request:async(u)=>u===albumLink
+      ? {ok:true,url:'https://photos.google.com/share/test-ocr',contentType:'text/html',
+          body:'<script>"'+url+'"</script>'}
+      : {ok:true,buffer:raw},
+    onImage:async(bytes,mime)=>{
+      assert.equal(mime,'image/webp')
+      assert.equal((await sharp(bytes).metadata()).format,'webp')
+      assert.ok(!bytes.equals(raw))
+      return '/media/raw-photo'
+    },
+    readLabel:async(bytes)=>{
+      originalOcrReads++
+      assert.ok(bytes.equals(raw),'OCR must inspect original JPEG pixels first')
+      return {title:'Colar',price:17,pack:'1 peça'}
+    },
+    onBatch:async rows=>candidates.push(...rows),
+  })
+  assert.equal(result.candidateCount,1)
+  assert.equal(originalOcrReads,1)
+  assert.equal(candidates[0].price,17)
+  assert.equal(candidates[0].images[0],'/media/raw-photo')
+})

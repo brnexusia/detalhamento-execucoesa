@@ -201,3 +201,37 @@ test('does not guess a price for several different unit tags in the same image',
   assert.equal(parsePhotoProductLabel('CACHECOL\nDZ R$ 220,00').price,null)
   assert.equal(parsePhotoProductLabel('CACHECOL\nDE R$ 440,00').price,null)
 })
+
+
+test('uses threshold OCR on a small top-left sticker before guessing from background',async()=>{
+  const img=await sharp({create:{width:1200,height:1600,channels:3,background:'#fff'}})
+    .jpeg().toBuffer()
+  const attempts=[]
+  const result=await recognizePhotoProductLabel(img,{ocr:async(bytes,psm)=>{
+    const meta=await sharp(bytes).metadata()
+    attempts.push({psm,width:meta.width})
+    return {text:attempts.length===3?'COLAR E BRINCO\n1 PC R$ 17,00':'COLAR E BRINCO'}
+  }})
+  assert.equal(attempts.length,3)
+  assert.deepEqual(attempts.map(x=>x.psm),[3,11,11])
+  assert.equal(attempts[2].width,1700)
+  assert.equal(result.price,17)
+  assert.equal(result.pack,'1 peça')
+})
+
+test('recognizes a bottom-right promotion label without treating image texture as price',async()=>{
+  const img=await sharp({create:{width:1200,height:1600,channels:3,background:'#ddd'}})
+    .jpeg().toBuffer()
+  const attempts=[]
+  const result=await recognizePhotoProductLabel(img,{ocr:async(bytes,psm)=>{
+    const meta=await sharp(bytes).metadata()
+    attempts.push({psm,width:meta.width})
+    return {text:attempts.length===7
+      ? 'CACHECOL COM POMPOM\nPROMOÇÃO\n1P¢ R$ 20,00'
+      : ''}
+  }})
+  assert.equal(attempts.length,7)
+  assert.equal(attempts.at(-1).psm,6)
+  assert.equal(attempts.at(-1).width,1600)
+  assert.equal(result.price,20)
+})
