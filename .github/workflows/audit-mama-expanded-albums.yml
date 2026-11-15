@@ -1,0 +1,27 @@
+name: audit-mama-after-ocr-fixes
+on:
+  push:
+    branches: [test/mama-expanded-ocr-after-20261114]
+    paths:
+      - 'scripts/audit-mama-expanded-albums.mjs'
+      - '.github/workflows/audit-mama-expanded-albums.yml'
+permissions:
+  contents: read
+jobs:
+  albums:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [0, 1, 2]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-por tesseract-ocr-eng util-linux
+      - run: npm install --no-audit --no-fund --package-lock=false
+      - run: node scripts/audit-mama-expanded-albums.mjs
+        env:
+          MAMA_AUDIT_PART: ${{ matrix.part }}
