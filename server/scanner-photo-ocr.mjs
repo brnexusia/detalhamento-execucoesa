@@ -8,8 +8,10 @@ import { parseTesseractTsv } from './scanner-pdf-tesseract.mjs'
 const OCR_TIMEOUT_MS = 9_000
 const MAX_OCR_OUTPUT = 256 * 1024
 const PRICE_MARKED = /(?:R\s*[$S§]|BRL\b|PRE[CÇ]O\b|VALOR\b)\s*[:=\-]?\s*(\d{1,6}(?:\.\d{3})*,\d{2}|\d{1,6}\.\d{2})/giu
-const ONE_PIECE_PRICE = /(?:^|[^\p{L}\d])1\s*(?:P\s*[ÇC]S?|PE[ÇC]AS?|PAR|UN(?:D(?:IDADE)?S?)?)\s*[:=\-]?\s*(?:R\s*[$S§]|BRL\b)\s*[:=\-]?\s*(\d{1,6}(?:\.\d{3})*,\d{2}|\d{1,6}\.\d{2})/giu
-const QUANTITY = /(?:^|[\s(])(\d{1,4})\s*(P\s*[ÇC]S?|PE[ÇC]AS?|UNIDADES?|UNID\.?|UND\.?|PARES?|PAR|KITS?|D[UÚ]ZIAS?|DZ)(?=$|[\s,.;:)\]]|R\s*\$)/iu
+// OCR commonly reads '1 PÇ' as 'IPC', 'IPG' or '1P¢' on small tags.
+// Accept these glyphs ONLY immediately before a monetary value with cents.
+const ONE_PIECE_PRICE = /(?:^|[^\p{L}\d])[1I|l]\s*(?:P\s*[ÇCG¢]S?|PE[ÇC]AS?|PAR|UN(?:D(?:IDADE)?S?)?)\s*[:=\-]?\s*(?:R\s*[$S§]|BRL\b)\s*[:=\-]?\s*(\d{1,6}(?:\.\d{3})*,\d{2}|\d{1,6}\.\d{2})/giu
+const QUANTITY = /(?:^|[\s(])(\d{1,4}|[I|l])\s*(P\s*[ÇCG¢]S?|PE[ÇC]AS?|UNIDADES?|UNID\.?|UND\.?|PARES?|PAR|KITS?|D[UÚ]ZIAS?|DZ)(?=$|[\s,.;:)\]]|R\s*\$)/iu
 const PRODUCT_WORD = /^(?:BRINCO|BRINCOS|COLAR|COLARES|ANEL|ANEIS|ANÉIS|PULSEIRA|PULSEIRAS|CONJUNTO|CONJUNTOS|CHOKER|TORNOZELEIRA|TORNOZELEIRAS|BRACELETE|BRACELETES|TIARA|TIARAS|PRESILHA|PRESILHAS|BOLSA|BOLSAS|ARCO|ARCOS|KIT|LA[CÇ]O|LA[CÇ]OS|PIERCING|GARGANTILHA|GARGANTILHAS|PINGENTE|PINGENTES|ACESS[OÓ]RIO|ACESS[OÓ]RIOS|LEN[CÇ]O|LEN[CÇ]OS|CINTO|CINTOS|BROCHE|BROCHES|CHAVEIRO|CHAVEIROS|COPO|COPOS|PORTA.J[OÓ]IAS?|NECESSAIRES?|CACHECOL|CACHEC[OÓ]IS|CAL[CÇ]A|CAL[CÇ]AS|MEIA|MEIAS|GORRO|GORROS|BICO|BLUSA|BLUSAS|CAMISA|CAMISAS|MANTA|MANTAS|ESTOJO|ESTOJOS)\b/iu
 
 function lineText(raw) {
@@ -82,7 +84,9 @@ export function parsePhotoProductLabel(rawText) {
     piecePrices.length === 1 ? piecePrices[0] : null
   const priceIndex = lines.findIndex(x => [...x.matchAll(PRICE_MARKED)].length > 0)
   const quantityMatch = QUANTITY.exec(all)
-  const quantity = quantityMatch && Number(quantityMatch[1]) > 0 ? Number(quantityMatch[1]) : null
+  const rawQuantity = quantityMatch?.[1] || ''
+  const quantityNumber = /^[I|l]$/i.test(rawQuantity) ? 1 : Number(rawQuantity)
+  const quantity = rawQuantity && Number.isFinite(quantityNumber) && quantityNumber > 0 ? quantityNumber : null
   const unit = quantityMatch?.[2] || ''
   const pack = quantity === null ? '' :
     quantity + ' ' + (/PAR/i.test(unit) ? (quantity === 1 ? 'par' : 'pares') :
