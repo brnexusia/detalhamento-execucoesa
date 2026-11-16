@@ -1,0 +1,32 @@
+name: TEMP MAMA compare Tesseract best models for stubborn prices
+on:
+  push:
+    branches: [audit/mama-all-photos-ocr-20261116]
+    paths:
+      - 'scripts/temp-mama-best-ocr.mjs'
+      - '.github/workflows/temp-mama-best-ocr.yml'
+permissions:
+  contents: read
+jobs:
+  best-model:
+    runs-on: ubuntu-latest
+    timeout-minutes: 17
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [0, 1]
+    env:
+      OMP_THREAD_LIMIT: 1
+      MAMA_BEST_GROUP: ${{ matrix.group }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-por tesseract-ocr-eng util-linux
+      - run: npm install --no-audit --no-fund
+      - run: |
+          mkdir -p /tmp/tessbest
+          curl -fsSL --retry 2 --max-time 90 https://raw.githubusercontent.com/tesseract-ocr/tessdata_best/main/por.traineddata -o /tmp/tessbest/por.traineddata
+          curl -fsSL --retry 2 --max-time 90 https://raw.githubusercontent.com/tesseract-ocr/tessdata_best/main/eng.traineddata -o /tmp/tessbest/eng.traineddata
+      - run: node scripts/temp-mama-best-ocr.mjs
