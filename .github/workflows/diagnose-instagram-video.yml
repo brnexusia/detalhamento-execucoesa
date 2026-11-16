@@ -1,0 +1,20 @@
+name: diagnostic-instagram-video-frames
+on:
+  push:
+    branches: [diagnostics/instagram-post-dflc1xhpnhx-20261115]
+    paths:
+      - 'scripts/diagnose_instagram_video.py'
+      - '.github/workflows/diagnose-instagram-video.yml'
+permissions:
+  contents: read
+jobs:
+  public-video:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends ffmpeg tesseract-ocr
+      - run: python scripts/diagnose_instagram_video.py
