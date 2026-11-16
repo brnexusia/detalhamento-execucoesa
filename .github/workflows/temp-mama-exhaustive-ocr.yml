@@ -1,0 +1,39 @@
+name: TEMP MAMA audit EVERY publicly enumerated photo and OCR
+on:
+  push:
+    branches: [audit/mama-all-photos-ocr-20261116]
+    paths:
+      - 'scripts/temp-mama-exhaustive-audit.mjs'
+      - '.github/workflows/temp-mama-exhaustive-ocr.yml'
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 28
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix:
+        index: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+        shard: [0, 1, 2, 3]
+    env:
+      MAMA_ALBUM_INDEX: ${{ matrix.index }}
+      MAMA_PHOTO_SHARD: ${{ matrix.shard }}
+      MAMA_PHOTO_SHARD_COUNT: 4
+      OMP_THREAD_LIMIT: 1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-por tesseract-ocr-eng util-linux
+      - run: npm install --no-audit --no-fund
+      - run: node scripts/temp-mama-exhaustive-audit.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mama-audit-${{ matrix.index }}-${{ matrix.shard }}
+          path: /tmp/mama-exhaustive/*
+          retention-days: 5
+          if-no-files-found: warn
