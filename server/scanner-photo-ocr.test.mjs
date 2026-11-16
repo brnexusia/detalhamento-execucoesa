@@ -235,3 +235,42 @@ test('recognizes a bottom-right promotion label without treating image texture a
   assert.equal(attempts.at(-1).width,1600)
   assert.equal(result.price,20)
 })
+
+
+test('second-pass sticker OCR recovers cents after the original seven crops lost the comma',async()=>{
+  const photo=await sharp({create:{width:1200,height:1600,channels:3,background:'#ddd'}})
+    .jpeg().toBuffer()
+  const calls=[]
+  const result=await recognizePhotoProductLabel(photo,{ocr:async(buffer,psm)=>{
+    calls.push({psm,width:(await sharp(buffer).metadata()).width})
+    if(calls.length===8)return {text:'COLAR\n1 PÇ R$ 17,00'}
+    return {text:'COLAR\n1 PC R$ 1700'}
+  }})
+  assert.equal(calls.length,8)
+  assert.equal(calls[7].psm,6)
+  assert.equal(calls[7].width,1900)
+  assert.deepEqual(result,{title:'Colar',price:17,pack:'1 peça'})
+})
+
+test('one failed OCR crop does not wipe out fields recovered by other crop',async()=>{
+  const photo=await sharp({create:{width:720,height:960,channels:3,background:'#fff'}})
+    .jpeg().toBuffer()
+  let calls=0
+  const result=await recognizePhotoProductLabel(photo,{ocr:async()=>{
+    calls++
+    if(calls===1)throw Error('Tesseract timeout on first image crop')
+    return {text:'BRINCO PALHA\n1 PÇ R$ 12,00'}
+  }})
+  assert.equal(calls,2)
+  assert.deepEqual(result,{title:'Brinco Palha',price:12,pack:'1 peça'})
+})
+
+test('never guesses cents from missing separators even with second-pass OCR',async()=>{
+  const photo=await sharp({create:{width:900,height:1200,channels:3,background:'#eee'}})
+    .jpeg().toBuffer()
+  const result=await recognizePhotoProductLabel(photo,{
+    ocr:async()=>({text:'COLAR\n1 PÇ R$ 1700'}),
+  })
+  assert.equal(result.price,null)
+  assert.equal(result.title,'Colar')
+})
