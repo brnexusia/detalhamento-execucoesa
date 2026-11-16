@@ -44,6 +44,8 @@ jobs:
           node-version: '22'
       - run: npm install --no-audit --no-fund
       - run: npm run build
+      - name: Disable catalog single-IP throttle only in checked-out disposable test copy
+        run: node scripts/temp-loadlab-patch.mjs
       - name: Start API against temporary database (never production)
         run: |
           npm start > /tmp/shopvax-k6-api.log 2>&1 &
