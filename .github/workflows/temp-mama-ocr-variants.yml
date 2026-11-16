@@ -1,0 +1,28 @@
+name: TEMP MAMA investigate real OCR failures
+on:
+  push:
+    branches: [audit/mama-all-photos-ocr-20261116]
+    paths:
+      - 'scripts/temp-mama-ocr-variants.mjs'
+      - '.github/workflows/temp-mama-ocr-variants.yml'
+permissions:
+  contents: read
+jobs:
+  diagnostics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        case: [0, 1, 2, 3]
+    env:
+      MAMA_DIAG_CASE: ${{ matrix.case }}
+      OMP_THREAD_LIMIT: 1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-por tesseract-ocr-eng util-linux
+      - run: npm install --no-audit --no-fund
+      - run: node scripts/temp-mama-ocr-variants.mjs
