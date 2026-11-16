@@ -1,0 +1,42 @@
+name: validate repaired OCR with failing MAMA originals
+on:
+  push:
+    branches: [fix/google-photos-price-labels-exhaustive-20261116]
+    paths:
+      - 'server/scanner-photo-ocr.mjs'
+      - 'server/scanner-photo-ocr.test.mjs'
+      - 'scripts/temp-mama-ocr-verify-fix.mjs'
+      - '.github/workflows/verify-mama-price-ocr-fix.yml'
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - run: node --check server/scanner-photo-ocr.mjs
+      - run: node --test server/scanner-photo-ocr.test.mjs server/scanner-google-photos-high-res.test.mjs
+      - run: npm run build
+  real-photos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [0, 1, 2]
+    env:
+      MAMA_VERIFY_GROUP: ${{ matrix.group }}
+      OMP_THREAD_LIMIT: 1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-por tesseract-ocr-eng util-linux
+      - run: npm install --no-audit --no-fund
+      - run: node scripts/temp-mama-ocr-verify-fix.mjs
