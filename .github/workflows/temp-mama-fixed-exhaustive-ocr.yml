@@ -4,7 +4,7 @@ on:
     branches: [fix/google-photos-price-labels-exhaustive-20261116]
     paths:
       - 'scripts/temp-mama-exhaustive-audit.mjs'
-      - '.github/workflows/temp-mama-exhaustive-ocr.yml'
+      - '.github/workflows/temp-mama-fixed-exhaustive-ocr.yml'
 permissions:
   contents: read
 jobs:
