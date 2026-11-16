@@ -11,7 +11,7 @@ import {
  googlePhotosImageUrls,googlePhotosHighResolutionUrl,googlePhotosDetailUrls,
 } from '../server/scanner-photo-albums.mjs'
 import {recognizePhotoProductLabel} from '../server/scanner-photo-ocr.mjs'
-import {links} from './temp-mama-album-manifest.mjs'
+import {links} from './mama-public-album-links.mjs'
 
 const index=Number(process.env.MAMA_ALBUM_INDEX)
 const shard=Number(process.env.MAMA_PHOTO_SHARD)
