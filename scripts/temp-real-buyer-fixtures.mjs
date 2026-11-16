@@ -82,8 +82,10 @@ try{
  const catalog=await api('/api/public/store/'+encodeURIComponent(stores[0].slug)+'?limit=18')
  const products=catalog.body.products
  assert.ok(products?.length===18&&catalog.body.page?.nextCursor)
+ const publicCookie=(catalog.cookies.find(x=>x.startsWith('atacado_public='))||'').split(';')[0]
+ assert.ok(publicCookie,'Visitor cookie missing from initial page')
  const next=await api('/api/public/store/'+encodeURIComponent(stores[0].slug)+
-  '?limit=18&compactPage=1&cursor='+encodeURIComponent(catalog.body.page.nextCursor))
+  '?limit=18&compactPage=1&cursor='+encodeURIComponent(catalog.body.page.nextCursor),{headers:{Cookie:publicCookie}})
  assert.equal(next.status,200)
  assert.ok(next.body.products?.length>0&&next.body.products[0].id!==products[0].id)
  const checkout=await api('/api/business/orders',{method:'POST',
