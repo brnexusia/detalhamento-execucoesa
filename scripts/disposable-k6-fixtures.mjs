@@ -47,6 +47,13 @@ try{
   await q("INSERT INTO orders(id,code,store_id,total,items,status) SELECT $1||'-order-'||n,$1||'-code-'||n,$2,19.9,'[]'::jsonb,'whatsapp' FROM generate_series(1,50)n",[name,storeId])
   stores.push({slug:signup.data.storeSlug,cookie,productId:products.rows[0].id})
  }
+ const probe={}
+ for(let i=0;i<65;i++){
+   const r=await call('/api/public/store/'+encodeURIComponent(stores[i%stores.length].slug)+'?limit=18')
+   probe[r.status]=(probe[r.status]||0)+1
+   if(i===0||i===45||i===64)console.log('K6_PUBLIC_PROBE '+JSON.stringify({i,status:r.status,error:r.data?.error||''}))
+ }
+ console.log('K6_PUBLIC_PROBE_SUMMARY '+JSON.stringify(probe))
  await q('ANALYZE products')
  await writeFile('/tmp/shopvax-k6-fixtures.json',JSON.stringify({stores}))
  console.log('K6_FIXTURES_READY '+JSON.stringify({stores:stores.length,products:3000,orders:1000}))
