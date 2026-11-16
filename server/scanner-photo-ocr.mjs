@@ -161,9 +161,18 @@ export async function recognizePhotoProductLabel(imageBytes, { ocr = ocrTsv } = 
       {leftFraction:0,topFraction:0.32,widthFraction:0.60,heightFraction:0.30,psm:11},
       // Promotion stickers can sit at the very bottom right (winter scarves).
       {leftFraction:0.66,topFraction:0.73,widthFraction:0.33,heightFraction:0.25,psm:6,binary:true},
+      // Second-pass sticker OCR, only when none of the 7 usual crops found
+      // an explicit decimal price. In MAMA photos the 1cm label can occupy
+      // fewer than 100 source pixels; PSM 6 + 1900px often restores the comma.
+      {leftFraction:0,topFraction:0,widthFraction:0.35,heightFraction:0.20,psm:6,targetWidth:1900,priceRecovery:true},
+      {leftFraction:0,topFraction:0,widthFraction:0.45,heightFraction:0.25,psm:6,targetWidth:1900,priceRecovery:true},
+      {leftFraction:0,topFraction:0,widthFraction:0.32,heightFraction:0.18,psm:11,targetWidth:1900,sharpen:true,priceRecovery:true},
+      {leftFraction:0,topFraction:0,widthFraction:0.45,heightFraction:0.25,psm:6,targetWidth:1700,binary:true,priceRecovery:true},
     ]
     const combined = {title:'',price:null,pack:''}
     for(const attempt of attempts) {
+      if (attempt.priceRecovery && combined.price !== null) break
+      try {
       const transform = sharp(imageBytes, {limitInputPixels:40_000_000})
         .extract({
           left:Math.floor(width*attempt.leftFraction),
@@ -173,7 +182,8 @@ export async function recognizePhotoProductLabel(imageBytes, { ocr = ocrTsv } = 
         })
         .resize({width:attempt.targetWidth || (attempt.binary ? 1600 : 1200),kernel:'lanczos3'})
         .grayscale()
-      const prepared = await (attempt.binary ? transform.threshold(160) : transform.normalize())
+      const prepared = await (attempt.binary ? transform.threshold(160) :
+        attempt.sharpen ? transform.normalize().sharpen() : transform.normalize())
         .png().toBuffer()
       const recognized = parsePhotoProductLabel((await ocr(prepared,attempt.psm)).text)
       combined.title ||= recognized.title
@@ -182,6 +192,10 @@ export async function recognizePhotoProductLabel(imageBytes, { ocr = ocrTsv } = 
       // When a complete sticker was read, don't run OCR against jewelry or
       // printed magazine text, which could produce a conflicting false price.
       if (combined.title && combined.price !== null && combined.pack) return combined
+      } catch {
+        // A single Tesseract timeout/failed crop must not discard a price
+        // already extracted by another variant.
+      }
     }
     if (combined.title && combined.price !== null) return combined
 
@@ -189,7 +203,10 @@ export async function recognizePhotoProductLabel(imageBytes, { ocr = ocrTsv } = 
     // from standalone 3-4 digit numbers; require a marked decimal price.
     const image = await sharp(imageBytes, {limitInputPixels:40_000_000})
       .resize({width:1600,withoutEnlargement:true}).png().toBuffer()
-    const last = parsePhotoProductLabel((await ocr(image,11)).text)
+    let last = {title:'',price:null,pack:''}
+    try { last = parsePhotoProductLabel((await ocr(image,11)).text) } catch {
+      // Return fields already read; do not hide the partial result.
+    }
     return {
       title:combined.title || last.title,
       price:combined.price ?? last.price,
