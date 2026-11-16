@@ -1,0 +1,119 @@
+name: TEMP ShopVax real buyer journey load 1000 and 2000
+on:
+  push:
+    branches: [lab/disposable-real-buyer-journeys-20261116]
+    paths:
+      - 'scripts/temp-real-buyer-*'
+      - '.github/workflows/temp-real-buyer-journey-load.yml'
+permissions:
+  contents: read
+jobs:
+  realistic-buyers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: shopvax
+          POSTGRES_PASSWORD: shopvax
+          POSTGRES_DB: atacado_perf
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U shopvax -d atacado_perf"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://shopvax:shopvax@127.0.0.1:5432/atacado_perf
+      BASE_URL: http://127.0.0.1:3000
+      PORT: '3000'
+      SHOPVAX_PERF_LOCAL_ONLY: '1'
+      SHOPVAX_TEST_BILLING_BYPASS: '1'
+      SHOPVAX_PUBLIC_CATALOG_RATE_LIMIT_DISABLED: '1'
+      SHOPVAX_SECURITY_RATE_LIMIT_DISABLED: '1'
+      SHOPVAX_PLAN_LIMITS_DISABLED: '1'
+      SCANNER_WORKER_DISABLED: '1'
+      SHOPVAX_MEDIA_WORKER_DISABLED: '1'
+      SHOPVAX_IMPORT_MEDIA_REPAIR_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install project dependencies
+        run: npm install --no-audit --no-fund
+      - name: Build frontend for browser journeys
+        run: npm run build
+      - name: Disable shared-IP catalog throttle ONLY on local disposable checkout
+        run: node scripts/temp-real-buyer-local-patch.mjs
+      - name: Start ShopVax with ephemeral PostgreSQL
+        run: |
+          npm start > /tmp/real-buyer-api.log 2>&1 &
+          echo $! > /tmp/real-buyer-api.pid
+          for i in $(seq 1 90); do
+            if curl --max-time 2 -fsS http://127.0.0.1:3000/health >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          tail -100 /tmp/real-buyer-api.log
+          exit 1
+      - name: Prepare real catalogue data and verify all shopping endpoints
+        run: node scripts/temp-real-buyer-fixtures.mjs
+      - name: Install disposable Chromium for two actual browser UI journeys
+        run: |
+          npm install --no-save --no-audit --no-fund playwright@1.58.2
+          npx playwright install --with-deps chromium
+      - name: Scroll, pick a product, use cart and prepare WhatsApp order (desktop and mobile)
+        id: browser
+        continue-on-error: true
+        run: node scripts/temp-real-buyer-browser.mjs
+      - name: Load 1,000 simultaneous virtual buyers (+ merchants and import queues)
+        id: wave1
+        continue-on-error: true
+        run: |
+          docker run --rm --network host --cpus=2 --memory=4g \
+            -v "$PWD/scripts/temp-real-buyer-load.js:/scripts/test.js:ro" \
+            -v "/tmp:/tmp:rw" \
+            -e BASE_URL -e SHOPVAX_PERF_LOCAL_ONLY -e BUYER_VUS=1000 \
+            grafana/k6:0.54.0 run /scripts/test.js --no-color --quiet
+      - name: Load 2,000 simultaneous virtual buyers (+ merchants and import queues)
+        id: wave2
+        continue-on-error: true
+        run: |
+          docker run --rm --network host --cpus=2 --memory=4g \
+            -v "$PWD/scripts/temp-real-buyer-load.js:/scripts/test.js:ro" \
+            -v "/tmp:/tmp:rw" \
+            -e BASE_URL -e SHOPVAX_PERF_LOCAL_ONLY -e BUYER_VUS=2000 \
+            grafana/k6:0.54.0 run /scripts/test.js --no-color --quiet
+      - name: Verify database isolation, order codes, carts and orders
+        id: integrity
+        continue-on-error: true
+        run: node scripts/temp-real-buyer-db-audit.mjs
+      - name: Record API and DB runtime health
+        if: always()
+        run: |
+          ps -eo pid,comm,rss,%cpu --sort=-rss | head -20 > /tmp/real-buyer-memory.txt
+          curl --max-time 8 -sS http://127.0.0.1:3000/health > /tmp/real-buyer-health.json || true
+          echo "BROWSER=${{ steps.browser.outcome }} WAVE1=${{ steps.wave1.outcome }} WAVE2=${{ steps.wave2.outcome }} INTEGRITY=${{ steps.integrity.outcome }}" > /tmp/real-buyer-step-outcomes.txt
+      - name: Preserve only result reports and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: temp-real-buyer-journeys-2k
+          if-no-files-found: warn
+          retention-days: 7
+          path: |
+            /tmp/real-buyer-1000.json
+            /tmp/real-buyer-2000.json
+            /tmp/real-buyer-browser.json
+            /tmp/real-buyer-db-audit.json
+            /tmp/real-buyer-health.json
+            /tmp/real-buyer-memory.txt
+            /tmp/real-buyer-step-outcomes.txt
+            /tmp/real-buyer-browser/*.png
+      - name: Stop throwaway local API
+        if: always()
+        run: |
+          if [ -f /tmp/real-buyer-api.pid ]; then kill $(cat /tmp/real-buyer-api.pid) || true; fi
