@@ -205,3 +205,9 @@
   .svx-partner__inline {align-items:stretch;}
   .svx-referral-admin__partner-head {flex-wrap:wrap;}
 }
+
+/* Histórico completo de indicações acessível sem carregar milhares de lojas de uma vez. */
+.svx-partner__pagination{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:14px;border-top:1px solid #e3dfd7;padding-top:14px}
+.svx-partner__pagination small{font-size:12px;color:#625d55}
+.svx-partner__pagination>div{display:flex;flex-wrap:wrap;gap:8px}
+@media(max-width:440px){.svx-partner__pagination>div{width:100%}.svx-partner__pagination button{flex:1;min-width:0}}
