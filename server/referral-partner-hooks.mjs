@@ -119,26 +119,41 @@ async function loginPartner(req,res){
 async function partnerDashboard(req,res) {
   const auth=await requirePartner(req,res);if(!auth)return
   const {partner,user}=auth
-  const [claims,visits]=await Promise.all([
+  // O histórico é paginado, mas os indicadores sempre consideram TODAS as indicações.
+  const page=Math.min(100000,Math.max(1,parseInt(req.query.page,10)||1))
+  const limit=30
+  const offset=(page-1)*limit
+  const [claims,totals,visits]=await Promise.all([
     pool.query([
       'SELECT c.referred_store_id,s.name AS store_name,c.status,c.created_at,c.qualified_at,c.reversed_at,',
       'c.commission_cents,c.commission_status,c.payout_reference,c.paid_at,b.checkout_started_at',
       'FROM shopvax_referral_claims c JOIN stores s ON s.id=c.referred_store_id',
       'LEFT JOIN shopvax_stripe_billing b ON b.store_id=c.referred_store_id',
-      'WHERE c.partner_id=$1 ORDER BY c.created_at DESC LIMIT 250',
+      'WHERE c.partner_id=$1 ORDER BY c.created_at DESC,c.referred_store_id DESC LIMIT $2 OFFSET $3',
+    ].join(' '),[partner.id,limit,offset]),
+    pool.query([
+      'SELECT count(*)::int AS registered,',
+      "count(*) FILTER (WHERE c.status='qualified')::int AS qualified,",
+      "count(*) FILTER (WHERE c.status='pending')::int AS pending,",
+      "count(*) FILTER (WHERE c.status='pending' AND b.checkout_started_at IS NULL)::int AS registered_only,",
+      "count(*) FILTER (WHERE c.status='pending' AND b.checkout_started_at IS NOT NULL)::int AS checkout_started,",
+      "COALESCE(sum(c.commission_cents) FILTER (WHERE c.status='qualified'),0)::bigint AS earned_cents,",
+      "COALESCE(sum(c.commission_cents) FILTER (WHERE c.commission_status='paid'),0)::bigint AS paid_cents",
+      'FROM shopvax_referral_claims c',
+      'LEFT JOIN shopvax_stripe_billing b ON b.store_id=c.referred_store_id',
+      'WHERE c.partner_id=$1',
     ].join(' '),[partner.id]),
     pool.query('SELECT count(*)::int AS total FROM shopvax_referral_visits WHERE code=$1',[partner.code]),
   ])
-  const all=claims.rows
+  const total=totals.rows[0]
   res.json({partner:{name:user.name,email:user.email,code:partner.code,status:partner.status,
     commissionCents:partner.commission_cents,pixKey:partner.pix_key,createdAt:partner.created_at},
-    metrics:{visits:Number(visits.rows[0].total),registered:all.length,qualified:all.filter(c=>c.status==='qualified').length,
-      pending:all.filter(c=>c.status==='pending').length,
-      registeredOnly:all.filter(c=>c.status==='pending'&&!c.checkout_started_at).length,
-      checkoutStarted:all.filter(c=>c.status==='pending'&&c.checkout_started_at).length,
-      earnedCents:all.filter(c=>c.status==='qualified').reduce((v,c)=>v+Number(c.commission_cents),0),
-      paidCents:all.filter(c=>c.commission_status==='paid').reduce((v,c)=>v+Number(c.commission_cents),0)},
-    referrals:all.map(x=>({storeName:x.store_name,status:x.status,createdAt:x.created_at,qualifiedAt:x.qualified_at,
+    metrics:{visits:Number(visits.rows[0].total),registered:Number(total.registered),qualified:Number(total.qualified),
+      pending:Number(total.pending),registeredOnly:Number(total.registered_only),
+      checkoutStarted:Number(total.checkout_started),earnedCents:Number(total.earned_cents),
+      paidCents:Number(total.paid_cents)},
+    referralsPage:page,referralsLimit:limit,referralsTotal:Number(total.registered),
+    referrals:claims.rows.map(x=>({storeName:x.store_name,status:x.status,createdAt:x.created_at,qualifiedAt:x.qualified_at,
       commissionCents:x.commission_cents,commissionStatus:x.commission_status,paidAt:x.paid_at,
       checkoutStartedAt:x.checkout_started_at}))})
 }
