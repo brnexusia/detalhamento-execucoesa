@@ -22,8 +22,8 @@ export const options={
  scenarios:{
   buyers:{executor:'constant-vus',vus:size,duration:'20s',exec:'buyer',gracefulStop:'5s'},
   merchants:{executor:'constant-vus',vus:60,duration:'20s',exec:'merchant',gracefulStop:'5s'},
-  orders:{executor:'constant-arrival-rate',rate:15,timeUnit:'1s',duration:'20s',preAllocatedVUs:45,maxVUs:130,exec:'order'},
-  imports:{executor:'constant-arrival-rate',rate:10,timeUnit:'1s',duration:'20s',preAllocatedVUs:30,maxVUs:80,exec:'importer'}
+  orders:{executor:'constant-vus',vus:150,duration:'20s',exec:'order',gracefulStop:'5s'},
+  imports:{executor:'constant-vus',vus:150,duration:'20s',exec:'importer',gracefulStop:'5s'}
  },
  thresholds:{http_req_failed:['rate<0.05'],business_failed:['rate<0.05'],http_req_duration:['p(95)<3000']}
 }
@@ -46,6 +46,7 @@ export function order(){
  const r=http.post(base+'/api/public/orders',JSON.stringify({storeSlug:s.slug,items:[{productId:s.productId,quantity:1}]}),
  {headers:{'content-type':'application/json'},timeout:'15s',tags:{action:'orders'}})
  if(validate(r,201,'orders'))created.add(1)
+ sleep(0.5+Math.random()*1.5)
 }
 export function importer(){
  const s=store()
@@ -54,11 +55,12 @@ export function importer(){
  const r=http.post(base+'/api/admin/imports',JSON.stringify({url}),
  {headers:{'content-type':'application/json',Cookie:s.cookie},timeout:'15s',tags:{action:'imports'}})
  if(validate(r,201,'imports'))queued.add(1)
+ sleep(0.5+Math.random()*1.5)
 }
 export function handleSummary(data){
  const m=data.metrics||{}
  const report={
-  buyerVUs:size,merchantVUs:60,scheduledOrdersPerSecond:15,scheduledImportsPerSecond:10,
+  buyerVUs:size,merchantVUs:60,concurrentOrderVUs:150,concurrentImportVUs:150,
   requests:m.http_reqs?.values?.count||0,failedRate:m.http_req_failed?.values?.rate??null,
   p95Ms:m.http_req_duration?.values?.['p(95)']??null,
   orders:m.orders_created?.values?.count||0,importsEnqueued:m.imports_enqueued?.values?.count||0,
