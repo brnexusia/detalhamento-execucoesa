@@ -10,6 +10,9 @@ const failed=new Rate('business_failed')
 const created=new Counter('orders_created')
 const queued=new Counter('imports_enqueued')
 const reads=new Counter('buyer_reads')
+const buyer429=new Counter('buyer_http_429')
+const buyer404=new Counter('buyer_http_404')
+const buyer500=new Counter('buyer_http_500_plus')
 const merchantReads=new Counter('merchant_reads')
 function store(){return stores[(__VU-1)%stores.length]}
 function validate(r,status,action){
@@ -31,6 +34,9 @@ export function buyer(){
  const s=store()
  const r=http.get(base+'/api/public/store/'+encodeURIComponent(s.slug)+'?limit=18',
  {timeout:'15s',tags:{action:'buyer_store'}})
+ if(r.status===429)buyer429.add(1)
+ else if(r.status===404)buyer404.add(1)
+ else if(r.status>=500)buyer500.add(1)
  if(validate(r,200,'buyer_store'))reads.add(1)
  sleep(1+Math.random()*2)
 }
@@ -65,6 +71,8 @@ export function handleSummary(data){
   p95Ms:m.http_req_duration?.values?.['p(95)']??null,
   orders:m.orders_created?.values?.count||0,importsEnqueued:m.imports_enqueued?.values?.count||0,
   buyerReads:m.buyer_reads?.values?.count||0,merchantReads:m.merchant_reads?.values?.count||0,
+  buyer429:m.buyer_http_429?.values?.count||0,buyer404:m.buyer_http_404?.values?.count||0,
+  buyer500plus:m.buyer_http_500_plus?.values?.count||0,
   note:'localhost only, ephemeral DB, 2k VUs not 2k browser sessions, imports only enqueued, no OCR processing'
  }
  return {['/tmp/shopvax-k6-'+size+'.json']:JSON.stringify(report,null,2),stdout:JSON.stringify(report)+'\n'}
