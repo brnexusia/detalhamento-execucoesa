@@ -35,6 +35,7 @@ jobs:
       SHOPVAX_MEDIA_WORKER_DISABLED: '1'
       SHOPVAX_IMPORT_MEDIA_REPAIR_DISABLED: '1'
       SHOPVAX_SECURITY_RATE_LIMIT_DISABLED: '1'
+      SHOPVAX_PUBLIC_CATALOG_RATE_LIMIT_DISABLED: '1' # 2k VUs share one CI IP; benchmark, NOT production
       SHOPVAX_PLAN_LIMITS_DISABLED: '1'
     steps:
       - uses: actions/checkout@v4
