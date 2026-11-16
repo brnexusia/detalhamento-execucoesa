@@ -18,4 +18,13 @@ const patched=original.replace(anchor,anchor+line).replace(targeted,
 
 assert.notEqual(patched,original)
 await writeFile(file,patched)
-console.log('LAB_ONLY_RATE_BYPASS '+JSON.stringify({localOnly:true,changed:file,sourceFile:original.length}))
+const catalogFile='server/catalog-features-hooks.mjs'
+const catalogOriginal=await readFile(catalogFile,'utf8')
+const catalogTarget="  const rate = checkCatalogRate(req, visitor)"
+assert.equal(catalogOriginal.split(catalogTarget).length,2,'catalog-features protectedStore signature changed; refuse bypass')
+const catalogPatched=catalogOriginal.replace(catalogTarget,
+  "  res.setHeader('X-Lab-Rate-Bypass','1')\n  const rate = { ok:true,retryAfter:0 }")
+await writeFile(catalogFile,catalogPatched)
+console.log('LAB_ONLY_RATE_BYPASS '+JSON.stringify({
+  localOnly:true,files:[file,catalogFile],sourceBytes:[original.length,catalogOriginal.length]
+}))
