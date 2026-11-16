@@ -122,6 +122,11 @@ try{
  const registeredStore=(await pool.query('SELECT id FROM stores WHERE owner_id=$1',[merchantUser.id])).rows[0]
  const linkedAtSignup=(await pool.query('SELECT partner_id,status,commission_cents FROM shopvax_referral_claims WHERE referred_store_id=$1',[registeredStore.id])).rows[0]
  assert.deepEqual(linkedAtSignup,{partner_id:partnerRowId,status:'pending',commission_cents:0},'Sem checkout não concede comissão')
+ const partnerAfterSignup=await (await fetch(base+'/api/partners/dashboard',{headers:{cookie}})).json()
+ assert.equal(partnerAfterSignup.metrics.registered,1,'Cadastro com código aparece imediatamente ao parceiro')
+ assert.equal(partnerAfterSignup.metrics.registeredOnly,1,'Lojista indicado sem pagamento aparece na etapa certa')
+ assert.equal(partnerAfterSignup.metrics.qualified,0,'Não contar cadastro como assinatura paga')
+ assert.equal(partnerAfterSignup.referralsTotal,1)
  assert.equal((await pool.query('SELECT 1 FROM shopvax_stripe_billing WHERE store_id=$1',[registeredStore.id])).rowCount,0,'Sem checkout Stripe ainda')
  const invalidEmail='grp2-invalid-'+seed+'@example.test'
  const invalid=await fetch(base+'/api/auth/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({
@@ -170,6 +175,43 @@ try{
  }catch(e){await reversalClient.query('ROLLBACK');throw e}finally{reversalClient.release()}
  const reversedReport=await (await fetch(base+'/api/platform/referrals',{headers:{cookie}})).json()
  assert.equal(Number(reversedReport.partners.find(p=>p.id===partnerRowId).reversed_referrals),1,'ADM identifica estorno')
+ // Mais indicações do que o limite de uma página: totais completos em ambos os painéis.
+ // Uma loja por usuário evita violar o vínculo exclusivo da conta lojista.
+ const extra=35
+ for(let n=1;n<=extra;n++)users.push('grp2-bulk-user-'+seed+'-'+n)
+ await pool.query([
+  "INSERT INTO users(id,name,email,password_hash)",
+  "SELECT 'grp2-bulk-user-'||$1||'-'||gs.n,'Indicado '||gs.n,",
+  "'grp2-bulk-'||$1||'-'||gs.n||'@example.test','disabled'",
+  "FROM generate_series(1,35) AS gs(n)",
+ ].join(' '),[seed])
+ await pool.query([
+  "INSERT INTO stores(id,owner_id,slug,name)",
+  "SELECT 'grp2-bulk-store-'||$1||'-'||gs.n,'grp2-bulk-user-'||$1||'-'||gs.n,",
+  "'grp2-bulk-'||$1||'-'||gs.n,'Loja indicacao '||gs.n",
+  "FROM generate_series(1,35) AS gs(n)",
+ ].join(' '),[seed])
+ await pool.query([
+  "INSERT INTO shopvax_referral_claims(referred_store_id,referral_code,partner_id)",
+  "SELECT 'grp2-bulk-store-'||$1||'-'||gs.n,$2,$3",
+  "FROM generate_series(1,35) AS gs(n)",
+ ].join(' '),[seed,codeNew,partnerRowId])
+ const dashboardPage1=await (await fetch(base+'/api/partners/dashboard',{headers:{cookie}})).json()
+ assert.equal(dashboardPage1.metrics.registered,extra+1,'Parceiro precisa contar TODOS os cadastros, não apenas uma página')
+ assert.equal(dashboardPage1.metrics.pending,extra)
+ assert.equal(dashboardPage1.metrics.registeredOnly,extra)
+ assert.equal(dashboardPage1.metrics.qualified,0)
+ assert.equal(dashboardPage1.referralsTotal,extra+1)
+ assert.equal(dashboardPage1.referralsPage,1)
+ assert.equal(dashboardPage1.referralsLimit,30)
+ assert.equal(dashboardPage1.referrals.length,30,'Primeira página não pode carregar todos os registros')
+ const dashboardPage2=await (await fetch(base+'/api/partners/dashboard?page=2',{headers:{cookie}})).json()
+ assert.equal(dashboardPage2.metrics.registered,extra+1,'Total constante na segunda página')
+ assert.equal(dashboardPage2.referralsPage,2)
+ assert.equal(dashboardPage2.referrals.length,extra+1-30,'As indicações antigas continuam acessíveis')
+ const adminAfterBulk=await (await fetch(base+'/api/platform/referrals',{headers:{cookie}})).json()
+ assert.equal(Number(adminAfterBulk.partners.find(p=>p.id===partnerRowId).referrals),extra+1,
+  'ADM e parceiro precisam apresentar a mesma quantidade de cadastros')
  await pool.query('DELETE FROM platform_admins WHERE user_id=$1',[newUser.id])
 
  const invalidLogin=await fetch(base+'/api/partners/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:newEmail,password:'incorrect!'})})
