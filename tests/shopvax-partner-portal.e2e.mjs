@@ -55,15 +55,29 @@ try{
  await brokenPage.close()
 
  const page=await browser.newPage({viewport:{width:390,height:880}})
+ await page.route('**/api/partners/dashboard?page=2',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
+  partner:{name:'Parceira Teste',email:'teste@example.test',code:'SVP-CODIGO',status:'active',commissionCents:1500,pixKey:'',createdAt:new Date().toISOString()},
+  metrics:{visits:7,registered:2,qualified:1,pending:1,registeredOnly:1,checkoutStarted:0,earnedCents:1500,paidCents:0},
+  referralsPage:2,referralsLimit:1,referralsTotal:2,
+  referrals:[{storeName:'Loja Segunda',status:'pending',createdAt:new Date().toISOString(),qualifiedAt:null,commissionCents:0,commissionStatus:'none',paidAt:null,checkoutStartedAt:null}],
+ })}))
  await page.route('**/api/partners/dashboard',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
   partner:{name:'Parceira Teste',email:'teste@example.test',code:'SVP-CODIGO',status:'active',commissionCents:1500,pixKey:'',createdAt:new Date().toISOString()},
-  metrics:{visits:7,registered:2,qualified:1,pending:1,earnedCents:1500,paidCents:0},
+  metrics:{visits:7,registered:2,qualified:1,pending:1,registeredOnly:1,checkoutStarted:0,earnedCents:1500,paidCents:0},
+  referralsPage:1,referralsLimit:1,referralsTotal:2,
   referrals:[{storeName:'Loja Teste',status:'qualified',createdAt:new Date().toISOString(),qualifiedAt:new Date().toISOString(),commissionCents:1500,commissionStatus:'pending_approval',paidAt:null}],
  })}))
  await page.goto('http://127.0.0.1:5173/parceiros')
  await page.getByRole('heading',{name:'Olá, Parceira Teste.'}).waitFor()
  assert.match(await page.locator('.svx-partner__dashboard').innerText(),/SVP-CODIGO/)
  assert.match(await page.locator('.svx-partner__dashboard').innerText(),/Pagamento confirmado/)
+ await page.getByText('2 lojas indicadas · página 1 de 2').waitFor()
+ await page.getByRole('button',{name:'Próxima página'}).click()
+ await page.getByText('Loja Segunda').waitFor()
+ assert.equal(await page.getByText('Loja Teste').count(),0,'Página 2 deve substituir histórico da primeira')
+ await page.getByText('2 lojas indicadas · página 2 de 2').waitFor()
+ await page.getByRole('button',{name:'Anterior'}).click()
+ await page.getByText('Loja Teste').waitFor()
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),true)
  await page.close()
 }finally{await browser.close()}
