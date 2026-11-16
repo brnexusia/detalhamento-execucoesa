@@ -168,6 +168,11 @@ export async function recognizePhotoProductLabel(imageBytes, { ocr = ocrTsv } = 
       {leftFraction:0,topFraction:0,widthFraction:0.45,heightFraction:0.25,psm:6,targetWidth:1900,priceRecovery:true},
       {leftFraction:0,topFraction:0,widthFraction:0.32,heightFraction:0.18,psm:11,targetWidth:1900,sharpen:true,priceRecovery:true},
       {leftFraction:0,topFraction:0,widthFraction:0.45,heightFraction:0.25,psm:6,targetWidth:1700,binary:true,priceRecovery:true},
+      // Extra-tight crops for tiny 1 PC / R$ 17,00 stickers. Keep this as
+      // a last resort only, never on images already priced by the first pass.
+      {leftFraction:0,topFraction:0,widthFraction:0.25,heightFraction:0.17,psm:6,targetWidth:2300,sharpen:true,priceRecovery:true},
+      {leftFraction:0,topFraction:0,widthFraction:0.27,heightFraction:0.17,psm:11,targetWidth:1900,priceRecovery:true},
+      {leftFraction:0,topFraction:0,widthFraction:0.30,heightFraction:0.20,psm:6,targetWidth:1800,binary:true,threshold:150,priceRecovery:true},
     ]
     const combined = {title:'',price:null,pack:''}
     for(const attempt of attempts) {
@@ -182,7 +187,7 @@ export async function recognizePhotoProductLabel(imageBytes, { ocr = ocrTsv } = 
         })
         .resize({width:attempt.targetWidth || (attempt.binary ? 1600 : 1200),kernel:'lanczos3'})
         .grayscale()
-      const prepared = await (attempt.binary ? transform.threshold(160) :
+      const prepared = await (attempt.binary ? transform.threshold(attempt.threshold || 160) :
         attempt.sharpen ? transform.normalize().sharpen() : transform.normalize())
         .png().toBuffer()
       const recognized = parsePhotoProductLabel((await ocr(prepared,attempt.psm)).text)
