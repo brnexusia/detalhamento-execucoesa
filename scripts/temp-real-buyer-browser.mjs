@@ -29,17 +29,28 @@ try{
    assert.equal(resp?.status(),200)
    await page.locator('.product-card').first().waitFor({timeout:20000})
    assert.ok(await page.locator('.product-card').count()>=12)
+   // Real visitors can close the optional buyer-account promotion.
+   // Wait for the async guest-profile check so it cannot appear mid-click.
+   await page.locator('.svx-acquisition').waitFor({state:'visible',timeout:3000}).catch(()=>{})
+   const closeOffer=page.getByRole('button',{name:'Fechar convite'})
+   if(await closeOffer.isVisible()) {
+     await closeOffer.click()
+     report.dismissedOptionalOffer=true
+   }
    await page.evaluate(()=>window.scrollBy(0,Math.max(850,innerHeight*1.6)))
    await page.waitForTimeout(500)
    report.scroll=await page.evaluate(()=>window.scrollY>0)
    await page.locator('.product-card__media').first().click()
    await page.locator('.picker-add').waitFor({timeout:10000})
    report.openedProduct=true
+   if(await closeOffer.isVisible())await closeOffer.click()
    await page.locator('.picker-add').click()
    const cart=mode==='mobile'?page.locator('.mobile-cart'):page.locator('.cart-trigger')
+   if(await closeOffer.isVisible())await closeOffer.click()
    await cart.click({timeout:10000})
    await page.locator('.cart-item').first().waitFor({timeout:10000})
    report.cart=true
+   if(await closeOffer.isVisible())await closeOffer.click()
    await page.locator('.whatsapp-button').click({timeout:10000})
    await page.getByRole('button',{name:/Preparar pedido para enviar/}).click()
    await page.locator('.svx-order-ready__send').waitFor({timeout:12000})
