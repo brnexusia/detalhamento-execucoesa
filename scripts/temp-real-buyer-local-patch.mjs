@@ -11,7 +11,11 @@ const original=await readFile(file,'utf8')
 const anchor='async function checkCatalogRate(req, visitor) {'
 assert.equal(original.split(anchor).length,2)
 const line='\n  // Ephemeral localhost runner ONLY. Never change production.\n  return { ok:true,retryAfter:0 }\n'
-const patched=original.replace(anchor,anchor+line)
+const targeted="  const rate = await checkCatalogRate(req, visitor)"
+assert.equal(original.split(targeted).length,2)
+const patched=original.replace(anchor,anchor+line).replace(targeted,
+  "  res.setHeader('X-Lab-Rate-Bypass','1')\n  const rate = { ok:true,retryAfter:0 }")
+
 assert.notEqual(patched,original)
 await writeFile(file,patched)
 console.log('LAB_ONLY_RATE_BYPASS '+JSON.stringify({localOnly:true,changed:file,sourceFile:original.length}))
