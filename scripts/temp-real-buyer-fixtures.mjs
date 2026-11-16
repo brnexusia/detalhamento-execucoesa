@@ -26,7 +26,7 @@ async function api(endpoint,opt={}){
   signal:AbortSignal.timeout(18000),
  })
  const data=await resp.json().catch(()=>({}))
- return {status:resp.status,body:data,cookies:resp.headers.getSetCookie?.()||[]}
+ return {status:resp.status,body:data,cookies:resp.headers.getSetCookie?.()||[],labBypass:resp.headers.get('x-lab-rate-bypass')}
 }
 try{
  await mkdir('dist/lab-media',{recursive:true})
@@ -71,6 +71,7 @@ try{
  const probe={}
  for(let i=0;i<65;i++){
   const x=await api('/api/public/store/'+encodeURIComponent(stores[0].slug)+'?limit=18')
+  if(i===0)assert.equal(x.labBypass,'1','patched local public-store handler did not load; cannot test rate-unlimited throughput')
   probe[x.status]=(probe[x.status]||0)+1
   if(i===0||i===44||i===64){
    console.log('JOURNEY_PROBE '+JSON.stringify({index:i+1,status:x.status,error:x.body.error||'',hasProducts:Array.isArray(x.body.products),hasMore:x.body.page?.hasMore}))
