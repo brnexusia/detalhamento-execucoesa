@@ -1,3 +1,4 @@
+// Focused monetary-line OCR is revalidated against the 96 baseline failures.
 import sharp from 'sharp'
 import {mkdir,writeFile} from 'node:fs/promises'
 import {links} from './mama-public-album-links.mjs'
