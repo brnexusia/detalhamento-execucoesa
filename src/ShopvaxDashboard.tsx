@@ -3,6 +3,7 @@ import { ArrowRight, Clipboard, ExternalLink, Package, ReceiptText, Send, Users 
 import type { AdminBootstrap } from './types'
 import { SVNumber, SVRibbon, SVStamp } from './ShopvaxDesignSystem'
 import ShopvaxOnboardingGuide from './ShopvaxOnboardingGuide'
+import { publicSellerLink, publicStoreLink } from './public-share-links'
 
 type DeskSection = 'inicio' | 'produtos' | 'pedidos' | 'vendedoras' | 'loja' | 'temas'
 type Props = {
@@ -29,8 +30,7 @@ export default function ShopvaxDashboard({ data, storeUrl, onSection, onCopy }: 
   const greeting = hour >= 5 && hour < 12 ? 'Bom dia' : hour < 18 && hour >= 12 ? 'Boa tarde' : 'Boa noite'
   const recent = [...data.orders].sort((a,b)=>Date.parse(b.created_at)-Date.parse(a.created_at)).slice(0,4)
   const activeSellers = data.sellers.filter(s=>s.is_active)
-  const safeOrigin = new URL(storeUrl, window.location.href).origin
-  const storeBase = `${safeOrigin}/${encodeURIComponent(data.store.slug)}`
+  const storeBase = publicStoreLink(data.store.slug)
   const statusName = (status: string) => ({
     whatsapp:'WhatsApp aberto',em_atendimento:'Em conversa',confirmado:'Confirmado',cancelled:'Cancelado',arquivado:'Arquivado'
   } as Record<string,string>)[status] || status
@@ -47,7 +47,7 @@ export default function ShopvaxDashboard({ data, storeUrl, onSection, onCopy }: 
       <div className="svx-dashboard__metric"><strong>{money.format(data.stats.value)}</strong><small>valor registrado em pedidos, não faturamento confirmado</small></div>
     </div>
     <div className="svx-dashboard__columns"><section className="svx-dashboard__orders"><div className="svx-dashboard__section-heading"><div><span className="svx-kicker">ÚLTIMOS PEDIDOS</span><h2>Chegou no balcão</h2></div><button onClick={() => onSection('pedidos')}>Ver todos <ArrowRight size={15}/></button></div><div className="svx-dashboard__order-grid">{recent.map(order => <article key={order.id}><span className="svx-kicker">{order.code}</span><h3>{order.items[0]?.name || 'Pedido'}</h3><p>{order.items.reduce((sum,item)=>sum+item.quantity,0)} peças · {date.format(new Date(order.created_at))}</p><strong>{money.format(order.total)}</strong><small>{statusName(order.status)}</small></article>)}{!recent.length && <p className="svx-dashboard__empty">Ainda não chegaram pedidos. Compartilhe a loja para começar a receber solicitações.</p>}</div></section>
-      <aside className="svx-dashboard__sidebar"><section className="svx-dashboard__links"><div className="svx-dashboard__section-heading"><h2>Seus links</h2><button onClick={() => onSection('vendedoras')}>Equipe <ArrowRight size={14}/></button></div><button className="svx-dashboard__link" onClick={() => onCopy(storeBase)}><span><strong>Link geral</strong><small>/{data.store.slug}</small></span><Clipboard size={16}/></button>{activeSellers.map(seller=><button key={seller.id} className="svx-dashboard__link" onClick={() => onCopy(`${storeBase}/${seller.slug}`)}><span><strong>{seller.name}</strong><small>/{data.store.slug}/{seller.slug}</small></span><Clipboard size={16}/></button>)}{!activeSellers.length && <button className="svx-dashboard__link" onClick={() => onSection('vendedoras')}><span><strong>Adicionar vendedora</strong><small>Cada vendedora terá seu link</small></span><Users size={16}/></button>}</section></aside></div>
+      <aside className="svx-dashboard__sidebar"><section className="svx-dashboard__links"><div className="svx-dashboard__section-heading"><h2>Seus links</h2><button onClick={() => onSection('vendedoras')}>Equipe <ArrowRight size={14}/></button></div><button className="svx-dashboard__link" onClick={() => onCopy(storeBase)}><span><strong>Link geral</strong><small>/{data.store.slug}</small></span><Clipboard size={16}/></button>{activeSellers.map(seller=><button key={seller.id} className="svx-dashboard__link" onClick={() => onCopy(publicSellerLink(data.store.slug, seller.slug))}><span><strong>{seller.name}</strong><small>/{data.store.slug}/{seller.slug}</small></span><Clipboard size={16}/></button>)}{!activeSellers.length && <button className="svx-dashboard__link" onClick={() => onSection('vendedoras')}><span><strong>Adicionar vendedora</strong><small>Cada vendedora terá seu link</small></span><Users size={16}/></button>}</section></aside></div>
     <div className="svx-dashboard__bottom"><Send size={16}/><span>Os links direcionam o comprador para a loja. Abrir o WhatsApp não confirma o envio ou pagamento de um pedido.</span></div>
   </div>
 }
