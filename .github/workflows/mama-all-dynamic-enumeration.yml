@@ -1,0 +1,35 @@
+name: full-dynamic-mama-gallery-inventory-21-albums
+on:
+  push:
+    branches: [audit/mama-full-21-albums-20261117]
+    paths:
+      - scripts/mama-all-dynamic-enumeration.mjs
+      - .github/workflows/mama-all-dynamic-enumeration.yml
+permissions:
+  contents: read
+jobs:
+  segment:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        segment: [0,1,2]
+    env:
+      MAMA_DYNAMIC_PART: ${{ matrix.segment }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund --package-lock=false
+      - run: npm install --no-save --no-audit --no-fund playwright@1.58.2
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/mama-all-dynamic-enumeration.mjs
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mama-full-dynamic-${{ matrix.segment }}
+          path: /tmp/mama-dynamic-full/*.json
+          retention-days: 7
+          if-no-files-found: warn
