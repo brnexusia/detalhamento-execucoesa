@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ArrowLeft, Check, Copy, RefreshCcw, Save, ShieldCheck, Users } from 'lucide-react'
+import { publicSellerLink } from './public-share-links'
 import './team-panel.css'
 
 type TeamSeller = {
@@ -93,7 +94,7 @@ export default function TeamPanel() {
 
   const copyLink = async (seller: TeamSeller) => {
     if (!data) return
-    await navigator.clipboard.writeText(`${window.location.origin}/${data.storeSlug}/${seller.slug}`)
+    await navigator.clipboard.writeText(publicSellerLink(data.storeSlug, seller.slug))
     flash(`Link de ${seller.name} copiado.`)
   }
 
