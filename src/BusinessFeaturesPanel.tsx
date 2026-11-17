@@ -1,3 +1,4 @@
+import { publicCatalogLink } from './public-share-links'
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, Boxes, Check, Copy, Download, Plus, RefreshCcw, Save, Trash2, XCircle } from 'lucide-react'
 import { confirmAction } from './ui-dialogs'
@@ -129,7 +130,7 @@ export default function BusinessFeaturesPanel() {
 
   const copyCatalogLink = async (catalog: AdminCatalog) => {
     if (!data) return
-    const url = `${window.location.origin}/${data.store.slug}?catalog=${encodeURIComponent(catalog.slug)}`
+    const url = publicCatalogLink(data.store.slug, catalog.slug)
     await navigator.clipboard.writeText(url)
     flash(`Link de ${catalog.name} copiado.`)
   }
