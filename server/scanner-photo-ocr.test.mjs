@@ -310,3 +310,25 @@ test('Google Photos keeps a printed SKU through review and normalization; descri
  assert.equal(normalized.name,'Brinco De Aço')
  assert.equal(normalized.price,15)
 })
+
+
+test('extra focused OCR pass recovers a real small-label decimal after legacy crops fail', async()=>{
+  const img=await sharp({create:{width:1200,height:1600,channels:3,background:'#f7f7f7'}}).png().toBuffer()
+  let calls=0
+  const found=await recognizePhotoProductLabel(img,{ocr:async(_buffer,psm)=>{
+    calls++
+    if(calls===15) {
+      assert.equal(psm,7)
+      return {text:'ANEL\\n1 PÇ R$ 7,00'}
+    }
+    return {text: 'ANEL\\n1 PÇ R$ 700'}
+  }})
+  assert.equal(calls,15)
+  assert.equal(found?.price,7)
+})
+
+test('extra focused OCR never interprets R$ 700 as 7,00', async()=>{
+  const img=await sharp({create:{width:1200,height:1600,channels:3,background:'#f7f7f7'}}).png().toBuffer()
+  const result=await recognizePhotoProductLabel(img,{ocr:async()=>({text:'ANEL\\n1 PÇ R$ 700'})})
+  assert.equal(result?.price,null)
+})
