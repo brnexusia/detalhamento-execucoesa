@@ -1,0 +1,62 @@
+name: validate-imported-product-price-save
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server/app.mjs'
+      - 'src/AdminApp.tsx'
+      - 'src/types.ts'
+      - 'server/product-catalog-price.integration.mjs'
+      - '.github/workflows/validate-imported-product-price-save.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  product-pricing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: shopvax_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d shopvax_test"
+          --health-interval 5s --health-timeout 3s --health-retries 15
+    env:
+      NODE_ENV: test
+      PORT: '3000'
+      SCANNER_WORKER_DISABLED: '1'
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/shopvax_test
+      SHOPVAX_PUBLIC_CURSOR_SECRET: ci-only-public-cursor-secret-over-32-chars
+      SHOPVAX_INTEGRATION_SECRET: ci-only-integration-secret-over-32-chars
+      SHOPVAX_SECURITY_RATE_LIMIT_DISABLED: '1'
+      SHOPVAX_PLAN_LIMITS_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install
+        run: npm install --no-audit --no-fund --package-lock=false
+      - name: Check syntax and build frontend
+        run: |
+          node --check server/app.mjs
+          node --check server/product-catalog-price.integration.mjs
+          npm run build
+      - name: Start isolated ShopVax backend
+        run: |
+          npm start > /tmp/shopvax-product-price.log 2>&1 &
+          for i in $(seq 1 100); do
+            if curl -fsS http://127.0.0.1:3000/health >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          tail -100 /tmp/shopvax-product-price.log
+          exit 1
+      - name: Verify imported price edits persist, with separate catalogs and ownership protection
+        run: node server/product-catalog-price.integration.mjs
+      - if: failure()
+        run: tail -120 /tmp/shopvax-product-price.log || true
