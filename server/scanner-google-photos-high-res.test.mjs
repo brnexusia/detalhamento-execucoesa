@@ -141,3 +141,68 @@ test('reads price from original JPEG bytes before compressing the stored image t
   assert.equal(candidates[0].price,17)
   assert.equal(candidates[0].images[0],'/media/raw-photo')
 })
+
+
+test('Google Photos retries incomplete OCR and recovers a price from resized bytes',async()=>{
+  const raw=await sharp({create:{width:1086,height:1448,channels:3,background:'#ffffff'}}).jpeg().toBuffer()
+  const albumLink='https://photos.app.goo.gl/ocr-retry-incomplete'
+  const url='https://lh3.googleusercontent.com/pw/'+'K'.repeat(90)+'=w1600-h1600'
+  let reads=0
+  const result=await collectSharedPhotos(albumLink,{
+    maxProducts:1,request:async u=>u===albumLink
+      ? {ok:true,url:'https://photos.google.com/share/retry',contentType:'text/html',
+          body:'<script>"'+url+'"</script>'}
+      : {ok:true,buffer:raw},
+    onImage:async()=>'/media/retry-price',
+    onProgress:async()=>{},
+    readLabel:async bytes=>{
+      reads++
+      if(bytes.equals(raw))return {title:'Brinco',price:null,pack:'1 peça'}
+      return {title:'Brinco',price:17,pack:'1 peça'}
+    },
+  })
+  assert.equal(reads,2)
+  assert.equal(result.candidates[0].price,17)
+  assert.equal(result.candidates[0].title,'Brinco')
+})
+
+test('conflicting original and resized OCR prices are sent to review',async()=>{
+  const raw=await sharp({create:{width:1086,height:1448,channels:3,background:'#ffffff'}}).jpeg().toBuffer()
+  const albumLink='https://photos.app.goo.gl/ocr-conflict'
+  const url='https://lh3.googleusercontent.com/pw/'+'L'.repeat(90)+'=w1600-h1600'
+  let reads=0
+  const result=await collectSharedPhotos(albumLink,{
+    maxProducts:1,request:async u=>u===albumLink
+      ? {ok:true,url:'https://photos.google.com/share/conflict',contentType:'text/html',
+          body:'<script>"'+url+'"</script>'}
+      : {ok:true,buffer:raw},
+    onImage:async()=>'/media/ocr-conflict',
+    onProgress:async()=>{},
+    readLabel:async bytes=>{
+      reads++
+      if(bytes.equals(raw))return {title:'',price:17,pack:'1 peça'}
+      return {title:'Brinco',price:170,pack:'1 peça'}
+    },
+  })
+  assert.equal(reads,2)
+  assert.equal(result.candidates[0].price,null)
+  assert.equal(result.candidates[0].title,'Brinco')
+})
+
+test('a complete original label does not trigger a redundant OCR pass',async()=>{
+  const raw=await sharp({create:{width:1086,height:1448,channels:3,background:'#ffffff'}}).jpeg().toBuffer()
+  const albumLink='https://photos.app.goo.gl/ocr-complete'
+  const url='https://lh3.googleusercontent.com/pw/'+'M'.repeat(90)+'=w1600-h1600'
+  let reads=0
+  const result=await collectSharedPhotos(albumLink,{
+    maxProducts:1,request:async u=>u===albumLink
+      ? {ok:true,url:'https://photos.google.com/share/complete',contentType:'text/html',
+          body:'<script>"'+url+'"</script>'}
+      : {ok:true,buffer:raw},
+    onImage:async()=>'/media/ocr-complete',
+    onProgress:async()=>{},
+    readLabel:async()=>{reads++;return {title:'Colar',price:12.9,pack:'1 peça'}},
+  })
+  assert.equal(reads,1)
+  assert.equal(result.candidates[0].price,12.9)
+})
