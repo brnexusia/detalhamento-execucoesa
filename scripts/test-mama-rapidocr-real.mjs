@@ -36,6 +36,7 @@ for(const [album,index,expected] of samples){
  const ok=item?.price===expected
  if(ok)pass++;else fail++
  console.log('MAMA_RAPID_INTEGRATION '+JSON.stringify({album,index,expected,price:item?.price??null,title:item?.title||'',ok,elapsedMs:Date.now()-start}))
+ if(process.env.MAMA_QUICK_DIAG==='1')break
 }
 console.log('MAMA_RAPID_INTEGRATION_SUMMARY '+JSON.stringify({photos:samples.length,passed:pass,failed:fail}))
 assert.equal(fail,0,'All visually validated MAMA sticker prices must match, not merely be filled')
