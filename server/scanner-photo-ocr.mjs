@@ -182,6 +182,21 @@ export async function recognizePhotoProductLabel(imageBytes, { ocr = ocrTsv } = 
       {leftFraction:0,topFraction:0,widthFraction:0.25,heightFraction:0.17,psm:6,targetWidth:2300,sharpen:true,priceRecovery:true},
       {leftFraction:0,topFraction:0,widthFraction:0.27,heightFraction:0.17,psm:11,targetWidth:1900,priceRecovery:true},
       {leftFraction:0,topFraction:0,widthFraction:0.30,heightFraction:0.20,psm:6,targetWidth:1800,binary:true,threshold:150,priceRecovery:true},
+      // Last-resort line-oriented reads: Tesseract PSM 7/13 can recover
+      // comma-separated cents on very small two-line printed tags when the
+      // normal sparse-text passes only recognize '700' instead of '7,00'.
+      // Different tag positions are deliberately covered; any doubtful
+      // number still fails the strict 'R$ nn,dd' parser.
+      {leftFraction:0,topFraction:0.055,widthFraction:0.28,heightFraction:0.075,psm:7,targetWidth:2200,sharpen:true,priceRecovery:true},
+      {leftFraction:0,topFraction:0.055,widthFraction:0.28,heightFraction:0.075,psm:13,targetWidth:2200,binary:true,threshold:175,priceRecovery:true},
+      {leftFraction:0,topFraction:0,widthFraction:0.30,heightFraction:0.14,psm:6,targetWidth:2500,sharpen:true,priceRecovery:true},
+      {leftFraction:0,topFraction:0,widthFraction:0.30,heightFraction:0.14,psm:11,targetWidth:2500,binary:true,threshold:190,priceRecovery:true},
+      {leftFraction:0.65,topFraction:0,widthFraction:0.35,heightFraction:0.18,psm:6,targetWidth:2000,sharpen:true,priceRecovery:true},
+      {leftFraction:0.65,topFraction:0,widthFraction:0.35,heightFraction:0.18,psm:11,targetWidth:2000,binary:true,threshold:170,priceRecovery:true},
+      {leftFraction:0,topFraction:0.70,widthFraction:0.36,heightFraction:0.30,psm:6,targetWidth:2000,sharpen:true,priceRecovery:true},
+      {leftFraction:0,topFraction:0.70,widthFraction:0.36,heightFraction:0.30,psm:11,targetWidth:2000,binary:true,threshold:170,priceRecovery:true},
+      {leftFraction:0.65,topFraction:0.70,widthFraction:0.35,heightFraction:0.30,psm:7,targetWidth:2200,binary:true,threshold:175,priceRecovery:true},
+      {leftFraction:0.65,topFraction:0.70,widthFraction:0.35,heightFraction:0.30,psm:6,targetWidth:2200,sharpen:true,priceRecovery:true},
     ]
     const combined = {title:'',price:null,pack:''}
     for(const attempt of attempts) {
