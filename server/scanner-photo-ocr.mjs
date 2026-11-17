@@ -139,7 +139,7 @@ const withPhotoOcrSlot = createPhotoOcrLimiter(process.env.SHOPVAX_PHOTO_OCR_PAR
 
 const RAPID_SCRIPT = fileURLToPath(new URL('../scripts/rapidocr_photo.py', import.meta.url))
 const RAPID_MAX_OUTPUT = 64 * 1024
-const RAPID_TIMEOUT_MS = 15_000
+const RAPID_TIMEOUT_MS = 24_000
 
 async function rapidOcrPhoto(imageBytes) {
   // Shares the OCR slot with Tesseract so many simultaneous imports cannot
@@ -148,7 +148,7 @@ async function rapidOcrPhoto(imageBytes) {
     let child
     try {
       child = spawn('prlimit', [
-        '--as=1610612736','--cpu=17','--fsize=10485760','--',
+        '--as=3221225472','--cpu=26','--fsize=10485760','--',
         process.env.SHOPVAX_RAPIDOCR_PYTHON || '/opt/rapidocr/bin/python',
         RAPID_SCRIPT,
       ],{stdio:['pipe','pipe','pipe'],env:{
