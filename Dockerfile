@@ -18,7 +18,7 @@ FROM node:22-bookworm-slim AS runner
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
       poppler-utils tesseract-ocr tesseract-ocr-por tesseract-ocr-eng util-linux \
-      python3 python3-venv \
+      python3 python3-venv libgl1 libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 # Portable on-device ONNX OCR for small MAMA price labels. Never calls cloud AI.
 RUN python3 -m venv /opt/rapidocr \
