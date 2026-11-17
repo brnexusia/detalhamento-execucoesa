@@ -50,6 +50,8 @@ jobs:
           node --test server/network-egress-policy.test.mjs server/order-access-policy.test.mjs server/public-mutation-limits.test.mjs
       - name: Install
         run: npm install
+      - name: Validar links públicos da loja e das vendedoras
+        run: node --test tests/public-share-links.test.mjs
       - name: Install PDF tooling for import regression tests
         run: sudo apt-get update && sudo apt-get install -y poppler-utils tesseract-ocr tesseract-ocr-por tesseract-ocr-eng ffmpeg fonts-dejavu-core
       - name: Production dependency audit
@@ -96,8 +98,6 @@ jobs:
           grep -Fq 'content="#161514"' index.html
       - name: Validate XML escaping and SEO route helpers
         run: npm run test:seo
-      - name: Validar links públicos da loja e das vendedoras
-        run: node --test tests/public-share-links.test.mjs
       - name: Release smoke test (local, read-only)
         run: node --test tests/verify-production.test.mjs
       - name: Aprovacao dos planos comerciais e migracao segura
