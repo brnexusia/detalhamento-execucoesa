@@ -1,0 +1,22 @@
+name: mama-google-photos-dynamic-count-check
+on:
+  push:
+    branches: [audit/mama-full-21-albums-20261117]
+    paths:
+      - scripts/mama-dynamic-gallery.mjs
+      - .github/workflows/mama-dynamic-gallery.yml
+permissions:
+  contents: read
+jobs:
+  dynamic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund --package-lock=false
+      - run: npm install --no-save --no-audit --no-fund playwright@1.58.2
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/mama-dynamic-gallery.mjs
