@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import sharp from 'sharp'
-import { parsePhotoProductLabel, recognizePhotoProductLabel } from './scanner-photo-ocr.mjs'
+import { parsePhotoProductLabel, recognizePhotoProductLabel, createPhotoOcrLimiter } from './scanner-photo-ocr.mjs'
 import { collectSharedPhotos } from './scanner-photo-albums.mjs'
 import { normalizeCandidate } from './scanner-normalizer.mjs'
 
@@ -309,4 +309,38 @@ test('Google Photos keeps a printed SKU through review and normalization; descri
  assert.equal(normalized.sku,'BR-2048')
  assert.equal(normalized.name,'Brinco De Aço')
  assert.equal(normalized.price,15)
+})
+
+
+test('OCR limiter prevents saturation and safely queues overlapping imported photos',async()=>{
+  const limited=createPhotoOcrLimiter(1)
+  let active=0,maxActive=0,processed=0
+  const output=await Promise.all(Array.from({length:12},(_,n)=>limited(async()=>{
+    active++
+    maxActive=Math.max(maxActive,active)
+    await new Promise(resolve=>setTimeout(resolve,2))
+    processed++
+    active--
+    return n
+  })))
+  assert.deepEqual(output,Array.from({length:12},(_,n)=>n))
+  assert.equal(maxActive,1)
+  assert.equal(processed,12)
+})
+
+test('OCR limiter releases its reserved slot after failures',async()=>{
+  const limited=createPhotoOcrLimiter(1)
+  await assert.rejects(limited(async()=>{throw Error('Tesseract timed out')}),/Tesseract timed out/)
+  assert.equal(await limited(async()=>7),7)
+})
+
+test('OCR limiter can be explicitly configured to two parallel slots',async()=>{
+  const limited=createPhotoOcrLimiter(2)
+  let active=0,maxActive=0
+  await Promise.all(Array.from({length:8},()=>limited(async()=>{
+    active++;maxActive=Math.max(maxActive,active)
+    await new Promise(resolve=>setTimeout(resolve,4))
+    active--
+  })))
+  assert.equal(maxActive,2)
 })
