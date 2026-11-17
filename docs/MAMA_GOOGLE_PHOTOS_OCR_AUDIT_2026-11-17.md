@@ -54,3 +54,18 @@ A descrição continua **restrita ao que a etiqueta fornece**: quando detectada 
 ## Fontes e reprodutibilidade
 
 Lista canônica das 21 URLs públicas: [`scripts/mama-public-album-links.mjs`](../scripts/mama-public-album-links.mjs). Os dados coletados foram segmentados em 84 artefatos `mama-fixed-<índice>-<shard>` no [run #43805608653](https://github.com/brnexusia/detalhamento-execucoesa/actions/runs/43805608653); referência anterior no [run #43804969033](https://github.com/brnexusia/detalhamento-execucoesa/actions/runs/43804969033). Nenhum dado do banco de produção foi alterado durante esse ensaio.
+
+
+## Revalidação posterior — preço faltante e valores falsos (17/11/2026)
+
+Execução integral de comparação: [GitHub Actions #44123176031](https://github.com/brnexusia/detalhamento-execucoesa/actions/runs/44123176031), 84 lotes concluídos, 21 álbuns, **3.979 fotos enumeradas**, **3.883 preços detectados**, **96 sem preço**, **zero erros de download**. O total difere em uma fotografia da auditoria anterior, pois o Google Photos retornou 299 imagens no álbum Brincos (antes 300). O resultado é detecção automática, **não conferência manual de cada preço**.
+
+Foram inspecionadas visualmente as pranchas das 96 imagens. Há fotos sem etiqueta aparente e fotos com preço visível que o OCR perdeu. Exemplo verificado nas imagens originais: **Anéis #45 = R$ 7,00**, mas Tesseract leu `R$ 700` (sem vírgula); o recorte exato da linha com ampliação permitiu ler `R$ 7,00` em teste local. Outro exemplo: **Lenços de Verão #29 = R$ 17,00**, enquanto uma tentativa de recuperação retornou indevidamente `R$ 1,00`; esse valor está **errado** e não pode ser aceito.
+
+Correções no código do ShopVax:
+- Mais recortes de OCR para etiquetas minúsculas e preços em diferentes posições; recorte secundário focado na linha monetária detectada, sem inventar vírgulas.
+- Nova leitura da imagem WebP para campos incompletos, preservando conflitos em revisão.
+- Proteção contra preços recuperados incompatíveis com dígitos reconhecidos na foto original (por exemplo, `1700` contra `1,00`).
+- Testes regressivos para preços ilegíveis, conflitos e preservação da pontuação; nenhuma alteração nos fluxos n8n da Mama.
+
+A reexecução dos 96 casos com o recorte de linha está em [#44130389371](https://github.com/brnexusia/detalhamento-execucoesa/actions/runs/44130389371). Não converter todo resultado ausente em preço e não declarar 100% de precisão até confirmar visualmente valores recuperados, revisar as fotos restantes e conferir implantação em produção.
