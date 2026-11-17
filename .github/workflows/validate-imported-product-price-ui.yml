@@ -1,0 +1,37 @@
+name: validate-imported-product-price-ui
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/AdminApp.tsx'
+      - 'tests/shopvax-imported-product-price.e2e.mjs'
+      - '.github/workflows/validate-imported-product-price-ui.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund --package-lock=false
+      - run: npm install --no-save --no-audit --no-fund playwright@1.58.2
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - name: Start isolated web interface
+        run: |
+          npm run dev -- --host 127.0.0.1 > /tmp/shopvax-ui-test.log 2>&1 &
+          for i in $(seq 1 80); do
+            if curl -fsS http://127.0.0.1:5173/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          tail -120 /tmp/shopvax-ui-test.log
+          exit 1
+      - name: Edit two imported SW prices and reload their catalog
+        run: node tests/shopvax-imported-product-price.e2e.mjs
+      - if: failure()
+        run: tail -150 /tmp/shopvax-ui-test.log || true
