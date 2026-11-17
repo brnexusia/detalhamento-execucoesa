@@ -193,6 +193,7 @@ async function savePhoto(url, request, onImage, filename, readLabel = recognizeP
           title: label?.title || alternative.title,
           price: alternative.price ?? label?.price ?? null,
           pack: label?.pack || alternative.pack,
+          sku: label?.sku || alternative.sku || '',
         }
       }
       return { url: stored, bytes: optimized.length, label }
@@ -267,6 +268,7 @@ export async function collectSharedPhotos(sourceUrl, { request, onImage, onBatch
         external_id: `foto-${String(i + 1).padStart(4, '0')}`,
         title: String(ocr.title || '').trim().slice(0, 180) || `Foto importada ${String(i + 1).padStart(3, '0')}`,
         description: pack ? `Quantidade indicada na etiqueta: ${pack}. Confira antes de publicar.` : '',
+        sku: String(ocr.sku || '').trim().slice(0, 80),
         pack,
         category: 'Geral',
         images: [saved.url],
