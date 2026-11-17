@@ -183,17 +183,27 @@ async function savePhoto(url, request, onImage, filename, readLabel = recognizeP
       if (!/^\/media\/[A-Za-z0-9_-]+$/.test(String(stored || ''))) throw new Error('A imagem não pôde ser salva no catálogo.')
       // Read from the original downloaded pixels *before* lossy WebP
       // compression erases tiny commas and currency symbols on price stickers.
-      // Only retry when the OCR itself fails on the source format. A missing
-      // price is a legitimate review state; running Tesseract twice for every
-      // unlabelled image would make large catalogs unnecessarily expensive.
+      // Always read the original pixels first. Retry on the optimized version
+      // only if the first reading is incomplete (missing title or unit price).
+      // This adds work for uncertain photos, not for every catalog image, and
+      // can recover labels whose contrast improves after resizing.
       let label = await Promise.resolve().then(() => readLabel(buffer)).catch(() => null)
-      if (label === null) {
+      if (!label || !label.title || label.price == null) {
         const alternative = await Promise.resolve().then(() => readLabel(optimized)).catch(() => null)
-        if (alternative) label = {
-          title: label?.title || alternative.title,
-          price: alternative.price ?? label?.price ?? null,
-          pack: label?.pack || alternative.pack,
-          sku: label?.sku || alternative.sku || '',
+        if (alternative) {
+          // Never overwrite an explicit original price with a different OCR
+          // guess. Conflicting reads need review rather than an invented choice.
+          const originalPrice = Number(label?.price)
+          const fallbackPrice = Number(alternative.price)
+          const originalValid = label?.price != null && Number.isFinite(originalPrice) && originalPrice > 0
+          const fallbackValid = alternative.price != null && Number.isFinite(fallbackPrice) && fallbackPrice > 0
+          const conflict = originalValid && fallbackValid && Math.abs(originalPrice - fallbackPrice) > 0.001
+          label = {
+            title: label?.title || alternative.title || '',
+            price: conflict ? null : (originalValid ? originalPrice : (fallbackValid ? fallbackPrice : null)),
+            pack: label?.pack || alternative.pack || '',
+            sku: label?.sku || alternative.sku || '',
+          }
         }
       }
       return { url: stored, bytes: optimized.length, label }
