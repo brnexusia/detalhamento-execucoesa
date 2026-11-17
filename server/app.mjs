@@ -910,7 +910,7 @@ app.put(
   '/api/admin/products/:id',
   auth,
   asyncRoute(async (req, res) => {
-    const store = await pool.query('SELECT id FROM stores WHERE owner_id=$1 LIMIT 1', [req.user.id])
+    const store = await pool.query('SELECT id,plan_tier FROM stores WHERE owner_id=$1 LIMIT 1', [req.user.id])
     if (!store.rowCount) return res.status(404).json({ error: 'Loja não encontrada.' })
 
     const price = toMoney(req.body?.price)
@@ -923,35 +923,90 @@ app.put(
     const name = String(req.body?.name || '').trim()
     if (!name || price <= 0) return res.status(400).json({ error: 'Nome e preço são obrigatórios.' })
 
-    const result = await pool.query(
-      `UPDATE products
-       SET sku=$1,name=$2,description=$3,price=$4,category=$5,media_url=$6,media_type=$7,pack=$8,variations=$9,featured=$10,active=$11,
-       retail_price=CASE WHEN $14::boolean THEN $15 ELSE retail_price END,
-       box_price=CASE WHEN $16::boolean THEN $17 ELSE box_price END,
-       units_per_box=CASE WHEN $18::boolean THEN $19 ELSE units_per_box END,updated_at=now()
-       WHERE id=$12 AND store_id=$13
-       RETURNING *`,
-      [
-        String(req.body?.sku || '').trim().slice(0, 80),
-        name.slice(0, 180),
-        String(req.body?.description || '').trim().slice(0, 2000),
-        price,
-        String(req.body?.category || 'Geral').trim().slice(0, 80) || 'Geral',
-        String(req.body?.mediaUrl || '').trim().slice(0, 1000),
-        req.body?.mediaType === 'video' ? 'video' : 'image',
-        String(req.body?.pack || '').trim().slice(0, 160),
-        JSON.stringify(normalizeVariations(req.body?.variations)),
-        Boolean(req.body?.featured),
-        req.body?.active !== false,
-        req.params.id,
-        store.rows[0].id,
-        Object.hasOwn(req.body || {}, 'retailPrice'),retailPrice,
-        Object.hasOwn(req.body || {}, 'boxPrice'),boxPrice,
-        Object.hasOwn(req.body || {}, 'unitsPerBox'),unitsPerBox,
-      ],
-    )
-    if (!result.rowCount) return res.status(404).json({ error: 'Produto não encontrado.' })
-    res.json({ product: { ...result.rows[0], price: Number(result.rows[0].price) } })
+    // An imported product may retain a catalog_products.price_override that
+    // differs from products.price. Saving the base price alone must not
+    // silently leave the seller-facing catalog price unchanged.
+    const hasCatalogPrice = Object.hasOwn(req.body || {}, 'catalogPrice')
+    const catalogId = String(req.body?.catalogId || '').trim().slice(0, 100)
+    const catalogPrice = hasCatalogPrice ? toMoney(req.body?.catalogPrice) : null
+    if (hasCatalogPrice && (!catalogId || catalogPrice <= 0)) {
+      return res.status(400).json({ error: 'Selecione um catálogo e informe um preço válido.' })
+    }
+
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      if (hasCatalogPrice) {
+        const catalog = await client.query(
+          'SELECT id,is_default FROM catalogs WHERE id=$1 AND store_id=$2 LIMIT 1',
+          [catalogId, store.rows[0].id],
+        )
+        if (!catalog.rowCount) {
+          await client.query('ROLLBACK')
+          return res.status(404).json({ error: 'Catálogo não encontrado nesta loja.' })
+        }
+        if (!catalog.rows[0].is_default && store.rows[0].plan_tier !== 'ouro') {
+          await client.query('ROLLBACK')
+          return res.status(403).json({ error: 'Este catálogo requer plano Gold.' })
+        }
+      }
+
+      const result = await client.query(
+        `UPDATE products
+         SET sku=$1,name=$2,description=$3,price=$4,category=$5,media_url=$6,media_type=$7,pack=$8,variations=$9,featured=$10,active=$11,
+         retail_price=CASE WHEN $14::boolean THEN $15 ELSE retail_price END,
+         box_price=CASE WHEN $16::boolean THEN $17 ELSE box_price END,
+         units_per_box=CASE WHEN $18::boolean THEN $19 ELSE units_per_box END,updated_at=now()
+         WHERE id=$12 AND store_id=$13
+         RETURNING *`,
+        [
+          String(req.body?.sku || '').trim().slice(0, 80),
+          name.slice(0, 180),
+          String(req.body?.description || '').trim().slice(0, 2000),
+          price,
+          String(req.body?.category || 'Geral').trim().slice(0, 80) || 'Geral',
+          String(req.body?.mediaUrl || '').trim().slice(0, 1000),
+          req.body?.mediaType === 'video' ? 'video' : 'image',
+          String(req.body?.pack || '').trim().slice(0, 160),
+          JSON.stringify(normalizeVariations(req.body?.variations)),
+          Boolean(req.body?.featured),
+          req.body?.active !== false,
+          req.params.id,
+          store.rows[0].id,
+          Object.hasOwn(req.body || {}, 'retailPrice'), retailPrice,
+          Object.hasOwn(req.body || {}, 'boxPrice'), boxPrice,
+          Object.hasOwn(req.body || {}, 'unitsPerBox'), unitsPerBox,
+        ],
+      )
+      if (!result.rowCount) {
+        await client.query('ROLLBACK')
+        return res.status(404).json({ error: 'Produto não encontrado.' })
+      }
+      if (hasCatalogPrice) {
+        // Preserve any existing per-catalog visibility and the prices of
+        // every other catalog. Both writes commit or roll back together.
+        await client.query(
+          `INSERT INTO catalog_products(catalog_id,product_id,price_override,visible)
+           VALUES ($1,$2,$3,true)
+           ON CONFLICT(catalog_id,product_id)
+           DO UPDATE SET price_override=EXCLUDED.price_override,updated_at=now()`,
+          [catalogId, req.params.id, catalogPrice],
+        )
+      }
+      await client.query('COMMIT')
+      res.json({
+        product: {
+          ...result.rows[0],
+          price: Number(result.rows[0].price),
+          ...(hasCatalogPrice ? { catalogPrice } : {}),
+        },
+      })
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {})
+      throw error
+    } finally {
+      client.release()
+    }
   }),
 )
 
