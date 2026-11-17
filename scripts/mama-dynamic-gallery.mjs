@@ -1,4 +1,6 @@
 import { chromium } from 'playwright'
+import {safeRequest} from '../server/scanner-collector.mjs'
+import {googlePhotosImageUrls} from '../server/scanner-photo-albums.mjs'
 const albums=[
  ['Brincos','https://photos.app.goo.gl/MfPcF9pjjdaNCWQf6'],
  ['Chokers','https://photos.app.goo.gl/4qNDWNyoEig83Dhn9']
@@ -6,17 +8,20 @@ const albums=[
 const browser=await chromium.launch({headless:true,args:['--no-sandbox']})
 try{
  for(const [name,url] of albums){
+  const response=await safeRequest(url,{accept:'text/html,application/xhtml+xml',maxBytes:24*1024*1024,timeout:20000})
+  const normalize=value=>{try{const u=new URL(value);return u.hostname+u.pathname.replace(/=(?:[whs]\d+[\w-]*)$/,'')}catch{return ''}}
+  const originalKeys=new Set(googlePhotosImageUrls(response.body,10000).map(normalize))
   const page=await browser.newPage({viewport:{width:1200,height:850}})
   const visited=new Set()
   const images=new Set()
   const requests=new Set()
   page.on('request',request=>{
     const u=request.url()
-    if(/googleusercontent\.com/.test(u))requests.add(u.replace(/=[^/=]+$/,''))
+    if(/^https:\/\/lh[3-6]\.googleusercontent\.com\/pw\//.test(u))requests.add(normalize(u))
   })
   try{
     await page.goto(url,{waitUntil:'domcontentloaded',timeout:30000})
-    for(let i=0;i<25;i++){
+    for(let i=0;i<50;i++){
       const state=await page.evaluate(()=>{
         const pics=[...document.querySelectorAll('img')].map(e=>e.currentSrc||e.src)
          .filter(x=>x.includes('googleusercontent.com')).map(x=>x.replace(/=[^/=]+$/,''))
