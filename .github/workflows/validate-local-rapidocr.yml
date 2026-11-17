@@ -18,8 +18,6 @@ jobs:
     env:
       SHOPVAX_RAPIDOCR_ENABLED: '1'
       SHOPVAX_RAPIDOCR_PYTHON: /opt/rapidocr/bin/python
-      SHOPVAX_RAPIDOCR_DEBUG: '1'
-      MAMA_QUICK_DIAG: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
