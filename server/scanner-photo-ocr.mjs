@@ -163,13 +163,18 @@ async function rapidOcrPhoto(imageBytes) {
       if(bytes>RAPID_MAX_OUTPUT){child.kill('SIGKILL');return}
       chunks.push(part)
     })
-    child.stderr.on('data',()=>{})
+    let diagnosticError=''
+    child.stderr.on('data',part=>{diagnosticError=(diagnosticError+part.toString()).slice(-1000)})
     child.on('error',()=>{clearTimeout(timer);resolve(null)})
     child.on('close',code=>{
       clearTimeout(timer)
-      if(code!==0||bytes>RAPID_MAX_OUTPUT){resolve(null);return}
+      if(code!==0||bytes>RAPID_MAX_OUTPUT){
+        if(process.env.SHOPVAX_RAPIDOCR_DEBUG==='1')console.error('MAMA_RAPIDOCR_FAILURE',JSON.stringify({exit:code,bytes,diagnosticError}))
+        resolve(null);return
+      }
       try {
         const result=JSON.parse(Buffer.concat(chunks).toString('utf8'))
+        if(process.env.SHOPVAX_RAPIDOCR_DEBUG==='1')console.error('MAMA_RAPIDOCR_OUTPUT',JSON.stringify({text:String(result.text||'').slice(0,300),reason:result.reason,scores:result.scores?.slice(0,6)}))
         resolve(typeof result.text==='string' ? result : null)
       } catch {resolve(null)}
     })
