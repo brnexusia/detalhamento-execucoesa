@@ -344,3 +344,38 @@ test('OCR limiter can be explicitly configured to two parallel slots',async()=>{
   })))
   assert.equal(maxActive,2)
 })
+
+
+test('local RapidOCR extracts labeled price first without forcing expensive Tesseract variants',async()=>{
+  const image=await sharp({create:{width:700,height:900,channels:3,background:'#fff'}}).png().toBuffer()
+  let fallback=0
+  const label=await recognizePhotoProductLabel(image,{
+    useRapidOCR:true,
+    rapidOcr:async()=>({text:'BRINCO\n1 PÇ R$ 17,00',scores:[0.99,0.96]}),
+    ocr:async()=>{fallback++;return {text:''}},
+  })
+  assert.deepEqual(label,{title:'Brinco',price:17,pack:'1 peça'})
+  assert.equal(fallback,0)
+})
+
+test('local RapidOCR never promotes dozen-only or unmarked values to unit price',async()=>{
+  const image=await sharp({create:{width:700,height:900,channels:3,background:'#fff'}}).png().toBuffer()
+  let fallback=0
+  const label=await recognizePhotoProductLabel(image,{
+    useRapidOCR:true,
+    rapidOcr:async()=>({text:'CACHECOL\nDZ R$ 220,00\n1 PÇ 20,00'}),
+    ocr:async()=>{fallback++;return {text:'CACHECOL\n1 PÇ R$ 20,00'}},
+  })
+  assert.deepEqual(label,{title:'Cachecol',price:20,pack:'1 peça'})
+  assert.equal(fallback,1)
+})
+
+test('RapidOCR optional failure always falls back to trusted Tesseract',async()=>{
+  const image=await sharp({create:{width:700,height:900,channels:3,background:'#fff'}}).png().toBuffer()
+  const label=await recognizePhotoProductLabel(image,{
+    useRapidOCR:true,
+    rapidOcr:async()=>{throw Error('ONNX unavailable')},
+    ocr:async()=>({text:'BRINCO\n1 PÇ R$ 18,00'}),
+  })
+  assert.equal(label.price,18)
+})
