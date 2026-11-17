@@ -1,0 +1,29 @@
+name: mama-critical-real-prices
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/mama-critical-real-prices.mjs'
+      - '.github/workflows/mama-critical-real-prices.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  real-price:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        case: [0,1,2,3]
+    env:
+      MAMA_CRITICAL_CASE: ${{ matrix.case }}
+      OMP_THREAD_LIMIT: 1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-por tesseract-ocr-eng util-linux
+      - run: npm install --no-audit --no-fund --package-lock=false
+      - run: node scripts/mama-critical-real-prices.mjs
