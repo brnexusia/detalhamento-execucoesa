@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
   SHOPVAX_PUBLIC_ORIGIN,
+  canonicalPublicShareLink,
   publicStoreLink,
   publicSellerLink,
   publicCatalogLink,
@@ -36,4 +37,25 @@ test('links de indicacao preservam codigo, inclusive caracteres reservados', () 
 
 test('link de catalogo preserva a selecao sem perder a rota publica', () => {
   assert.equal(publicCatalogLink('loja-teste','atacado-2026'), 'https://shopvax.com.br/loja-teste?catalog=atacado-2026')
+})
+
+
+test('copiar link da vendedora sempre usa o domínio público mesmo vindo de um painel EasyPanel', () => {
+  assert.equal(
+    canonicalPublicShareLink('https://shopvax-shopvax.easypanel.host/minha-loja/vendedora-ana'),
+    'https://shopvax.com.br/minha-loja/vendedora-ana',
+  )
+  assert.equal(
+    canonicalPublicShareLink(publicSellerLink('loja-teste', 'maria')),
+    'https://shopvax.com.br/loja-teste/maria',
+  )
+  assert.equal(
+    canonicalPublicShareLink('/loja-teste/maria?catalog=atacado#produto-1'),
+    'https://shopvax.com.br/loja-teste/maria?catalog=atacado#produto-1',
+  )
+})
+
+test('nunca copia domínios de terceiros como se fossem links da loja', () => {
+  assert.throws(() => canonicalPublicShareLink('https://site-externo.com.br/minha-loja/maria'))
+  assert.throws(() => canonicalPublicShareLink('javascript:alert(1)'))
 })
