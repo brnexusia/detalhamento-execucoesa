@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { BarChart3, Check, CircleAlert, Copy, Download, Gift, MessageCircle, Percent, RefreshCcw, Save, ShoppingCart, Star, Trash2, TrendingUp } from 'lucide-react'
 import { apiRequest } from './api'
+import { publicReferralLink } from './public-share-links'
 import UiState from './UiState'
 import { confirmAction } from './ui-dialogs'
 import { useUnsavedChanges } from './unsaved-changes'
@@ -153,7 +154,7 @@ export default function Phase3Panel() {
 
   if (loading || !data) return <div className="phase3-shell"><UiState loading={loading} title={loading ? 'Carregando crescimento…' : 'Não foi possível abrir crescimento.'} message={error || undefined} onRetry={loading ? undefined : load}/></div>
 
-  const referralUrl = referral ? `${window.location.origin}/criar-conta?ref=${encodeURIComponent(referral.code)}` : ''
+  const referralUrl = referral ? publicReferralLink(referral.code) : ''
 
   return <div className="phase3-shell">
     <header className="phase3-title"><div><span>{data.plan.name}</span><h1>Crescimento e confiança</h1><p>Conversão, recompra e gestão comercial sem confundir intenção de pedido com faturamento confirmado.</p></div><button className="phase3-secondary" onClick={load}><RefreshCcw size={16}/> Atualizar</button></header>
