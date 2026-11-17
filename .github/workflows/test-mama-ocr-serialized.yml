@@ -1,0 +1,26 @@
+name: verify-serialized-photo-ocr-on-real-mama
+on:
+  push:
+    branches: [fix/serialize-photo-ocr-mama-20261117]
+    paths:
+      - scripts/test-mama-ocr-serialized.mjs
+      - server/scanner-photo-ocr.mjs
+      - server/scanner-photo-ocr.test.mjs
+      - .github/workflows/test-mama-ocr-serialized.yml
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-por tesseract-ocr-eng util-linux
+      - run: npm install --no-audit --no-fund --package-lock=false
+      - run: node --check server/scanner-photo-ocr.mjs
+      - run: node --test server/scanner-photo-ocr.test.mjs
+      - run: node scripts/test-mama-ocr-serialized.mjs
+      - run: npm run build
