@@ -25,8 +25,8 @@ try:
 
     # Inference uses local bundled ONNX models; no cloud OCR.
     result = RapidOCR()(image)
-    texts = list(result.txts or [])
-    scores = list(result.scores or [])
+    texts = list(result.txts) if result.txts is not None else []
+    scores = list(result.scores) if result.scores is not None else []
     accepted = []
     confidences = []
     for index, text in enumerate(texts[:80]):
