@@ -203,7 +203,7 @@ export async function recognizePhotoProductLabel(imageBytes, { ocr = ocrTsv } = 
     const recordUnpunctuated = text => {
       // Keep ambiguous text as evidence only. Never interpret R$ 1700 as
       // R$ 17,00. It can veto a contradictory fallback OCR value.
-      for (const match of String(text || '').matchAll(/(?:R\\s*[$S§]|BRL\\s*)(\\d{3,6})(?![\\d,.])/giu)) {
+      for (const match of String(text || '').matchAll(/(?:R\s*[$S§]|BRL\s*)(\d{3,6})(?![\d,.])/giu)) {
         unpunctuatedPriceDigits.add(match[1].replace(/^0+/, '') || '0')
       }
     }
