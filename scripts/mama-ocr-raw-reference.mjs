@@ -4,6 +4,11 @@ import {safeRequest} from '../server/scanner-collector.mjs'
 import {googlePhotosImageUrls,googlePhotosHighResolutionUrl} from '../server/scanner-photo-albums.mjs'
 const selected=[
   {album:9,photo:45},
+  {album:1,photo:29},
+  {album:1,photo:291},
+  {album:4,photo:131},
+  {album:18,photo:27},
+  {album:18,photo:107},
   {album:3,photo:47},
   {album:3,photo:48},
   {album:13,photo:187},
