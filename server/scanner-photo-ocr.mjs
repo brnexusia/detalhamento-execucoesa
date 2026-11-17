@@ -199,6 +199,14 @@ export async function recognizePhotoProductLabel(imageBytes, { ocr = ocrTsv } = 
       {leftFraction:0.65,topFraction:0.70,widthFraction:0.35,heightFraction:0.30,psm:6,targetWidth:2200,sharpen:true,priceRecovery:true},
     ]
     const combined = {title:'',price:null,pack:''}
+    const unpunctuatedPriceDigits = new Set()
+    const recordUnpunctuated = text => {
+      // Keep ambiguous text as evidence only. Never interpret R$ 1700 as
+      // R$ 17,00. It can veto a contradictory fallback OCR value.
+      for (const match of String(text || '').matchAll(/(?:R\\s*[$S§]|BRL\\s*)(\\d{3,6})(?![\\d,.])/giu)) {
+        unpunctuatedPriceDigits.add(match[1].replace(/^0+/, '') || '0')
+      }
+    }
     let focusedLineRetries = 0
     const focusedLineKeys = new Set()
     for(const attempt of attempts) {
@@ -217,6 +225,7 @@ export async function recognizePhotoProductLabel(imageBytes, { ocr = ocrTsv } = 
         attempt.sharpen ? transform.normalize().sharpen() : transform.normalize())
         .png().toBuffer()
       const read = await ocr(prepared,attempt.psm)
+      recordUnpunctuated(read.text)
       let recognized = parsePhotoProductLabel(read.text)
       // Tesseract can read a printed "R$ 7,00" as "R$ 700" even when
       // the original photo visibly contains the comma. Crop the OCR-detected
@@ -282,16 +291,25 @@ export async function recognizePhotoProductLabel(imageBytes, { ocr = ocrTsv } = 
     const image = await sharp(imageBytes, {limitInputPixels:40_000_000})
       .resize({width:1600,withoutEnlargement:true}).png().toBuffer()
     let last = {title:'',price:null,pack:''}
-    try { last = parsePhotoProductLabel((await ocr(image,11)).text) } catch {
+    try {
+      const finalRead = await ocr(image,11)
+      recordUnpunctuated(finalRead.text)
+      last = parsePhotoProductLabel(finalRead.text)
+    } catch {
       // Return fields already read; do not hide the partial result.
     }
     const foundSku = combined.sku || last.sku
-    return {
+    const result = {
       title:combined.title || last.title,
       price:combined.price ?? last.price,
       pack:combined.pack || last.pack,
       ...(foundSku ? {sku:foundSku} : {}),
     }
+    // Non-enumerable: internal cross-pass evidence, never a catalog field.
+    Object.defineProperty(result, 'unpunctuatedPriceDigits', {
+      value: [...unpunctuatedPriceDigits], enumerable:false,
+    })
+    return result
   } catch {
     // No product may be blocked from review because OCR could not read it.
     return null
