@@ -1,0 +1,45 @@
+name: mama-exhaustive-ocr-current
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/mama-exhaustive-ocr-current.mjs'
+      - '.github/workflows/mama-exhaustive-ocr-current.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix:
+        index: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+        shard: [0, 1, 2, 3]
+    env:
+      MAMA_ALBUM_INDEX: ${{ matrix.index }}
+      MAMA_PHOTO_SHARD: ${{ matrix.shard }}
+      MAMA_PHOTO_SHARD_COUNT: 4
+      OMP_THREAD_LIMIT: 1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install image/OCR dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-por tesseract-ocr-eng util-linux
+          npm install --no-audit --no-fund --package-lock=false
+      - name: Real OCR of every photo in this shard
+        run: node scripts/mama-exhaustive-ocr-current.mjs
+      - name: Save results and missing-label contact sheets
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mama-current-${{ matrix.index }}-${{ matrix.shard }}
+          path: /tmp/mama-fixed-exhaustive/*
+          retention-days: 7
+          if-no-files-found: warn
