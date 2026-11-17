@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ArrowRight, CheckCircle2, Copy, Handshake, LogOut, RefreshCcw, ShieldCheck } from 'lucide-react'
 import { apiRequest } from './api'
+import { publicReferralLink } from './public-share-links'
 import './partner-portal.css'
 
 type Partner = {name:string;email:string;code:string|null;status:string;commissionCents:number;pixKey:string;createdAt:string}
@@ -61,7 +62,7 @@ export default function ShopvaxPartnerPortal(){
  const historyPages=Math.max(1,Math.ceil(historyTotal/(dashboard?.referralsLimit||30)))
  const code=dashboard?.partner.code || ''
  const canShare=dashboard?.partner.status==='active'
- const link=code&&canShare?window.location.origin+'/criar-conta?ref='+encodeURIComponent(code):''
+ const link=code&&canShare?publicReferralLink(code):''
  const copy=async(value:string,kind:'código'|'link')=>{
    setError('')
    try{

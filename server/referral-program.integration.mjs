@@ -20,6 +20,15 @@ const fakeStripe=async(method,path,fields,key)=>{
 const invoice='in_grupo2_'+seed
 try{
  await ensureReferralSchema()
+ // O backend inicializa as tabelas da Stripe em paralelo ao endpoint /health.
+ // Aguardar a migração evita que o teste dependa de uma corrida de inicialização.
+ let stripeTableReady=false
+ for(let attempt=0;attempt<120;attempt++){
+  const row=(await pool.query("SELECT to_regclass('public.shopvax_stripe_billing') AS table_name")).rows[0]
+  if(row?.table_name){stripeTableReady=true;break}
+  await new Promise(resolve=>setTimeout(resolve,250))
+ }
+ assert.equal(stripeTableReady,true,'O backend deve inicializar a tabela de cobrança antes de validar indicações')
  const indicadora=await makeUser('indicadora')
  const indicada=await makeUser('indicada')
  const code='SVX-'+seed.toUpperCase()

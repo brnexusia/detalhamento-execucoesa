@@ -10,6 +10,15 @@ on:
       - 'server/referral-program-core.mjs'
       - 'server/referral-program.integration.mjs'
       - 'src/ShopvaxPartnerPortal.tsx'
+      - 'src/public-share-links.ts'
+      - 'src/TeamPanel.tsx'
+      - 'src/Phase2Panel.tsx'
+      - 'src/Phase3Panel.tsx'
+      - 'src/AdminApp.tsx'
+      - 'src/ShopvaxDashboard.tsx'
+      - 'src/BusinessFeaturesPanel.tsx'
+      - 'src/CatalogManager.tsx'
+      - 'tests/public-share-links.test.mjs'
       - 'src/PlatformReferralPanel.tsx'
       - 'src/partner-portal.css'
       - 'src/Auth.tsx'
@@ -25,7 +34,8 @@ on:
   workflow_dispatch:
 jobs:
   partners:
-    runs-on: ubuntu-latest
+    # Playwright 1.58 supports ubuntu24.04; ubuntu-latest now resolves to 26.04.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -35,6 +45,8 @@ jobs:
       - run: npm install --no-save --no-audit --no-fund playwright@1.58.2
       - run: npx playwright install chromium
       - run: npm run build
+      - name: Validar links publicos (sem dominio interno do EasyPanel)
+        run: node --test tests/public-share-links.test.mjs
       - name: Serve SPA
         run: |
           npm run dev -- --host 127.0.0.1 > /tmp/grupo2-vite.log 2>&1 &

@@ -38,6 +38,17 @@ try{
  assert.match(await signupPage.locator('.svx-partner__dashboard').innerText(),/\/criar-conta\?ref=SVP-TESTECODE/)
  assert.equal(await signupPage.getByRole('button',{name:'Copiar link'}).count(),1)
  assert.equal(await signupPage.getByRole('button',{name:'Copiar código'}).count(),1)
+ // Simula painel aberto pelo dominio interno; o link copiado precisa ser publico.
+ await signupPage.evaluate(() => {
+  Object.defineProperty(navigator,'clipboard',{configurable:true,value:{
+   writeText: async value => { window.__testCopiedShareLink=value }
+  }})
+ })
+ await signupPage.getByRole('button',{name:'Copiar link'}).click()
+ assert.equal(await signupPage.evaluate(()=>window.__testCopiedShareLink),
+  'https://shopvax.com.br/criar-conta?ref=SVP-TESTECODE',
+  'O link do parceiro deve usar o dominio publico, nao a origem da pagina')
+
  assert.equal(await signupPage.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),true)
  await signupPage.close()
 

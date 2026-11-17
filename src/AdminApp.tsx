@@ -1,3 +1,4 @@
+import { SHOPVAX_PUBLIC_ORIGIN, publicSellerLink, publicStoreLink } from './public-share-links'
 import { useEffect, useRef, useState } from 'react'
 import { ArrowRight, Boxes, Check, ChevronLeft, ChevronRight, Clipboard, CreditCard, Download, Eye, EyeOff, ExternalLink, ImagePlus, Link2, LogOut, Menu, MoreHorizontal, Package, Pencil, Plus, ReceiptText, Search, Settings, Store as StoreIcon, Trash2, TrendingUp, Upload, Users, X } from 'lucide-react'
 import { api, type AdminCatalog } from './api'
@@ -190,8 +191,8 @@ export default function AdminApp() {
   if (loading) return <ShopvaxLoading label="Abrindo seu painel…" />
   if (!data) return <div className="panel-loading panel-loading--error"><span className="brand__mark"><img src="/brand/shopvax-symbol-dark.svg" className="svx-brand-symbol" alt="" aria-hidden="true" /></span><strong>O painel não conseguiu iniciar.</strong><p>{error}</p><button className="primary-action" onClick={() => { void load() }}>Tentar novamente</button></div>
 
-  const baseUrl = window.location.origin
-  const storeUrl = `${baseUrl}/${data.store.slug}`
+  const baseUrl = SHOPVAX_PUBLIC_ORIGIN
+  const storeUrl = publicStoreLink(data.store.slug)
   const totalProducts = data.productCount ?? data.products.length
   const incomplete = totalProducts === 0 || data.sellers.length === 0 || !data.store.whatsapp
 
@@ -540,7 +541,7 @@ function Orders({ data, onUpdated }: { data: AdminBootstrap; onUpdated: () => vo
 }
 
 function Sellers({ data, baseUrl, onCopy, onCreate, onEdit, onDelete }: { data: AdminBootstrap; baseUrl: string; onCopy: (value: string) => void; onCreate: () => void; onEdit: (seller: AdminSeller) => void; onDelete: (seller: AdminSeller) => void }) {
-  return <div className="panel-page"><div className="page-title"><div><span>Equipe</span><h1>Vendedoras</h1><p>Cada pessoa ganha um endereço próprio da mesma loja.</p></div><button className="primary-action" onClick={onCreate}><Plus size={18} /> Nova vendedora</button></div><div className="seller-list">{data.sellers.map((seller) => { const orders = data.orders.filter((order) => order.seller_id === seller.id); const value = orders.reduce((sum, order) => sum + order.total, 0); const link = `${baseUrl}/${data.store.slug}/${seller.slug}`; return <article key={seller.id}><div className="seller-avatar">{seller.name.slice(0, 2).toUpperCase()}</div><div className="seller-main"><small>{seller.is_active ? 'ATIVA' : 'PAUSADA'}</small><h3>{seller.name}</h3><span>{seller.phone}</span></div><div className="seller-stats"><span><b>{orders.length}</b> {orders.length === 1 ? 'pedido' : 'pedidos'}</span><span><b>{money.format(value)}</b> em pedidos enviados</span></div><div className="seller-link"><code>/{data.store.slug}/{seller.slug}</code><button onClick={() => onCopy(link)}><Clipboard size={15} /> Copiar link</button></div><div className="seller-actions"><button onClick={() => onEdit(seller)}><Pencil size={16} /></button><button className="danger" onClick={() => onDelete(seller)}><Trash2 size={16} /></button></div></article> })}</div>{!data.sellers.length && <div className="admin-empty"><Users size={30} /><h2>Cadastre quem vende.</h2><p>O link individual garante que o carrinho volte para a vendedora certa.</p><button className="primary-action" onClick={onCreate}><Plus size={18} /> Cadastrar vendedora</button></div>}</div>
+  return <div className="panel-page"><div className="page-title"><div><span>Equipe</span><h1>Vendedoras</h1><p>Cada pessoa ganha um endereço próprio da mesma loja.</p></div><button className="primary-action" onClick={onCreate}><Plus size={18} /> Nova vendedora</button></div><div className="seller-list">{data.sellers.map((seller) => { const orders = data.orders.filter((order) => order.seller_id === seller.id); const value = orders.reduce((sum, order) => sum + order.total, 0); const link = publicSellerLink(data.store.slug, seller.slug); return <article key={seller.id}><div className="seller-avatar">{seller.name.slice(0, 2).toUpperCase()}</div><div className="seller-main"><small>{seller.is_active ? 'ATIVA' : 'PAUSADA'}</small><h3>{seller.name}</h3><span>{seller.phone}</span></div><div className="seller-stats"><span><b>{orders.length}</b> {orders.length === 1 ? 'pedido' : 'pedidos'}</span><span><b>{money.format(value)}</b> em pedidos enviados</span></div><div className="seller-link"><code>/{data.store.slug}/{seller.slug}</code><button onClick={() => onCopy(link)}><Clipboard size={15} /> Copiar link</button></div><div className="seller-actions"><button onClick={() => onEdit(seller)}><Pencil size={16} /></button><button className="danger" onClick={() => onDelete(seller)}><Trash2 size={16} /></button></div></article> })}</div>{!data.sellers.length && <div className="admin-empty"><Users size={30} /><h2>Cadastre quem vende.</h2><p>O link individual garante que o carrinho volte para a vendedora certa.</p><button className="primary-action" onClick={onCreate}><Plus size={18} /> Cadastrar vendedora</button></div>}</div>
 }
 
 function StoreSettings({ data, onSaved, onCopy, onDirtyChange }: { data: AdminBootstrap; onSaved: () => void; onCopy: (value: string) => void; onDirtyChange: (dirty: boolean) => void }) {
@@ -552,7 +553,7 @@ function StoreSettings({ data, onSaved, onCopy, onDirtyChange }: { data: AdminBo
   const [error, setError] = useState('')
   const dirty = JSON.stringify(form) !== JSON.stringify(savedForm)
   const update = (key: keyof typeof form, value: string) => setForm((current) => ({ ...current, [key]: value }))
-  const url = `${window.location.origin}/${form.slug}`
+  const url = publicStoreLink(form.slug)
 
   useEffect(() => { onDirtyChange(dirty) }, [dirty, onDirtyChange])
   useEffect(() => () => onDirtyChange(false), [onDirtyChange])
