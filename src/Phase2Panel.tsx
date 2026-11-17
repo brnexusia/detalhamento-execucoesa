@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Check, CircleAlert, Copy, Globe2, PackageCheck, Plus, RefreshCcw, Save, Trash2, UserRound, UsersRound } from 'lucide-react'
 import { apiRequest } from './api'
+import { publicSellerLink } from './public-share-links'
 import UiState from './UiState'
 import { confirmAction } from './ui-dialogs'
 import { useUnsavedChanges } from './unsaved-changes'
@@ -157,7 +158,7 @@ export default function Phase2Panel() {
 
     <section className="phase2-card">
       <div className="phase2-card__head"><div><span>Intercalação automática</span><h2>Vendedoras</h2><p>O link geral alterna as vendedoras ativas em sequência. O link individual continua preso à própria vendedora.</p></div><strong>{activeSellers.length}{sellerLimit == null ? '' : ` / ${sellerLimit}`}</strong></div>
-      <div className="phase2-sellers">{data.sellers.map((seller, index) => <article key={seller.id}><div className="phase2-avatar">{seller.name.slice(0, 2).toUpperCase()}</div><div><strong>{seller.name}</strong><span>{seller.is_active ? `Posição ${index + 1} no rodízio` : 'Fora do rodízio'}</span></div><button onClick={() => copy(`${window.location.origin}/${data.store.slug}/${seller.slug}`)}><Copy size={15}/> Link individual</button></article>)}</div>
+      <div className="phase2-sellers">{data.sellers.map((seller, index) => <article key={seller.id}><div className="phase2-avatar">{seller.name.slice(0, 2).toUpperCase()}</div><div><strong>{seller.name}</strong><span>{seller.is_active ? `Posição ${index + 1} no rodízio` : 'Fora do rodízio'}</span></div><button onClick={() => copy(publicSellerLink(data.store.slug, seller.slug))}><Copy size={15}/> Link individual</button></article>)}</div>
       <div className="phase2-info"><UserRound size={17}/><span>Uma atribuição fica estável por 24 horas para o mesmo visitante, evitando trocar a vendedora no meio do carrinho.</span></div>
     </section>
 
