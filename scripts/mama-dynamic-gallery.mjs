@@ -37,7 +37,7 @@ try{
       console.log('MAMA_DYNAMIC_INVENTORY '+JSON.stringify({name,step:i+1,domUnique:images.size,networkUnique:requests.size,scrollTop:state.scrollTop,scrollHeight:state.scrollHeight}))
     }
   }catch(e){console.log('MAMA_DYNAMIC_ERROR '+JSON.stringify({name,error:String(e)}))}
-  console.log('MAMA_DYNAMIC_FINAL '+JSON.stringify({name,domUnique:images.size,networkUnique:requests.size,urls:[...images].slice(0,3)}))
+  console.log('MAMA_DYNAMIC_FINAL '+JSON.stringify({name,htmlCount:originalKeys.size,domUnique:images.size,networkUnique:requests.size,overlap:[...requests].filter(x=>originalKeys.has(x)).length,extra:[...requests].filter(x=>!originalKeys.has(x)).length,examples:[...requests].filter(x=>!originalKeys.has(x)).slice(0,5)}))
   await page.close()
  }
 }finally{await browser.close()}
