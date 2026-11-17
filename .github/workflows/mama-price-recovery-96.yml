@@ -1,0 +1,37 @@
+name: mama-price-recovery-96
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/mama-price-recovery-audit.mjs'
+      - '.github/workflows/mama-price-recovery-96.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        shard: [0,1,2,3]
+    env:
+      MAMA_RECOVERY_SHARD: ${{ matrix.shard }}
+      MAMA_RECOVERY_SHARDS: 4
+      OMP_THREAD_LIMIT: 1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-por tesseract-ocr-eng util-linux
+      - run: npm install --no-audit --no-fund --package-lock=false
+      - run: node scripts/mama-price-recovery-audit.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mama-recovery-${{ matrix.shard }}
+          path: /tmp/mama-price-recovery/*.json
+          if-no-files-found: warn
