@@ -1,0 +1,22 @@
+name: validate-mama-rapidocr-production-docker
+on:
+  push:
+    branches: [fix/mama-rapidocr-fallback-20261117]
+    paths:
+      - Dockerfile
+      - scripts/rapidocr_photo.py
+      - server/scanner-photo-ocr.mjs
+      - .github/workflows/validate-mama-rapidocr-docker.yml
+permissions:
+  contents: read
+jobs:
+  docker:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the same OCR runtime image that EasyPanel deploys
+        run: docker build --progress plain --tag shopvax-mama-ocr-check:ci .
+      - name: Validate local ONNX image recognition runtime exists
+        run: |
+          docker run --rm --entrypoint /opt/rapidocr/bin/python shopvax-mama-ocr-check:ci -c "from rapidocr import RapidOCR; import onnxruntime; print('RAPIDOCR_IMAGE_READY')"
