@@ -276,16 +276,16 @@ test('never guesses cents from missing separators even with second-pass OCR',asy
 })
 
 test('reads SKU only when explicitly printed; cleans code labels from the product name', () => {
-  assert.deepEqual(parsePhotoProductLabel('BRINCO DE AÇO\\nREF: BR-2048\\n1 PÇ R$ 15,00'), {
+  assert.deepEqual(parsePhotoProductLabel('BRINCO DE AÇO\nREF: BR-2048\n1 PÇ R$ 15,00'), {
     title:'Brinco De Aço',price:15,pack:'1 peça',sku:'BR-2048',
   })
-  assert.deepEqual(parsePhotoProductLabel('BOLSA PALHA SINTÉTICA CÓDIGO: 80719\\n1 PÇ R$ 140,00'),{
+  assert.deepEqual(parsePhotoProductLabel('BOLSA PALHA SINTÉTICA CÓDIGO: 80719\n1 PÇ R$ 140,00'),{
     title:'Bolsa Palha Sintética',price:140,pack:'1 peça',sku:'80719',
   })
-  assert.equal(parsePhotoProductLabel('ANEL\\n1 PÇ R$ 7,00').sku,undefined)
-  assert.equal(parsePhotoProductLabel('ANEL\\nREF 123456\\nREF 999999\\n1 PÇ R$ 7,00').sku,undefined,
+  assert.equal(parsePhotoProductLabel('ANEL\n1 PÇ R$ 7,00').sku,undefined)
+  assert.equal(parsePhotoProductLabel('ANEL\nREF 123456\nREF 999999\n1 PÇ R$ 7,00').sku,undefined,
     'two different identifiers need manual review')
-  assert.equal(parsePhotoProductLabel('COLAR\\nREF: TESTE\\n1 PÇ R$ 29,90').sku,undefined,
+  assert.equal(parsePhotoProductLabel('COLAR\nREF: TESTE\n1 PÇ R$ 29,90').sku,undefined,
     'a generic text reference is not a trusted product identifier')
 })
 
