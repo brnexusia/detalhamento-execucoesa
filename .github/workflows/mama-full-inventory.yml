@@ -1,0 +1,20 @@
+name: inventory-all-mama-photos-20261117
+on:
+  push:
+    branches: [audit/mama-full-21-albums-20261117]
+    paths:
+      - scripts/mama-full-inventory.mjs
+      - .github/workflows/mama-full-inventory.yml
+permissions:
+  contents: read
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --no-audit --no-fund
+      - run: node scripts/mama-full-inventory.mjs
