@@ -206,3 +206,50 @@ test('a complete original label does not trigger a redundant OCR pass',async()=>
   assert.equal(reads,1)
   assert.equal(result.candidates[0].price,12.9)
 })
+
+
+test('rejects a spurious fallback price when source OCR digits contradict it',async()=>{
+  const raw=await sharp({create:{width:1086,height:1448,channels:3,background:'#ffffff'}}).jpeg().toBuffer()
+  const url='https://lh3.googleusercontent.com/pw/'+'Z'.repeat(90)+'=w1600-h1600'
+  const album='https://photos.app.goo.gl/contradictory-price'
+  const result=await collectSharedPhotos(album,{
+    maxProducts:1,
+    request:async u=>u===album
+      ? {ok:true,url:'https://photos.google.com/share/source',contentType:'text/html',
+        body:'<script>"'+url+'"</script>'}
+      : {ok:true,buffer:raw},
+    onImage:async()=>'/media/check',
+    readLabel:async bytes=>{
+      if(bytes.equals(raw)){
+        const label={title:'Lenço',price:null,pack:'1 peça'}
+        Object.defineProperty(label,'unpunctuatedPriceDigits',{value:['1700'],enumerable:false})
+        return label
+      }
+      return {title:'Lenço',price:1,pack:'1 peça'}
+    },
+  })
+  assert.equal(result.candidates[0].price,null)
+})
+
+test('allows a confirmed fallback comma only when source price digits agree',async()=>{
+  const raw=await sharp({create:{width:1086,height:1448,channels:3,background:'#ffffff'}}).jpeg().toBuffer()
+  const url='https://lh3.googleusercontent.com/pw/'+'Y'.repeat(90)+'=w1600-h1600'
+  const album='https://photos.app.goo.gl/consistent-price'
+  const result=await collectSharedPhotos(album,{
+    maxProducts:1,
+    request:async u=>u===album
+      ? {ok:true,url:'https://photos.google.com/share/consistent',contentType:'text/html',
+        body:'<script>"'+url+'"</script>'}
+      : {ok:true,buffer:raw},
+    onImage:async()=>'/media/check',
+    readLabel:async bytes=>{
+      if(bytes.equals(raw)){
+        const label={title:'Anel',price:null,pack:'1 peça'}
+        Object.defineProperty(label,'unpunctuatedPriceDigits',{value:['700'],enumerable:false})
+        return label
+      }
+      return {title:'Anel',price:7,pack:'1 peça'}
+    },
+  })
+  assert.equal(result.candidates[0].price,7)
+})
