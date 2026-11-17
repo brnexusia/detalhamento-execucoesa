@@ -198,9 +198,17 @@ async function savePhoto(url, request, onImage, filename, readLabel = recognizeP
           const originalValid = label?.price != null && Number.isFinite(originalPrice) && originalPrice > 0
           const fallbackValid = alternative.price != null && Number.isFinite(fallbackPrice) && fallbackPrice > 0
           const conflict = originalValid && fallbackValid && Math.abs(originalPrice - fallbackPrice) > 0.001
+          // The original image sometimes reads R$ 1700 without a comma.
+          // If a compressed fallback claims R$ 1,00 (100 cents), that
+          // contradicts the printed digits. Require review rather than
+          // silently publishing the wrong product price.
+          const hints = label?.unpunctuatedPriceDigits || []
+          const fallbackCents = String(Math.round(fallbackPrice * 100))
+          const contradictory = !originalValid && fallbackValid && hints.length > 0 &&
+            !hints.includes(fallbackCents)
           label = {
             title: label?.title || alternative.title || '',
-            price: conflict ? null : (originalValid ? originalPrice : (fallbackValid ? fallbackPrice : null)),
+            price: conflict || contradictory ? null : (originalValid ? originalPrice : (fallbackValid ? fallbackPrice : null)),
             pack: label?.pack || alternative.pack || '',
             sku: label?.sku || alternative.sku || '',
           }
