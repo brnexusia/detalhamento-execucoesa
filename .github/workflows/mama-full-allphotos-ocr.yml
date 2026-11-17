@@ -1,0 +1,38 @@
+name: mama-all-photos-ocr-complete-audit-20261117
+on:
+  push:
+    branches: [audit/mama-full-21-albums-20261117]
+    paths:
+      - 'scripts/mama-full-allphotos-ocr.mjs'
+      - '.github/workflows/mama-full-allphotos-ocr.yml'
+permissions:
+  contents: read
+jobs:
+  album:
+    runs-on: ubuntu-latest
+    timeout-minutes: 115
+    strategy:
+      fail-fast: false
+      matrix:
+        album: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21]
+    env:
+      MAMA_ALBUM_INDEX: ${{ matrix.album }}
+      MAMA_AUDIT_OUT_DIR: /tmp/mama-allphotos
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install OCR dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-por tesseract-ocr-eng util-linux
+      - run: npm install --no-audit --no-fund --package-lock=false
+      - name: Inspect every photo in this album with production importer
+        run: node scripts/mama-full-allphotos-ocr.mjs
+      - name: Retain per-photo results and contact sheets of OCR failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mama-ocr-album-${{ matrix.album }}
+          path: /tmp/mama-allphotos/*
+          retention-days: 7
+          if-no-files-found: warn
