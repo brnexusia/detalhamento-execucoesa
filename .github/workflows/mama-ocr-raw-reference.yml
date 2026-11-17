@@ -1,0 +1,27 @@
+name: mama-ocr-raw-reference
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/mama-ocr-raw-reference.mjs'
+      - '.github/workflows/mama-ocr-raw-reference.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund --package-lock=false
+      - run: node scripts/mama-ocr-raw-reference.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mama-raw-reference
+          path: /tmp/mama-ocr-samples/*
+          if-no-files-found: warn
