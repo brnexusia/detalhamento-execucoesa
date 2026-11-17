@@ -24,3 +24,11 @@ jobs:
       - run: node --test server/scanner-photo-ocr.test.mjs
       - run: node scripts/test-mama-ocr-serialized.mjs
       - run: npm run build
+      - name: Preserve visual reference
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mama-ocr-reference
+          path: /tmp/mama-ocr-reference-photo69.jpg
+          retention-days: 7
+          if-no-files-found: warn
