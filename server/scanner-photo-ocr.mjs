@@ -199,6 +199,8 @@ export async function recognizePhotoProductLabel(imageBytes, { ocr = ocrTsv } = 
       {leftFraction:0.65,topFraction:0.70,widthFraction:0.35,heightFraction:0.30,psm:6,targetWidth:2200,sharpen:true,priceRecovery:true},
     ]
     const combined = {title:'',price:null,pack:''}
+    let focusedLineRetries = 0
+    const focusedLineKeys = new Set()
     for(const attempt of attempts) {
       if (attempt.priceRecovery && combined.price !== null) break
       try {
@@ -214,7 +216,53 @@ export async function recognizePhotoProductLabel(imageBytes, { ocr = ocrTsv } = 
       const prepared = await (attempt.binary ? transform.threshold(attempt.threshold || 160) :
         attempt.sharpen ? transform.normalize().sharpen() : transform.normalize())
         .png().toBuffer()
-      const recognized = parsePhotoProductLabel((await ocr(prepared,attempt.psm)).text)
+      const read = await ocr(prepared,attempt.psm)
+      let recognized = parsePhotoProductLabel(read.text)
+      // Tesseract can read a printed "R$ 7,00" as "R$ 700" even when
+      // the original photo visibly contains the comma. Crop the OCR-detected
+      // monetary line itself and upscale 3x, rather than guessing decimals.
+      // No coordinate data is supplied by mocked OCR tests: simply skip.
+      if (recognized.price === null && focusedLineRetries < 3 && Array.isArray(read.lines)) {
+        const px = attempt.targetWidth || (attempt.binary ? 1600 : 1200)
+        const cropLeft = Math.floor(width * attempt.leftFraction)
+        const cropTop = Math.floor(height * attempt.topFraction)
+        const cropWidth = Math.min(width - cropLeft, Math.ceil(width * attempt.widthFraction))
+        const cropHeight = Math.min(height - cropTop, Math.ceil(height * attempt.heightFraction))
+        const ratio = cropWidth / px
+        for (const line of read.lines) {
+          if (focusedLineRetries >= 3) break
+          if (!/(?:R\\s*[$S§]|BRL|PRE[CÇ]O|VALOR)/iu.test(line.text) || !/\\d/.test(line.text) ||
+              !Array.isArray(line.box) || line.box.length !== 4) continue
+          const [x1,y1,x2,y2] = line.box
+          const lw = x2 - x1, lh = y2 - y1
+          if (lw < 10 || lh < 5) continue
+          const left = Math.max(0, cropLeft + Math.floor((x1 - lw * 0.11) * ratio))
+          const top = Math.max(0, cropTop + Math.floor((y1 - lh * 0.55) * ratio))
+          const right = Math.min(width, cropLeft + Math.ceil((x2 + lw * 0.08) * ratio))
+          const bottom = Math.min(height, cropTop + Math.ceil((y2 + lh * 0.60) * ratio))
+          if (right - left < 30 || bottom - top < 15) continue
+          const key = [Math.round((left+right)/100),Math.round((top+bottom)/100)].join(':')
+          if (focusedLineKeys.has(key)) continue
+          focusedLineKeys.add(key)
+          focusedLineRetries++
+          try {
+            const cropped = await sharp(imageBytes,{limitInputPixels:40_000_000})
+              .extract({left,top,width:right-left,height:bottom-top})
+              .resize({width:Math.min(2700,Math.max(900,Math.round((right-left)*3))),kernel:'lanczos3'})
+              .grayscale().normalize().png().toBuffer()
+            const focused = parsePhotoProductLabel((await ocr(cropped,7)).text)
+            if (focused.price !== null) {
+              recognized = {
+                title:recognized.title || focused.title,
+                price:focused.price,
+                pack:recognized.pack || focused.pack,
+                ...(recognized.sku || focused.sku ? {sku:recognized.sku || focused.sku}:{}),
+              }
+              break
+            }
+          } catch { /* Preserve earlier OCR results when a focused crop fails. */ }
+        }
+      }
       combined.title ||= recognized.title
       combined.price ??= recognized.price
       combined.pack ||= recognized.pack
