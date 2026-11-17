@@ -332,3 +332,26 @@ test('extra focused OCR never interprets R$ 700 as 7,00', async()=>{
   const result=await recognizePhotoProductLabel(img,{ocr:async()=>({text:'ANEL\\n1 PÇ R$ 700'})})
   assert.equal(result?.price,null)
 })
+
+
+test('reprocesses the detected monetary line to recover a truly printed decimal comma',async()=>{
+  const img=await sharp({create:{width:1200,height:1600,channels:3,background:'#f7f7f7'}}).jpeg().toBuffer()
+  let reads=0
+  const found=await recognizePhotoProductLabel(img,{ocr:async()=>{
+    reads++
+    return reads===1
+      ? {text:'ANEL\\n1 PÇ R$ 700',lines:[{text:'1 PÇ R$ 700',box:[300,300,1050,420]}]}
+      : {text:'1 PC R$ 7,00'}
+  }})
+  assert.equal(reads,2)
+  assert.equal(found?.title,'Anel')
+  assert.equal(found?.price,7)
+})
+
+test('focused OCR never creates decimal cents if the rescanned line remains ambiguous',async()=>{
+  const img=await sharp({create:{width:1200,height:1600,channels:3,background:'#f7f7f7'}}).jpeg().toBuffer()
+  const found=await recognizePhotoProductLabel(img,{ocr:async()=>({
+    text:'ANEL\\n1 PÇ R$ 700',lines:[{text:'1 PÇ R$ 700',box:[300,300,1050,420]}]
+  })})
+  assert.equal(found?.price,null)
+})
