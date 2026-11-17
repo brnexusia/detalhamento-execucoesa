@@ -237,7 +237,7 @@ export async function recognizePhotoProductLabel(imageBytes, { ocr = ocrTsv } = 
           const lw = x2 - x1, lh = y2 - y1
           if (lw < 10 || lh < 5) continue
           const left = Math.max(0, cropLeft + Math.floor((x1 - lw * 0.11) * ratio))
-          const top = Math.max(0, cropTop + Math.floor((y1 - lh * 0.40) * ratio))
+          const top = Math.max(0, cropTop + Math.floor((y1 - lh * 0.30) * ratio))
           const right = Math.min(width, cropLeft + Math.ceil((x2 + lw * 0.08) * ratio))
           const bottom = Math.min(height, cropTop + Math.ceil((y2 + lh * 0.10) * ratio))
           if (right - left < 30 || bottom - top < 15) continue
