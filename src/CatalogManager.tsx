@@ -1,3 +1,4 @@
+import { publicCatalogLink } from './public-share-links'
 import { useEffect, useState } from 'react'
 import { Check, Copy, Download, ExternalLink, FolderClosed, FolderOpen, MoreHorizontal, Plus, Search, Share2, Trash2, X } from 'lucide-react'
 import { api, type AdminCatalog } from './api'
@@ -99,7 +100,7 @@ export default function CatalogManager({storeSlug,categories,onSelect,onChanged,
    return()=>window.removeEventListener('keydown',onKey)
  },[pane,busy])
  const choose=(catalog:AdminCatalog)=>{setSelectedId(catalog.id);onSelect(catalog)}
- const catalogLink=(catalog:AdminCatalog)=>new URL('/'+encodeURIComponent(storeSlug)+'?catalog='+encodeURIComponent(catalog.slug),window.location.origin).toString()
+ const catalogLink=(catalog:AdminCatalog)=>publicCatalogLink(storeSlug,catalog.slug)
  const copyLink=async(catalog:AdminCatalog)=>{
    try{
      await navigator.clipboard.writeText(catalogLink(catalog))
