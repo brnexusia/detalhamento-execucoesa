@@ -115,8 +115,29 @@ export function parsePhotoProductLabel(rawText) {
   }
 }
 
+// A single importer reads one photo at a time, but separate import jobs can
+// execute simultaneously in the same API process. Multiple Tesseract workers
+// competing for CPU were observed to lose small price punctuation and time out.
+// Keep one process active per app process unless deliberately configured otherwise.
+export function createPhotoOcrLimiter(maxParallel = 1) {
+  const capacity = Math.max(1, Math.min(2, Math.floor(Number(maxParallel) || 1)))
+  let active = 0
+  const waiting = []
+  return async function withPhotoOcrSlot(operation) {
+    if (active < capacity) active += 1
+    else await new Promise(resolve => waiting.push(resolve))
+    try { return await operation() }
+    finally {
+      const next = waiting.shift()
+      if (next) next() // transfer the reserved slot without lowering active
+      else active -= 1
+    }
+  }
+}
+const withPhotoOcrSlot = createPhotoOcrLimiter(process.env.SHOPVAX_PHOTO_OCR_PARALLEL || 1)
+
 function ocrTsv(buffer, psm = 6) {
-  return new Promise((resolve, reject) => {
+  return withPhotoOcrSlot(() => new Promise((resolve, reject) => {
     const child = spawn('prlimit', [
       '--as=1073741824', '--cpu=12', '--fsize=10485760', '--',
       'tesseract', 'stdin', 'stdout', '-l', 'por+eng', '--psm', String(psm), 'tsv',
@@ -143,7 +164,7 @@ function ocrTsv(buffer, psm = 6) {
     })
     child.stdin.on('error', () => {})
     child.stdin.end(buffer)
-  })
+  }))
 }
 
 export async function recognizePhotoProductLabel(imageBytes, { ocr = ocrTsv } = {}) {
