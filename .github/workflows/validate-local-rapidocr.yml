@@ -1,0 +1,32 @@
+name: validate-local-rapidocr-mama-price-labels
+on:
+  push:
+    branches: [fix/mama-rapidocr-fallback-20261117]
+    paths:
+      - 'scripts/test-mama-rapidocr-real.mjs'
+      - 'scripts/rapidocr_photo.py'
+      - 'server/scanner-photo-ocr.mjs'
+      - 'server/scanner-photo-ocr.test.mjs'
+      - 'Dockerfile'
+      - '.github/workflows/validate-local-rapidocr.yml'
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      SHOPVAX_RAPIDOCR_ENABLED: '1'
+      SHOPVAX_RAPIDOCR_PYTHON: /opt/rapidocr/bin/python
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-por tesseract-ocr-eng util-linux python3 python3-venv
+      - run: sudo python3 -m venv /opt/rapidocr && sudo /opt/rapidocr/bin/pip install --no-cache-dir rapidocr==3.9.0 onnxruntime==1.23.2
+      - run: npm install --no-audit --no-fund --package-lock=false
+      - run: node --check server/scanner-photo-ocr.mjs
+      - run: node --test server/scanner-photo-ocr.test.mjs
+      - run: node scripts/test-mama-rapidocr-real.mjs
+      - run: npm run build
