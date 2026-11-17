@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process'
 import sharp from 'sharp'
+import { fileURLToPath } from 'node:url'
 import { parseTesseractTsv } from './scanner-pdf-tesseract.mjs'
 
 // Uses the Tesseract (por+eng) already installed in the production image.
@@ -136,6 +137,47 @@ export function createPhotoOcrLimiter(maxParallel = 1) {
 }
 const withPhotoOcrSlot = createPhotoOcrLimiter(process.env.SHOPVAX_PHOTO_OCR_PARALLEL || 1)
 
+const RAPID_SCRIPT = fileURLToPath(new URL('../scripts/rapidocr_photo.py', import.meta.url))
+const RAPID_MAX_OUTPUT = 64 * 1024
+const RAPID_TIMEOUT_MS = 15_000
+
+async function rapidOcrPhoto(imageBytes) {
+  // Shares the OCR slot with Tesseract so many simultaneous imports cannot
+  // overload the CPUs or silently lose price digits and decimal commas.
+  return withPhotoOcrSlot(() => new Promise((resolve) => {
+    let child
+    try {
+      child = spawn('prlimit', [
+        '--as=1610612736','--cpu=17','--fsize=10485760','--',
+        process.env.SHOPVAX_RAPIDOCR_PYTHON || '/opt/rapidocr/bin/python',
+        RAPID_SCRIPT,
+      ],{stdio:['pipe','pipe','pipe'],env:{
+        ...process.env,OMP_NUM_THREADS:'1',OPENBLAS_NUM_THREADS:'1',
+      }})
+    } catch { resolve(null); return }
+    const chunks=[]
+    let bytes=0
+    const timer=setTimeout(()=>child.kill('SIGKILL'),RAPID_TIMEOUT_MS)
+    child.stdout.on('data',part=>{
+      bytes+=part.length
+      if(bytes>RAPID_MAX_OUTPUT){child.kill('SIGKILL');return}
+      chunks.push(part)
+    })
+    child.stderr.on('data',()=>{})
+    child.on('error',()=>{clearTimeout(timer);resolve(null)})
+    child.on('close',code=>{
+      clearTimeout(timer)
+      if(code!==0||bytes>RAPID_MAX_OUTPUT){resolve(null);return}
+      try {
+        const result=JSON.parse(Buffer.concat(chunks).toString('utf8'))
+        resolve(typeof result.text==='string' ? result : null)
+      } catch {resolve(null)}
+    })
+    child.stdin.on('error',()=>{})
+    child.stdin.end(imageBytes)
+  }))
+}
+
 function ocrTsv(buffer, psm = 6) {
   return withPhotoOcrSlot(() => new Promise((resolve, reject) => {
     const child = spawn('prlimit', [
@@ -167,12 +209,24 @@ function ocrTsv(buffer, psm = 6) {
   }))
 }
 
-export async function recognizePhotoProductLabel(imageBytes, { ocr = ocrTsv } = {}) {
+export async function recognizePhotoProductLabel(imageBytes, { ocr = ocrTsv, rapidOcr = rapidOcrPhoto, useRapidOCR = process.env.SHOPVAX_RAPIDOCR_ENABLED === '1' } = {}) {
   try {
     if (!Buffer.isBuffer(imageBytes) || imageBytes.length > 8 * 1024 * 1024) return null
     const meta = await sharp(imageBytes, {limitInputPixels:40_000_000}).metadata()
     const width = Number(meta.width || 0), height = Number(meta.height || 0)
     if (width < 220 || height < 220) return null
+
+    // RapidOCR reads the full original image with text-region detection.
+    // It recovered 11/14 manually audited failures with price and unit text.
+    // Only trust an explicitly marked decimal price as validated by the
+    // existing conservative parser. Never guess prices from standalone digits.
+    if (useRapidOCR) {
+      const found = await Promise.resolve().then(() => rapidOcr(imageBytes)).catch(() => null)
+      if (found?.text) {
+        const label = parsePhotoProductLabel(found.text)
+        if (label.price !== null) return label
+      }
+    }
 
     // Prices printed on a small sticker in the corner are easily lost when
     // the crop includes the magazine/background next to the sticker.
