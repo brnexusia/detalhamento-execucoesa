@@ -96,6 +96,8 @@ jobs:
           grep -Fq 'content="#161514"' index.html
       - name: Validate XML escaping and SEO route helpers
         run: npm run test:seo
+      - name: Validar links públicos da loja e das vendedoras
+        run: node --test tests/public-share-links.test.mjs
       - name: Release smoke test (local, read-only)
         run: node --test tests/verify-production.test.mjs
       - name: Aprovacao dos planos comerciais e migracao segura
