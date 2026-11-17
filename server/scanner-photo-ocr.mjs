@@ -11,6 +11,9 @@ const PRICE_MARKED = /(?:R\s*[$S§]|BRL\b|PRE[CÇ]O\b|VALOR\b)\s*[:=\-]?\s*(\d{1
 // OCR commonly reads '1 PÇ' as 'IPC', 'IPG' or '1P¢' on small tags.
 // Accept these glyphs ONLY immediately before a monetary value with cents.
 const ONE_PIECE_PRICE = /(?:^|[^\p{L}\d])[1I|l]\s*(?:P\s*[ÇCG¢]S?|PE[ÇC]AS?|PAR|UN(?:D(?:IDADE)?S?)?)\s*[:=\-]?\s*(?:R\s*[$S§]|BRL\b)\s*[:=\-]?\s*(\d{1,6}(?:\.\d{3})*,\d{2}|\d{1,6}\.\d{2})/giu
+// The identifier must be printed explicitly on the label; a random photo index is never a SKU.
+// Require at least one digit to avoid turning ordinary product text into an identifier.
+const SKU_MARKED = /(?:^|[\s,;|])(?:SKU|REF(?:ER[ÊE]NCIA)?|C[ÓO]D(?:IGO)?)\s*(?::|#|\.|-|\s)\s*([A-Z0-9][A-Z0-9/_-]{2,48})(?=$|[\s;,.])/giu
 const DOZEN_PRICE = /(?:^|[^\p{L}\d])(?:DZ|D[UÚ]ZIAS?|DE)\s*[:=\-]?\s*(?:R\s*[$S§]|BRL\b)\s*[:=\-]?\s*(\d{1,6}(?:\.\d{3})*,\d{2}|\d{1,6}\.\d{2})/giu
 const QUANTITY = /(?:^|[\s(])(\d{1,4}|[I|l])\s*(P\s*[ÇCG¢]S?|PE[ÇC]AS?|UNIDADES?|UNID\.?|UND\.?|PARES?|PAR|KITS?|D[UÚ]ZIAS?|DZ)(?=$|[\s,.;:)\]]|R\s*\$)/iu
 const PRODUCT_WORD = /^(?:BRINCO|BRINCOS|COLAR|COLARES|ANEL|ANEIS|ANÉIS|PULSEIRA|PULSEIRAS|CONJUNTO|CONJUNTOS|CHOKER|TORNOZELEIRA|TORNOZELEIRAS|BRACELETE|BRACELETES|TIARA|TIARAS|PRESILHA|PRESILHAS|BOLSA|BOLSAS|ARCO|ARCOS|KIT|LA[CÇ]O|LA[CÇ]OS|PIERCING|GARGANTILHA|GARGANTILHAS|PINGENTE|PINGENTES|ACESS[OÓ]RIO|ACESS[OÓ]RIOS|LEN[CÇ]O|LEN[CÇ]OS|CINTO|CINTOS|BROCHE|BROCHES|CHAVEIRO|CHAVEIROS|COPO|COPOS|PORTA.J[OÓ]IAS?|NECESSAIRES?|CACHECOL|CACHEC[OÓ]IS|CAL[CÇ]A|CAL[CÇ]AS|MEIA|MEIAS|GORRO|GORROS|BICO|BLUSA|BLUSAS|CAMISA|CAMISAS|MANTA|MANTAS|ESTOJO|ESTOJOS)\b/iu
@@ -34,6 +37,8 @@ function labelName(lines, priceIndex) {
   const names = relevant.map(line => line
     .replace(/(?:R\s*[$S§]|BRL\b|PRE[CÇ]O\b|VALOR\b)\s*[:=\-]?\s*\d{1,6}(?:\.\d{3})*[,.]\d{2}/giu, '')
     .replace(QUANTITY, ' ')
+    .replace(SKU_MARKED, ' ')
+    .replace(/\b(?:REF(?:ER[ÊE]NCIA)?|C[ÓO]D(?:IGO)?|SKU)\s*[:#.\-]?(?=$|\s)/giu, ' ')
     .replace(/\b(?:REF(?:ER[EÊ]NCIA)?|COD(?:IGO)?|SKU)\s*[:#.\-]\s*[A-Z0-9\-\/]+\b/giu, '')
     .replace(/^[\s|:;,.!#-]+|[\s|:;,.!#-]+$/g, '')
     .replace(/\s+/g, ' ').trim())
@@ -88,6 +93,9 @@ export function parsePhotoProductLabel(rawText) {
   const price = piecePrices.length > 1 ? null :
     piecePrices.length === 1 ? piecePrices[0] :
     prices.length === 1 && !dozenPrices.includes(prices[0]) ? prices[0] : null
+  const skus = [...new Set([...all.matchAll(SKU_MARKED)].map(x => x[1].toUpperCase()).filter(x => /\d/.test(x) && x.length >= 3))]
+  // Ambiguous/competing reference numbers are never assigned automatically.
+  const sku = skus.length === 1 ? skus[0] : ''
   const priceIndex = lines.findIndex(x => [...x.matchAll(PRICE_MARKED)].length > 0)
   const quantityMatch = QUANTITY.exec(all)
   const rawQuantity = quantityMatch?.[1] || ''
@@ -103,6 +111,7 @@ export function parsePhotoProductLabel(rawText) {
     title: labelName(lines, priceIndex),
     price,
     pack,
+    ...(sku ? { sku } : {}),
   }
 }
 
@@ -161,9 +170,23 @@ export async function recognizePhotoProductLabel(imageBytes, { ocr = ocrTsv } = 
       {leftFraction:0,topFraction:0.32,widthFraction:0.60,heightFraction:0.30,psm:11},
       // Promotion stickers can sit at the very bottom right (winter scarves).
       {leftFraction:0.66,topFraction:0.73,widthFraction:0.33,heightFraction:0.25,psm:6,binary:true},
+      // Second-pass sticker OCR, only when none of the 7 usual crops found
+      // an explicit decimal price. In MAMA photos the 1cm label can occupy
+      // fewer than 100 source pixels; PSM 6 + 1900px often restores the comma.
+      {leftFraction:0,topFraction:0,widthFraction:0.35,heightFraction:0.20,psm:6,targetWidth:1900,priceRecovery:true},
+      {leftFraction:0,topFraction:0,widthFraction:0.45,heightFraction:0.25,psm:6,targetWidth:1900,priceRecovery:true},
+      {leftFraction:0,topFraction:0,widthFraction:0.32,heightFraction:0.18,psm:11,targetWidth:1900,sharpen:true,priceRecovery:true},
+      {leftFraction:0,topFraction:0,widthFraction:0.45,heightFraction:0.25,psm:6,targetWidth:1700,binary:true,priceRecovery:true},
+      // Extra-tight crops for tiny 1 PC / R$ 17,00 stickers. Keep this as
+      // a last resort only, never on images already priced by the first pass.
+      {leftFraction:0,topFraction:0,widthFraction:0.25,heightFraction:0.17,psm:6,targetWidth:2300,sharpen:true,priceRecovery:true},
+      {leftFraction:0,topFraction:0,widthFraction:0.27,heightFraction:0.17,psm:11,targetWidth:1900,priceRecovery:true},
+      {leftFraction:0,topFraction:0,widthFraction:0.30,heightFraction:0.20,psm:6,targetWidth:1800,binary:true,threshold:150,priceRecovery:true},
     ]
     const combined = {title:'',price:null,pack:''}
     for(const attempt of attempts) {
+      if (attempt.priceRecovery && combined.price !== null) break
+      try {
       const transform = sharp(imageBytes, {limitInputPixels:40_000_000})
         .extract({
           left:Math.floor(width*attempt.leftFraction),
@@ -173,15 +196,21 @@ export async function recognizePhotoProductLabel(imageBytes, { ocr = ocrTsv } = 
         })
         .resize({width:attempt.targetWidth || (attempt.binary ? 1600 : 1200),kernel:'lanczos3'})
         .grayscale()
-      const prepared = await (attempt.binary ? transform.threshold(160) : transform.normalize())
+      const prepared = await (attempt.binary ? transform.threshold(attempt.threshold || 160) :
+        attempt.sharpen ? transform.normalize().sharpen() : transform.normalize())
         .png().toBuffer()
       const recognized = parsePhotoProductLabel((await ocr(prepared,attempt.psm)).text)
       combined.title ||= recognized.title
       combined.price ??= recognized.price
       combined.pack ||= recognized.pack
+      if (recognized.sku && !combined.sku) combined.sku = recognized.sku
       // When a complete sticker was read, don't run OCR against jewelry or
       // printed magazine text, which could produce a conflicting false price.
       if (combined.title && combined.price !== null && combined.pack) return combined
+      } catch {
+        // A single Tesseract timeout/failed crop must not discard a price
+        // already extracted by another variant.
+      }
     }
     if (combined.title && combined.price !== null) return combined
 
@@ -189,11 +218,16 @@ export async function recognizePhotoProductLabel(imageBytes, { ocr = ocrTsv } = 
     // from standalone 3-4 digit numbers; require a marked decimal price.
     const image = await sharp(imageBytes, {limitInputPixels:40_000_000})
       .resize({width:1600,withoutEnlargement:true}).png().toBuffer()
-    const last = parsePhotoProductLabel((await ocr(image,11)).text)
+    let last = {title:'',price:null,pack:''}
+    try { last = parsePhotoProductLabel((await ocr(image,11)).text) } catch {
+      // Return fields already read; do not hide the partial result.
+    }
+    const foundSku = combined.sku || last.sku
     return {
       title:combined.title || last.title,
       price:combined.price ?? last.price,
       pack:combined.pack || last.pack,
+      ...(foundSku ? {sku:foundSku} : {}),
     }
   } catch {
     // No product may be blocked from review because OCR could not read it.

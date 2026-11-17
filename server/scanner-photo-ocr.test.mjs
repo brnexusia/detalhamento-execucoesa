@@ -235,3 +235,78 @@ test('recognizes a bottom-right promotion label without treating image texture a
   assert.equal(attempts.at(-1).width,1600)
   assert.equal(result.price,20)
 })
+
+
+test('second-pass sticker OCR recovers cents after the original seven crops lost the comma',async()=>{
+  const photo=await sharp({create:{width:1200,height:1600,channels:3,background:'#ddd'}})
+    .jpeg().toBuffer()
+  const calls=[]
+  const result=await recognizePhotoProductLabel(photo,{ocr:async(buffer,psm)=>{
+    calls.push({psm,width:(await sharp(buffer).metadata()).width})
+    if(calls.length===8)return {text:'COLAR\n1 PÇ R$ 17,00'}
+    return {text:'COLAR\n1 PC R$ 1700'}
+  }})
+  assert.equal(calls.length,8)
+  assert.equal(calls[7].psm,6)
+  assert.equal(calls[7].width,1900)
+  assert.deepEqual(result,{title:'Colar',price:17,pack:'1 peça'})
+})
+
+test('one failed OCR crop does not wipe out fields recovered by other crop',async()=>{
+  const photo=await sharp({create:{width:720,height:960,channels:3,background:'#fff'}})
+    .jpeg().toBuffer()
+  let calls=0
+  const result=await recognizePhotoProductLabel(photo,{ocr:async()=>{
+    calls++
+    if(calls===1)throw Error('Tesseract timeout on first image crop')
+    return {text:'BRINCO PALHA\n1 PÇ R$ 12,00'}
+  }})
+  assert.equal(calls,2)
+  assert.deepEqual(result,{title:'Brinco Palha',price:12,pack:'1 peça'})
+})
+
+test('never guesses cents from missing separators even with second-pass OCR',async()=>{
+  const photo=await sharp({create:{width:900,height:1200,channels:3,background:'#eee'}})
+    .jpeg().toBuffer()
+  const result=await recognizePhotoProductLabel(photo,{
+    ocr:async()=>({text:'COLAR\n1 PÇ R$ 1700'}),
+  })
+  assert.equal(result.price,null)
+  assert.equal(result.title,'Colar')
+})
+
+test('reads SKU only when explicitly printed; cleans code labels from the product name', () => {
+  assert.deepEqual(parsePhotoProductLabel('BRINCO DE AÇO\nREF: BR-2048\n1 PÇ R$ 15,00'), {
+    title:'Brinco De Aço',price:15,pack:'1 peça',sku:'BR-2048',
+  })
+  assert.deepEqual(parsePhotoProductLabel('BOLSA PALHA SINTÉTICA CÓDIGO: 80719\n1 PÇ R$ 140,00'),{
+    title:'Bolsa Palha Sintética',price:140,pack:'1 peça',sku:'80719',
+  })
+  assert.equal(parsePhotoProductLabel('ANEL\n1 PÇ R$ 7,00').sku,undefined)
+  assert.equal(parsePhotoProductLabel('ANEL\nREF 123456\nREF 999999\n1 PÇ R$ 7,00').sku,undefined,
+    'two different identifiers need manual review')
+  assert.equal(parsePhotoProductLabel('COLAR\nREF: TESTE\n1 PÇ R$ 29,90').sku,undefined,
+    'a generic text reference is not a trusted product identifier')
+})
+
+test('Google Photos keeps a printed SKU through review and normalization; description stays evidence-based',async()=>{
+ const url='https://photos.app.goo.gl/sku-check'
+ const images='https://lh3.googleusercontent.com/pw/'+ 'A'.repeat(90) +'=w1600-h1200'
+ const batch=[]
+ await collectSharedPhotos(url,{
+  collectInMemory:false,onProgress:async()=>{},
+  request:async()=>({ok:true,url:'https://photos.google.com/share/photo-sku',contentType:'text/html',body:'<script>"'+images+'"</script>'}),
+  onImage:async()=>'/media/sku-test',
+  photoSaver:async()=>({url:'/media/sku-test',bytes:5000,label:{
+   title:'Brinco De Aço',price:15,pack:'1 peça',sku:'BR-2048',
+  }}),
+  onBatch:async rows=>batch.push(...rows),
+ })
+ assert.equal(batch.length,1)
+ assert.equal(batch[0].sku,'BR-2048')
+ assert.match(batch[0].description,/1 peça/)
+ const normalized=normalizeCandidate(batch[0]).normalized
+ assert.equal(normalized.sku,'BR-2048')
+ assert.equal(normalized.name,'Brinco De Aço')
+ assert.equal(normalized.price,15)
+})
