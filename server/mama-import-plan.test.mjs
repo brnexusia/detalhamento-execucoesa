@@ -87,3 +87,17 @@ test('visual sticker price stays with the original Google photo after album reor
     requireStableIdentity:true,
   }),/identidade/)
 })
+
+
+test('publisher uses immutable Google photo ID, not mutable album index',()=>{
+  const source='https://photos.google.com/share/mama-album'
+  const imageKey='AbCd1234567890efGHIJKL'
+  const first=importPublishGroupHash({source_url:source+'#foto-0045'},
+    {sourcePlatform:'google-photos',externalId:'foto-0045',sourceImageKey:imageKey})
+  const shifted=importPublishGroupHash({source_url:source+'#foto-0053'},
+    {sourcePlatform:'google-photos',externalId:'foto-0053',sourceImageKey:imageKey})
+  const another=importPublishGroupHash({source_url:source+'#foto-0054'},
+    {sourcePlatform:'google-photos',externalId:'foto-0054',sourceImageKey:'abcdefghij123456789012'})
+  assert.equal(first,shifted)
+  assert.notEqual(first,another)
+})
