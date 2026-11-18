@@ -297,17 +297,27 @@ export async function collectSharedPhotos(sourceUrl, { request, onImage, onBatch
   // This overlaps image download, WebP encoding and OCR without altering the
   // full-resolution OCR or falling back to guessed prices.
   const concurrency = kind === 'google-photos' ? photoImportConcurrency() : 1
-  for (let offset = 0; offset < imageUrls.length; offset += concurrency) {
-    const limit = Math.min(concurrency, imageUrls.length - offset)
-    const results = await Promise.all(Array.from({ length: limit }, async (_, position) => {
-      const i = offset + position
-      try {
-        return await photoSaver(imageUrls[i], request, onImage,
-          `foto-album-${String(i + 1).padStart(3, '0')}.webp`, readLabel)
-      } catch {
-        // One unavailable photo does not abort the entire album. This keeps
-        // the previous collector's skipped-photo semantics unchanged.
-        return null
+  // A small sliding window keeps the two OCR workers busy even if one image
+  // needs 20 scans while its neighbor needs one. A strict two-image batch
+  // would unnecessarily wait for the slow image before starting the next.
+  // At most 16 finished records are retained before persistence.
+  const windowSize = concurrency * 8
+  for (let offset = 0; offset < imageUrls.length; offset += windowSize) {
+    const limit = Math.min(windowSize, imageUrls.length - offset)
+    const results = new Array(limit).fill(null)
+    let cursor = 0
+    await Promise.all(Array.from({ length: Math.min(concurrency, limit) }, async () => {
+      while (cursor < limit) {
+        const position = cursor++
+        const i = offset + position
+        try {
+          results[position] = await photoSaver(imageUrls[i], request, onImage,
+            `foto-album-${String(i + 1).padStart(3, '0')}.webp`, readLabel)
+        } catch {
+          // One unavailable photo is reported as skipped, never confused
+          // with a different item's image or price.
+          results[position] = null
+        }
       }
     }))
     for (let position = 0; position < limit; position++) {
