@@ -183,9 +183,10 @@ export function importPublishGroupHash(data, {
     // A Google Photos album shares one page URL across many distinct items.
     // Canonical URL grouping strips #foto-N and would collapse the entire
     // album into one product. Keep the occurrence identity instead.
-    const identity = text(externalId, 200)
-    const source = text(data?.source_url, 1500)
+    const identity = text(sourceImageKey || externalId, 200)
+    const source = canonicalImportProductUrl(data?.source_url)
     if (!identity || !source) throw new Error('Foto sem identidade de origem; publicação bloqueada.')
+    if (sourceImageKey && !/^[A-Za-z0-9_-]{22}$/.test(sourceImageKey)) throw new Error('Chave de origem inválida.')
     return crypto.createHash('sha256').update('photo-item:' + source + ':' + identity).digest('hex')
   }
   if (sourcePlatform === 'alexandre-bijoux') {
