@@ -31,6 +31,9 @@ async function register(storeName, prefix) {
   assert.equal(c.status,200)
   const payload=await c.json()
   assert.ok(payload)
+  // The ordinary panel initializes the default catalog lazily via this endpoint.
+  const catalogBootstrap=await fetch(BASE_URL+'/api/admin/catalogs',{headers:{Cookie:cookie}})
+  assert.equal(catalogBootstrap.status,200)
   const shop=await db.query('SELECT id FROM stores WHERE name=$1 ORDER BY created_at DESC LIMIT 1',[storeName])
   assert.equal(shop.rowCount,1)
   const catalog=await db.query('SELECT id FROM catalogs WHERE store_id=$1 AND is_default=true AND active=true',[shop.rows[0].id])
