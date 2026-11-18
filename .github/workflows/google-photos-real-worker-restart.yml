@@ -1,0 +1,61 @@
+name: Google Photos real worker restart E2E
+on:
+  pull_request:
+    paths:
+      - 'server/scanner-work-scheduler.mjs'
+      - 'server/scanner-hooks.mjs'
+      - 'server/scanner-work-scheduler.test.mjs'
+      - 'src/ScannerModule1.tsx'
+      - 'src/api.ts'
+      - 'tests/scanner-worker-lifecycle.integration.mjs'
+      - '.github/workflows/google-photos-real-worker-restart.yml'
+jobs:
+  real-worker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: shopvax
+          POSTGRES_PASSWORD: shopvax_test
+          POSTGRES_DB: scanner_restart_test
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U shopvax -d scanner_restart_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      NODE_ENV: test
+      SHOPVAX_TEST_BILLING_BYPASS: '1'
+      DATABASE_URL: postgresql://shopvax:shopvax_test@127.0.0.1:5432/scanner_restart_test
+      SHOPVAX_SECURITY_RATE_LIMIT_DISABLED: '1'
+      SHOPVAX_IMPORT_MEDIA_REPAIR_DISABLED: '1'
+      SHOPVAX_PUBLISH_WORKER_DISABLED: '1'
+      PORT: '3029'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --package-lock=false
+      - name: Build the real merchant app
+        run: npm run build
+      - name: Regression for the real polling scheduler
+        run: node --test server/scanner-work-scheduler.test.mjs
+      - name: Start production app twice against isolated PostgreSQL and recover existing Mama job
+        run: node tests/scanner-worker-lifecycle.integration.mjs
+      - name: Report public ShopVax deployed release (read-only)
+        if: always()
+        run: |
+          if curl -fsS --connect-timeout 8 --max-time 20 https://shopvax.com.br/health -o /tmp/shopvax-live-health.json; then
+            node -e 'const d=require("/tmp/shopvax-live-health.json"); console.log("SHOPVAX_PUBLIC_HEALTH", JSON.stringify({ok:d.ok,database:d.database,releaseSha:d.releaseSha,uiRevision:d.uiRevision,uiFingerprint:d.uiFingerprint}))'
+          else
+            echo "SHOPVAX_PUBLIC_HEALTH_UNREACHABLE: cannot confirm deployed code from GitHub Actions"
+          fi
+      - name: Debug app startup when a check fails
+        if: failure()
+        run: |
+          tail -n 160 /tmp/scanner-real-worker-app.log 2>/dev/null || true
