@@ -14,6 +14,23 @@ const MAX_ALBUM_HTML_BYTES = 24 * 1024 * 1024
 const PHOTO_STAGE_BATCH_SIZE = 100
 const PHOTO_PROGRESS_INTERVAL = 50
 
+/**
+ * Stable public-media identity. Album position can change when new photos
+ * arrive; never attach a manually read price to a mutable foto-N index.
+ * The key is taken from the Google CDN object's pathname, not its resize
+ * query or host-specific signed parameters.
+ */
+export function googlePhotosSourceImageKey(value) {
+  try {
+    const u=new URL(String(value || ''))
+    if (!GOOGLE_IMAGE_HOST.test(u.hostname)) return ''
+    const raw=u.pathname.replace(/=[^/=]+$/, '').split('/').at(-1) || ''
+    const key=raw.slice(-22)
+    return /^[A-Za-z0-9_-]{22}$/.test(key) ? key : ''
+  } catch { return '' }
+}
+
+
 function parsedUrl(value) {
   try {
     const url = new URL(String(value || ''))
@@ -284,6 +301,7 @@ export async function collectSharedPhotos(sourceUrl, { request, onImage, onBatch
       const candidate = {
         source_url: `${albumUrl.split('#')[0]}#foto-${String(i + 1).padStart(4, '0')}`,
         external_id: `foto-${String(i + 1).padStart(4, '0')}`,
+        source_image_key: googlePhotosSourceImageKey(imageUrls[i]),
         title: String(ocr.title || '').trim().slice(0, 180) || `Foto importada ${String(i + 1).padStart(3, '0')}`,
         description: pack ? `Quantidade indicada na etiqueta: ${pack}. Confira antes de publicar.` : '',
         sku: String(ocr.sku || '').trim().slice(0, 80),
