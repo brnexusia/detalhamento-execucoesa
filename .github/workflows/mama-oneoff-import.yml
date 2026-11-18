@@ -22,5 +22,7 @@ jobs:
           node --check server/mama-import-plan.mjs
           node --check server/scanner-publish-hooks.mjs
           node --check server/scanner-import-grouping.mjs
+      - name: Install dependencies
+        run: npm install --ignore-scripts
       - name: Verify photo isolation and non-invented prices
         run: node --test server/mama-import-plan.test.mjs
