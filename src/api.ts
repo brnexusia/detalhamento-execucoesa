@@ -2,6 +2,14 @@ import { notifyAuthChange, listenAuthChanges } from './auth-session-sync'
 import { prepareCatalogPhoto } from './catalog-photo-upload'
 import type { AdminBootstrap, AdminProduct, Catalog, PublicPayload } from './types'
 
+export type ImportScannerState = {
+  localWorkerEnabled: boolean
+  schedulerStarted: boolean
+  lastTickAt: string | null
+  lastTickFailed: boolean
+  activeLanes: string[]
+}
+
 export type ImportJob = {
   id: string
   source_url: string
