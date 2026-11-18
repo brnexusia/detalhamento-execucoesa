@@ -49,6 +49,40 @@ export const confirmedUnitPricesByBaselinePhoto = {
   19: {27:23},
 }
 
+/**
+ * Photos that were inspected in full, or have an unobstructed complete audit
+ * image, and do not display a UNIT price. This is not a price guess. Some
+ * have no label at all; the gloves photo has only a dozen price.
+ */
+export const confirmedNoUnitPriceByBaselinePhoto = {
+  0: [94,197,214],
+  1: [17],
+  6: [1],
+  7: [139],
+  8: [15,20,21,22,23,24,25,27],
+  10: [205,288],
+  11: [58],
+  14: [15,67],
+  18: [37,68],
+  19: [40],
+}
+
+export function confirmedMamaVisualDecisions() {
+  const output = confirmedMamaVisualPrices()
+  for (const [index,photos] of Object.entries(confirmedNoUnitPriceByBaselinePhoto)) {
+    const albumUrl = links[Number(index)]?.[1]
+    if (!albumUrl) throw Error('Álbum sem endereço: '+index)
+    for (const photo of photos) {
+      const imageKey=baselineSourceKeys[index]?.[String(photo)]
+      if (!/^[A-Za-z0-9_-]{22}$/.test(String(imageKey||''))) throw Error('Imagem ausente do snapshot: '+index+'/'+photo)
+      const key=albumUrl+'#photo:'+imageKey
+      if (Object.hasOwn(output,key)) throw Error('Foto confirmada com e sem preço simultaneamente: '+key)
+      output[key]=null
+    }
+  }
+  return output
+}
+
 export function confirmedMamaVisualPrices() {
   const output = {}
   for (const [index, photos] of Object.entries(confirmedUnitPricesByBaselinePhoto)) {
@@ -72,7 +106,7 @@ export function confirmedMamaVisualPrices() {
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const dest = process.env.MAMA_VISUAL_PRICES_FILE || '/tmp/mama-visual-prices-reviewed.json'
-  const data = confirmedMamaVisualPrices()
+  const data = confirmedMamaVisualDecisions()
   await writeFile(dest,JSON.stringify(data,null,2)+'\n')
-  console.log('MAMA_VISUAL_VERIFIED '+JSON.stringify({confirmed:Object.keys(data).length,dest}))
+  console.log('MAMA_VISUAL_VERIFIED '+JSON.stringify({withUnitPrice:Object.values(data).filter(v=>v!==null).length,withoutUnitPrice:Object.values(data).filter(v=>v===null).length,dest}))
 }
