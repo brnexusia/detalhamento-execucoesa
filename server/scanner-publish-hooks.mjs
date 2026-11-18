@@ -333,7 +333,7 @@ async function upgradeExistingBraavoMediaAssets() {
   return braavoQualityUpgradePromise
 }
 
-async function publishJob(req, res) {
+export async function publishJob(req, res) {
   await ensurePublisherSchema()
   const store = req.__publishWorkerStore || await currentStore(req)
   if (!store) return res.status(401).json({ error: 'Sessão necessária.' })
