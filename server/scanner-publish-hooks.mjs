@@ -165,7 +165,8 @@ async function assignPublishGroups(client, jobId, storeId, pdfSeparate = false, 
   while (true) {
     const result = await client.query(
       `SELECT n.id,COALESCE(n.review_data,n.normalized_data) AS data,
-         c.raw_data->>'external_id' AS external_id
+         c.raw_data->>'external_id' AS external_id,
+         c.raw_data->>'source_image_key' AS source_image_key
        FROM import_normalized_products n
        LEFT JOIN import_candidates c ON c.id=n.source_candidate_id
        WHERE n.job_id=$1 AND n.store_id=$2 AND n.selected=true AND n.id>$3
