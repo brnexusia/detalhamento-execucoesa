@@ -177,7 +177,7 @@ export function mergeImportParentProducts(values) {
  * Website import grouping remains unchanged for product variants.
  */
 export function importPublishGroupHash(data, {
-  pdfSeparate = false, rowId = '', sourcePlatform = '', externalId = '',
+  pdfSeparate = false, rowId = '', sourcePlatform = '', externalId = '', sourceImageKey = '',
 } = {}) {
   if (sourcePlatform === 'google-photos' || sourcePlatform === 'image-link') {
     // A Google Photos album shares one page URL across many distinct items.
