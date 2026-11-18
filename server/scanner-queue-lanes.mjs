@@ -19,7 +19,7 @@ const PHOTO_HOSTS = [
 ]
 const quote = value => "'" + value.replaceAll("'", "''") + "'"
 const hostClause = 'source_host IN (' + PHOTO_HOSTS.map(quote).join(',') + ')'
-const photoClause = "(platform IN ('google-photos','image-link') OR " + hostClause + ')'
+const photoClause = "(platform<>'pdf' AND (platform IN ('google-photos','image-link') OR " + hostClause + '))'
 
 export function nextScannerJobSql(lane) {
   let condition
