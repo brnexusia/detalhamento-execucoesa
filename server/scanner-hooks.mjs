@@ -654,12 +654,10 @@ const scannerScheduler = createScannerWorkScheduler({
       )
       return result.rows[0] || null
     }
-    const result = await pool.query(
-      `SELECT id FROM import_jobs
-       WHERE status='queued' AND (platform='pdf')=$1
-       ORDER BY created_at ASC LIMIT 1`,
-      [lane === 'pdf'],
-    )
+    // The photos lane is independent from general storefront crawling.
+    // Old photo jobs with platform='' are matched by source_host, so the
+    // already queued Mama import can start after deployment.
+    const result = await pool.query(nextScannerJobSql(lane))
     return result.rows[0] || null
   },
   processScan: processImportJob,
