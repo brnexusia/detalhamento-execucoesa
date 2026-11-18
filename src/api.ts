@@ -7,6 +7,7 @@ export type ImportScannerState = {
   schedulerStarted: boolean
   lastTickAt: string | null
   lastTickFailed: boolean
+  lastTickStale?: boolean
   activeLanes: string[]
 }
 
