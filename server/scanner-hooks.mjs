@@ -667,12 +667,17 @@ const scannerScheduler = createScannerWorkScheduler({
 })
 
 let workerTimer = null
+let workerLastTickAt = null
+let workerLastTickError = ''
 async function runNextWork() {
   if (workerDisabled || !pool) return
   try {
     await scannerScheduler.tick()
+    workerLastTickAt = new Date().toISOString()
+    workerLastTickError = ''
   } catch (error) {
-    console.error('[scanner] worker:', error instanceof Error ? error.message : error)
+    workerLastTickError = error instanceof Error ? error.message : String(error)
+    console.error('[scanner] worker:', workerLastTickError)
   }
 }
 
@@ -709,6 +714,9 @@ function installScannerRoutes(app) {
 
   const requireStore = asyncRoute(async (req, res, next) => {
     await ensureScannerSchema()
+    // A transient database error during boot must not leave the scheduler
+    // permanently stopped after connectivity recovers.
+    if (!workerDisabled) startWorker()
     const store = await currentStore(req)
     if (!store) return res.status(401).json({ error: 'Sessão necessária.' })
     req.scannerStore = store
@@ -735,7 +743,16 @@ function installScannerRoutes(app) {
 
   router.get('/', requireStore, asyncRoute(async (req, res) => {
     const result = await pool.query(`SELECT * FROM import_jobs WHERE store_id=$1 ORDER BY created_at DESC LIMIT 10`, [req.scannerStore.store_id])
-    res.json({ jobs: result.rows.map(publicJob) })
+    res.json({
+      jobs: result.rows.map(publicJob),
+      scanner: {
+        localWorkerEnabled: !workerDisabled && Boolean(pool),
+        schedulerStarted: Boolean(workerTimer),
+        lastTickAt: workerLastTickAt,
+        lastTickFailed: Boolean(workerLastTickError),
+        activeLanes: Object.keys(scannerScheduler.active()),
+      },
+    })
   }))
 
   router.post('/pdf', traceUpload('pdf'), requireStore, acceptPdfUpload, asyncRoute(async (req, res) => {
@@ -1074,7 +1091,11 @@ function installScannerRoutes(app) {
   }))
 
   app.use('/api/admin/imports', router)
-  void ensureScannerSchema().then(startWorker).catch((error) => console.error('[scanner] schema:', error.message))
+  // Start the bounded polling loop immediately, even if the very first
+  // schema/bootstrap attempt fails. Every tick retries schema initialization
+  // and then claims any existing queued work. No job is duplicated.
+  startWorker()
+  void ensureScannerSchema().catch((error) => console.error('[scanner] schema:', error.message))
 }
 
 const originalInit = express.application.init
