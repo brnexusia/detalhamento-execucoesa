@@ -91,6 +91,7 @@ export default function ScannerModule1() {
   const [pdfFile, setPdfFile] = useState<File | null>(null)
   const [uploadVersion, setUploadVersion] = useState(0)
   const [jobs, setJobs] = useState<ImportJob[]>([])
+  const [scannerState, setScannerState] = useState<ImportScannerState | null>(null)
   const [busy, setBusy] = useState(false)
   const [pdfTransferPercent, setPdfTransferPercent] = useState(0)
   const [loadingJobs, setLoadingJobs] = useState(false)
