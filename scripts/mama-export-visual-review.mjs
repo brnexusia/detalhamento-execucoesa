@@ -49,7 +49,8 @@ async function main() {
     }
     const items=await pool.query(
       'SELECT n.id,n.selected,COALESCE(n.review_data,n.normalized_data) AS product,'+
-      "c.raw_data->>'external_id' AS external_id "+
+      "c.raw_data->>'external_id' AS external_id, "+
+      "c.raw_data->>'source_image_key' AS source_image_key "+
       'FROM import_normalized_products n JOIN import_candidates c '+
       'ON n.source_candidate_id=c.id AND n.store_id=c.store_id '+
       'WHERE n.job_id=$1 AND n.store_id=$2 ORDER BY n.created_at,n.id',
@@ -64,7 +65,8 @@ async function main() {
       const mediaId=/^\/media\/([0-9a-f-]{36})$/i.exec(media)?.[1]
       const external=String(item.external_id||'')
       const fileName='album-'+String(i+1).padStart(2,'0')+'-'+external.replace(/[^a-zA-Z0-9_-]/g,'')+'.webp'
-      const record={album,albumUrl:url,externalId:external,jobId:job.id,
+      const record={album,albumUrl:url,externalId:external,
+        sourceImageKey:String(item.source_image_key||''),jobId:job.id,
         name:String(product.name||''),recognizedPrice:knownPrice?price:null,
         file:'photos/'+fileName,status:'saved'}
       if(!mediaId){
