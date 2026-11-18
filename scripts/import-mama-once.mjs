@@ -1,8 +1,8 @@
 /**
  * One-time MAMA public Google Photos import. Not wired into app startup.
  * Preview: node scripts/import-mama-once.mjs
- * Execute: node scripts/import-mama-once.mjs --apply
- * Review-only: node scripts/import-mama-once.mjs --apply --review-only
+ * Collect (review only): node scripts/import-mama-once.mjs --apply
+ * Publication is intentionally not automated: photos missed by OCR need visual verification.
  *
  * Uses the existing scanner and publisher in the deployed container.
  * Photos whose price was not confidently parsed remain in review; no
@@ -18,7 +18,7 @@ import { prepareReview } from '../server/scanner-review.mjs'
 import { MAMA_IMPORT_MARKER, canonicalMamaName, prepareMamaPhoto } from '../server/mama-import-plan.mjs'
 
 const apply = process.argv.includes('--apply')
-const reviewOnly = process.argv.includes('--review-only')
+const reviewOnly = true // Safety: do not publish until missing label prices are visually verified.
 const timeoutMs = 12 * 60 * 60 * 1000
 const sleep = ms => new Promise(resolve => setTimeout(resolve,ms))
 const pool = new pg.Pool({connectionString:process.env.DATABASE_URL,max:2,connectionTimeoutMillis:10000})
@@ -224,10 +224,10 @@ async function main() {
   const {store,catalog,limit}=await tenantAndCatalog()
   console.log('[mama] destino',JSON.stringify({
     name:store.name,slug:store.slug,plan:store.plan_tier,catalog:catalog.name,
-    albumCount:links.length,mode:apply?'apply':'preview',
+    albumCount:links.length,mode:apply?'collect_for_visual_review':'preview',
   }))
   if(!apply) {
-    console.log('[mama] Prévia apenas. Para executar: node scripts/import-mama-once.mjs --apply')
+    console.log('[mama] Prévia apenas. Para coletar: node scripts/import-mama-once.mjs --apply')
     return
   }
   const summary=[]
