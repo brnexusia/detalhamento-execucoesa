@@ -181,6 +181,7 @@ async function assignPublishGroups(client, jobId, storeId, pdfSeparate = false, 
       id: row.id,
       group_key: importPublishGroupHash(row.data, {
         pdfSeparate, rowId: row.id, sourcePlatform, externalId: row.external_id,
+        sourceImageKey: row.source_image_key,
       }),
     }))
     await client.query(
