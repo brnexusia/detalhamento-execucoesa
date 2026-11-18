@@ -1,0 +1,26 @@
+name: Mama one-off import safety checks
+on:
+  pull_request:
+    paths:
+      - 'scripts/import-mama-once.mjs'
+      - 'server/mama-import-plan.mjs'
+      - 'server/mama-import-plan.test.mjs'
+      - 'server/scanner-import-grouping.mjs'
+      - 'server/scanner-publish-hooks.mjs'
+      - '.github/workflows/mama-oneoff-import.yml'
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate syntax
+        run: |
+          node --check scripts/import-mama-once.mjs
+          node --check server/mama-import-plan.mjs
+          node --check server/scanner-publish-hooks.mjs
+          node --check server/scanner-import-grouping.mjs
+      - name: Verify photo isolation and non-invented prices
+        run: node --test server/mama-import-plan.test.mjs
