@@ -21,6 +21,7 @@ test('one stuck website does not block PDF or normalization processing',async()=
     normalization:[{id:'normalize-1'}],
     pdf:[{id:'pdf-1'}],
     site:[{id:'site-1'}],
+    photos:[],
   }
   const scheduler=createScannerWorkScheduler({
     ensureSchema:async()=>{},
@@ -156,4 +157,76 @@ test('a malformed recovery response does not block the import queue', async()=>{
   await scheduler.tick()
   await flush()
   assert.deepEqual(started,['pdf-after-malformed-response'])
+})
+
+test('a long-running storefront crawl cannot block the Google Photos OCR lane',async()=>{
+  const site=deferred(),photos=deferred()
+  const started=[]
+  const jobs={normalization:[],pdf:[],site:[{id:'slow-site'}],photos:[{id:'mama-photo'}]}
+  const scheduler=createScannerWorkScheduler({
+    ensureSchema:async()=>{},
+    recover:async()=>({rows:[]}),
+    findNext:async lane=>jobs[lane]?.shift()||null,
+    processScan:async id=>{
+      started.push(id)
+      return id==='slow-site'?site.promise:photos.promise
+    },
+    processNormalization:async()=>{},
+  })
+  await scheduler.tick()
+  await flush()
+  assert.deepEqual(started.sort(),['mama-photo','slow-site'])
+  assert.equal(scheduler.active().site,'slow-site')
+  assert.equal(scheduler.active().photos,'mama-photo')
+  photos.resolve()
+  site.resolve()
+  await flush()
+})
+
+test('a still-running Google Photos import holds only its own bounded lane',async()=>{
+  const photos=deferred()
+  const started=[]
+  const jobs={normalization:[],pdf:[],site:[{id:'normal-site'}],photos:[{id:'mama-photo'},{id:'mama-next'}]}
+  const scheduler=createScannerWorkScheduler({
+    ensureSchema:async()=>{},
+    recover:async()=>({rows:[]}),
+    findNext:async lane=>jobs[lane]?.shift()||null,
+    processScan:async id=>{
+      started.push(id)
+      return id==='mama-photo'?photos.promise:undefined
+    },
+    processNormalization:async()=>{},
+  })
+  await scheduler.tick()
+  await flush()
+  await scheduler.tick()
+  await flush()
+  assert.deepEqual(started.sort(),['mama-photo','normal-site'])
+  assert.equal(jobs.photos.length,1,'do not start a second expensive OCR job')
+  photos.resolve()
+  await flush()
+  await scheduler.tick()
+  await flush()
+  assert.ok(started.includes('mama-next'))
+})
+
+test('queue resumes after a temporary database failure instead of being abandoned',async()=>{
+  let calls=0
+  const started=[]
+  const jobs=[{id:'mama-queued-before-db-recovered'}]
+  const scheduler=createScannerWorkScheduler({
+    ensureSchema:async()=>{
+      calls++
+      if(calls===1)throw new Error('database initializing')
+    },
+    recover:async()=>({rows:[]}),
+    findNext:async lane=>lane==='photos'?jobs.shift():null,
+    processScan:async id=>{started.push(id)},
+    processNormalization:async()=>{},
+  })
+  await assert.rejects(scheduler.tick(),/database initializing/)
+  await scheduler.tick()
+  await flush()
+  assert.deepEqual(started,['mama-queued-before-db-recovered'])
+  assert.equal(calls,2)
 })

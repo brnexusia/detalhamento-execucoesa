@@ -16,6 +16,7 @@ import { recognizePhotoProductLabel } from './scanner-photo-ocr.mjs'
 import { prepareReview } from './scanner-review.mjs'
 import { requeueInterruptedScans, requeueFailedTransientFacilZapScans } from './scanner-scan-lease.mjs'
 import { createScannerWorkScheduler } from './scanner-work-scheduler.mjs'
+import { nextScannerJobSql } from './scanner-queue-lanes.mjs'
 
 const { Pool } = pg
 const databaseUrl = process.env.DATABASE_URL?.trim() || ''
@@ -653,12 +654,10 @@ const scannerScheduler = createScannerWorkScheduler({
       )
       return result.rows[0] || null
     }
-    const result = await pool.query(
-      `SELECT id FROM import_jobs
-       WHERE status='queued' AND (platform='pdf')=$1
-       ORDER BY created_at ASC LIMIT 1`,
-      [lane === 'pdf'],
-    )
+    // The photos lane is independent from general storefront crawling.
+    // Old photo jobs with platform='' are matched by source_host, so the
+    // already queued Mama import can start after deployment.
+    const result = await pool.query(nextScannerJobSql(lane))
     return result.rows[0] || null
   },
   processScan: processImportJob,
@@ -668,12 +667,17 @@ const scannerScheduler = createScannerWorkScheduler({
 })
 
 let workerTimer = null
+let workerLastTickAt = null
+let workerLastTickError = ''
 async function runNextWork() {
   if (workerDisabled || !pool) return
   try {
     await scannerScheduler.tick()
+    workerLastTickAt = new Date().toISOString()
+    workerLastTickError = ''
   } catch (error) {
-    console.error('[scanner] worker:', error instanceof Error ? error.message : error)
+    workerLastTickError = error instanceof Error ? error.message : String(error)
+    console.error('[scanner] worker:', workerLastTickError)
   }
 }
 
@@ -710,6 +714,9 @@ function installScannerRoutes(app) {
 
   const requireStore = asyncRoute(async (req, res, next) => {
     await ensureScannerSchema()
+    // A transient database error during boot must not leave the scheduler
+    // permanently stopped after connectivity recovers.
+    if (!workerDisabled) startWorker()
     const store = await currentStore(req)
     if (!store) return res.status(401).json({ error: 'Sessão necessária.' })
     req.scannerStore = store
@@ -736,7 +743,16 @@ function installScannerRoutes(app) {
 
   router.get('/', requireStore, asyncRoute(async (req, res) => {
     const result = await pool.query(`SELECT * FROM import_jobs WHERE store_id=$1 ORDER BY created_at DESC LIMIT 10`, [req.scannerStore.store_id])
-    res.json({ jobs: result.rows.map(publicJob) })
+    res.json({
+      jobs: result.rows.map(publicJob),
+      scanner: {
+        localWorkerEnabled: !workerDisabled && Boolean(pool),
+        schedulerStarted: Boolean(workerTimer),
+        lastTickAt: workerLastTickAt,
+        lastTickFailed: Boolean(workerLastTickError),
+        activeLanes: Object.keys(scannerScheduler.active()),
+      },
+    })
   }))
 
   router.post('/pdf', traceUpload('pdf'), requireStore, acceptPdfUpload, asyncRoute(async (req, res) => {
@@ -1064,16 +1080,22 @@ function installScannerRoutes(app) {
     )
     if (existing.rowCount) return res.json({ job: publicJob(existing.rows[0]), duplicated: true })
 
+    const detectedPlatform = sharedPhotoSourceKind(normalized.url)
     const result = await pool.query(
-      `INSERT INTO import_jobs (id,store_id,source_url,source_host,status,target_catalog_id) VALUES ($1,$2,$3,$4,'queued',$5) RETURNING *`,
-      [id(), req.scannerStore.store_id, normalized.url, normalized.host,targetCatalogId||null],
+      `INSERT INTO import_jobs (id,store_id,source_url,source_host,status,target_catalog_id,platform)
+       VALUES ($1,$2,$3,$4,'queued',$5,$6) RETURNING *`,
+      [id(), req.scannerStore.store_id, normalized.url, normalized.host,targetCatalogId||null,detectedPlatform],
     )
     if (!workerDisabled) setImmediate(() => void runNextWork())
     res.status(201).json({ job: publicJob(result.rows[0]), duplicated: false })
   }))
 
   app.use('/api/admin/imports', router)
-  void ensureScannerSchema().then(startWorker).catch((error) => console.error('[scanner] schema:', error.message))
+  // Start the bounded polling loop immediately, even if the very first
+  // schema/bootstrap attempt fails. Every tick retries schema initialization
+  // and then claims any existing queued work. No job is duplicated.
+  startWorker()
+  void ensureScannerSchema().catch((error) => console.error('[scanner] schema:', error.message))
 }
 
 const originalInit = express.application.init

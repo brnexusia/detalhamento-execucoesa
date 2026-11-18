@@ -17,7 +17,7 @@ import {
   X,
 } from 'lucide-react'
 import { confirmAction } from './ui-dialogs'
-import { api, type ImportJob, type ImportReviewData, type ImportReviewProduct, type ImportReviewSummary } from './api'
+import { api, type ImportJob, type ImportScannerState, type ImportReviewData, type ImportReviewProduct, type ImportReviewSummary } from './api'
 import './scanner-module1.css'
 
 function statusLabel(status: ImportJob['status']) {
@@ -91,6 +91,7 @@ export default function ScannerModule1() {
   const [pdfFile, setPdfFile] = useState<File | null>(null)
   const [uploadVersion, setUploadVersion] = useState(0)
   const [jobs, setJobs] = useState<ImportJob[]>([])
+  const [scannerState, setScannerState] = useState<ImportScannerState | null>(null)
   const [busy, setBusy] = useState(false)
   const [pdfTransferPercent, setPdfTransferPercent] = useState(0)
   const [loadingJobs, setLoadingJobs] = useState(false)
@@ -179,6 +180,7 @@ export default function ScannerModule1() {
       // prevents a healthy progress bar from visually moving backwards.
       if (sequence !== jobsRequestSequence.current) return
       setJobs(result.jobs)
+      setScannerState(result.scanner || null)
       window.dispatchEvent(new CustomEvent('shopvax:scanner-jobs-changed', { detail: { jobs: result.jobs } }))
     } catch (err) {
       if (!quiet && sequence === jobsRequestSequence.current) {
@@ -606,6 +608,14 @@ export default function ScannerModule1() {
                     )}
                   </div>
                 )}
+                {job.status === 'queued' && scannerState?.localWorkerEnabled === false &&
+                  <small className="scanner-job-error">O processador está desativado neste servidor. Verifique se há um worker dedicado ou se SCANNER_WORKER_DISABLED=1 no EasyPanel. Não envie o link novamente.</small>}
+                {job.status === 'queued' && scannerState?.localWorkerEnabled && scannerState?.lastTickFailed &&
+                  <small className="scanner-job-error">O servidor detectou falha na fila. Confira os logs do ShopVax no EasyPanel; a importação foi preservada.</small>}
+                {job.status === 'queued' && scannerState?.localWorkerEnabled && !scannerState?.schedulerStarted &&
+                  <small className="scanner-job-error">O worker não iniciou neste servidor. Verifique os logs do EasyPanel.</small>}
+                {job.status === 'queued' && scannerState?.localWorkerEnabled && scannerState?.schedulerStarted && !scannerState?.lastTickFailed &&
+                  <small>A fila está ativa. Sua tarefa começará automaticamente; não é necessário importar novamente.</small>}
                 {job.status==='failed' && job.error && <small className="scanner-job-error">{job.error}</small>}
               </div>
               <div className="scanner-job-actions">
