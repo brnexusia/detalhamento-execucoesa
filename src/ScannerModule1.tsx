@@ -180,6 +180,7 @@ export default function ScannerModule1() {
       // prevents a healthy progress bar from visually moving backwards.
       if (sequence !== jobsRequestSequence.current) return
       setJobs(result.jobs)
+      setScannerState(result.scanner || null)
       window.dispatchEvent(new CustomEvent('shopvax:scanner-jobs-changed', { detail: { jobs: result.jobs } }))
     } catch (err) {
       if (!quiet && sequence === jobsRequestSequence.current) {
