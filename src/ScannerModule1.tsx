@@ -17,7 +17,7 @@ import {
   X,
 } from 'lucide-react'
 import { confirmAction } from './ui-dialogs'
-import { api, type ImportJob, type ImportReviewData, type ImportReviewProduct, type ImportReviewSummary } from './api'
+import { api, type ImportJob, type ImportScannerState, type ImportReviewData, type ImportReviewProduct, type ImportReviewSummary } from './api'
 import './scanner-module1.css'
 
 function statusLabel(status: ImportJob['status']) {
