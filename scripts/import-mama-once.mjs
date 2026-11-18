@@ -102,21 +102,22 @@ async function selectPricedPhotos(jobId,storeId,album,url,visualDecisions) {
   const batch=[]
   let priced=0,unresolved=0,protectedEdits=0,visuallyConfirmed=0,confirmedNoPrice=0
   for(const row of rows.rows) {
+    const photoKey=String(row.candidate?.source_image_key||'')
+    if (!/^[A-Za-z0-9_-]{22}$/.test(photoKey)) throw Error('Job antigo ou foto sem identidade estável: '+jobId+'. Recapture o álbum antes de publicar.')
     if(row.review_data) {
       if(row.selected && /^MAMA-[A-F0-9]{22}$/.test(String(row.review_data.sku||'')))priced++
       else protectedEdits++
       continue
     }
-    const external=String(row.candidate?.external_id||'')
-    const key=url+'#'+external
+    const key=url+'#photo:'+photoKey
     let normalized=row.normalized_data
-    if(normalized?.price==null && visualDecisions?.has(key)) {
+    if(visualDecisions?.has(key)) {
       const verified=visualDecisions.get(key)
       if(verified===null){confirmedNoPrice++;continue}
       normalized={...normalized,price:verified}
       visuallyConfirmed++
     }
-    const product=prepareMamaPhoto({album,albumUrl:url,candidate:row.candidate,normalized})
+    const product=prepareMamaPhoto({album,albumUrl:url,candidate:row.candidate,normalized,requireStableIdentity:true})
     if(!product.eligible){unresolved++;continue}
     const review=prepareReview(product.data)
     if(!review.publishable||!review.data.images?.length){unresolved++;continue}
@@ -238,10 +239,10 @@ async function main() {
     const file=String(process.env.MAMA_VISUAL_PRICES_FILE||'').trim()
     if(!file)throw Error('Para publicar, defina MAMA_VISUAL_PRICES_FILE com decisões visuais, inclusive fotos sem preço.')
     const manifest=JSON.parse(await readFile(file,'utf8'))
-    if(!manifest || typeof manifest!=='object' || Array.isArray(manifest))throw Error('Manifesto visual deve ser um objeto de chave álbum#foto e preço ou null.')
+    if(!manifest || typeof manifest!=='object' || Array.isArray(manifest))throw Error('Manifesto visual deve ser um objeto de chave album#photo:identidade e preço ou null.')
     visualDecisions=new Map()
     for(const [key,value] of Object.entries(manifest)) {
-      if(!links.some(([,url])=>key.startsWith(url+'#foto-')))throw Error('Fonte de foto não reconhecida no manifesto: '+key)
+      if(!links.some(([,url])=>key.startsWith(url+'#photo:') && /^[A-Za-z0-9_-]{22}$/.test(key.slice((url+'#photo:').length))))throw Error('Imagem original não reconhecida no manifesto: '+key)
       if(value!==null && (!Number.isFinite(value)||value<=0))throw Error('Preço visual inválido em: '+key)
       visualDecisions.set(key,value)
     }
