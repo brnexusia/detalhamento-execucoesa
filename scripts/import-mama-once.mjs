@@ -9,6 +9,7 @@
  * invented prices or products for other accounts are ever published.
  */
 import crypto from 'node:crypto'
+import { readFile } from 'node:fs/promises'
 import pg from 'pg'
 import { links } from './mama-public-album-links.mjs'
 import { ensureScannerSchema, processImportJob, processNormalizationJob } from '../server/scanner-hooks.mjs'
@@ -18,7 +19,8 @@ import { prepareReview } from '../server/scanner-review.mjs'
 import { MAMA_IMPORT_MARKER, canonicalMamaName, prepareMamaPhoto } from '../server/mama-import-plan.mjs'
 
 const apply = process.argv.includes('--apply')
-const reviewOnly = true // Safety: do not publish until missing label prices are visually verified.
+const publishVerified = process.argv.includes('--publish-verified')
+const reviewOnly = !publishVerified
 const timeoutMs = 12 * 60 * 60 * 1000
 const sleep = ms => new Promise(resolve => setTimeout(resolve,ms))
 const pool = new pg.Pool({connectionString:process.env.DATABASE_URL,max:2,connectionTimeoutMillis:10000})
@@ -90,7 +92,7 @@ async function stageAlbum(job) {
   return {...job,status:'review'}
 }
 
-async function selectPricedPhotos(jobId,storeId,album,url) {
+async function selectPricedPhotos(jobId,storeId,album,url,visualDecisions) {
   const rows=await pool.query(
     'SELECT n.id,n.normalized_data,n.review_data,n.selected,c.raw_data AS candidate '+
     'FROM import_normalized_products n JOIN import_candidates c '+
@@ -98,14 +100,23 @@ async function selectPricedPhotos(jobId,storeId,album,url) {
     'WHERE n.store_id=$1 AND n.job_id=$2 ORDER BY n.created_at,n.id',
     [storeId,jobId])
   const batch=[]
-  let priced=0,unresolved=0,protectedEdits=0
+  let priced=0,unresolved=0,protectedEdits=0,visuallyConfirmed=0,confirmedNoPrice=0
   for(const row of rows.rows) {
     if(row.review_data) {
       if(row.selected && /^MAMA-[A-F0-9]{22}$/.test(String(row.review_data.sku||'')))priced++
       else protectedEdits++
       continue
     }
-    const product=prepareMamaPhoto({album,albumUrl:url,candidate:row.candidate,normalized:row.normalized_data})
+    const external=String(row.candidate?.external_id||'')
+    const key=url+'#'+external
+    let normalized=row.normalized_data
+    if(normalized?.price==null && visualDecisions?.has(key)) {
+      const verified=visualDecisions.get(key)
+      if(verified===null){confirmedNoPrice++;continue}
+      normalized={...normalized,price:verified}
+      visuallyConfirmed++
+    }
+    const product=prepareMamaPhoto({album,albumUrl:url,candidate:row.candidate,normalized})
     if(!product.eligible){unresolved++;continue}
     const review=prepareReview(product.data)
     if(!review.publishable||!review.data.images?.length){unresolved++;continue}
@@ -128,7 +139,7 @@ async function selectPricedPhotos(jobId,storeId,album,url) {
     'review_changed_count=(SELECT COUNT(*)::int FROM import_normalized_products WHERE job_id=$1 AND store_id=$2 AND review_data IS NOT NULL),'+
     "updated_at=now() WHERE j.id=$1 AND j.store_id=$2 AND j.status='review'",
     [jobId,storeId])
-  return {enumerated:rows.rowCount,priced,unresolved,protectedEdits}
+  return {enumerated:rows.rowCount,priced,unresolved,protectedEdits,visuallyConfirmed,confirmedNoPrice}
 }
 
 
@@ -222,9 +233,22 @@ async function main() {
   if(!process.env.DATABASE_URL)throw Error('DATABASE_URL ausente.')
   await ensureScannerSchema()
   const {store,catalog,limit}=await tenantAndCatalog()
+  let visualDecisions=null
+  if(publishVerified) {
+    const file=String(process.env.MAMA_VISUAL_PRICES_FILE||'').trim()
+    if(!file)throw Error('Para publicar, defina MAMA_VISUAL_PRICES_FILE com decisões visuais, inclusive fotos sem preço.')
+    const manifest=JSON.parse(await readFile(file,'utf8'))
+    if(!manifest || typeof manifest!=='object' || Array.isArray(manifest))throw Error('Manifesto visual deve ser um objeto de chave álbum#foto e preço ou null.')
+    visualDecisions=new Map()
+    for(const [key,value] of Object.entries(manifest)) {
+      if(!links.some(([,url])=>key.startsWith(url+'#foto-')))throw Error('Fonte de foto não reconhecida no manifesto: '+key)
+      if(value!==null && (!Number.isFinite(value)||value<=0))throw Error('Preço visual inválido em: '+key)
+      visualDecisions.set(key,value)
+    }
+  }
   console.log('[mama] destino',JSON.stringify({
     name:store.name,slug:store.slug,plan:store.plan_tier,catalog:catalog.name,
-    albumCount:links.length,mode:apply?'collect_for_visual_review':'preview',
+    albumCount:links.length,mode:!apply?'preview':publishVerified?'publish_verified':'collect_for_visual_review',
   }))
   if(!apply) {
     console.log('[mama] Prévia apenas. Para coletar: node scripts/import-mama-once.mjs --apply')
@@ -243,9 +267,10 @@ async function main() {
         summary.push({album,jobId,status:'already_completed'})
         continue
       }
-      const review=await selectPricedPhotos(jobId,store.id,album,url)
+      const review=await selectPricedPhotos(jobId,store.id,album,url,visualDecisions)
       const record={album,jobId,...review}
       if(reviewOnly)record.status='review_ready'
+      else if(review.unresolved>0 || review.protectedEdits>0)throw Error('Há '+review.unresolved+' foto(s) sem decisão visual e '+review.protectedEdits+' edição(ões) prévias. Publicação bloqueada até concluir a conferência.')
       else if(review.priced===0)record.status='no_confirmed_prices'
       else {
         record.toCreate=await ensureRoom(store.id,limit,jobId)
