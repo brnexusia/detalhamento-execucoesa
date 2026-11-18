@@ -1,7 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {baselineSourceKeys,canonicalSourcePhotoKey,matchMissedPhotoBySourceIdentity} from './mama-baseline-source-keys.mjs'
-import {baselineMissing} from './mama-review-99p5.mjs'
 
 test('audit snapshot contains 117 individually anchored Google images',()=>{
   const n=Object.values(baselineSourceKeys).reduce((sum,rows)=>sum+Object.keys(rows).length,0)
