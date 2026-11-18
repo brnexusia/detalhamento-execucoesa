@@ -1,6 +1,6 @@
 @import "tailwindcss" source(none);
-@source "./ShopvaxLandingPage.tsx";
-
+@source "../src";
+@import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -65,7 +65,7 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
-:host {
+:root {
   --radius: 0.25rem;
   --background: oklch(0.951 0.013 88);
   --foreground: oklch(0.19 0.004 60);
@@ -102,7 +102,7 @@
   --sidebar-ring: oklch(0.704 0.04 256.788);
 }
 
-:host(.dark) {
+.dark {
   --background: oklch(0.129 0.042 264.695);
   --foreground: oklch(0.984 0.003 247.858);
   --card: oklch(0.208 0.042 265.755);
@@ -142,7 +142,7 @@
     border-color: var(--color-border);
   }
 
-  :host {
+  body {
     background-color: var(--color-background);
     color: var(--color-foreground);
   }
@@ -150,7 +150,7 @@
 
 @layer base {
   html { scroll-behavior: smooth; }
-  :host { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+  body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
   h1, h2, h3 { font-family: var(--font-display); font-weight: 600; text-transform: uppercase; letter-spacing: -0.01em; line-height: 0.92; }
 }
 @utility font-display { font-family: var(--font-display); font-weight: 600; text-transform: uppercase; }
@@ -177,5 +177,3 @@
   .intro-v, .intro-a, .intro-group, .intro-word { animation: none; }
   .intro { animation: intro-out 0.3s ease-in 0.6s forwards; }
 }
-
-:host { all: initial; display: block; background: var(--background); color: var(--foreground); font-family: "Archivo", sans-serif; }

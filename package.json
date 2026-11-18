@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/build-ui-version.mjs && tsc -b && vite build",
+    "build": "node scripts/build-ui-version.mjs && tsc -b && vite build && npm run build:landing",
     "start": "node --import ./server/brand-compat-hooks.mjs --import ./server/security-hooks.mjs --import ./server/performance-hooks.mjs --import ./server/seo-routes-hooks.mjs --import ./server/metrics-hooks.mjs --import ./server/stripe-billing-hooks.mjs --import ./server/startup-write-serialization-hooks.mjs --import ./server/api-json-hooks.mjs --import ./server/phase4-schema-gate-hooks.mjs --import ./server/phase4-integrations-hooks.mjs --import ./server/phase4-public-config-hooks.mjs --import ./server/phase4-order-events-hooks.mjs --import ./server/phase5-launch-hooks.mjs --import ./server/phase3-route-bridge-hooks.mjs --import ./server/onboarding-growth-hooks.mjs --import ./server/referral-partner-hooks.mjs --import ./server/phase3-growth-hooks.mjs --import ./server/phase3-checkout-hooks.mjs --import ./server/analytics-features-hooks.mjs --import ./server/team-features-hooks.mjs --import ./server/commercial-config-hooks.mjs --import ./server/catalog-order-lock-fix.mjs --import ./server/phase2-compat-hooks.mjs --import ./server/phase2-operation-hooks.mjs --import ./server/phase2-public-config-hooks.mjs --import ./server/catalog-features-hooks.mjs --import ./server/business-features-hooks.mjs --import ./server/platform-hooks.mjs --import ./server/plan-limits-hooks.mjs --import ./server/signup-plan-hooks.mjs --import ./server/google-auth-hooks.mjs --import ./server/buyer-whatsapp-auth-hooks.mjs --import ./server/phase1-product-media-hooks.mjs --import ./server/scanner-hooks.mjs --import ./server/scanner-publish-hooks.mjs --import ./server/social-network-hooks.mjs --import ./server/social-feed-ranking-hooks.mjs --import ./server/social-commerce-hooks.mjs --import ./server/buyer-discovery-hooks.mjs --import ./server/social-analytics-hooks.mjs --import ./server/public-protection-hooks.mjs --import ./server/page-metadata-hooks.mjs server/app.mjs",
     "preview": "vite preview",
     "test:scanner": "node server/scanner-url.test.mjs",
@@ -30,7 +30,8 @@
     "test:scanner:media": "node --test server/scanner-publish-media.test.mjs",
     "test:scanner:architectures": "node --test server/scanner-architecture-fingerprint.test.mjs",
     "test:scanner:vtex": "node --test server/scanner-vtex-public.test.mjs",
-    "test:landing": "node --test server/shopvax-landing-regression.test.mjs"
+    "test:landing": "node --test server/shopvax-landing-regression.test.mjs",
+    "build:landing": "vite build --config landing-integration/vite.config.mjs"
   },
   "dependencies": {
     "cheerio": "^1.1.2",
@@ -59,7 +60,9 @@
     "vite": "^8.1.5",
     "web-vitals": "^6.2.3",
     "@tailwindcss/vite": "^4.2.1",
-    "tailwindcss": "^4.2.1"
+    "tailwindcss": "^4.2.1",
+    "@tanstack/react-router": "1.170.41",
+    "tw-animate-css": "^1.3.4"
   },
   "overrides": {
     "qs": "6.16.1",

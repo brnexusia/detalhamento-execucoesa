@@ -1,14 +1,13 @@
-name: shopvax-landing-build
+name: shopvax-landing-native
 
 on:
   pull_request:
     branches: [main]
     paths:
-      - 'src/ShopvaxLandingPage.tsx'
-      - 'src/shopvax-landing.css'
-      - 'src/shopvax-landing-css.d.ts'
+      - 'vendor/screenshot-to-spark-0332/**'
+      - 'landing-integration/**'
       - 'src/HomeRoute.tsx'
-      - 'public/landing/**'
+      - 'server/app.mjs'
       - 'vite.config.ts'
       - 'package.json'
       - 'server/shopvax-landing-regression.test.mjs'
@@ -23,9 +22,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install dependencies
+      - name: Install
         run: npm install --no-audit --no-fund
-      - name: Landing page regression
+      - name: Verify byte-for-byte fidelity and route
         run: npm run test:landing
-      - name: TypeScript + Vite production build
+      - name: Production TypeScript/Vite + native LP build
         run: npm run build
+      - name: Check native LP build artifacts
+        run: |
+          test -s dist/para-lojas/index.html
+          test -f dist/para-lojas/favicon.png
+          grep -q '/para-lojas/assets/' dist/para-lojas/index.html
+          test -z "$(find dist/para-lojas/assets -name '*.js' -size 0)"
+          test -z "$(find dist/para-lojas/assets -name '*.css' -size 0)"
