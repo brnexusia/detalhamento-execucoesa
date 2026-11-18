@@ -1,4 +1,3 @@
-import Home from './Home'
-import './ux-polish.css'
+import ShopvaxLandingPage from './ShopvaxLandingPage'
 
-export default Home
+export default ShopvaxLandingPage
