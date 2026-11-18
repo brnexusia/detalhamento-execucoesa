@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { confirmedMamaVisualPrices, confirmedUnitPricesByBaselinePhoto } from '../scripts/mama-reviewed-prices-20261118.mjs'
+import { confirmedMamaVisualPrices, confirmedMamaVisualDecisions, confirmedUnitPricesByBaselinePhoto, confirmedNoUnitPriceByBaselinePhoto } from '../scripts/mama-reviewed-prices-20261118.mjs'
 import { baselineSourceKeys } from '../scripts/mama-baseline-source-keys.mjs'
 import { links } from '../scripts/mama-public-album-links.mjs'
 
@@ -40,4 +40,32 @@ test('photos without a clear label are deliberately not filled',()=>{
       if(key)assert.equal(decisions[links[album][1]+'#photo:'+key],undefined)
     }
   }
+})
+
+
+test('22 photos without a unit price remain explicitly unpriced',()=>{
+  const all=confirmedMamaVisualDecisions()
+  assert.equal(Object.keys(all).length,99)
+  assert.equal(Object.values(all).filter(x=>x!==null).length,77)
+  assert.equal(Object.values(all).filter(x=>x===null).length,22)
+  for(const [album,photos] of Object.entries(confirmedNoUnitPriceByBaselinePhoto)){
+    for(const photo of photos){
+      const sourceKey=baselineSourceKeys[album][String(photo)]
+      assert.equal(all[links[Number(album)][1]+'#photo:'+sourceKey],null)
+    }
+  }
+})
+
+test('conservative recognized coverage exceeds 99.5% only on photos with a unit-price label',()=>{
+  const auditPhotos=3980
+  const previousOcrRecognized=3863
+  const recoveredVisually=Object.keys(confirmedMamaVisualPrices()).length
+  const confirmedWithoutUnit=Object.values(confirmedMamaVisualDecisions()).filter(x=>x===null).length
+  const eligibleUpperBound=auditPhotos-confirmedWithoutUnit
+  // This is only a coverage bound for the November 16 snapshot.
+  // It is NOT proof that unit-price OCR has >= 99.5% exact price accuracy,
+  // nor that production database publication is complete.
+  const coverage=(previousOcrRecognized+recoveredVisually)/eligibleUpperBound
+  assert.ok(coverage>=0.995,JSON.stringify({coverage,eligibleUpperBound}))
+  assert.ok(coverage<1)
 })
