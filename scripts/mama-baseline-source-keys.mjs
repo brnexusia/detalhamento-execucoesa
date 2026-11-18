@@ -9,7 +9,7 @@ export const baselineSourceKeys=JSON.parse(inflateSync(Buffer.from(SOURCE_KEYS_Z
 export function canonicalSourcePhotoKey(input) {
   try {
     const u=new URL(String(input))
-    if(!/^lh[3-6]\\.googleusercontent\\.com$/.test(u.hostname))return ''
+    if(!/^lh[3-6]$/.test(u.hostname.split('.')[0]) || !u.hostname.endsWith('.googleusercontent.com'))return ''
     return u.pathname.replace(/=[^/=]+$/,'').split('/').at(-1).slice(-22)
   }catch{return ''}
 }
