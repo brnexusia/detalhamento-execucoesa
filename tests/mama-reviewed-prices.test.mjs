@@ -4,11 +4,11 @@ import { confirmedMamaVisualPrices, confirmedUnitPricesByBaselinePhoto } from '.
 import { baselineSourceKeys } from '../scripts/mama-baseline-source-keys.mjs'
 import { links } from '../scripts/mama-public-album-links.mjs'
 
-test('51 unit prices were checked visually against the original 2026-11-16 photos',()=>{
+test('70 unit prices were checked visually against the original 2026-11-16 photos',()=>{
   const result=confirmedMamaVisualPrices()
-  assert.equal(Object.keys(result).length,51)
+  assert.equal(Object.keys(result).length,70)
   assert.ok(Object.values(result).every(price=>Number.isFinite(price)&&price>0))
-  assert.equal(new Set(Object.keys(result)).size,51)
+  assert.equal(new Set(Object.keys(result)).size,70)
 })
 
 test('visual price never relies on mutable album position',()=>{
