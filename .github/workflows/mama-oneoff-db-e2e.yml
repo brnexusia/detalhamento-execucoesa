@@ -1,0 +1,64 @@
+name: Mama one-off PostgreSQL import E2E
+on:
+  pull_request:
+    paths:
+      - 'tests/mama-oneoff-db.integration.mjs'
+      - 'server/mama-import-plan.mjs'
+      - 'scripts/import-mama-once.mjs'
+      - 'server/scanner-import-grouping.mjs'
+      - 'server/scanner-publish-hooks.mjs'
+      - '.github/workflows/mama-oneoff-db-e2e.yml'
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: atacado
+          POSTGRES_PASSWORD: atacado
+          POSTGRES_DB: atacado_test
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U atacado -d atacado_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      NODE_ENV: test
+      SHOPVAX_TEST_BILLING_BYPASS: '1'
+      DATABASE_URL: postgresql://atacado:atacado@127.0.0.1:5432/atacado_test
+      PORT: 3029
+      BASE_URL: http://127.0.0.1:3029
+      SCANNER_WORKER_DISABLED: '1'
+      SHOPVAX_PLAN_LIMITS_DISABLED: '0'
+      SHOPVAX_SECURITY_RATE_LIMIT_DISABLED: '1'
+      SHOPVAX_IMPORT_MEDIA_REPAIR_DISABLED: '1'
+      SHOPVAX_PUBLISH_WORKER_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --package-lock=false
+      - name: Check test syntax
+        run: node --check tests/mama-oneoff-db.integration.mjs
+      - name: Start the actual application with isolated database
+        run: |
+          npm start >/tmp/mama-e2e-app.log 2>&1 &
+          for i in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:3029/health >/tmp/mama-e2e-health.json; then
+              cat /tmp/mama-e2e-health.json
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/mama-e2e-app.log
+          exit 1
+      - name: Exercise staging, PostgreSQL publication and duplicate protection
+        run: node tests/mama-oneoff-db.integration.mjs
+      - name: Show application diagnostics on failure
+        if: failure()
+        run: tail -n 180 /tmp/mama-e2e-app.log || true
