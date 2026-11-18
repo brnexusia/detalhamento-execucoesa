@@ -30,7 +30,8 @@ permissions:
   contents: read
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    # Playwright 1.58 does not install Chromium on ubuntu26.04 (current ubuntu-latest).
+    runs-on: ubuntu-24.04
     timeout-minutes: 16
     steps:
       - uses: actions/checkout@v4
