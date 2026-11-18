@@ -16,6 +16,7 @@ import { recognizePhotoProductLabel } from './scanner-photo-ocr.mjs'
 import { prepareReview } from './scanner-review.mjs'
 import { requeueInterruptedScans, requeueFailedTransientFacilZapScans } from './scanner-scan-lease.mjs'
 import { createScannerWorkScheduler } from './scanner-work-scheduler.mjs'
+import { nextScannerJobSql } from './scanner-queue-lanes.mjs'
 
 const { Pool } = pg
 const databaseUrl = process.env.DATABASE_URL?.trim() || ''
