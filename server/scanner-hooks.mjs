@@ -1063,9 +1063,11 @@ function installScannerRoutes(app) {
     )
     if (existing.rowCount) return res.json({ job: publicJob(existing.rows[0]), duplicated: true })
 
+    const detectedPlatform = sharedPhotoSourceKind(normalized.url)
     const result = await pool.query(
-      `INSERT INTO import_jobs (id,store_id,source_url,source_host,status,target_catalog_id) VALUES ($1,$2,$3,$4,'queued',$5) RETURNING *`,
-      [id(), req.scannerStore.store_id, normalized.url, normalized.host,targetCatalogId||null],
+      `INSERT INTO import_jobs (id,store_id,source_url,source_host,status,target_catalog_id,platform)
+       VALUES ($1,$2,$3,$4,'queued',$5,$6) RETURNING *`,
+      [id(), req.scannerStore.store_id, normalized.url, normalized.host,targetCatalogId||null,detectedPlatform],
     )
     if (!workerDisabled) setImmediate(() => void runNextWork())
     res.status(201).json({ job: publicJob(result.rows[0]), duplicated: false })
