@@ -228,6 +228,7 @@ function publicJob(row) {
     error: row.error || '',
     created_at: row.created_at,
     updated_at: row.updated_at,
+    scan_lease_at: row.scan_lease_at || null,
   }
 }
 

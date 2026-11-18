@@ -1,0 +1,44 @@
+name: Google Photos scanner stall regression
+on:
+  pull_request:
+    paths:
+      - 'server/scanner-scan-lease.mjs'
+      - 'server/scanner-scan-lease.test.mjs'
+      - 'server/scanner-photo-albums.mjs'
+      - 'server/scanner-photo-albums.test.mjs'
+      - 'server/scanner-hooks.mjs'
+      - 'src/api.ts'
+      - 'src/ScannerModule1.tsx'
+      - '.github/workflows/google-photos-scan-stall.yml'
+jobs:
+  lease-and-progress:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: scanner
+          POSTGRES_PASSWORD: scanner_test
+          POSTGRES_DB: scanner_test
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U scanner -d scanner_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://scanner:scanner_test@127.0.0.1:5432/scanner_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install
+        run: npm install --no-audit --no-fund --package-lock=false
+      - name: Database-backed scan lease and worker recovery tests
+        run: node --test server/scanner-scan-lease.test.mjs server/scanner-work-scheduler.test.mjs
+      - name: Google Photos large-album progress and upload tests
+        run: node server/scanner-photo-albums.test.mjs
+      - name: Build seller interface
+        run: npm run build

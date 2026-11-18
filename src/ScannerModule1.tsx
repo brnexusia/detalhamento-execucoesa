@@ -98,6 +98,7 @@ export default function ScannerModule1() {
   const [success, setSuccess] = useState('')
   const [discardingId, setDiscardingId] = useState<string | null>(null)
 
+  const jobsRequestSequence = useRef(0)
   const reviewRequestSequence = useRef(0)
   const activeReviewJobId = useRef<string | null>(null)
   const [reviewJob, setReviewJob] = useState<ImportJob | null>(null)
@@ -170,13 +171,19 @@ export default function ScannerModule1() {
   }, [open])
 
   const loadJobs = async (quiet = false) => {
+    const sequence = ++jobsRequestSequence.current
     if (!quiet) setLoadingJobs(true)
     try {
       const result = await api.listImportJobs()
+      // A slower earlier poll must never overwrite a newer result. This also
+      // prevents a healthy progress bar from visually moving backwards.
+      if (sequence !== jobsRequestSequence.current) return
       setJobs(result.jobs)
       window.dispatchEvent(new CustomEvent('shopvax:scanner-jobs-changed', { detail: { jobs: result.jobs } }))
     } catch (err) {
-      if (!quiet) setError(err instanceof Error ? err.message : 'Não foi possível carregar as importações.')
+      if (!quiet && sequence === jobsRequestSequence.current) {
+        setError(err instanceof Error ? err.message : 'Não foi possível carregar as importações.')
+      }
     } finally {
       if (!quiet) setLoadingJobs(false)
     }
@@ -592,9 +599,9 @@ export default function ScannerModule1() {
                       <span style={{width:`${Math.max(0,Math.min(99,job.progress||0))}%`}} />
                     </div>
                     <small>{job.result_count>0?`${job.result_count} produto(s) identificado(s)`:
-                      'Iniciando descoberta de produtos…'} · Última atualização: {new Date(job.updated_at).toLocaleTimeString('pt-BR')} · Pode acompanhar aqui</small>
-                    {job.status==='scanning' && Number.isFinite(Date.parse(job.updated_at)) &&
-                      Date.now()-Date.parse(job.updated_at)>120_000 && (
+                      'Iniciando descoberta de produtos…'} · Última atividade: {new Date(job.scan_lease_at || job.updated_at).toLocaleTimeString('pt-BR')} · Pode acompanhar aqui</small>
+                    {job.status==='scanning' && Number.isFinite(Date.parse(job.scan_lease_at || job.updated_at)) &&
+                      Date.now()-Date.parse(job.scan_lease_at || job.updated_at)>120_000 && (
                       <small className="scanner-job-error">Sem nova atualização há mais de 2 minutos. O servidor pode ter interrompido o scanner; a retomada automática é verificada pelo worker.</small>
                     )}
                   </div>
