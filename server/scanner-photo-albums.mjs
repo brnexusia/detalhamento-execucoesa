@@ -12,7 +12,7 @@ export const MAX_ALBUM_ITEMS = 10_000
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024
 const MAX_ALBUM_HTML_BYTES = 24 * 1024 * 1024
 const PHOTO_STAGE_BATCH_SIZE = 100
-const PHOTO_PROGRESS_INTERVAL = 50
+const PHOTO_PROGRESS_INTERVAL = 10
 
 /**
  * Stable public-media identity. Album position can change when new photos
@@ -282,6 +282,7 @@ export async function collectSharedPhotos(sourceUrl, { request, onImage, onBatch
   let storedBytes = 0
   let accepted = 0
   let skipped = 0
+  let lastProgressReportAt = Date.now()
   for (let i = 0; i < imageUrls.length; i += 1) {
     if (accepted >= safeMax) break
     let saved
@@ -322,8 +323,14 @@ export async function collectSharedPhotos(sourceUrl, { request, onImage, onBatch
         }
       }
     }
-    if ((i + 1) % PHOTO_PROGRESS_INTERVAL === 0 || i + 1 === imageUrls.length) {
+    // One Google Photos image can require multiple OCR crops. Waiting for 50
+    // photos before updating the UI made a live scan appear frozen for
+    // several minutes. Report per 10 photos OR at least every 15 seconds
+    // after the current photo finishes (without writing on every image).
+    const now = Date.now()
+    if ((i + 1) % PHOTO_PROGRESS_INTERVAL === 0 || now - lastProgressReportAt >= 15_000 || i + 1 === imageUrls.length) {
       await onProgress?.({ progress: Math.min(90, 10 + Math.round(80 * (i + 1) / imageUrls.length)), pagesScanned: 1, candidates: accepted, platform: kind })
+      lastProgressReportAt = Date.now()
     }
   }
   // Flush the final partial batch before the job transitions to review.
