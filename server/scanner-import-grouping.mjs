@@ -179,6 +179,15 @@ export function mergeImportParentProducts(values) {
 export function importPublishGroupHash(data, {
   pdfSeparate = false, rowId = '', sourcePlatform = '', externalId = '',
 } = {}) {
+  if (sourcePlatform === 'google-photos' || sourcePlatform === 'image-link') {
+    // A Google Photos album shares one page URL across many distinct items.
+    // Canonical URL grouping strips #foto-N and would collapse the entire
+    // album into one product. Keep the occurrence identity instead.
+    const identity = text(externalId, 200)
+    const source = text(data?.source_url, 1500)
+    if (!identity || !source) throw new Error('Foto sem identidade de origem; publicação bloqueada.')
+    return crypto.createHash('sha256').update('photo-item:' + source + ':' + identity).digest('hex')
+  }
   if (sourcePlatform === 'alexandre-bijoux') {
     // Alexandre has hundreds of distinct pieces with identical generic titles,
     // prices and store-root URLs. External product ID is the sole safe identity.
