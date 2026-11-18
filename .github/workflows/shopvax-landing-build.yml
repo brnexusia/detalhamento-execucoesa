@@ -1,0 +1,31 @@
+name: shopvax-landing-build
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/ShopvaxLandingPage.tsx'
+      - 'src/shopvax-landing.css'
+      - 'src/shopvax-landing-css.d.ts'
+      - 'src/HomeRoute.tsx'
+      - 'public/landing/**'
+      - 'vite.config.ts'
+      - 'package.json'
+      - 'server/shopvax-landing-regression.test.mjs'
+      - '.github/workflows/shopvax-landing-build.yml'
+  workflow_dispatch:
+
+jobs:
+  landing-build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Landing page regression
+        run: npm run test:landing
+      - name: TypeScript + Vite production build
+        run: npm run build
