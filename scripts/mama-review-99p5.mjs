@@ -15,6 +15,7 @@ import path from 'node:path'
 import {safeRequest} from '../server/scanner-collector.mjs'
 import {googlePhotosImageUrls,googlePhotosHighResolutionUrl} from '../server/scanner-photo-albums.mjs'
 import {links} from './mama-public-album-links.mjs'
+import {matchMissedPhotoBySourceIdentity} from './mama-baseline-source-keys.mjs'
 
 export const baselineExpectedCounts=[
   289,296,168,300,144,285,25,300,300,191,300,300,61,300,106,300,59,18,130,70,38,
@@ -45,12 +46,14 @@ await mkdir(out,{recursive:true})
 const response=await safeRequest(url,{accept:'text/html,application/xhtml+xml',maxBytes:24*1024*1024,timeout:22000})
 if(!response.ok||new URL(response.url||url).hostname!=='photos.google.com')throw Error('Álbum Google Fotos inacessível.')
 const urls=googlePhotosImageUrls(response.body,10000)
-if(urls.length!==baselineExpectedCounts[albumIndex])
-  throw Error('Álbum mudou de ordem/quantidade desde auditoria: '+album+
-    ' (esperadas '+baselineExpectedCounts[albumIndex]+', atuais '+urls.length+'). Reconciliar antes de associar preços.')
+const matches=matchMissedPhotoBySourceIdentity(albumIndex,urls)
+if(matches.length!==baselineMissing[albumIndex].length)throw Error('Inconsistência no snapshot dos casos sem preço.')
+const missingFromAlbum=matches.filter(item=>!item.imageUrl)
+if(missingFromAlbum.length)throw Error('Foto original removida ou substituída: '+missingFromAlbum.map(x=>x.baselinePhoto).join(', '))
 const records=[]
-for(const photo of baselineMissing[albumIndex]){
-  const originalUrl=urls[photo-1]
+for(const match of matches){
+  const photo=match.baselinePhoto
+  const originalUrl=match.imageUrl
   if(!originalUrl)throw Error('Foto não encontrada no índice '+photo)
   let image=null
   for(const source of [googlePhotosHighResolutionUrl(originalUrl),originalUrl].filter(Boolean)){
@@ -84,10 +87,15 @@ for(const photo of baselineMissing[albumIndex]){
     try{return new URL(originalUrl).pathname.replace(/=[^/=]+$/,'').split('/').at(-1).slice(-22)}
     catch{return ''}
   })()
-  records.push({photo,sourceImageKey:key,sourceAlbum:url,originalDimensions:[w,h],
+  if(key!==match.sourceImageKey)throw Error('Identidade alterada: álbum '+album+', foto original '+photo)
+  records.push({photo,currentPhoto:match.currentPhoto,sourceImageKey:key,sourceAlbum:url,originalDimensions:[w,h],
     top:name+'-top.jpg',whole:name+'-whole.jpg'})
   console.log('MAMA_99P5_PHOTO '+JSON.stringify({albumIndex,photo,sourceImageKey:key}))
 }
-const report={albumIndex,album,sourceUrl:url,sourceCount:urls.length,missing:records.length,photos:records}
+const report={albumIndex,album,sourceUrl:url,sourceCount:urls.length,
+  previousCount:baselineExpectedCounts[albumIndex],reordered:records.filter(x=>x.photo!==x.currentPhoto).length,
+  missing:records.length,photos:records}
 await writeFile(path.join(out,'manifest.json'),JSON.stringify(report,null,2))
-console.log('MAMA_99P5_ALBUM '+JSON.stringify({albumIndex,album,photos:records.length,allSaved:true}))
+console.log('MAMA_99P5_ALBUM '+JSON.stringify({albumIndex,album,photos:records.length,
+  currentCount:urls.length,baselineCount:baselineExpectedCounts[albumIndex],
+  reordered:report.reordered,allSaved:true}))
