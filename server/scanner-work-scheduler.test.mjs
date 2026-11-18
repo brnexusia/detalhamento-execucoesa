@@ -209,3 +209,24 @@ test('a still-running Google Photos import holds only its own bounded lane',asyn
   await flush()
   assert.ok(started.includes('mama-next'))
 })
+
+test('queue resumes after a temporary database failure instead of being abandoned',async()=>{
+  let calls=0
+  const started=[]
+  const jobs=[{id:'mama-queued-before-db-recovered'}]
+  const scheduler=createScannerWorkScheduler({
+    ensureSchema:async()=>{
+      calls++
+      if(calls===1)throw new Error('database initializing')
+    },
+    recover:async()=>({rows:[]}),
+    findNext:async lane=>lane==='photos'?jobs.shift():null,
+    processScan:async id=>{started.push(id)},
+    processNormalization:async()=>{},
+  })
+  await assert.rejects(scheduler.tick(),/database initializing/)
+  await scheduler.tick()
+  await flush()
+  assert.deepEqual(started,['mama-queued-before-db-recovered'])
+  assert.equal(calls,2)
+})
