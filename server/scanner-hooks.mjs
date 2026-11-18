@@ -672,9 +672,13 @@ let workerLastTickError = ''
 async function runNextWork() {
   if (workerDisabled || !pool) return
   try {
-    await scannerScheduler.tick()
-    workerLastTickAt = new Date().toISOString()
-    workerLastTickError = ''
+    const didPoll = await scannerScheduler.tick()
+    // A queued user job must not be reported as "worker healthy" if
+    // the previous scheduler tick is blocked on a database/schema call.
+    if (didPoll) {
+      workerLastTickAt = new Date().toISOString()
+      workerLastTickError = ''
+    }
   } catch (error) {
     workerLastTickError = error instanceof Error ? error.message : String(error)
     console.error('[scanner] worker:', workerLastTickError)
@@ -750,6 +754,10 @@ function installScannerRoutes(app) {
         schedulerStarted: Boolean(workerTimer),
         lastTickAt: workerLastTickAt,
         lastTickFailed: Boolean(workerLastTickError),
+        // The browser needs to distinguish a worker actually polling from
+        // an interval that exists but never completes a DB query.
+        lastTickStale: !workerDisabled && (!workerLastTickAt ||
+          Date.now()-Date.parse(workerLastTickAt)>30_000),
         activeLanes: Object.keys(scannerScheduler.active()),
       },
     })
