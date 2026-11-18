@@ -19,7 +19,17 @@ export function mamaPhotoSku(albumUrl, externalId) {
   return 'MAMA-' + crypto.createHash('sha256').update(key).digest('hex').slice(0, 22).toUpperCase()
 }
 
-export function prepareMamaPhoto({ album, albumUrl, candidate, normalized }) {
+export function mamaStablePhotoSku(albumUrl, sourceImageKey) {
+  const source = new URL(String(albumUrl || ''))
+  const key = String(sourceImageKey || '')
+  if (!['photos.app.goo.gl','photos.google.com'].includes(source.hostname) ||
+      !/^[A-Za-z0-9_-]{22}$/.test(key)) throw new Error('Imagem original da MAMA sem identidade confiável.')
+  return 'MAMA-' + crypto.createHash('sha256')
+    .update(source.origin + source.pathname + ':google-photo:' + key)
+    .digest('hex').slice(0,22).toUpperCase()
+}
+
+export function prepareMamaPhoto({ album, albumUrl, candidate, normalized, requireStableIdentity = false }) {
   const input = normalized && typeof normalized === 'object' ? normalized : {}
   const raw = candidate && typeof candidate === 'object' ? candidate : {}
   const price = input.price == null || input.price === '' ? NaN : Number(input.price)
@@ -31,7 +41,13 @@ export function prepareMamaPhoto({ album, albumUrl, candidate, normalized }) {
     return { eligible: false, reason: 'missing_local_image' }
   }
   const externalId = String(raw.external_id || '')
-  const sku = mamaPhotoSku(albumUrl, externalId)
+  const sourceImageKey = String(raw.source_image_key || '')
+  if (requireStableIdentity && !sourceImageKey) {
+    throw new Error('Identidade de foto ausente; recapture o álbum para evitar preço associado à foto errada.')
+  }
+  const sku = sourceImageKey
+    ? mamaStablePhotoSku(albumUrl, sourceImageKey)
+    : mamaPhotoSku(albumUrl, externalId)
   const labelName = String(input.name || '').trim()
   const placeholder = !labelName || /^Foto importada \d+$/i.test(labelName)
   const index = externalId.match(/\d+/)?.[0] || ''
