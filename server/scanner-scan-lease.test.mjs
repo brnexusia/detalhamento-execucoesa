@@ -49,13 +49,15 @@ test('scanner lease: requeue only orphaned jobs after a crash, never live jobs',
     await db.query("UPDATE import_jobs SET platform='pdf' WHERE id='long-pdf'")
     const recovered = await requeueInterruptedScans(db.query.bind(db))
     assert.ok(Array.isArray(recovered.rows), 'Recovery must preserve the QueryResult .rows contract')
-    assert.deepEqual(recovered.rows.map(x=>x.id).sort(),['hung-with-heartbeat','orphan-legacy','orphan-new'])
+    assert.deepEqual(recovered.rows.map(x=>x.id).sort(),['orphan-legacy','orphan-new'])
     const rows = (await db.query('SELECT * FROM import_jobs ORDER BY id')).rows
     assert.equal(rows.find(x=>x.id==='live-worker').status,'scanning')
     assert.equal(rows.find(x=>x.id==='new-legacy').status,'scanning')
     assert.equal(rows.find(x=>x.id==='already-processing').status,'processing')
     assert.equal(rows.find(x=>x.id==='long-pdf').status,'scanning')
-    for (const key of ['hung-with-heartbeat','orphan-legacy','orphan-new']) {
+    assert.equal(rows.find(x=>x.id==='hung-with-heartbeat').status,'scanning',
+      'A live Google Photos OCR worker must never restart just because no photo has finished in five minutes.')
+    for (const key of ['orphan-legacy','orphan-new']) {
       const row=rows.find(x=>x.id===key)
       assert.equal(row.status,'queued')
       assert.equal(row.progress,0)
@@ -64,6 +66,13 @@ test('scanner lease: requeue only orphaned jobs after a crash, never live jobs',
       assert.equal(row.scan_worker_token,null)
       assert.equal(row.scan_lease_at,null)
     }
+
+    // Active Google Photos work can spend many minutes running Tesseract
+    // without increasing its percentage. Heartbeats, not the last percent
+    // update, are the authoritative sign of a live worker.
+    await db.query("UPDATE import_jobs SET platform='google-photos' WHERE id='hung-with-heartbeat'")
+    assert.deepEqual((await requeueInterruptedScans(db.query.bind(db))).rows,[],
+      'A healthy Google Photos scan with an old progress timestamp must remain claimed')
     assert.deepEqual((await requeueInterruptedScans(db.query.bind(db))).rows,[],
       'Recovered jobs must not requeue twice')
   } finally {
