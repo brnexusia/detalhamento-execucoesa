@@ -592,9 +592,9 @@ export default function ScannerModule1() {
                       <span style={{width:`${Math.max(0,Math.min(99,job.progress||0))}%`}} />
                     </div>
                     <small>{job.result_count>0?`${job.result_count} produto(s) identificado(s)`:
-                      'Iniciando descoberta de produtos…'} · Última atualização: {new Date(job.updated_at).toLocaleTimeString('pt-BR')} · Pode acompanhar aqui</small>
-                    {job.status==='scanning' && Number.isFinite(Date.parse(job.updated_at)) &&
-                      Date.now()-Date.parse(job.updated_at)>120_000 && (
+                      'Iniciando descoberta de produtos…'} · Última atividade: {new Date(job.scan_lease_at || job.updated_at).toLocaleTimeString('pt-BR')} · Pode acompanhar aqui</small>
+                    {job.status==='scanning' && Number.isFinite(Date.parse(job.scan_lease_at || job.updated_at)) &&
+                      Date.now()-Date.parse(job.scan_lease_at || job.updated_at)>120_000 && (
                       <small className="scanner-job-error">Sem nova atualização há mais de 2 minutos. O servidor pode ter interrompido o scanner; a retomada automática é verificada pelo worker.</small>
                     )}
                   </div>
