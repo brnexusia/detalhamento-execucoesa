@@ -85,7 +85,7 @@ test('visual sticker price stays with the original Google photo after album reor
     album:'Anéis',albumUrl:album,
     candidate:{external_id:'foto-0045'},normalized:{name:'Anel',price:7,media_url:media,images:[media]},
     requireStableIdentity:true,
-  }),/identidade/)
+  }),/identidade/i)
 })
 
 
