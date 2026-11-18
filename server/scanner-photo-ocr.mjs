@@ -120,7 +120,14 @@ function ocrTsv(buffer, psm = 6) {
     const child = spawn('prlimit', [
       '--as=1073741824', '--cpu=12', '--fsize=10485760', '--',
       'tesseract', 'stdin', 'stdout', '-l', 'por+eng', '--psm', String(psm), 'tsv',
-    ], { stdio:['pipe','pipe','pipe'] })
+    ], {
+      stdio:['pipe','pipe','pipe'],
+      // A concurrent import can run two independent OCR subprocesses.
+      // Limit each Tesseract instance to one OpenMP thread by default to
+      // prevent accidental 8-16 thread oversubscription on small VPSes.
+      // An operator may tune this, but never affect other app workers.
+      env:{...process.env,OMP_THREAD_LIMIT:String(process.env.SHOPVAX_OCR_THREAD_LIMIT || '1')},
+    })
     const chunks = []
     let length = 0
     const timer = setTimeout(() => child.kill('SIGKILL'), OCR_TIMEOUT_MS)
