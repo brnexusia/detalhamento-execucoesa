@@ -1,27 +1,34 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { createPortal } from "react-dom";
-import landingCss from "./shopvax-landing.css?inline";
-const feed1 = "/landing/feed-1.jpg";
-const feed2 = "/landing/feed-2.jpg";
-const store = "/landing/store.jpg";
-const LINKS = { signup: "/criar-conta", bronze: "/criar-conta?plan=bronze", prata: "/criar-conta?plan=prata", ouro: "/criar-conta?plan=ouro", partner: "/parceiros" };
+import { createFileRoute } from "@tanstack/react-router";
+import { useState, type ReactNode } from "react";
+import feed1 from "@/assets/feed-1.jpg";
+import feed2 from "@/assets/feed-2.jpg";
+import store from "@/assets/store.jpg";
+import { LINKS } from "@/lib/links";
+import { Intro } from "@/components/Intro";
+import logoH from "@/assets/shopvax-horizontal-cor-negativo.png.asset.json";
+import logoV from "@/assets/shopvax-vertical-cor-negativo.png.asset.json";
+import symbol from "@/assets/shopvax-favicon-512.png.asset.json";
 
-const logoH = { url: "/brand/shopvax-wordmark-light.svg" };
-const logoV = { url: "/brand/shopvax-wordmark-light.svg" };
-const symbol = { url: "/brand/shopvax-symbol.svg" };
-
-function Intro() {
-  const [done, setDone] = useState(false);
-  useEffect(() => {
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const timer = window.setTimeout(() => setDone(true), reduced ? 650 : 2000);
-    return () => window.clearTimeout(timer);
-  }, []);
-  if (done) return null;
-  return <div className="intro fixed inset-0 z-[100] grid place-items-center bg-background" aria-hidden="true">
-    <img src="/brand/shopvax-lockup.svg" alt="" className="intro-group w-[min(78vw,560px)]" />
-  </div>;
-}
+export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "ShopVax — Catálogo digital com feed de produtos, sem comissão" },
+      {
+        name: "description",
+        content:
+          "Transforme seu catálogo em uma experiência de compra. Pedidos organizados por vendedora direto no WhatsApp. Sem comissão. Planos de Black Friday a partir de R$ 29,99.",
+      },
+      { property: "og:title", content: "ShopVax — Seus produtos em um novo jeito de vender" },
+      {
+        property: "og:description",
+        content: "Feed de produtos, talão com grade e pedidos direto no WhatsApp da vendedora certa. Sem comissão.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
+  component: Index,
+});
 
 /* ---------- reusable ---------- */
 function Btn({ href, children, variant = "primary" }: { href: string; children: ReactNode; variant?: "primary" | "ghost" | "dark" | "light" }) {
@@ -247,45 +254,23 @@ function NoCommission() {
   );
 }
 
-type PublicPlan = {
-  code: string; name: string; monthlyPrice: number; promotion?: { label: string; originalMonthlyPrice: number } | null;
-  sellerLimit?: number | null; catalogLimit?: number | null; photoLimit?: number | null;
-  franchiseeLimit?: number | null; productLimit?: number | null;
-};
+const PLANS = [
+  { name: "Bronze", price: "29,99", href: LINKS.bronze, rows: ["2", "1", "5", "1", "Ilimitados"] },
+  { name: "Prata", price: "49,99", href: LINKS.prata, rows: ["4", "3", "10", "2", "Ilimitados"], rec: true },
+  { name: "Ouro", price: "69,99", href: LINKS.ouro, rows: ["Ilimitadas", "Ilimitados", "Ilimitadas", "Ilimitados", "Ilimitados"] },
+];
 const ROWS = ["Vendedoras", "Catálogos", "Fotos por produto", "Franqueados", "Produtos"];
-const limitText = (n: number | null | undefined) => n == null ? "Ilimitados" : n === 0 ? "Não incluso" : n.toLocaleString("pt-BR");
 function Plans() {
-  const [livePlans, setLivePlans] = useState<PublicPlan[] | null>(null);
-  const [plansError, setPlansError] = useState(false);
-  useEffect(() => {
-    const controller = new AbortController();
-    fetch("/api/public/plans", { signal: controller.signal, credentials: "same-origin" })
-      .then((r) => { if (!r.ok) throw new Error("Não foi possível carregar os planos"); return r.json(); })
-      .then((data: { plans?: PublicPlan[] }) => { if (!Array.isArray(data.plans)) throw new Error("Resposta inválida"); setLivePlans(data.plans); })
-      .catch((error) => { if (error?.name !== "AbortError") setPlansError(true); });
-    return () => controller.abort();
-  }, []);
-  const PLANS = (livePlans ?? []).filter((p) => ["bronze","prata","ouro"].includes(p.code?.toLowerCase()))
-    .sort((a, b) => ["bronze","prata","ouro"].indexOf(a.code.toLowerCase()) - ["bronze","prata","ouro"].indexOf(b.code.toLowerCase()))
-    .map((p) => ({
-      name: p.name, price: Number(p.monthlyPrice).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-      href: "/criar-conta?plan=" + encodeURIComponent(p.code),
-      rows: [limitText(p.sellerLimit),limitText(p.catalogLimit),limitText(p.photoLimit),limitText(p.franchiseeLimit),limitText(p.productLimit)],
-      rec: p.code.toLowerCase() === "prata", original: p.promotion?.originalMonthlyPrice,
-    }));
-  const promo = livePlans?.some((p) => Boolean(p.promotion)) ?? false;
   const all = ["Catálogo com busca", "Feed em tela cheia", "Carrinho com grade", "Catálogo em PDF", "Link por vendedora", "Pedidos no painel", "Pedidos direcionados ao WhatsApp"];
   return (
     <section id="planos" className="mx-auto max-w-7xl scroll-mt-16 px-5 py-24">
       <div className="mb-12 flex flex-col justify-between gap-6 md:flex-row md:items-end">
         <div>
-          <Tag className="bg-foreground px-2 py-1 text-background">05 / {promo ? "Condições especiais de Black Friday" : "Planos ShopVax"}</Tag>
-          <h2 className="mt-6 text-5xl md:text-7xl">Mais tecnologia para sua loja<br /><span className="text-primary">para sua equipe de vendas.</span></h2>
+          <Tag className="bg-foreground px-2 py-1 text-background">05 / Condições especiais de Black Friday</Tag>
+          <h2 className="mt-6 text-5xl md:text-7xl">Mais tecnologia para sua loja<br /><span className="text-primary">por menos de R$ 70/mês.</span></h2>
         </div>
-        {promo && <Tag className="text-muted-foreground">Oferta promocional vigente conforme cada plano</Tag>}
+        <Tag className="text-muted-foreground">Válido em novembro e dezembro de 2026</Tag>
       </div>
-      {!livePlans && !plansError && <p role="status" className="py-10">Carregando planos disponíveis…</p>}
-      {plansError && <p role="alert" className="py-10">Não foi possível consultar os planos agora. <a className="underline" href="/criar-conta">Ver planos no cadastro</a>.</p>}
       <div className="grid gap-4 md:grid-cols-3 md:gap-0">
         {PLANS.map((p) => (
           <div key={p.name} className={`relative flex flex-col border border-foreground p-7 md:-ml-px ${p.rec ? "bg-accent md:-my-4 md:py-11" : "bg-card"}`}>
@@ -368,8 +353,8 @@ const FAQ: [string, string][] = [
   ["Como funciona o catálogo digital?", "Seus produtos ficam em um catálogo pesquisável e em um feed em tela cheia. O cliente escolhe as peças, define cor, tamanho e quantidade e monta o talão."],
   ["A ShopVax cobra comissão sobre minhas vendas?", "Não. A ShopVax não cobra comissão sobre o valor das vendas realizadas pelas lojas. Você paga apenas o plano."],
   ["Como os pedidos chegam às vendedoras?", "O talão finalizado é direcionado ao WhatsApp da vendedora responsável, já preparado, e fica registrado e numerado no painel."],
-  ["Posso ter mais de uma vendedora?", "Sim. Cada plano oferece uma quantidade específica de vendedoras e links individuais. Consulte os limites atualizados nos planos acima."],
-  ["Posso ter vários catálogos?", "Sim. O limite de catálogos varia conforme o plano. Consulte as condições atualizadas nos planos acima."],
+  ["Posso ter mais de uma vendedora?", "Sim. O Bronze inclui 2 vendedoras, o Prata 4 e o Ouro vendedoras ilimitadas, cada uma com link individual."],
+  ["Posso ter vários catálogos?", "Sim. O Bronze inclui 1 catálogo, o Prata 3 e o Ouro catálogos ilimitados."],
   ["Como funciona o perfil de comprador?", "Seus clientes criam um perfil para acompanhar lojas favoritas e serem avisados sobre novos produtos e catálogos."],
   ["Como recebo notificações de novas coleções?", "Compradores que seguem uma loja recebem avisos por WhatsApp e e-mail quando ela lança novos produtos ou catálogos."],
   ["Como faço para assinar?", "Escolha um plano nesta página e clique no botão correspondente para iniciar seu cadastro."],
@@ -435,33 +420,4 @@ function Index() {
       <Footer />
     </main>
   );
-}
-
-/** Tailwind utilities remain inside the Shadow DOM and do not affect the feed or owner panel. */
-export default function ShopvaxLandingPage() {
-  const hostRef = useRef<HTMLDivElement | null>(null);
-  const [shadow, setShadow] = useState<ShadowRoot | null>(null);
-  useEffect(() => {
-    if (hostRef.current) setShadow(hostRef.current.shadowRoot ?? hostRef.current.attachShadow({ mode: "open" }));
-  }, []);
-  useEffect(() => {
-    if (!shadow) return;
-    const onAnchor = (event: Event) => {
-      const target = event.target;
-      const link = target instanceof Element ? target.closest('a[href^="#"]') : null;
-      if (!link) return;
-      const href = link.getAttribute("href") ?? "";
-      if (!href.startsWith("#")) return;
-      event.preventDefault();
-      if (href === "#") { window.scrollTo({ top: 0, behavior: "smooth" }); return; }
-      shadow.getElementById(decodeURIComponent(href.slice(1)))?.scrollIntoView({ behavior: "smooth", block: "start" });
-    };
-    shadow.addEventListener("click", onAnchor);
-    const previousTitle = document.title;
-    document.title = "ShopVax — Catálogo digital, feed e pedidos no WhatsApp";
-    return () => { shadow.removeEventListener("click", onAnchor); document.title = previousTitle; };
-  }, [shadow]);
-  return <div ref={hostRef} data-shopvax-landing="true" style={{ display: "block", minHeight: "100vh" }}>
-    {shadow && createPortal(<><style>{landingCss}</style><Index /></>, shadow)}
-  </div>;
 }

@@ -1306,6 +1306,42 @@ app.post(
   }),
 )
 
+const landingOriginalAssetPaths = new Set([
+  "c12c36d9-6bf8-4e2b-9c86-eb11b8d54953/shopvax-horizontal-cor-negativo.png",
+  "8330aa98-c4ca-46ee-926e-046290127dd6/shopvax-horizontal-cor-positivo.png",
+  "2fd103c8-0b14-4dc6-8385-598cccafd44b/shopvax-vertical-cor-negativo.png",
+  "e648b799-583f-46d5-8f2c-85d9dee1af8d/shopvax-favicon-512.png",
+])
+
+// Os arquivos PNG originais não estão no Git: as referências pertencem ao
+// asset storage do Lovable. Resolvemos somente estes quatro caminhos fixos.
+// Falha do upstream é tratada no frontend com o SVG oficial local.
+app.get('/__l5e/assets-v1/:assetId/:filename', asyncRoute(async (req, res) => {
+  const relative = String(req.params.assetId || '') + '/' + String(req.params.filename || '')
+  if (!landingOriginalAssetPaths.has(relative)) return res.sendStatus(404)
+  try {
+    const upstream = await fetch('https://screenshot-to-spark-0332.lovable.app/__l5e/assets-v1/' + relative, {
+      signal: AbortSignal.timeout(3500),
+      redirect: 'follow',
+    })
+    const size = Number(upstream.headers.get('content-length') || 0)
+    if (!upstream.ok || !String(upstream.headers.get('content-type') || '').includes('image/png') || size > 300000) {
+      return res.sendStatus(404)
+    }
+    const data = Buffer.from(await upstream.arrayBuffer())
+    if (data.length > 300000) return res.sendStatus(502)
+    res.setHeader('Cache-Control', 'public, max-age=604800')
+    res.type('png').send(data)
+  } catch {
+    res.sendStatus(502)
+  }
+}))
+
+app.get(['/para-lojas', '/para-lojas/'], (_req, res) => {
+  res.setHeader('Cache-Control', 'no-cache')
+  res.sendFile(path.join(distDir, 'para-lojas', 'index.html'))
+})
+
 app.use(express.static(distDir, { index: false, maxAge: '1h' }))
 app.get('*', (_req, res) => res.sendFile(path.join(distDir, 'index.html')))
 
