@@ -23,6 +23,7 @@ export type ImportJob = {
   error: string
   created_at: string
   updated_at: string
+  scan_lease_at?: string | null
 }
 
 export type ImportReviewData = {
