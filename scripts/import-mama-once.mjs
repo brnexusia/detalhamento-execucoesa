@@ -131,6 +131,64 @@ async function selectPricedPhotos(jobId,storeId,album,url) {
   return {enumerated:rows.rowCount,priced,unresolved,protectedEdits}
 }
 
+
+async function preserveUnpricedForReview(jobId,storeId,url) {
+  const pending=await pool.query(
+    'SELECT n.fingerprint,n.normalized_data,n.review_data,n.warnings,n.confidence,'+
+    'c.source_key,c.source_url,c.raw_data FROM import_normalized_products n '+
+    'JOIN import_candidates c ON c.id=n.source_candidate_id AND c.store_id=n.store_id '+
+    'WHERE n.job_id=$1 AND n.store_id=$2 AND n.selected=false ORDER BY n.created_at,n.id',
+    [jobId,storeId])
+  if(!pending.rowCount)return null
+  const client=await pool.connect()
+  try {
+    await client.query('BEGIN')
+    // Replays never create another pending-review job for the same album.
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1)::bigint)",
+      ['mama-pending:'+storeId+':'+url])
+    const prior=await client.query(
+      'SELECT id FROM import_jobs WHERE store_id=$1 AND source_url=$2 AND source_host=$3 ORDER BY created_at DESC LIMIT 1',
+      [storeId,url,'mama-pending-20261118'])
+    if(prior.rowCount) {
+      await client.query('COMMIT')
+      return prior.rows[0].id
+    }
+    const pendingJobId=crypto.randomUUID()
+    await client.query(
+      "INSERT INTO import_jobs(id,store_id,source_url,source_host,status,platform,progress,result_count,normalized_count,warning_count) "+
+      "VALUES($1,$2,$3,'mama-pending-20261118','review','google-photos',100,$4,$4,$5)",
+      [pendingJobId,storeId,url,pending.rowCount,
+        pending.rows.filter(r=>Array.isArray(r.warnings)&&r.warnings.length>0).length])
+    for(let i=0;i<pending.rowCount;i+=100) {
+      const batch=pending.rows.slice(i,i+100).map(row=>({
+        cid:crypto.randomUUID(),nid:crypto.randomUUID(),source_key:row.source_key,
+        source_url:row.source_url,raw_data:row.raw_data,
+        fingerprint:row.fingerprint,normalized_data:row.normalized_data,
+        review_data:row.review_data,warnings:row.warnings,
+        confidence:Number(row.confidence)||0,
+      }))
+      await client.query(
+        'INSERT INTO import_candidates(id,job_id,store_id,source_key,source_url,raw_data) '+
+        'SELECT x.cid,$1,$2,x.source_key,x.source_url,x.raw_data '+
+        'FROM jsonb_to_recordset($3::jsonb) AS x('+
+        'cid text,source_key text,source_url text,raw_data jsonb)',
+        [pendingJobId,storeId,JSON.stringify(batch)])
+      await client.query(
+        'INSERT INTO import_normalized_products '+
+        '(id,job_id,store_id,source_candidate_id,fingerprint,normalized_data,review_data,warnings,confidence,selected) '+
+        'SELECT x.nid,$1,$2,x.cid,x.fingerprint,x.normalized_data,x.review_data,x.warnings,x.confidence,false '+
+        'FROM jsonb_to_recordset($3::jsonb) AS x('+
+        'nid text,cid text,fingerprint text,normalized_data jsonb,review_data jsonb,warnings jsonb,confidence numeric)',
+        [pendingJobId,storeId,JSON.stringify(batch)])
+    }
+    await client.query('COMMIT')
+    return pendingJobId
+  } catch(e) {
+    await client.query('ROLLBACK').catch(()=>{})
+    throw e
+  } finally {client.release()}
+}
+
 async function ensureRoom(storeId,limit,jobId) {
   const [current,wanted]=await Promise.all([
     pool.query('SELECT count(*)::int AS count FROM products WHERE store_id=$1',[storeId]),
@@ -191,6 +249,7 @@ async function main() {
       else if(review.priced===0)record.status='no_confirmed_prices'
       else {
         record.toCreate=await ensureRoom(store.id,limit,jobId)
+        record.pendingReviewJobId=await preserveUnpricedForReview(jobId,store.id,url)
         const result=await publish(jobId,store.id,catalog.id)
         record.status='published'
         record.created=result.created
