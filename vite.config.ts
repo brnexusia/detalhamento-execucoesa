@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 import { existsSync, readFileSync } from 'node:fs'
 
 // Gerado antes do Vite pelo script build-ui-version.mjs.
@@ -16,7 +17,7 @@ if (existsSync(stampFile)) {
 }
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   define: {
     'import.meta.env.VITE_SHOPVAX_UI_FINGERPRINT': JSON.stringify(release.sourceFingerprint),
     'import.meta.env.VITE_SHOPVAX_UI_BUILT_AT': JSON.stringify(release.builtAt),
