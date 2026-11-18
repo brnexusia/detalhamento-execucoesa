@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - 'scripts/import-mama-once.mjs'
+      - 'scripts/mama-export-visual-review.mjs'
       - 'server/mama-import-plan.mjs'
       - 'server/mama-import-plan.test.mjs'
       - 'server/scanner-import-grouping.mjs'
@@ -23,6 +24,7 @@ jobs:
       - name: Validate syntax
         run: |
           node --check scripts/import-mama-once.mjs
+          node --check scripts/mama-export-visual-review.mjs
           node --check server/mama-import-plan.mjs
           node --check server/scanner-publish-hooks.mjs
           node --check server/scanner-import-grouping.mjs
