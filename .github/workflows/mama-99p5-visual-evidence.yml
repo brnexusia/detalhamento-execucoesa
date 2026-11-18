@@ -25,6 +25,8 @@ jobs:
           node-version: '22'
       - name: Install Node dependencies
         run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Verify source image identity survives album reordering
+        run: node --test tests/mama-stable-photo-identity.test.mjs
       - name: Read and preserve original Google Photos pixels for visual verification
         run: node scripts/mama-review-99p5.mjs
       - name: Upload proof for each OCR-missed original (no DB, no guessed prices)
