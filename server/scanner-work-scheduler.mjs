@@ -52,7 +52,7 @@ export function createScannerWorkScheduler({
         }
         // No lane awaits another lane's work: scanning a 600-item website
         // must never prevent a PDF or normalization from beginning.
-        for (const lane of ['normalization', 'pdf', 'site']) {
+        for (const lane of ['normalization', 'pdf', 'photos', 'site']) {
           if (running.has(lane)) continue
           const job = await findNext(lane)
           if (job?.id) launch(lane, job.id)
