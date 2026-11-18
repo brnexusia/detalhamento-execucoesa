@@ -13,6 +13,22 @@ const flush = async () => {
   await Promise.resolve()
 }
 
+test('an overlapping scheduler tick returns false rather than a misleading healthy signal',async()=>{
+  const gate=deferred()
+  const scheduler=createScannerWorkScheduler({
+    ensureSchema:async()=>gate.promise,
+    recover:async()=>({rows:[]}),
+    findNext:async()=>null,
+    processScan:async()=>{},
+    processNormalization:async()=>{},
+  })
+  const first=scheduler.tick()
+  assert.equal(await scheduler.tick(),false)
+  gate.resolve()
+  assert.equal(await first,true)
+  assert.equal(await scheduler.tick(),true)
+})
+
 test('one stuck website does not block PDF or normalization processing',async()=>{
   const site=deferred(),pdf=deferred(),normal=deferred()
   const started=[]

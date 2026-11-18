@@ -26,7 +26,7 @@ export function createScannerWorkScheduler({
 
   return {
     async tick() {
-      if (polling) return
+      if (polling) return false
       polling = true
       try {
         await ensureSchema()
@@ -57,6 +57,7 @@ export function createScannerWorkScheduler({
           const job = await findNext(lane)
           if (job?.id) launch(lane, job.id)
         }
+        return true
       } finally {
         polling = false
       }

@@ -614,8 +614,10 @@ export default function ScannerModule1() {
                   <small className="scanner-job-error">O servidor detectou falha na fila. Confira os logs do ShopVax no EasyPanel; a importação foi preservada.</small>}
                 {job.status === 'queued' && scannerState?.localWorkerEnabled && !scannerState?.schedulerStarted &&
                   <small className="scanner-job-error">O worker não iniciou neste servidor. Verifique os logs do EasyPanel.</small>}
-                {job.status === 'queued' && scannerState?.localWorkerEnabled && scannerState?.schedulerStarted && !scannerState?.lastTickFailed &&
-                  <small>A fila está ativa. Sua tarefa começará automaticamente; não é necessário importar novamente.</small>}
+                {job.status === 'queued' && scannerState?.localWorkerEnabled && scannerState?.schedulerStarted && scannerState?.lastTickStale &&
+                  <small className="scanner-job-error">O servidor não concluiu nenhuma verificação recente da fila. O processador pode estar preso em uma consulta ao banco. Verifique os logs do ShopVax e a conexão do PostgreSQL no EasyPanel.</small>}
+                {job.status === 'queued' && scannerState?.localWorkerEnabled && scannerState?.schedulerStarted && !scannerState?.lastTickStale && !scannerState?.lastTickFailed &&
+                  <small>Fila de importações ativa. Tarefa preservada; não é necessário enviar o link novamente.</small>}
                 {job.status==='failed' && job.error && <small className="scanner-job-error">{job.error}</small>}
               </div>
               <div className="scanner-job-actions">
