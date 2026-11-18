@@ -1,0 +1,26 @@
+name: Google Photos bounded OCR performance
+on:
+  pull_request:
+    paths:
+      - 'server/scanner-photo-albums.mjs'
+      - 'server/scanner-photo-albums.test.mjs'
+      - 'server/scanner-photo-ocr.mjs'
+      - 'server/scanner-photo-ocr.test.mjs'
+      - '.github/workflows/google-photos-bounded-ocr.yml'
+jobs:
+  speed-and-correctness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install
+        run: npm install --no-audit --no-fund --package-lock=false
+      - name: Google Photos throughput, ordering, failure and source-image identity
+        run: node server/scanner-photo-albums.test.mjs
+      - name: OCR regression — no invented prices
+        run: node --test server/scanner-photo-ocr.test.mjs
+      - name: Seller UI build
+        run: npm run build
