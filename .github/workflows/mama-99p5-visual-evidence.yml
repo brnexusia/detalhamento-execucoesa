@@ -3,6 +3,11 @@ on:
   pull_request:
     paths:
       - 'scripts/mama-review-99p5.mjs'
+      - 'scripts/mama-baseline-source-keys.mjs'
+      - 'server/mama-import-plan.mjs'
+      - 'server/scanner-photo-albums.mjs'
+      - 'server/scanner-hooks.mjs'
+      - 'tests/mama-stable-photo-identity.test.mjs'
       - '.github/workflows/mama-99p5-visual-evidence.yml'
   workflow_dispatch:
 permissions:
@@ -15,7 +20,9 @@ jobs:
       fail-fast: false
       max-parallel: 16
       matrix:
-        album: [0,1,2,3,4,5,6,7,8,9,10,11,13,14,18,19]
+        # The other 13 albums passed the high-resolution audit on PR #263.
+        # The three albums whose image counts changed need key-based reconciliation.
+        album: [0,1,9]
     env:
       MAMA_REVIEW_ALBUM_INDEX: ${{ matrix.album }}
     steps:
@@ -26,7 +33,7 @@ jobs:
       - name: Install Node dependencies
         run: npm install --ignore-scripts --no-audit --no-fund
       - name: Verify source image identity survives album reordering
-        run: node --test tests/mama-stable-photo-identity.test.mjs
+        run: node --test tests/mama-stable-photo-identity.test.mjs server/mama-import-plan.test.mjs
       - name: Read and preserve original Google Photos pixels for visual verification
         run: node scripts/mama-review-99p5.mjs
       - name: Upload proof for each OCR-missed original (no DB, no guessed prices)
