@@ -1,0 +1,37 @@
+name: Mama 99.5% visual evidence (117 misses)
+on:
+  pull_request:
+    paths:
+      - 'scripts/mama-review-99p5.mjs'
+      - '.github/workflows/mama-99p5-visual-evidence.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      max-parallel: 16
+      matrix:
+        album: [0,1,2,3,4,5,6,7,8,9,10,11,13,14,18,19]
+    env:
+      MAMA_REVIEW_ALBUM_INDEX: ${{ matrix.album }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Node dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Read and preserve original Google Photos pixels for visual verification
+        run: node scripts/mama-review-99p5.mjs
+      - name: Upload proof for each OCR-missed original (no DB, no guessed prices)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mama-99p5-album-${{ matrix.album }}
+          path: /tmp/mama-99p5-evidence/**/*
+          retention-days: 7
+          if-no-files-found: warn
