@@ -13,8 +13,14 @@ export async function requeueInterruptedScans(query) {
          error='',scan_worker_token=NULL,scan_lease_at=NULL,updated_at=now()
      WHERE status='scanning'
        AND (
-         COALESCE(scan_lease_at,updated_at) < now()-interval '120 seconds'
-         OR (COALESCE(platform,'')<>'pdf' AND updated_at < now()-interval '300 seconds')
+         -- A running worker renews scan_lease_at every 10 seconds. OCR on
+         -- one photo may legitimately take minutes without changing
+         -- updated_at/progress. Never revoke a healthy worker's lease
+         -- just because it has not finished another batch of photos.
+         (scan_lease_at IS NOT NULL AND scan_lease_at < now()-interval '120 seconds')
+         -- Legacy jobs created before scan leases still need crash
+         -- recovery; give them a longer grace period.
+         OR (scan_lease_at IS NULL AND updated_at < now()-interval '300 seconds')
        )
      RETURNING id`,
   )
