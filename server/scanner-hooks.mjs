@@ -236,6 +236,7 @@ function compactCandidate(candidate) {
   return {
     source_url: sourceUrl,
     external_id: String(candidate?.external_id || '').slice(0, 200),
+    source_image_key: /^[A-Za-z0-9_-]{22}$/.test(String(candidate?.source_image_key || '')) ? String(candidate.source_image_key) : '',
     title: String(candidate?.title || '').trim().slice(0, 500),
     description: String(candidate?.description || '').trim().slice(0, 12000),
     sku: String(candidate?.sku || '').trim().slice(0, 200),
