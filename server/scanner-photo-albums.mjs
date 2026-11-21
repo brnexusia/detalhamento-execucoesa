@@ -13,6 +13,14 @@ const MAX_IMAGE_BYTES = 8 * 1024 * 1024
 const MAX_ALBUM_HTML_BYTES = 24 * 1024 * 1024
 const PHOTO_STAGE_BATCH_SIZE = 100
 const PHOTO_PROGRESS_INTERVAL = 10
+// Two bounded downloads/OCR calls can overlap network and Tesseract work.
+// Do not increase without measured CPU/RAM: each active image may spawn
+// multiple sequential OCR passes. Override with 1 on small VPS instances.
+export function photoImportConcurrency(value = process.env.SHOPVAX_GOOGLE_PHOTOS_CONCURRENCY) {
+  if (value === undefined || value === null || String(value).trim() === '') return 2
+  const count = Number(value)
+  return Number.isFinite(count) ? Math.max(1, Math.min(3, Math.trunc(count))) : 2
+}
 
 /**
  * Stable public-media identity. Album position can change when new photos
@@ -283,15 +291,40 @@ export async function collectSharedPhotos(sourceUrl, { request, onImage, onBatch
   let accepted = 0
   let skipped = 0
   let lastProgressReportAt = Date.now()
-  for (let i = 0; i < imageUrls.length; i += 1) {
-    if (accepted >= safeMax) break
-    let saved
-    try {
-      saved = await photoSaver(imageUrls[i], request, onImage, `foto-album-${String(i + 1).padStart(3, '0')}.webp`, readLabel)
-    } catch {
-      skipped += 1
-    }
-    if (saved) {
+  // Work on at most two public photos simultaneously by default, never on
+  // the entire 300-10k photo album at once. Persist each result in original
+  // album order to preserve photo indices, product IDs and stable price links.
+  // This overlaps image download, WebP encoding and OCR without altering the
+  // full-resolution OCR or falling back to guessed prices.
+  const concurrency = kind === 'google-photos' ? photoImportConcurrency() : 1
+  // A small sliding window keeps the two OCR workers busy even if one image
+  // needs 20 scans while its neighbor needs one. A strict two-image batch
+  // would unnecessarily wait for the slow image before starting the next.
+  // At most 16 finished records are retained before persistence.
+  const windowSize = concurrency * 8
+  for (let offset = 0; offset < imageUrls.length; offset += windowSize) {
+    const limit = Math.min(windowSize, imageUrls.length - offset)
+    const results = new Array(limit).fill(null)
+    let cursor = 0
+    await Promise.all(Array.from({ length: Math.min(concurrency, limit) }, async () => {
+      while (cursor < limit) {
+        const position = cursor++
+        const i = offset + position
+        try {
+          results[position] = await photoSaver(imageUrls[i], request, onImage,
+            `foto-album-${String(i + 1).padStart(3, '0')}.webp`, readLabel)
+        } catch {
+          // One unavailable photo is reported as skipped, never confused
+          // with a different item's image or price.
+          results[position] = null
+        }
+      }
+    }))
+    for (let position = 0; position < limit; position++) {
+      const i = offset + position
+      const saved = results[position]
+      if (!saved) skipped += 1
+      if (saved) {
       storedBytes += saved.bytes
       accepted += 1
       const ocr = saved.label || {}
@@ -331,6 +364,7 @@ export async function collectSharedPhotos(sourceUrl, { request, onImage, onBatch
     if ((i + 1) % PHOTO_PROGRESS_INTERVAL === 0 || now - lastProgressReportAt >= 15_000 || i + 1 === imageUrls.length) {
       await onProgress?.({ progress: Math.min(90, 10 + Math.round(80 * (i + 1) / imageUrls.length)), pagesScanned: 1, candidates: accepted, platform: kind })
       lastProgressReportAt = Date.now()
+    }
     }
   }
   // Flush the final partial batch before the job transitions to review.

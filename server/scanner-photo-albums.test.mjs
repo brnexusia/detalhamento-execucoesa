@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import sharp from 'sharp'
-import { collectSharedPhotos, googlePhotosImageUrls, googlePhotosDetailUrls, sharedPhotoSourceKind, MAX_ALBUM_ITEMS } from './scanner-photo-albums.mjs'
+import { collectSharedPhotos, googlePhotosImageUrls, googlePhotosDetailUrls, sharedPhotoSourceKind, MAX_ALBUM_ITEMS, photoImportConcurrency } from './scanner-photo-albums.mjs'
 
 const photoA = 'https://lh3.googleusercontent.com/pw/' + 'A'.repeat(90)
 const photoB = 'https://lh3.googleusercontent.com/pw/' + 'B'.repeat(90)
@@ -163,3 +163,72 @@ assert.ok(detailedStored.every(src=>src.includes('=w1200-h900')))
 assert.ok(detailed.candidates.every(item=>item.price===null && item.images[0].startsWith('/media/')))
 assert.deepEqual(googlePhotosDetailUrls(detailHtml,'https://photos.google.com/share/anotherAlbum?key=k'),[])
 console.log('[scanner albums] public photo-detail discovery and album boundary: ok')
+
+
+assert.equal(photoImportConcurrency(undefined),2,'parallel image OCR defaults to bounded 2')
+assert.equal(photoImportConcurrency('1'),1,'small VPS can fall back to sequential')
+assert.equal(photoImportConcurrency('3'),3)
+assert.equal(photoImportConcurrency('200'),3,'never allow unbounded Tesseract processes')
+assert.equal(photoImportConcurrency('not-a-number'),2)
+
+const parallelAlbum='https://photos.app.goo.gl/parallel-safe-test'
+const parallelUrls=Array.from({length:8},(_,i)=>
+  'https://lh3.googleusercontent.com/pw/' + ('A'+String(i).padStart(3,'0')).repeat(23) + '=w1600-h1600')
+const parallelHtml='<html><script>'+parallelUrls.join('\n')+'</script></html>'
+const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms))
+const parallelRun=async limit=>{
+  const original=process.env.SHOPVAX_GOOGLE_PHOTOS_CONCURRENCY
+  process.env.SHOPVAX_GOOGLE_PHOTOS_CONCURRENCY=String(limit)
+  const staged=[],progress=[]
+  let active=0,peak=0
+  try{
+    const began=Date.now()
+    const result=await collectSharedPhotos(parallelAlbum,{
+      request:async url=>{
+        assert.equal(url,parallelAlbum)
+        return {ok:true,status:200,url:'https://photos.google.com/share/parallel-safe-test',
+          contentType:'text/html',body:parallelHtml}
+      },
+      onImage:async()=>{throw Error('stubbed photoSaver must not call onImage')},
+      photoSaver:async(url,_request,_onImage,filename)=>{
+        const index=parallelUrls.indexOf(url)
+        assert.ok(index>=0)
+        active++
+        peak=Math.max(peak,active)
+        try{
+          // Deliberately finish the second item first. The saved review
+          // product list MUST remain in source album order.
+          await delay(index%2===0?25:5)
+          if(index===4)throw Error('one photo unavailable')
+          return {
+            url:'/media/test-'+(index+1),
+            bytes:1000,
+            label:{title:'Brinco '+(index+1),price:index+1,pack:'1 peça'},
+          }
+        }finally{active--}
+      },
+      onBatch:async rows=>staged.push(...rows),
+      onProgress:async event=>progress.push(event),
+      collectInMemory:false,
+    })
+    assert.equal(result.candidateCount,7)
+    assert.equal(result.skipped,1)
+    assert.deepEqual(staged.map(x=>x.external_id),[1,2,3,4,6,7,8].map(n=>'foto-'+String(n).padStart(4,'0')))
+    assert.deepEqual(staged.map(x=>x.price),[1,2,3,4,6,7,8])
+    assert.deepEqual(staged.map(x=>x.images[0]),[1,2,3,4,6,7,8].map(n=>'/media/test-'+n))
+    assert.ok(staged.every(x=>x.source_image_key.length===22),
+      'photo source identity must stay attached to its original photo')
+    assert.equal(progress.at(-1).progress,95)
+    assert.ok(progress.every((x,i)=>i===0||x.progress>=progress[i-1].progress),
+      'progress must not regress even with out-of-order completions')
+    return {peak,elapsedMs:Date.now()-began}
+  }finally{
+    if(original===undefined)delete process.env.SHOPVAX_GOOGLE_PHOTOS_CONCURRENCY
+    else process.env.SHOPVAX_GOOGLE_PHOTOS_CONCURRENCY=original
+  }
+}
+const serial=await parallelRun(1)
+const parallel=await parallelRun(2)
+assert.equal(serial.peak,1)
+assert.equal(parallel.peak,2)
+console.log('[scanner albums] bounded parallelism benchmark, simulated network/OCR only:',JSON.stringify({serial,parallel}))
