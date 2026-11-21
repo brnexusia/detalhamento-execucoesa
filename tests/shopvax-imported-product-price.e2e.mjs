@@ -29,7 +29,7 @@ try {
   })))
   await page.route('**/api/admin/catalogs',route=>route.fulfill(json({catalogs:[general],canCreateMultiple:true})))
   await page.route('**/api/admin/products/categories**',route=>route.fulfill(json({
-    catalogId:general.id,total:products.length,categories:[{category:'Geral',count:products.length}],
+    catalogId:general.id,total:products.length,categories:[{category:'Geral',count:products.length},{category:'Colar',count:4},{category:'Brincos',count:3}],
   })))
   await page.route('**/api/admin/products?*',route=>route.fulfill(json({
     products:products.map(p=>({...p})),pagination:{page:1,limit:18,total:products.length},
@@ -48,6 +48,7 @@ try {
     assert.ok(item,'Apenas produtos conhecidos da SW podem ser editados')
     const body=route.request().postDataJSON()
     submitted.push(body)
+    item.category=body.category||'Geral'
     item.price=body.price
     item.variations=body.variations
     item.variant_prices=body.variantPrices
@@ -64,10 +65,16 @@ try {
   const activePrice=editor.getByLabel('Preço exibido neste catálogo (R$)')
   assert.equal(await activePrice.inputValue(),'129.9','Editor precisa mostrar o preço da lista')
   assert.equal(await editor.getByLabel('Preço base (R$)').inputValue(),'89.9')
+  await editor.getByRole('button',{name:/Categoria Geral/}).click()
+  const categorySearch=editor.getByLabel('Buscar categoria')
+  await categorySearch.fill('CÓLAR')
+  await editor.getByRole('button',{name:'Colar',exact:true}).click()
+  assert.equal(await editor.locator('.svx-category-trigger').innerText(),'Colar')
   await activePrice.fill('109.9')
   await editor.getByRole('button',{name:'Salvar produto'}).click()
   await editor.waitFor({state:'hidden'})
   await page.waitForFunction(()=>document.querySelector('.product-admin-card')?.textContent?.includes('109,90'),{timeout:15000})
+  assert.equal(submitted[0]?.category,'Colar')
   assert.equal(submitted[0]?.catalogId,general.id)
   assert.equal(submitted[0]?.catalogPrice,109.9)
   assert.equal(submitted[0]?.price,89.9,'Editar catálogo não pode alterar preço base sem solicitação')
@@ -82,6 +89,10 @@ try {
   const secondEditor=page.locator('.editor-modal')
   const secondPrice=secondEditor.getByLabel('Preço exibido neste catálogo (R$)')
   assert.equal(await secondPrice.inputValue(),'79.9')
+  await secondEditor.getByRole('button',{name:/Categoria Geral/}).click()
+  await secondEditor.getByLabel('Buscar categoria').fill('Colarr')
+  await secondEditor.getByText('Você quis dizer?').waitFor()
+  await secondEditor.getByRole('button',{name:'Colar',exact:true}).click()
   await secondPrice.fill('69.9')
   await secondEditor.getByRole('button',{name:'Salvar produto'}).click()
   await secondEditor.waitFor({state:'hidden'})

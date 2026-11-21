@@ -1,4 +1,5 @@
 import { normalizeVariantPrices, resolvedVariantPrices, variantUnitPrice } from './variant-pricing.mjs'
+import { installProductCategorySchema } from './product-category-schema.mjs'
 import { installProductBulkJobs } from './product-bulk-jobs.mjs'
 import { requiresPaymentForSignup } from './signup-billing-mode.mjs'
 import { ensureReferralSchema, captureReferral } from './referral-program-core.mjs'
@@ -177,6 +178,7 @@ async function initDb() {
   initPromise = (async () => {
     try {
       await pool.query(schema)
+      await installProductCategorySchema(pool)
       dbReady = true
       dbError = null
       return true

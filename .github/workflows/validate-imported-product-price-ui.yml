@@ -11,6 +11,9 @@ on:
     paths:
       - 'src/AdminApp.tsx'
       - 'src/ProductPriceEditor.tsx'
+      - 'src/ProductCategoryPicker.tsx'
+      - 'src/product-category-utils.ts'
+      - 'src/product-category-picker.css'
       - 'src/product-price-editor.css'
       - 'src/PublicStoreV2.tsx'
       - 'src/variant-pricing.ts'
