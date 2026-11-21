@@ -42,6 +42,24 @@ const NON_PUBLIC = new Set([
   'perfil','favicon.svg'
 ])
 const plain = (value, fallback = '') => String(value || fallback).replace(/\s+/g, ' ').trim().slice(0, 220)
+
+/**
+ * Rotas SPA internas não são slugs de lojas. Mantê-las em 200 (noindex)
+ * mesmo com PostgreSQL ativo evita que o HTML exiba 404 enquanto React
+ * desenha páginas legítimas como /buscar ou /parceiros/cadastro.
+ * Não usar prefixos genéricos: slugs inexistentes continuam respondendo 404.
+ */
+const BUYER_SPA_PATHS = new Set(['/feed', '/descobrir', '/buscar', '/salvos', '/carrinhos'])
+export function isClientSpaPage(pathname) {
+  return BUYER_SPA_PATHS.has(pathname) || pathname === '/parceiros' ||
+    /^\/parceiros\/[a-z0-9-]+(?:\/[a-z0-9-]+)*$/i.test(pathname)
+}
+
+/** Loja ilustrativa hardcoded do marketing; não é uma loja no banco. */
+export function isDemoStorePage(pathname) {
+  return pathname === '/casa-norte' || pathname === '/casa-norte/marina' ||
+    pathname === '/casa-norte/bianca'
+}
 // Human-readable summaries based on real public page data; never stuff synonyms or
 // infer an address, discounts, availability, reviews or store category.
 function seoSummary(value) {
@@ -66,7 +84,7 @@ const base = (status = 200) => ({
   description: 'Descubra lojas, explore produtos e organize pedidos diretamente pelo WhatsApp no Shopvax.',
   url: SITE + '/', status, index: status === 200, image: '', schema: null, headline: '', excerpt: '',
 })
-async function metadataFor(req) {
+export async function metadataFor(req) {
   const url = new URL(req.originalUrl || '/', SITE)
   const pathname = url.pathname.replace(/\/+$/, '') || '/'
   const parts = pathname.split('/').filter(Boolean)
@@ -91,6 +109,19 @@ async function metadataFor(req) {
     meta.headline = 'Seu catálogo digital com pedidos pelo WhatsApp'
     meta.excerpt = meta.description
     return meta
+  }
+  if (isClientSpaPage(pathname)) {
+    const titleByPath = {
+      '/feed': 'Descobrir', '/descobrir': 'Descobrir',
+      '/buscar': 'Buscar', '/salvos': 'Salvos', '/carrinhos': 'Carrinhos',
+    }
+    meta.title = (titleByPath[pathname] || 'Portal de parceiros') + ' · Shopvax'
+    return { ...meta, status: 200, index: false }
+  }
+  if (isDemoStorePage(pathname)) {
+    meta.title = 'Casa Norte · Loja demonstrativa | Shopvax'
+    meta.description = 'Demonstração ilustrativa de catálogo, grades e carrinho no Shopvax. Os produtos e a loja apresentados são exemplos.'
+    return { ...meta, status: 200, index: false }
   }
   if (parts[0] === 'perfil' && parts.length !== 2) return { ...meta, status: 404, index: false }
   const profile = parts[0] === 'perfil' && parts.length === 2
