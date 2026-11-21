@@ -1,0 +1,16 @@
+
+.editor-modal .svx-category-picker{display:grid;gap:6px;min-width:0;position:relative;align-content:start}
+.editor-modal .svx-category-picker>label{font-size:.85rem;font-weight:600}
+.editor-modal .svx-category-trigger,.editor-modal .svx-category-search{display:flex;gap:8px;align-items:center;min-width:0;min-height:42px;box-sizing:border-box;border:1px solid #a0a0a080;border-radius:8px;padding:9px 10px;background:transparent;color:inherit;font:inherit;text-align:left}
+.editor-modal .svx-category-trigger{justify-content:space-between;cursor:pointer}
+.editor-modal .svx-category-trigger span,.editor-modal .svx-category-option span{overflow-wrap:anywhere;min-width:0}
+.editor-modal .svx-category-panel{display:grid;gap:8px;border:1px solid #a0a0a080;border-radius:8px;padding:8px;min-width:0}
+.editor-modal .svx-category-search{min-height:40px;padding:4px 7px}
+.editor-modal .svx-category-search input{border:0;background:transparent;color:inherit;min-width:0;width:100%;padding:4px 0;box-shadow:none;font:inherit}
+.editor-modal .svx-category-options{display:grid;max-height:180px;overflow-y:auto;gap:2px}
+.editor-modal .svx-category-option,.editor-modal .svx-category-create{display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;color:inherit;background:transparent;border:0;border-radius:6px;padding:9px 6px;font:inherit;cursor:pointer;min-height:40px;width:100%;box-sizing:border-box}
+.editor-modal .svx-category-option:hover,.editor-modal .svx-category-option:focus-visible,.editor-modal .svx-category-create:hover{background:color-mix(in srgb,currentColor 8%,transparent)}
+.editor-modal .svx-category-create{justify-content:flex-start;border-top:1px solid #a0a0a055;font-size:.85rem;font-weight:600}
+.editor-modal .svx-category-panel p,.editor-modal .svx-category-panel small{margin:0;font-size:.76rem;line-height:1.4;opacity:.85}
+.editor-modal .svx-category-suggestions{border-top:1px solid #a0a0a055;padding-top:6px}
+@media(max-width:460px){.editor-modal .svx-category-search input{font-size:16px}}
