@@ -4,6 +4,8 @@ on:
     branches: [main]
     paths:
       - 'src/AdminApp.tsx'
+      - 'src/ProductCategoryPicker.tsx'
+      - 'src/product-category-picker.css'
       - 'tests/shopvax-imported-product-price.e2e.mjs'
       - '.github/workflows/validate-imported-product-price-ui.yml'
   pull_request:
