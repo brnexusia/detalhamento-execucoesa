@@ -1,3 +1,4 @@
+import { variantUnitPrice, priceLabel } from './variant-pricing'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, Check, Minus, Plus, ShoppingBag, X } from 'lucide-react'
 import BuyerWhatsappLogin from './BuyerWhatsappLogin'
@@ -103,11 +104,11 @@ export default function SocialShopping({storeSlug,storeName,productId,initialCar
     if(!offerData||!offer)return
     for(const v of offerData.product.variations||[])if(!selections[v.name]){setError('Escolha '+v.name.toLowerCase()+'.');return}
     const p=offerData.product
-    const line:CartLine={key:lineKey(p.id,selections),productId:p.id,name:p.name,sku:p.sku,quantity,price:offer.price,selections:{...selections},image:p.images?.[0]||'',unitsPerBox:offer.unitsPerBox}
+    const line:CartLine={key:lineKey(p.id,selections),productId:p.id,name:p.name,sku:p.sku,quantity,price:variantUnitPrice(offer,selections),selections:{...selections},image:p.images?.[0]||'',unitsPerBox:offer.unitsPerBox}
     const previous=readCart(storeSlug,offer.slug)
     const items=previous?.items||[]
     const found=items.find(i=>i.key===line.key)
-    persistCart(storeSlug,{catalog:offer,items:found?items.map(i=>i.key===line.key?{...i,quantity:i.quantity+quantity,price:offer.price}:i):[...items,line]})
+    persistCart(storeSlug,{catalog:offer,items:found?items.map(i=>i.key===line.key?{...i,quantity:i.quantity+quantity,price:variantUnitPrice(offer,selections)}:i):[...items,line]})
     reloadCart();setCatalogSlug(offer.slug);setStep('cart');setError('')
   }
   const changeQty=(key:string,delta:number)=>{
@@ -146,7 +147,7 @@ export default function SocialShopping({storeSlug,storeName,productId,initialCar
         if(!response.ok)throw Error(data.error||'Não foi possível validar o preço.')
         const match=(data.offers as Offer[]).find(o=>o.slug===activeCart.catalog.slug)
         if(!match)throw Error(line.name+' não está mais disponível neste catálogo.')
-        refreshed.push({...line,price:match.price,unitsPerBox:match.unitsPerBox})
+        refreshed.push({...line,price:variantUnitPrice(match,line.selections),unitsPerBox:match.unitsPerBox})
       }
       if(refreshed.some((x,i)=>x.price!==activeCart.items[i].price||x.unitsPerBox!==activeCart.items[i].unitsPerBox)){
         persistCart(storeSlug,{...activeCart,items:refreshed});reloadCart();setStep('cart')
@@ -188,14 +189,14 @@ export default function SocialShopping({storeSlug,storeName,productId,initialCar
           {offerData.product.description&&<p className="svx-social-shop-description">{offerData.product.description}</p>}
           <p className="svx-social-shop-label">{ownerPreview?'Preços cadastrados na sua loja':'Como deseja comprar?'}</p>
           <div className="svx-social-offers">{offerData.offers.map(x=><button type="button" key={x.id} className={offer.slug===x.slug?'is-selected':''} onClick={()=>selectOffer(x)}>
-            <span><strong>{x.name}</strong><small>{x.kind==='caixa_fechada'?'Caixa fechada':x.kind==='atacado'?'Atacado':x.kind==='varejo'?'Varejo':x.kind==='personalizado'?x.customLabel||'Personalizado':'Catálogo da loja'}</small></span><b>{money.format(x.price)}</b>
+            <span><strong>{x.name}</strong><small>{x.kind==='caixa_fechada'?'Caixa fechada':x.kind==='atacado'?'Atacado':x.kind==='varejo'?'Varejo':x.kind==='personalizado'?x.customLabel||'Personalizado':'Catálogo da loja'}</small></span><b>{priceLabel(x,offerData.product.variations,money,selections)}</b>
           </button>)}</div>
           {offer.unitsPerBox>1&&<p className="svx-social-shop-hint">1 caixa contém {offer.unitsPerBox} unidades. O preço exibido é por caixa.</p>}
           <p className="svx-social-shop-hint">Pedido mínimo neste catálogo: {money.format(offer.minimumOrder)}</p>
           {ownerPreview&&<div className="svx-social-owner-preview" role="status">Visualização do lojista. Você pode conferir os preços dos seus catálogos sem cadastrar um WhatsApp. Pedidos exigem uma conta de comprador verificada.</div>}
           {!ownerPreview&&(offerData.product.variations||[]).map(v=><div key={v.name} className="svx-social-shop-field"><strong>{v.name}</strong><div className="svx-social-options">{v.options.map(o=><button type="button" key={o} className={selections[v.name]===o?'is-selected':''} onClick={()=>{setSelections(s=>({...s,[v.name]:o}));setError('')}}>{o}</button>)}</div></div>)}
           {!ownerPreview&&<div className="svx-social-qty"><span>Quantidade {offer.unitsPerBox>1?'de caixas':'de itens'}</span><div><button type="button" aria-label="Diminuir" onClick={()=>setQuantity(n=>Math.max(1,n-1))}><Minus size={16}/></button><strong>{quantity}</strong><button type="button" aria-label="Aumentar" onClick={()=>setQuantity(n=>Math.min(999,n+1))}><Plus size={16}/></button></div></div>}
-          {!ownerPreview&&<button className="svx-social-shop-primary" onClick={addItem}><ShoppingBag size={18}/> Adicionar · {money.format(offer.price*quantity)}</button>}
+          {!ownerPreview&&<button className="svx-social-shop-primary" onClick={addItem}><ShoppingBag size={18}/> Adicionar · {money.format(variantUnitPrice(offer,selections)*quantity)}</button>}
           {!ownerPreview&&<button className="svx-social-shop-secondary" disabled={busy} onClick={()=>void askSeller()}>{busy?'Abrindo…':'Perguntar à vendedora'}</button>}
         </>}
         {step==='cart'&&<>

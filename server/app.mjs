@@ -1,3 +1,4 @@
+import { normalizeVariantPrices, resolvedVariantPrices, variantUnitPrice } from './variant-pricing.mjs'
 import { installProductBulkJobs } from './product-bulk-jobs.mjs'
 import { requiresPaymentForSignup } from './signup-billing-mode.mjs'
 import { ensureReferralSchema, captureReferral } from './referral-program-core.mjs'
@@ -158,6 +159,7 @@ ALTER TABLE stores ADD COLUMN IF NOT EXISTS plan_tier text NOT NULL DEFAULT 'bro
 ALTER TABLE stores ADD COLUMN IF NOT EXISTS signup_plan_selected_at timestamptz;
 ALTER TABLE stores ADD COLUMN IF NOT EXISTS onboarding_palette_selected boolean NOT NULL DEFAULT false;
 ALTER TABLE stores ADD COLUMN IF NOT EXISTS seasonal_theme text NOT NULL DEFAULT 'padrao';
+ALTER TABLE products ADD COLUMN IF NOT EXISTS variant_prices jsonb;
 ALTER TABLE products ADD COLUMN IF NOT EXISTS retail_price numeric(12,2);
 ALTER TABLE products ADD COLUMN IF NOT EXISTS box_price numeric(12,2);
 ALTER TABLE products ADD COLUMN IF NOT EXISTS units_per_box integer;
@@ -353,6 +355,7 @@ function publicStoreShape(store, seller, products) {
       mediaType: product.media_type,
       pack: product.pack,
       variations: product.variations || [],
+      variantPrices: resolvedVariantPrices(product),
       featured: product.featured,
     })),
   }
@@ -825,6 +828,8 @@ app.post(
   asyncRoute(async (req, res) => {
     const store = await pool.query('SELECT id,plan_tier FROM stores WHERE owner_id=$1 LIMIT 1', [req.user.id])
     const price = toMoney(req.body?.price)
+    let variantPrices = null
+    try { variantPrices = normalizeVariantPrices(req.body?.variantPrices, normalizeVariations(req.body?.variations)) } catch (error) { return res.status(400).json({ error: error.message }) }
     const retailPrice = req.body?.retailPrice == null || req.body.retailPrice === '' ? null : toMoney(req.body.retailPrice)
     const boxPrice = req.body?.boxPrice == null || req.body.boxPrice === '' ? null : toMoney(req.body.boxPrice)
     const unitsPerBox = req.body?.unitsPerBox == null || req.body.unitsPerBox === '' ? null : Number(req.body.unitsPerBox)
@@ -847,8 +852,8 @@ app.post(
       await client.query('BEGIN')
       const result = await client.query(
       `INSERT INTO products
-       (id,store_id,sku,name,description,price,category,media_url,media_type,pack,variations,featured,active,retail_price,box_price,units_per_box)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+       (id,store_id,sku,name,description,price,category,media_url,media_type,pack,variations,featured,active,retail_price,box_price,units_per_box,variant_prices)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
        RETURNING *`,
       [
         id(),
@@ -867,6 +872,7 @@ app.post(
         retailPrice,
         boxPrice,
         unitsPerBox,
+        variantPrices == null ? null : JSON.stringify(variantPrices),
       ],
     )
     if(catalogId){
@@ -914,6 +920,8 @@ app.put(
     if (!store.rowCount) return res.status(404).json({ error: 'Loja não encontrada.' })
 
     const price = toMoney(req.body?.price)
+    let variantPrices = null
+    try { variantPrices = normalizeVariantPrices(req.body?.variantPrices, normalizeVariations(req.body?.variations)) } catch (error) { return res.status(400).json({ error: error.message }) }
     const retailPrice = req.body?.retailPrice == null || req.body.retailPrice === '' ? null : toMoney(req.body.retailPrice)
     const boxPrice = req.body?.boxPrice == null || req.body.boxPrice === '' ? null : toMoney(req.body.boxPrice)
     const unitsPerBox = req.body?.unitsPerBox == null || req.body.unitsPerBox === '' ? null : Number(req.body.unitsPerBox)
@@ -956,7 +964,8 @@ app.put(
          SET sku=$1,name=$2,description=$3,price=$4,category=$5,media_url=$6,media_type=$7,pack=$8,variations=$9,featured=$10,active=$11,
          retail_price=CASE WHEN $14::boolean THEN $15 ELSE retail_price END,
          box_price=CASE WHEN $16::boolean THEN $17 ELSE box_price END,
-         units_per_box=CASE WHEN $18::boolean THEN $19 ELSE units_per_box END,updated_at=now()
+         units_per_box=CASE WHEN $18::boolean THEN $19 ELSE units_per_box END,
+         variant_prices=CASE WHEN $20::boolean THEN $21::jsonb ELSE variant_prices END,updated_at=now()
          WHERE id=$12 AND store_id=$13
          RETURNING *`,
         [
@@ -976,6 +985,7 @@ app.put(
           Object.hasOwn(req.body || {}, 'retailPrice'), retailPrice,
           Object.hasOwn(req.body || {}, 'boxPrice'), boxPrice,
           Object.hasOwn(req.body || {}, 'unitsPerBox'), unitsPerBox,
+          Object.hasOwn(req.body || {}, 'variantPrices'), variantPrices == null ? null : JSON.stringify(variantPrices),
         ],
       )
       if (!result.rowCount) {
@@ -1223,7 +1233,7 @@ app.post(
         selections[group.name] = selected
       }
 
-      const unitPrice = Number(product.price)
+      const unitPrice = variantUnitPrice(product, selections)
       const lineTotal = unitPrice * quantity
       total += lineTotal
       items.push({

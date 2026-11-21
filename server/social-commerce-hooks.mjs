@@ -1,3 +1,4 @@
+import { resolvedVariantPrices } from './variant-pricing.mjs'
 import crypto from 'node:crypto'
 import express from 'express'
 import pg from 'pg'
@@ -65,6 +66,7 @@ function productShape(row) {
     name: row.name,
     description: row.description,
     price: Number(row.public_price ?? row.price),
+    variantPrices: resolvedVariantPrices(row),
     category: row.category,
     mediaUrl: row.media_url || images[0] || '',
     mediaType: row.media_type === 'video' ? 'video' : 'image',
