@@ -8,6 +8,11 @@ export function categoryLabel(value: string) {
     ? label.charAt(0).toLocaleUpperCase('pt-BR')+label.slice(1).toLocaleLowerCase('pt-BR') : label
 }
 function distance(a:string,b:string) {
+  // Adjacent switched letters are another common typo (e.g. cloar).
+  if(a.length===b.length){
+    const differences=Array.from({length:a.length},(_,i)=>i).filter(i=>a[i]!==b[i])
+    if(differences.length===2&&differences[1]===differences[0]+1&&a[differences[0]]===b[differences[1]]&&a[differences[1]]===b[differences[0]])return 1
+  }
   let before=Array.from({length:b.length+1},(_,i)=>i)
   for(let i=1;i<=a.length;i++){
     const row=[i]

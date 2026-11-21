@@ -27,13 +27,13 @@ export default function ProductCategoryPicker({value,onChange}:{value:string;onC
     document.addEventListener('pointerdown',close)
     return ()=>document.removeEventListener('pointerdown',close)
   },[open])
-  const options=Array.from(new Set(['Geral',...names,...(value?[value]:[])]))
+  const options=Array.from(new Set(['Geral',...(value?[value]:[]),...names]))
   const {exact,matches,similar}=categoryMatches(options,query)
   const proposed=categoryLabel(query)
   const choose=(name:string)=>{onChange(name);setOpen(false);setQuery('');setConfirmedSimilar(false);trigger.current?.focus()}
   const openPicker=()=>{
     if(open){setOpen(false);return}
-    setQuery('');setConfirmedSimilar(false);setOpen(true);if(status!=='ready')load()
+    setQuery('');setConfirmedSimilar(false);setOpen(true);load()
   }
   const option=(name:string)=><button type="button" key={name} className="svx-category-option" onClick={()=>choose(name)}><span>{name}</span>{categoryKey(name)===categoryKey(value||'Geral')&&<Check size={16} aria-label="Selecionada"/>}</button>
   return <div ref={root} className="svx-category-picker" onKeyDown={e=>{if(e.key==='Escape'&&open){e.stopPropagation();setOpen(false);trigger.current?.focus()} }}>

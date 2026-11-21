@@ -47,8 +47,8 @@ BEGIN
   END IF;
   NEW.category := canonical_name;
   RETURN NEW;
-END
-$$;
+END;
+$;
 DO $migration$
 BEGIN
   IF NOT EXISTS(SELECT 1 FROM pg_trigger WHERE tgrelid='products'::regclass AND tgname='shopvax_canonical_category' AND NOT tgisinternal) THEN
@@ -71,7 +71,7 @@ BEGIN
       BEFORE INSERT OR UPDATE OF category,store_id ON products
       FOR EACH ROW EXECUTE FUNCTION shopvax_canonicalize_product_category();
   END IF;
-END
+END;
 $migration$;
 `
 export async function installProductCategorySchema(pool) {

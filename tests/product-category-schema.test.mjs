@@ -11,6 +11,7 @@ assert.equal(categoryKey('  CÓLAR  '),'colar')
 assert.equal(categoryLabel('  COLAR  '),'Colar')
 assert.equal(categoryMatches(['Colar','Brincos'],'Cólar').exact,'Colar')
 assert.deepEqual(categoryMatches(['Colar','Brincos'],'Colarr').similar,['Colar'])
+assert.deepEqual(categoryMatches(['Colar','Brincos'],'Cloar').similar,['Colar'])
 const pool=new pg.Pool({connectionString:url})
 try {
  await pool.query(`CREATE TABLE stores(id text PRIMARY KEY);
