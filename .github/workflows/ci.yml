@@ -136,7 +136,7 @@ jobs:
       - name: Scanner module 7 dedicated collectors
         run: node server/scanner-module7-dedicated.test.mjs
       - name: Product polish regression checks
-        run: npm run test:polish
+        run: npm run test:polish && node --test server/variant-pricing.test.mjs
       - name: Imported media localization regression checks
         run: node server/import-media-localizer.test.mjs
       - name: Scanner images staged before publish
