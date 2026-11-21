@@ -32,7 +32,8 @@ export default function ProductCategoryPicker({value,onChange}:{value:string;onC
   useEffect(()=>{
     if(!open)return
     if(mode==='create')nameInput.current?.focus()
-    else search.current?.focus()
+    else if(!window.matchMedia('(max-width: 600px)').matches)search.current?.focus()
+    else dialog.current?.querySelector<HTMLButtonElement>('[aria-label="Fechar categorias"]')?.focus()
   },[open,mode])
   const close=()=>{
     dialog.current?.close()
