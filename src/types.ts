@@ -1,3 +1,4 @@
+export type VariantPrices = { group: string; prices: Record<string, number> }
 export type VariationGroup = {
   name: string
   options: string[]
@@ -32,6 +33,7 @@ export type Product = {
   mediaType: 'image' | 'video'
   images?: string[]
   variantImages?: VariantImageGroup[]
+  variantPrices?: VariantPrices | null
   pack?: string
   unitsPerBox?: number
   variations: VariationGroup[]
@@ -96,6 +98,7 @@ export type AdminProduct = {
   media_type: 'image' | 'video'
   images?: string[]
   variant_images?: VariantImageGroup[]
+  variant_prices?: VariantPrices | null
   pack: string
   variations: VariationGroup[]
   featured: boolean

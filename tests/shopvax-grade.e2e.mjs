@@ -41,6 +41,25 @@ try{
    console.log('PASS_GRADE',width,height)
    success+=1
    await page.close()
+   const multi=await browser.newPage({viewport:{width,height}})
+   const packages={...product,id:'pack-01',name:'Produto por embalagem',price:5,stockEnabled:false,variations:[{name:'Embalagem',options:['Unidade','Pacote 6 un.','Caixa fechada']}],variantPrices:{group:'Embalagem',prices:{Unidade:5,'Pacote 6 un.':27,'Caixa fechada':96}}}
+   await multi.route('**/api/public/store/**',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({...payload,products:[packages]})}))
+   await multi.route('**/api/public/events',r=>r.fulfill({status:204,body:''}))
+   await multi.goto('http://127.0.0.1:5173/sw-moda')
+   assert.match(await multi.locator('.product-card__footer').innerText(),/A partir de.*5,00/)
+   await multi.locator('.product-card__media').click()
+   assert.equal(await multi.locator('.picker-add').isDisabled(),true)
+   const pack=multi.getByRole('button',{name:/Pacote 6 un.*27,00/})
+   await pack.click()
+   assert.equal(await pack.getAttribute('aria-pressed'),'true')
+   assert.match(await multi.locator('.picker-add').innerText(),/27,00/)
+   await multi.getByRole('button',{name:'Aumentar quantidade'}).click()
+   assert.match(await multi.locator('.picker-add').innerText(),/54,00/)
+   await multi.locator('.picker-add').click()
+   await multi.locator('.product-picker').waitFor({state:'detached'})
+   await multi.locator('.cart-trigger').click()
+   assert.match(await multi.locator('.cart-total').innerText(),/54,00/)
+   await multi.close()
  }
 }finally{await browser.close()}
 console.log('SHOPVAX_GRADE_CHECKS_PASSED',success)

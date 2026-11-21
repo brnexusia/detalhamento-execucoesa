@@ -6,6 +6,17 @@ on:
       - 'src/AdminApp.tsx'
       - 'tests/shopvax-imported-product-price.e2e.mjs'
       - '.github/workflows/validate-imported-product-price-ui.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/AdminApp.tsx'
+      - 'src/ProductPriceEditor.tsx'
+      - 'src/product-price-editor.css'
+      - 'src/PublicStoreV2.tsx'
+      - 'src/variant-pricing.ts'
+      - 'tests/shopvax-imported-product-price.e2e.mjs'
+      - 'tests/shopvax-grade.e2e.mjs'
+      - '.github/workflows/validate-imported-product-price-ui.yml'
   workflow_dispatch:
 permissions:
   contents: read
@@ -32,7 +43,9 @@ jobs:
           done
           tail -120 /tmp/shopvax-ui-test.log
           exit 1
-      - name: Edit two imported SW prices and reload their catalog
+      - name: Validate pricing editor, legacy catalog prices, and mobile layout
         run: node tests/shopvax-imported-product-price.e2e.mjs
+      - name: Validate buyer selection and grade prices
+        run: node tests/shopvax-grade.e2e.mjs
       - if: failure()
         run: tail -150 /tmp/shopvax-ui-test.log || true

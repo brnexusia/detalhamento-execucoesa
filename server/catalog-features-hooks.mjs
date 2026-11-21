@@ -1,3 +1,4 @@
+import { resolvedVariantPrices, variantUnitPrice } from './variant-pricing.mjs'
 import crypto from 'node:crypto'
 import express from 'express'
 import pg from 'pg'
@@ -116,6 +117,7 @@ async function ensureSchema() {
     );
     CREATE INDEX IF NOT EXISTS idx_catalog_products_visible ON catalog_products(catalog_id,visible,product_id);
     ALTER TABLE products ADD COLUMN IF NOT EXISTS images jsonb NOT NULL DEFAULT '[]'::jsonb;
+    ALTER TABLE products ADD COLUMN IF NOT EXISTS variant_prices jsonb;
     ALTER TABLE products ADD COLUMN IF NOT EXISTS retail_price numeric(12,2);
     ALTER TABLE products ADD COLUMN IF NOT EXISTS box_price numeric(12,2);
     ALTER TABLE products ADD COLUMN IF NOT EXISTS units_per_box integer;
@@ -460,6 +462,7 @@ function publicProduct(product, catalog) {
     name: product.name,
     description: product.description,
     price: Number(product.public_price ?? product.price),
+    variantPrices: resolvedVariantPrices(product),
     category: product.category,
     mediaUrl: product.media_url || images[0] || '',
     mediaType: product.media_type,
@@ -630,7 +633,7 @@ async function socialProductOffers(req, res) {
     ownerPreview,
     offers: available.rows.map(c => ({
       id:c.id, slug:c.slug, name:c.name, kind:c.kind, customLabel:c.custom_label||'', priceMode:c.price_mode||'base',
-      price:Number(c.public_price), minimumOrder:c.minimum_order == null ? Number(p.store_minimum_order || 0) : Number(c.minimum_order),
+      price:Number(c.public_price), variantPrices:resolvedVariantPrices(p,c.public_price), minimumOrder:c.minimum_order == null ? Number(p.store_minimum_order || 0) : Number(c.minimum_order),
       unitsPerBox:isBoxCatalog(c) ? Math.max(1,Number(p.units_per_box || 1)) : 1
     }))
   })
@@ -717,7 +720,7 @@ async function createCatalogOrder(req, res) {
       const stockUnits = quantity * unitsPerBox
       const stock = availableStock(product, selections)
       if (stock < stockUnits) { await client.query('ROLLBACK'); return res.status(409).json({ error: stock <= 0 ? `${product.name} está sem estoque.` : `Restam apenas ${stock} unidade(s) de ${product.name} nessa variação.` }) }
-      const unitPrice = Number(product.public_price)
+      const unitPrice = variantUnitPrice(product, selections)
       const lineTotal = toMoney(unitPrice * quantity)
       total += lineTotal
       items.push({ productId: product.id, sku: product.sku, name: product.name, quantity, unitPrice, lineTotal, selections, stockKey: variantKey(selections), catalogId: catalog.id, stockUnits, unitsPerBox })

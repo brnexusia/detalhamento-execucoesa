@@ -109,6 +109,25 @@ try {
     updatePayload(99.9,{catalogId:general.id,catalogPrice:-10}))
   assert.equal(response.status,400,'Preço negativo não é permitido')
   assert.equal((await getPrice(owner.cookie,general.id)).catalogPrice,109.9)
+  // Variant prices survive edits and remain compatible with legacy clients.
+  const variations = [{name:'Tamanho',options:['P','M','G']}]
+  const variantPrices = {group:'Tamanho',prices:{P:50,M:75}}
+  response = await request(owner.cookie,'/api/admin/products/'+productId,'PUT',
+    updatePayload(100,{variations,variantPrices,catalogId:general.id,catalogPrice:100}))
+  assert.equal(response.status,200,JSON.stringify(response.json))
+  assert.deepEqual((await getPrice(owner.cookie,general.id)).variant_prices,variantPrices)
+  response = await request(owner.cookie,'/api/admin/products/'+productId,'PUT',
+    updatePayload(100,{variations}))
+  assert.equal(response.status,200,JSON.stringify(response.json))
+  assert.deepEqual((await getPrice(owner.cookie,general.id)).variant_prices,variantPrices)
+  response = await request(owner.cookie,'/api/admin/products/'+productId,'PUT',
+    updatePayload(100,{variations,variantPrices:{group:'Tamanho',prices:{P:-1}}}))
+  assert.equal(response.status,400)
+  assert.deepEqual((await getPrice(owner.cookie,general.id)).variant_prices,variantPrices)
+  response = await request(owner.cookie,'/api/admin/products/'+productId,'PUT',
+    updatePayload(100,{variations,variantPrices:null}))
+  assert.equal(response.status,200,JSON.stringify(response.json))
+  assert.equal((await getPrice(owner.cookie,general.id)).variant_prices,null)
   console.log('SHOPVAX_IMPORTED_CATALOG_PRICE_SAVE_AND_TENANT_ISOLATION_PASS')
 } finally {
   for (const userId of users.reverse()) {

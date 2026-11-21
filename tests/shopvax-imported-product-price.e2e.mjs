@@ -49,6 +49,8 @@ try {
     const body=route.request().postDataJSON()
     submitted.push(body)
     item.price=body.price
+    item.variations=body.variations
+    item.variant_prices=body.variantPrices
     if(body.catalogPrice!==undefined)item.catalogPrice=body.catalogPrice
     return route.fulfill(json({product:item}))
   })
@@ -84,6 +86,27 @@ try {
   await secondEditor.getByRole('button',{name:'Salvar produto'}).click()
   await secondEditor.waitFor({state:'hidden'})
   assert.equal(submitted[1]?.catalogPrice,69.9)
+  await second.getByRole('button',{name:'Editar'}).click()
+  const pricing=page.locator('.editor-modal')
+  await pricing.getByRole('button',{name:'Vários preços'}).click()
+  await pricing.getByLabel('O que muda o preço?').selectOption('Embalagem')
+  await pricing.getByLabel('Nome da opção 2',{exact:true}).fill('Pacote com 6 un.')
+  await pricing.getByLabel('Nome da opção 3',{exact:true}).fill('Caixa fechada com 24 un.')
+  for (const [i,price] of ['12','60','200'].entries()) await pricing.getByLabel('Preço da opção '+(i+1),{exact:true}).fill(price)
+  await pricing.getByRole('button',{name:'Adicionar opção',exact:true}).click()
+  await pricing.getByLabel('Nome da opção 4',{exact:true}).fill('Fardo')
+  await pricing.getByLabel('Preço da opção 4',{exact:true}).fill('320')
+  await pricing.getByRole('button',{name:'Salvar produto'}).click()
+  await pricing.waitFor({state:'hidden'})
+  assert.deepEqual(submitted[2].variantPrices,{group:'Embalagem',prices:{Unidade:12,'Pacote com 6 un.':60,'Caixa fechada com 24 un.':200,Fardo:320}})
+  assert.deepEqual(submitted[2].variations,[{name:'Embalagem',options:['Unidade','Pacote com 6 un.','Caixa fechada com 24 un.','Fardo']}])
+  await second.getByRole('button',{name:'Editar'}).click()
+  await pricing.waitFor()
+  assert.equal(await pricing.getByLabel('Preço da opção 3',{exact:true}).inputValue(),'200')
+  assert.equal(await pricing.getByRole('button',{name:'Vários preços'}).getAttribute('aria-pressed'),'true')
+  await page.setViewportSize({width:390,height:844})
+  const overflow=await pricing.locator('.svx-price-editor').evaluate(el=>el.scrollWidth>el.clientWidth+2)
+  assert.equal(overflow,false,'Editor de preços não pode ter rolagem horizontal no celular')
   console.log('SHOPVAX_SW_CATALOG_PRICE_COPY_EDIT_RELOAD_PASS')
 } finally {
   await browser.close()

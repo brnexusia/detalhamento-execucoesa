@@ -1,0 +1,31 @@
+.editor-modal .svx-price-editor{display:grid;gap:16px;min-width:0;margin-block:16px}
+.editor-modal .svx-price-heading h3{margin:0;font-size:1.08rem;line-height:1.35}
+.editor-modal .svx-price-heading p,.editor-modal .svx-price-hint{margin:4px 0 0;font-size:.82rem;line-height:1.5;opacity:.8}
+.editor-modal .svx-price-modes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.editor-modal .svx-price-modes button{all:unset;box-sizing:border-box;display:flex;flex-direction:column;gap:4px;border:1px solid #a0a0a066;border-radius:10px;padding:13px;cursor:pointer;min-width:0}
+.editor-modal .svx-price-modes button[aria-pressed=true]{border:2px solid currentColor;padding:12px;background:color-mix(in srgb,currentColor 5%,transparent)}
+.editor-modal .svx-price-modes button:focus-visible,.editor-modal .svx-price-remove:focus-visible,.editor-modal .svx-pricing-details summary:focus-visible{outline:2px solid currentColor;outline-offset:3px}
+.editor-modal .svx-price-modes small{line-height:1.4;font-size:.76rem;opacity:.8}
+.editor-modal .svx-price-multiple{display:grid;gap:10px;min-width:0}
+.editor-modal .svx-price-multiple label,.editor-modal .svx-other-head label{display:grid;gap:5px;min-width:0}
+.editor-modal .svx-price-multiple label>span,.editor-modal .svx-price-row-head{font-size:.82rem;font-weight:600}
+.editor-modal .svx-price-row,.editor-modal .svx-price-row-head{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr) 36px;gap:8px;align-items:center;min-width:0}
+.editor-modal .svx-price-row-head{font-size:.76rem;opacity:.82}
+.editor-modal .svx-price-row input,.editor-modal .svx-price-input input,.editor-modal .svx-price-multiple select,.editor-modal .svx-price-multiple label>input,.editor-modal .svx-other-variation input{box-sizing:border-box;width:100%;min-width:0;min-height:42px;padding:9px 10px;border:1px solid #a0a0a080;border-radius:8px;color:inherit;background:transparent;font:inherit}
+.editor-modal .svx-price-input{display:flex;align-items:center;gap:5px;min-width:0;border:1px solid #a0a0a080;border-radius:8px;padding-left:9px}
+.editor-modal .svx-price-input>span{font-size:.82rem;opacity:.75;white-space:nowrap}
+.editor-modal .svx-price-input input{border:0;padding-left:0}
+.editor-modal .svx-price-catalog-preview{grid-column:2/4;font-size:.73rem;line-height:1.4;opacity:.8}
+.editor-modal .svx-price-remove{display:grid;place-items:center;width:36px;height:40px;border:1px solid #a0a0a066;border-radius:8px;background:transparent;color:inherit;cursor:pointer}
+.editor-modal .svx-price-remove:disabled{opacity:.3;cursor:default}
+.editor-modal .svx-price-add{justify-self:start}
+.editor-modal .svx-price-preview{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:6px;padding:12px;border:1px solid #a0a0a055;border-radius:8px}
+.editor-modal .svx-price-preview small{font-size:.77rem;opacity:.8}
+.editor-modal .svx-price-preview strong{font-size:1rem}
+.editor-modal .svx-pricing-details{border-top:1px solid #a0a0a055;padding-top:12px;min-width:0}
+.editor-modal .svx-pricing-details summary{font-size:.85rem;font-weight:600;line-height:1.5;cursor:pointer}
+.editor-modal .svx-pricing-details[open]>summary{margin-bottom:12px}
+.editor-modal .svx-other-variation{display:grid;gap:8px;border:1px solid #a0a0a055;padding:10px;border-radius:8px;margin-block:10px}
+.editor-modal .svx-other-head,.editor-modal .svx-other-option{display:grid;grid-template-columns:minmax(0,1fr) 36px;gap:8px;align-items:end}
+.editor-modal .svx-price-fields{margin:0}
+@media(max-width:460px){.editor-modal .svx-price-modes{grid-template-columns:1fr}.editor-modal .svx-price-row,.editor-modal .svx-price-row-head{grid-template-columns:minmax(0,1fr) minmax(0,.75fr) 32px;gap:5px}.editor-modal .svx-price-remove{width:32px}.editor-modal .svx-price-row input,.editor-modal .svx-price-input input{font-size:16px}.editor-modal .svx-price-input{padding-left:6px;gap:3px}}

@@ -1,3 +1,4 @@
+import { variantUnitPrice } from './variant-pricing'
 import { useMemo, useState } from 'react'
 import { Minus, Plus, ShoppingBag } from 'lucide-react'
 import type { Product } from './types'
@@ -41,7 +42,7 @@ export function ProductGrade({ product, onAdd, onError }: {
   }, [activeColors, amounts, groups, rows])
   if (!groups) return null
   const totalQty = lines.reduce((n, item) => n + item.quantity, 0)
-  const subtotal = totalQty * product.price
+  const subtotal = lines.reduce((sum, line) => sum + line.quantity * variantUnitPrice(product, line.selections), 0)
   const update = (color: string, size: string, delta: number) => {
     const key = `${color}\u001f${size}`
     const selections = { [groups.color.name]: color, [groups.size.name]: size }
@@ -67,7 +68,7 @@ export function ProductGrade({ product, onAdd, onError }: {
     {!active.length ? <p className="svx-grade__hint">Escolha uma ou mais cores para distribuir as quantidades por tamanho.</p> : <div className="svx-grade__table-scroll"><table className="svx-grade__table"><thead><tr><th scope="col">Tamanho</th>{active.map((color) => <th scope="col" key={color}>{color}</th>)}</tr></thead><tbody>{rows.map((size) => <tr key={size}><th scope="row">{size}</th>{active.map((color) => {
       const value = amounts[`${color}\u001f${size}`] || 0
       const available = stockForVariant(product, { [groups.color.name]: color, [groups.size.name]: size })
-      return <td key={color}><div className="svx-grade__stepper"><button type="button" onClick={() => update(color, size, -1)} disabled={value <= 0} aria-label={`Diminuir ${size} na cor ${color}`}><Minus size={14}/></button><output aria-label={`${size} ${color}`}><span className="svx-motion-count" key={value}>{value}</span></output><button type="button" onClick={() => update(color, size, 1)} disabled={value >= available} aria-label={`Aumentar ${size} na cor ${color}`}><Plus size={14}/></button></div></td>
+      return <td key={color}>{product.variantPrices && <small>{currency.format(variantUnitPrice(product, { [groups.color.name]: color, [groups.size.name]: size }))}</small>}<div className="svx-grade__stepper"><button type="button" onClick={() => update(color, size, -1)} disabled={value <= 0} aria-label={`Diminuir ${size} na cor ${color}`}><Minus size={14}/></button><output aria-label={`${size} ${color}`}><span className="svx-motion-count" key={value}>{value}</span></output><button type="button" onClick={() => update(color, size, 1)} disabled={value >= available} aria-label={`Aumentar ${size} na cor ${color}`}><Plus size={14}/></button></div></td>
     })}</tr>)}</tbody></table></div>}
     <div className="svx-grade__summary"><span>{totalQty} {totalQty === 1 ? 'PEÇA' : 'PEÇAS'} · {active.length} {active.length === 1 ? 'COR' : 'CORES'}</span><strong>{currency.format(subtotal)}</strong></div>
     <button type="button" className="svx-grade__add" disabled={!totalQty} onClick={() => onAdd(lines)}><ShoppingBag size={17}/> Pôr no pedido <span>{currency.format(subtotal)}</span></button>
