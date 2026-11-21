@@ -63,7 +63,7 @@ export function buildPricingPayload(value: PricingFields): {price:number;variati
 }
 
 export default function ProductPriceEditor({value,onChange}:{value:PricingFields;onChange:(patch:Partial<PricingFields>)=>void}){
-  const [advanced,setAdvanced]=useState(Boolean(value.catalogId&&Number(value.catalogPrice)!==Number(value.price) || value.retailPrice || value.boxPrice || value.unitsPerBox))
+  const [advanced,setAdvanced]=useState(false)
   const [custom,setCustom]=useState(Boolean(value.priceGroup&&!Object.hasOwn(presets,value.priceGroup)))
   const [otherOpen,setOtherOpen]=useState(value.otherVariations.length>0)
   const multiple=value.pricingMode==='multiple'
@@ -85,7 +85,7 @@ export default function ProductPriceEditor({value,onChange}:{value:PricingFields
   const changeGroup=async(selected:string)=>{
     if(selected===value.priceGroup&&!custom)return
     if(validRows.length&&!(await confirmAction('As opções e os preços desta tabela serão substituídos.','Alterar tipo de preço','Alterar')))return
-    const former=value.otherVariations.find(group=>'existing:'+group.name===selected)
+    const former=value.otherVariations.find(group=>'existing:'+group.name===selected||group.name.toLocaleLowerCase('pt-BR')===selected.toLocaleLowerCase('pt-BR'))
     const name=former?.name||(selected==='custom'?'':selected)
     setCustom(selected==='custom'||Boolean(former&&!Object.hasOwn(presets,former.name)))
     onChange({priceGroup:name,priceRows:(former?.options||presets[name]||['','']).map(name=>({name,price:''})),
@@ -105,10 +105,10 @@ export default function ProductPriceEditor({value,onChange}:{value:PricingFields
       {value.catalogId&&catalogOverride&&<p className="svx-price-hint span-2">Este catálogo tem um preço próprio. Os demais preços do produto são mantidos.</p>}
     </div>:<div className="svx-price-multiple">
       <label><span>O que muda o preço?</span><select aria-label="O que muda o preço?" value={custom?'custom':value.priceGroup} onChange={e=>void changeGroup(e.target.value)}><option value="" disabled>Escolha uma opção</option>{Object.keys(presets).map(name=><option key={name} value={name}>{name==='Embalagem'?'Embalagem (unidade, pacote, caixa)':name}</option>)}
-        {value.otherVariations.filter(group=>group.name.trim()).map((group,i)=><option key={i} value={'existing:'+group.name}>Usar {group.name} já cadastrado</option>)}<option value="custom">Outro (personalizado)</option></select></label>
+        {value.otherVariations.filter(group=>group.name.trim()&&!Object.keys(presets).some(name=>name.toLocaleLowerCase('pt-BR')===group.name.toLocaleLowerCase('pt-BR'))).map((group,i)=><option key={i} value={'existing:'+group.name}>Usar {group.name} já cadastrado</option>)}<option value="custom">Outro (personalizado)</option></select></label>
       {custom&&<label><span>Nome do tipo de preço</span><input value={value.priceGroup} maxLength={40} placeholder="Ex.: Material" onChange={e=>onChange({priceGroup:e.target.value})} required/></label>}
       {(value.priceGroup||custom)&&<>
-        <div className="svx-price-row-head"><span>{value.priceGroup==='Embalagem'?'Forma de venda':'Nome da opção'}</span><span>Preço (R$)</span><span/></div>
+        <div className="svx-price-row-head"><span>{value.priceGroup==='Embalagem'?'Forma de venda':'Nome da opção'}</span><span>{factor!==1?'Preço padrão (R$)':'Preço (R$)'}</span><span/></div>
         {value.priceRows.map((row,i)=><div className="svx-price-row" key={i}>
           <input aria-label={'Nome da opção '+(i+1)} value={row.name} maxLength={60} placeholder={value.priceGroup==='Embalagem'?'Ex.: Pacote com 6 un.':'Ex.: Opção '+(i+1)} onChange={e=>editRow(i,{name:e.target.value})} required/>
           <div className="svx-price-input"><span aria-hidden="true">R$</span><input aria-label={'Preço da opção '+(i+1)} inputMode="decimal" type="number" min=".01" max="9999999999.99" step=".01" placeholder="0,00" value={row.price} required onChange={e=>editRow(i,{price:e.target.value})}/></div>
@@ -117,7 +117,7 @@ export default function ProductPriceEditor({value,onChange}:{value:PricingFields
         </div>)}
         <button type="button" className="secondary-action svx-price-add" disabled={value.priceRows.length>=30} onClick={()=>onChange({priceRows:[...value.priceRows,{name:'',price:''}]})}><Plus size={16}/> Adicionar opção</button>
         {value.priceGroup==='Embalagem'&&<p className="svx-price-hint">Informe o valor da embalagem inteira. Você pode indicar a quantidade no nome, por exemplo: Pacote com 6 unidades.</p>}
-        <div className="svx-price-preview"><small>Como aparece para o comprador</small><strong>{validRows.length?((validRows.length>1&&Math.min(...validRows.map(row=>Number(row.price)))!==Math.max(...validRows.map(row=>Number(row.price))))?'A partir de ':'')+currency.format(Math.round(Math.min(...validRows.map(row=>Number(row.price)))*factor*100)/100):'Escolha uma opção para ver o preço'}</strong></div>
+        <div className="svx-price-preview"><small>Como aparece para o comprador</small><strong>{validRows.length?((validRows.length>1&&Math.min(...validRows.map(row=>Number(row.price)))!==Math.max(...validRows.map(row=>Number(row.price))))?'A partir de ':'')+currency.format(Math.round(Math.min(...validRows.map(row=>Number(row.price)))*factor*100)/100):'Preencha os preços acima'}</strong></div>
       </>}
     </div>}
     <details className="svx-pricing-details" open={advanced} onToggle={e=>setAdvanced(e.currentTarget.open)}><summary>Preços de outros catálogos e condições adicionais</summary><div className="form-grid svx-price-fields">
