@@ -21,3 +21,14 @@ test('catalog-specific prices preserve their relative differences',()=>{
   assert.equal(variantUnitPrice(product,{Tamanho:'G'},30),30)
   assert.equal(2*variantUnitPrice(product,{Tamanho:'P'})+3*variantUnitPrice(product,{Tamanho:'M'}),69)
 })
+
+test('unit, package and closed box can coexist as differently priced options', () => {
+  const variations = [{name:'Embalagem',options:['Unidade','Pacote 6 un.','Caixa fechada 24 un.']}]
+  const variant_prices = {group:'Embalagem',prices:{Unidade:5,'Pacote 6 un.':27,'Caixa fechada 24 un.':96}}
+  const product = {price:5,variations,variant_prices}
+  assert.deepEqual(normalizeVariantPrices(variant_prices,variations),variant_prices)
+  assert.equal(variantUnitPrice(product,{Embalagem:'Unidade'}),5)
+  assert.equal(variantUnitPrice(product,{Embalagem:'Pacote 6 un.'}),27)
+  assert.equal(variantUnitPrice(product,{Embalagem:'Caixa fechada 24 un.'}),96)
+  assert.equal(2*variantUnitPrice(product,{Embalagem:'Pacote 6 un.'})+variantUnitPrice(product,{Embalagem:'Caixa fechada 24 un.'}),150)
+})
