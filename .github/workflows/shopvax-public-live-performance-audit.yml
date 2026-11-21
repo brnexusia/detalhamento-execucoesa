@@ -1,0 +1,38 @@
+name: ShopVax — auditoria de carregamento público (somente leitura)
+
+on:
+  pull_request:
+    paths:
+      - 'tests/shopvax-public-live-performance-audit.mjs'
+      - '.github/workflows/shopvax-public-live-performance-audit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      AUDIT_ORIGIN: https://shopvax.com.br
+      AUDIT_STORE_SLUG: sw-moda-feminina
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium
+        run: |
+          npm install --no-save --no-audit --no-fund playwright@1.58.2
+          npx playwright install --with-deps chromium
+      - name: Amostrar rotas reais, sem alterar dados
+        run: node tests/shopvax-public-live-performance-audit.mjs
+      - name: Guardar resultados
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shopvax-public-performance-audit
+          path: artifacts/shopvax-performance-audit/
+          if-no-files-found: warn
+          retention-days: 14
