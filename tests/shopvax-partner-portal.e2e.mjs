@@ -9,8 +9,15 @@ try{
   await page.getByRole('heading',{name:'Seja parceiro ShopVax.'}).waitFor()
   assert.equal(await page.getByRole('textbox',{name:'Nome completo'}).count(),1)
   assert.equal(await page.getByRole('button',{name:/Criar conta de parceiro/}).count(),1)
+  await page.getByRole('checkbox',{name:/Já tenho uma conta de lojista/}).check()
+  assert.equal(await page.getByRole('textbox',{name:'Nome completo'}).count(),0)
+  await page.getByRole('checkbox',{name:/Já tenho uma conta de lojista/}).uncheck()
   await page.getByRole('button',{name:/Já tem cadastro/}).click()
   await page.getByRole('heading',{name:'Acesse seu painel de indicações.'}).waitFor()
+  await page.goto('http://127.0.0.1:5173/afiliados/cadastro')
+  await page.getByRole('heading',{name:'Seja parceiro ShopVax.'}).waitFor()
+  await page.getByRole('button',{name:/Já tem cadastro/}).click()
+  assert.match(page.url(),/\/afiliados\/entrar$/)
   await page.close()
  }
  // Cadastro confirmado libera, na mesma sessão, o código e o link atribuíveis.
@@ -38,6 +45,7 @@ try{
  assert.match(await signupPage.locator('.svx-partner__dashboard').innerText(),/\/criar-conta\?ref=SVP-TESTECODE/)
  assert.equal(await signupPage.getByRole('button',{name:'Copiar link'}).count(),1)
  assert.equal(await signupPage.getByRole('button',{name:'Copiar código'}).count(),1)
+ assert.equal(await signupPage.getByRole('button',{name:'Compartilhar'}).count(),1)
  // Simula painel aberto pelo dominio interno; o link copiado precisa ser publico.
  await signupPage.evaluate(() => {
   Object.defineProperty(navigator,'clipboard',{configurable:true,value:{
@@ -50,6 +58,11 @@ try{
   'O link do parceiro deve usar o dominio publico, nao a origem da pagina')
 
  assert.equal(await signupPage.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),true)
+ let logoutCalls=0
+ await signupPage.route('**/api/partners/logout',r=>{logoutCalls++;return r.fulfill({status:200,contentType:'application/json',body:'{"ok":true}'})})
+ await signupPage.getByRole('button',{name:'Sair'}).click()
+ await signupPage.getByRole('heading',{name:'Acesse seu painel de indicações.'}).waitFor()
+ assert.equal(logoutCalls,1,'O portal encerra somente a sessão própria de parceiro')
  await signupPage.close()
 
  // Um HTML do proxy em vez de JSON nunca deve aparentar cadastro bem-sucedido.

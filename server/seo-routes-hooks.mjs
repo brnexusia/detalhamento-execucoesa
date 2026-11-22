@@ -53,7 +53,7 @@ function installSeo(app) {
     if (host === 'www.shopvax.com.br' && (req.method === 'GET' || req.method === 'HEAD')) {
       return res.redirect(308, SITE + req.originalUrl)
     }
-    if (/^\/(?:api|painel|admin|cliente|comprador)(?:\/|$)/.test(req.path) ||
+    if (/^\/(?:api|painel|admin|cliente|comprador|parceiros|afiliados)(?:\/|$)/.test(req.path) ||
         /^\/(?:entrar|login|criar-conta)(?:\/|$)/.test(req.path)) {
       res.set('X-Robots-Tag', 'noindex, nofollow, noarchive')
     }

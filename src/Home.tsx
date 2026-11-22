@@ -101,7 +101,7 @@ export default function Home() {
           <p className="home-pricing__note">Os valores e limites exibidos vêm dos planos ativos da plataforma. Descontos de outros ciclos só aparecem quando disponíveis para contratação.</p>
         </section>
       </main>
-      <footer className="svx-home-footer"><strong><img className="svx-brand-wordmark" src="/brand/shopvax-wordmark.svg" alt="Shopvax" /></strong><span>O talão de pedido, no celular.</span></footer>
+      <footer className="svx-home-footer"><strong><img className="svx-brand-wordmark" src="/brand/shopvax-wordmark.svg" alt="Shopvax" /></strong><span>O talão de pedido, no celular.</span><a className="svx-home-affiliate" href="/afiliados/cadastro">Indique lojistas · Seja afiliado</a></footer>
     </div>
   )
 }

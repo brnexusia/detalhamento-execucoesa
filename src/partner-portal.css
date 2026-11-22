@@ -211,3 +211,10 @@
 .svx-partner__pagination small{font-size:12px;color:#625d55}
 .svx-partner__pagination>div{display:flex;flex-wrap:wrap;gap:8px}
 @media(max-width:440px){.svx-partner__pagination>div{width:100%}.svx-partner__pagination button{flex:1;min-width:0}}
+
+.svx-partner__ref-link{display:inline-flex;align-items:center;gap:7px;padding:11px 13px;margin:8px 0 12px;border:1px solid #d7d1c5;border-radius:9px;background:#f6f4ee;color:#161514;text-decoration:none;font:600 13px/1.5 var(--svx-font-body,Arial,sans-serif);max-width:100%;overflow-wrap:anywhere;word-break:break-word}
+.svx-partner__ref-link svg{flex-shrink:0}
+.svx-partner__share-actions{display:flex;flex-wrap:wrap;gap:9px}
+@media(max-width:460px){.svx-partner__share-actions button{flex:1 1 125px}}
+
+.svx-partner__auth form label.svx-partner__existing-account{display:flex;align-items:flex-start;gap:10px;line-height:1.45;font-weight:500;font-size:12px}.svx-partner__existing-account input{width:18px;height:18px;min-height:18px;max-width:18px;flex-shrink:0;margin:0}

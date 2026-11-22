@@ -221,3 +221,6 @@
   .home-shell .home-pricing__grid {gap:12px;}
   .home-shell .home-pricing__grid article {padding:19px;}
 }
+
+.home-shell .svx-home-footer .svx-home-affiliate{display:inline-flex;align-items:center;min-height:36px;color:#161514;text-decoration:underline;text-underline-offset:3px;font:700 12px/1.4 var(--svx-font-body,Archivo,sans-serif)}
+.home-shell .svx-home-footer .svx-home-affiliate:focus-visible{outline:2px solid #2D2A8C;outline-offset:3px}
