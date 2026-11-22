@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowRight, CheckCircle2, Copy, Handshake, LogOut, RefreshCcw, ShieldCheck } from 'lucide-react'
+import { ArrowRight, CheckCircle2, Copy, Handshake, LogOut, RefreshCcw, ShieldCheck, Share2, ExternalLink } from 'lucide-react'
 import { apiRequest } from './api'
 import { publicReferralLink } from './public-share-links'
 import './partner-portal.css'
@@ -15,6 +15,7 @@ export default function ShopvaxPartnerPortal(){
  const [form,setForm]=useState({name:'',email:'',password:'',pixKey:''})
  const [dashboard,setDashboard]=useState<Dashboard|null>(null)
  const [loading,setLoading]=useState(true)
+ const [loadFailure,setLoadFailure]=useState('')
  const [paging,setPaging]=useState(false)
  const [busy,setBusy]=useState(false)
  const [error,setError]=useState('')
@@ -24,8 +25,14 @@ export default function ShopvaxPartnerPortal(){
    try{
      const result=await apiRequest<Dashboard>('/api/partners/dashboard'+(page>1?'?page='+page:''))
      if(!result?.partner)throw new Error('Resposta de sessão de parceiro inválida.')
-     setDashboard(result);setError('');return true
-   }catch{setDashboard(null);return false}
+     setDashboard(result);setForm(current=>({...current,pixKey:result.partner.pixKey||''}));setError('');setLoadFailure('');return true
+   }catch(err){
+     const status=(err as Error & {status?:number})?.status
+     if(status===401||status===403)setDashboard(null)
+     else if(!dashboard)setLoadFailure(err instanceof Error?err.message:'Não foi possível carregar o painel.')
+     else setError('Não foi possível atualizar o painel. Seus dados anteriores permanecem visíveis.')
+     return false
+   }
    finally{setLoading(false);setPaging(false)}
  }
  useEffect(()=>{void load()},[])
@@ -45,8 +52,12 @@ export default function ShopvaxPartnerPortal(){
   finally{setBusy(false)}
  }
  const logout=async()=>{
-  await apiRequest('/api/auth/logout',{method:'POST'}).catch(()=>undefined)
-  setDashboard(null);setMode('login');go('/parceiros/entrar')
+  setBusy(true);setError('')
+  try{
+    await apiRequest<{ok:boolean}>('/api/partners/logout',{method:'POST'})
+    setDashboard(null);setMode('login');setForm(current=>({...current,password:''}));go('/parceiros/entrar')
+  }catch(err){setError(err instanceof Error?err.message:'Não foi possível encerrar sua sessão. Tente novamente.')}
+  finally{setBusy(false)}
  }
  const updatePix=async(event:React.FormEvent)=>{
   event.preventDefault();setBusy(true);setError('')
@@ -56,6 +67,12 @@ export default function ShopvaxPartnerPortal(){
    await load()
   }catch(err){setError(err instanceof Error?err.message:'Não foi possível salvar a chave Pix.')}
   finally{setBusy(false)}
+ }
+ const share=async()=>{
+   if(!link)return
+   if(typeof navigator.share!=='function')return copy(link,'link')
+   try{await navigator.share({title:'Minha indicação Shopvax',text:'Conheça o Shopvax para sua loja',url:link})}
+   catch(err){if((err as Error)?.name!=='AbortError')setError('Não foi possível compartilhar. Use Copiar link.')}
  }
  const historyPage=dashboard?.referralsPage||1
  const historyTotal=dashboard?.referralsTotal??dashboard?.metrics.registered??0
@@ -73,7 +90,9 @@ export default function ShopvaxPartnerPortal(){
  }
  return <main className="svx-partner">
   <header className="svx-partner__top"><a href="/"><span>SHOPVAX</span> · PARCEIROS</a><span><Handshake size={18}/> Programa de indicações</span></header>
-  {loading?<p>Carregando área de parceiros…</p>:!dashboard?
+  {loading?<p>Carregando área de parceiros…</p>:!dashboard&&loadFailure?
+    <section className="svx-partner__auth"><h1>Não foi possível abrir o portal.</h1><p role="alert" className="svx-partner__error">{loadFailure}</p><button type="button" onClick={()=>{setLoadFailure('');setLoading(true);void load()}}>Tentar novamente <RefreshCcw size={16}/></button></section>
+    :!dashboard?
    <section className="svx-partner__auth">
     <span className="svx-partner__eyebrow">PORTAL INDEPENDENTE</span>
     <h1>{mode==='register'?'Seja parceiro ShopVax.':'Acesse seu painel de indicações.'}</h1>
@@ -88,13 +107,13 @@ export default function ShopvaxPartnerPortal(){
     <button className="svx-partner__link" type="button" onClick={()=>{const next=mode==='login'?'register':'login';setMode(next);go('/parceiros/'+(next==='login'?'entrar':'cadastro'))}}>{mode==='login'?'Ainda não é parceiro? Cadastre-se':'Já tem cadastro? Entre'}</button>
    </section>:
    <div className="svx-partner__dashboard">
-    <div className="svx-partner__heading"><div><span className="svx-partner__eyebrow">ÁREA DO PARCEIRO</span><h1>Olá, {dashboard.partner.name}.</h1><p>Indicações são separadas entre cadastros, pagamentos confirmados e repasses.</p></div><div><button type="button" onClick={()=>void load(historyPage)}><RefreshCcw size={16}/> Atualizar</button><button type="button" onClick={()=>void logout()}><LogOut size={16}/> Sair</button></div></div>
+    <div className="svx-partner__heading"><div><span className="svx-partner__eyebrow">ÁREA DO PARCEIRO</span><h1>Olá, {dashboard.partner.name}.</h1><p>Indicações são separadas entre cadastros, pagamentos confirmados e repasses.</p></div><div><button type="button" onClick={()=>void load(historyPage)}><RefreshCcw size={16}/> Atualizar</button><button type="button" disabled={busy} onClick={()=>void logout()}><LogOut size={16}/> Sair</button></div></div>
     {dashboard.partner.status!=='active'&&<p role="status" className="svx-partner__warning"><ShieldCheck size={16}/> {dashboard.partner.status==='pending'?'Seu código está reservado. Aguarde a ativação administrativa para compartilhar o link.':'Conta suspensa. Entre em contato com o suporte.'}</p>}
     <div className="svx-partner__grid">
      {[['Visitas ao código',dashboard.metrics.visits.toLocaleString('pt-BR')],['Cadastros atribuídos',dashboard.metrics.registered.toLocaleString('pt-BR')],['Sem Checkout',Number(dashboard.metrics.registeredOnly||0).toLocaleString('pt-BR')],['Checkout iniciado',Number(dashboard.metrics.checkoutStarted||0).toLocaleString('pt-BR')],['Assinaturas pagas',dashboard.metrics.qualified.toLocaleString('pt-BR')],['Comissões elegíveis',money.format(dashboard.metrics.earnedCents/100)],['Pagamentos registrados',money.format(dashboard.metrics.paidCents/100)]].map(([label,value])=><article key={label}><small>{label}</small><strong>{value}</strong></article>)}
     </div>
-    <section className="svx-partner__card"><h2>Seu código e link de indicação</h2>{code?<><code>{code}</code>{canShare?<><p className="svx-partner__ref-link">{link}</p><button type="button" onClick={()=>void copy(link,'link')}><Copy size={17}/> Copiar link</button><button type="button" onClick={()=>void copy(code,'código')}><Copy size={17}/> Copiar código</button></>:<p>Código reservado. O link começa a funcionar após a ativação.</p>}</>:<p>Nenhum código disponível para esta conta.</p>}<small>O link identifica automaticamente as lojas indicadas. Visitas não são vendas; comissões exigem primeiro pagamento confirmado pela Stripe e regra administrativa.</small></section>
-    <section className="svx-partner__card"><h2>Recebimento</h2><p>Cadastre a chave Pix para conferência. O portal não realiza transferências automaticamente.</p><form className="svx-partner__inline" onSubmit={updatePix}><input maxLength={160} value={form.pixKey} onChange={e=>setForm(x=>({...x,pixKey:e.target.value}))} placeholder={dashboard.partner.pixKey?'Chave cadastrada: '+dashboard.partner.pixKey:'Sua chave Pix'} required/><button disabled={busy}>Salvar</button></form><small>Comissão configurada: {dashboard.partner.commissionCents?money.format(dashboard.partner.commissionCents/100)+' por conversão qualificada':'Pendente de definição administrativa'}</small></section>
+    <section className="svx-partner__card"><h2>Seu código e link de indicação</h2>{code?<><code>{code}</code>{canShare?<><a className="svx-partner__ref-link" href={link} target="_blank" rel="noopener noreferrer">{link} <ExternalLink size={14}/></a><div className="svx-partner__share-actions"><button type="button" onClick={()=>void copy(link,'link')}><Copy size={17}/> Copiar link</button><button type="button" onClick={()=>void copy(code,'código')}><Copy size={17}/> Copiar código</button><button type="button" onClick={()=>void share()}><Share2 size={17}/> Compartilhar</button></div></>:<p>Código reservado. O link começa a funcionar após a ativação.</p>}</>:<p>Nenhum código disponível para esta conta.</p>}<small>O link identifica automaticamente as lojas indicadas. Visitas não são vendas; comissões exigem primeiro pagamento confirmado pela Stripe e regra administrativa.</small></section>
+    <section className="svx-partner__card"><h2>Recebimento</h2><p>Cadastre a chave Pix para conferência. O portal não realiza transferências automaticamente.</p><form className="svx-partner__inline" onSubmit={updatePix}><input aria-label="Chave Pix" maxLength={160} value={form.pixKey} onChange={e=>setForm(x=>({...x,pixKey:e.target.value}))} placeholder={dashboard.partner.pixKey?'Chave cadastrada: '+dashboard.partner.pixKey:'Sua chave Pix'} required/><button disabled={busy}>Salvar</button></form><small>Comissão configurada: {dashboard.partner.commissionCents?money.format(dashboard.partner.commissionCents/100)+' por conversão qualificada':'Pendente de definição administrativa'}</small></section>
     <section className="svx-partner__card"><h2>Histórico de indicações</h2>{dashboard.referrals.length?<div className="svx-partner__history">{dashboard.referrals.map((row,i)=><article key={i}><div><strong>{row.storeName}</strong><span>{date.format(new Date(row.createdAt))}</span></div><div><b>{row.status==='reversed'?'Pagamento estornado':row.status==='qualified'?'Pagamento confirmado':row.checkoutStartedAt?'Checkout iniciado · aguardando pagamento':'Cadastrou · não iniciou Checkout'}</b><small>{row.commissionStatus==='paid'?'Repasse registrado':row.commissionStatus==='reversal_due'?'Revisão de estorno':row.commissionStatus==='awaiting_rule'?'Regra de comissão pendente':'Repasse pendente ou em análise'}</small></div><strong>{money.format(Number(row.commissionCents)/100)}</strong></article>)}</div>:<p>Nenhuma indicação atribuída até agora.</p>}<div className="svx-partner__pagination">
       <small>{historyTotal.toLocaleString('pt-BR')} {historyTotal===1?'loja indicada':'lojas indicadas'} · página {historyPage} de {historyPages}</small>
       <div><button type="button" disabled={paging||historyPage<=1} onClick={()=>void load(historyPage-1)}>Anterior</button><button type="button" disabled={paging||historyPage>=historyPages} onClick={()=>void load(historyPage+1)}>Próxima página</button></div>

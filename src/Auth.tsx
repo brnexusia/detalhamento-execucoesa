@@ -73,6 +73,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const [plansLoading, setPlansLoading] = useState(mode === 'register')
   const [plansError, setPlansError] = useState('')
   const [signupPaymentRequired, setSignupPaymentRequired] = useState(true)
+  const [referralValidation,setReferralValidation] = useState<{code:string;status:'idle'|'checking'|'valid'|'invalid'|'unavailable';name?:string}>({code:'',status:'idle'})
   const [googleBusy, setGoogleBusy] = useState(false)
   // Cadastro direto no plano mensal. Outros ciclos continuam disponíveis no painel de assinatura.
   const cycle = 'monthly' as const
@@ -91,15 +92,29 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const registrationMode = mode === 'register' || Boolean(googleSignup)
 
   useEffect(() => {
-    if (mode !== 'register') return
-    const initialCode = requestedReferral()
-    if (!initialCode) return
-    const controller = new AbortController()
-    fetch('/api/public/referrals/resolve?code=' + encodeURIComponent(initialCode), {
-      signal: controller.signal, credentials: 'same-origin',
-    }).catch(() => undefined)
-    return () => controller.abort()
-  }, [mode])
+    const code=form.referralCode.trim().toUpperCase()
+    if(!registrationMode||!code){setReferralValidation({code:'',status:'idle'});return}
+    const controller=new AbortController()
+    setReferralValidation({code,status:'checking'})
+    const timer=window.setTimeout(async()=>{
+      try{
+        const response=await fetch('/api/public/referrals/resolve?code='+encodeURIComponent(code),{
+          signal:controller.signal,credentials:'same-origin',cache:'no-store',
+        })
+        if(!response.ok){
+          if(!controller.signal.aborted)setReferralValidation({code,status:response.status===404?'invalid':'unavailable'})
+          return
+        }
+        const result=await response.json()
+        if(!controller.signal.aborted)setReferralValidation(result?.valid===true&&result.code===code
+          ?{code,status:'valid',name:String(result.name||'')}:{code,status:'invalid'})
+      }catch{
+        if(!controller.signal.aborted)setReferralValidation({code,status:'unavailable'})
+      }
+    },350)
+    return()=>{window.clearTimeout(timer);controller.abort()}
+  },[registrationMode,form.referralCode])
+  const referralIsValid=!form.referralCode.trim() || (referralValidation.status==='valid'&&referralValidation.code===form.referralCode.trim().toUpperCase())
 
   useEffect(() => {
     // Não exibir credenciais de login para quem já tem um cookie válido no backend.
@@ -201,6 +216,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     setBusy(true)
     setError('')
     try {
+      if(registrationMode&&!referralIsValid)throw new Error('Confira o código de indicação ou remova-o para continuar.')
       if (googleSignup) {
         if (!form.storeName.trim()) throw new Error('Informe o nome da sua loja.')
         const result = await api.googleAuth({
@@ -271,7 +287,11 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
             <h2>{googleSignup ? 'Complete os dados da sua loja.' : registrationMode ? 'Comece com a sua loja.' : 'Acesse seu painel.'}</h2>
           </div>
           {registrationMode && signupPaymentRequired && <div className="poster-note" role="status">Assinatura obrigatória. Depois de preencher o cadastro, você seguirá para o pagamento seguro da Stripe. A loja só será liberada após a confirmação do pagamento.</div>}
-          {registrationMode && form.referralCode && <div className="poster-note"><Gift size={15}/> Indicação {form.referralCode} · benefícios dependem de pagamento confirmado.</div>}
+          {registrationMode && form.referralCode && <div className="poster-note"><Gift size={15}/> {referralValidation.status==='valid'
+            ?'Indicação confirmada'+(referralValidation.name?' · '+referralValidation.name:'')+' · benefício após pagamento elegível.'
+            :referralValidation.status==='checking'?'Conferindo código de indicação…'
+            :referralValidation.status==='invalid'?'Código não encontrado ou indisponível. Confira ou remova para continuar.'
+            :'Não foi possível validar o código agora. Tente novamente ou remova-o.'}</div>}
           {!googleSignup && <>
             <GoogleSignInButton mode={mode} disabled={googleBusy || busy} onCredential={googleCredential} />
             <div className="auth-divider"><span>ou</span></div>
@@ -306,7 +326,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
             <label><span>Senha</span><div className="password-input"><input type={showPassword ? 'text' : 'password'} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength={8} value={form.password} onChange={(e) => update('password', e.target.value)} placeholder="Mínimo 8 caracteres" required /><button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}>{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button></div></label>
           </>}
           {error && <p className="form-error">{error}</p>}
-          <button className="primary-action" disabled={busy || googleBusy || (SHOW_SIGNUP_PLANS && registrationMode && (plansLoading || Boolean(plansError)))}>{busy || googleBusy ? 'Aguarde…' : googleSignup ? 'Prosseguir com Google e pagar' : mode === 'register' ? 'Continuar para pagamento' : 'Entrar'}<ArrowRight size={18} /></button>
+          <button className="primary-action" disabled={busy || googleBusy || (registrationMode&&!referralIsValid) || (SHOW_SIGNUP_PLANS && registrationMode && (plansLoading || Boolean(plansError)))}>{busy || googleBusy ? 'Aguarde…' : googleSignup ? 'Prosseguir com Google e pagar' : mode === 'register' ? 'Continuar para pagamento' : 'Entrar'}<ArrowRight size={18} /></button>
           <p className="auth-switch">{registrationMode ? 'Já tem uma conta?' : 'Ainda não tem conta?'} <button type="button" onClick={() => { setGoogleSignup(null); go(registrationMode ? '/entrar' : '/criar-conta') }}>{registrationMode ? 'Entrar' : 'Criar conta'}</button></p>
           <p className="auth-switch">Não tem loja e quer apenas indicar? <a href="/parceiros/cadastro">Conheça o Portal de Parceiros</a>.</p>
         </form>
