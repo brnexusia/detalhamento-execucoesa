@@ -172,7 +172,7 @@ try{
  const ownerExisting=(await pool.query('SELECT id FROM users WHERE email=$1',[ownerEmail])).rows[0]
  users.push(ownerExisting.id)
  const storeCookie=String(ownerSignup.headers.get('set-cookie')||'').split(';')[0]
- assert.match(storeCookie,/atacado_session=/)
+ assert.match(storeCookie,/(shopvax_session|atacado_session)=/)
  const activatePartner=await fetch(base+'/api/partners/register',{
    method:'POST',headers:{'content-type':'application/json'},
    body:JSON.stringify({name:'',email:ownerEmail,password:ownerPassword}),
@@ -199,7 +199,7 @@ try{
  const ownerLogin=await fetch(base+'/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:newEmail,password:'SenhaTesteSegura2026!'})})
  assert.equal(ownerLogin.status,200,'Sessão administrativa usa cookie de proprietário separado da sessão de parceiro')
  const adminCookie=String(ownerLogin.headers.get('set-cookie')||'').split(';')[0]
- assert.match(adminCookie,/atacado_session=/)
+ assert.match(adminCookie,/(shopvax_session|atacado_session)=/)
  const adminReport=await fetch(base+'/api/platform/referrals',{headers:{cookie:adminCookie}})
  assert.equal(adminReport.status,200)
  const adminData=await adminReport.json()
