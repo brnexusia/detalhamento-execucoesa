@@ -48,7 +48,7 @@ BEGIN
   NEW.category := canonical_name;
   RETURN NEW;
 END;
-$;
+$$;
 DO $migration$
 BEGIN
   IF NOT EXISTS(SELECT 1 FROM pg_trigger WHERE tgrelid='products'::regclass AND tgname='shopvax_canonical_category' AND NOT tgisinternal) THEN
