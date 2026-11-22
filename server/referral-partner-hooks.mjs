@@ -104,8 +104,8 @@ async function registerPartner(req,res){
   const name=secureText(req.body?.name,120)
   const email=secureText(req.body?.email,200).toLowerCase()
   const password=String(req.body?.password || '')
-  if(name.length<2||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||password.length<12||password.length>200)
-    return sendError(res,400,'Informe nome, e-mail e senha de 12 a 200 caracteres.')
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||password.length<8||password.length>200)
+    return sendError(res,400,'Informe e-mail e senha válidos.')
   const client=await pool.connect()
   const userId=id()
   const partnerId=id()
@@ -113,14 +113,27 @@ async function registerPartner(req,res){
   const token=crypto.randomBytes(32).toString('base64url')
   try {
     await client.query('BEGIN')
-    if((await client.query('SELECT id FROM users WHERE email=$1',[email])).rowCount){
-      await client.query('ROLLBACK');return sendError(res,409,'Este e-mail já tem uma conta. Entre no portal caso já seja parceiro.')
+    const existing=(await client.query('SELECT id,password_hash FROM users WHERE email=$1 FOR UPDATE',[email])).rows[0]
+    let accountId=userId
+    if(existing){
+      const linked=(await client.query('SELECT 1 FROM shopvax_partners WHERE user_id=$1',[existing.id])).rowCount
+      if(linked){await client.query('ROLLBACK');return sendError(res,409,'Você já tem uma conta de parceiro. Use Entrar para acessar.')}
+      if(!verifyPassword(password,existing.password_hash)){
+        await client.query('ROLLBACK')
+        return sendError(res,401,'Este e-mail já está cadastrado no Shopvax. Informe a senha atual da conta de lojista para ativar o perfil de parceiro.')
+      }
+      accountId=existing.id
+    }else{
+      if(name.length<2||password.length<12){
+        await client.query('ROLLBACK')
+        return sendError(res,400,'Para uma nova conta de parceiro, informe seu nome e uma senha de pelo menos 12 caracteres.')
+      }
+      await client.query('INSERT INTO users(id,email,name,password_hash) VALUES($1,$2,$3,$4)',[userId,email,name,passwordHash(password)])
     }
-    await client.query('INSERT INTO users(id,email,name,password_hash) VALUES($1,$2,$3,$4)',[userId,email,name,passwordHash(password)])
     // O código fica utilizável imediatamente. A comissão continua sob regra/aprovação administrativa.
-    await client.query("INSERT INTO shopvax_partners(id,user_id,code,status) VALUES($1,$2,$3,'active')",[partnerId,userId,code])
+    await client.query("INSERT INTO shopvax_partners(id,user_id,code,status) VALUES($1,$2,$3,'active')",[partnerId,accountId,code])
     // A sessão nasce na mesma transação: evitar conta criada sem login após falha de sessão.
-    await client.query("INSERT INTO sessions(token_hash,user_id,expires_at) VALUES ($1,$2,now()+interval '30 days')",[hash(token),userId])
+    await client.query("INSERT INTO sessions(token_hash,user_id,expires_at) VALUES ($1,$2,now()+interval '30 days')",[hash(token),accountId])
     await client.query('COMMIT')
   }catch(error){await client.query('ROLLBACK').catch(()=>undefined);if(error?.code==='23505')return sendError(res,409,'Conta já cadastrada.');throw error}
   finally{client.release()}

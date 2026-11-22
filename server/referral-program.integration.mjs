@@ -141,6 +141,33 @@ try{
  assert.equal(partnerAfterSignup.metrics.qualified,0,'Não contar cadastro como assinatura paga')
  assert.equal(partnerAfterSignup.referralsTotal,1)
  assert.equal((await pool.query('SELECT 1 FROM shopvax_stripe_billing WHERE store_id=$1',[registeredStore.id])).rowCount,0,'Sem checkout Stripe ainda')
+ // A mesma conta pode manter loja e programa de afiliados em sessões distintas.
+ const ownerEmail='grp2-owner-partner-'+seed+'@example.test'
+ const ownerPassword='SenhaExistente2026!'
+ const ownerSignup=await fetch(base+'/api/auth/register',{
+   method:'POST',headers:{'content-type':'application/json'},
+   body:JSON.stringify({name:'Lojista parceiro',email:ownerEmail,password:ownerPassword,
+     storeName:'Loja afiliada',planCode:'bronze'}),
+ })
+ assert.equal(ownerSignup.status,201,'Criar loja antes de ativar o programa de parceiros')
+ const ownerExisting=(await pool.query('SELECT id FROM users WHERE email=$1',[ownerEmail])).rows[0]
+ users.push(ownerExisting.id)
+ const storeCookie=String(ownerSignup.headers.get('set-cookie')||'').split(';')[0]
+ assert.match(storeCookie,/atacado_session=/)
+ const activatePartner=await fetch(base+'/api/partners/register',{
+   method:'POST',headers:{'content-type':'application/json'},
+   body:JSON.stringify({name:'',email:ownerEmail,password:ownerPassword}),
+ })
+ assert.equal(activatePartner.status,201,'Lojista com senha válida ativa programa de parceiros sem trocar a conta')
+ const activatedCookie=String(activatePartner.headers.get('set-cookie')||'').split(';')[0]
+ assert.match(activatedCookie,/shopvax_partner_session=/)
+ assert.equal((await fetch(base+'/api/partners/dashboard',{headers:{cookie:activatedCookie}})).status,200)
+ assert.equal((await fetch(base+'/api/auth/me',{headers:{cookie:storeCookie}})).status,200,'Cookie da loja mantém sessão sem interferência')
+ const duplicatePartner=await fetch(base+'/api/partners/register',{
+   method:'POST',headers:{'content-type':'application/json'},
+   body:JSON.stringify({name:'',email:ownerEmail,password:ownerPassword}),
+ })
+ assert.equal(duplicatePartner.status,409,'Não permitir dois códigos para a mesma conta')
  const invalidEmail='grp2-invalid-'+seed+'@example.test'
  const invalid=await fetch(base+'/api/auth/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({
    name:'Cadastro inválido',email:invalidEmail,password:'SenhaDeTesteSegura2026',storeName:'Outra Loja',planCode:'bronze',referralCode:'SVP-INVALIDO',

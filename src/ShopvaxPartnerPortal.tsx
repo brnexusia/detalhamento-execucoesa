@@ -13,6 +13,7 @@ const routeBase=window.location.pathname.startsWith('/afiliados')?'/afiliados':'
 function go(path:string){window.history.pushState({},'',path);window.dispatchEvent(new PopStateEvent('popstate'))}
 export default function ShopvaxPartnerPortal(){
  const [mode,setMode]=useState<'login'|'register'>(window.location.pathname.endsWith('/cadastro')?'register':'login')
+ const [existingAccount,setExistingAccount]=useState(false)
  const [form,setForm]=useState({name:'',email:'',password:'',pixKey:''})
  const [dashboard,setDashboard]=useState<Dashboard|null>(null)
  const [loading,setLoading]=useState(true)
@@ -99,9 +100,10 @@ export default function ShopvaxPartnerPortal(){
     <h1>{mode==='register'?'Seja parceiro ShopVax.':'Acesse seu painel de indicações.'}</h1>
     <p>Indique lojistas. A conversão somente é reconhecida após o primeiro pagamento confirmado pela Stripe. Os valores das comissões são definidos e aprovados pela administração.</p>
     <form onSubmit={submit}>
-     {mode==='register'&&<label>Nome completo<input required maxLength={120} autoComplete="name" value={form.name} onChange={e=>setForm(x=>({...x,name:e.target.value}))}/></label>}
+     {mode==='register'&&!existingAccount&&<label>Nome completo<input required maxLength={120} autoComplete="name" value={form.name} onChange={e=>setForm(x=>({...x,name:e.target.value}))}/></label>}
      <label>E-mail<input required type="email" autoComplete="email" value={form.email} onChange={e=>setForm(x=>({...x,email:e.target.value}))}/></label>
-     <label>Senha<input required type="password" minLength={mode==='register'?12:1} maxLength={200} autoComplete={mode==='register'?'new-password':'current-password'} value={form.password} onChange={e=>setForm(x=>({...x,password:e.target.value}))}/></label>
+     <label>Senha<input required type="password" minLength={mode==='register'?(existingAccount?8:12):1} maxLength={200} autoComplete={mode==='register'?'new-password':'current-password'} value={form.password} onChange={e=>setForm(x=>({...x,password:e.target.value}))}/></label>
+     {mode==='register'&&<label className="svx-partner__existing-account"><input type="checkbox" checked={existingAccount} onChange={e=>setExistingAccount(e.target.checked)}/><span>Já tenho uma conta de lojista no ShopVax e quero usar o mesmo e-mail e senha.</span></label>}
      {error&&<p role="alert" className="svx-partner__error">{error}</p>}
      <button disabled={busy}>{busy?'Processando…':mode==='register'?'Criar conta de parceiro':'Entrar como parceiro'} <ArrowRight size={17}/></button>
     </form>

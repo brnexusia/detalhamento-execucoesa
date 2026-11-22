@@ -216,3 +216,5 @@
 .svx-partner__ref-link svg{flex-shrink:0}
 .svx-partner__share-actions{display:flex;flex-wrap:wrap;gap:9px}
 @media(max-width:460px){.svx-partner__share-actions button{flex:1 1 125px}}
+
+.svx-partner__auth form label.svx-partner__existing-account{display:flex;align-items:flex-start;gap:10px;line-height:1.45;font-weight:500;font-size:12px}.svx-partner__existing-account input{width:18px;height:18px;min-height:18px;max-width:18px;flex-shrink:0;margin:0}
