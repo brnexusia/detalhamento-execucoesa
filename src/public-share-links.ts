@@ -13,8 +13,25 @@ export function publicSellerLink(storeSlug: string, sellerSlug: string): string 
   return `${publicStoreLink(storeSlug)}/${encodeURIComponent(sellerSlug)}`
 }
 
-export function publicCatalogLink(storeSlug: string, catalogSlug: string): string {
-  return `${publicStoreLink(storeSlug)}?catalog=${encodeURIComponent(catalogSlug)}`
+/** ShopVax URLs: /loja/catalogo/pasta or /loja/vendedora/pasta.
+ * "catalogo" is reserved in the third segment. Preserve a legacy seller of
+ * that exact slug using ?catalog so an existing seller is never lost.
+ */
+export function publicCatalogLink(storeSlug: string, catalogSlug: string, sellerSlug?: string): string {
+  const catalog = encodeURIComponent(catalogSlug)
+  if (!sellerSlug) return publicStoreLink(storeSlug) + '/catalogo/' + catalog
+  if (sellerSlug.toLowerCase() === 'catalogo') return publicSellerLink(storeSlug,sellerSlug) + '?catalog=' + catalog
+  return publicSellerLink(storeSlug,sellerSlug) + '/' + catalog
+}
+export function parsePublicStorePath(pathname: string): {storeSlug: string; sellerSlug?: string; catalogSlug?: string} {
+  const parts = pathname.split('/').filter(Boolean).map(s => {
+    try { return decodeURIComponent(s) } catch { return s }
+  })
+  const [storeSlug, sellerOrPrefix, catalogSlug] = parts
+  if (!sellerOrPrefix) return {storeSlug:storeSlug || ''}
+  if (!catalogSlug) return {storeSlug:storeSlug || '',sellerSlug:sellerOrPrefix}
+  if (sellerOrPrefix === 'catalogo') return {storeSlug:storeSlug || '',catalogSlug}
+  return {storeSlug:storeSlug || '',sellerSlug:sellerOrPrefix,catalogSlug}
 }
 
 export function publicReferralLink(referralCode: string): string {

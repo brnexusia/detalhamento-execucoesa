@@ -442,7 +442,7 @@ function Products({ data, revision, query, setQuery, onCreate, onEdit, onVisibil
         <button type="button" className="primary-action" onClick={onCreate}>Novo produto <ArrowRight size={18} /></button>
       </div>
     </header>
-    <CatalogManager storeSlug={data.store.slug} categories={categories.map(x=>x.category)}
+    <CatalogManager storeSlug={data.store.slug} sellers={data.sellers} categories={categories.map(x=>x.category)}
       onReady={() => setCatalogReady(true)}
       onSelect={(catalog)=>{
         if(activeCatalog?.id!==catalog?.id)setActiveCategory('Todas')

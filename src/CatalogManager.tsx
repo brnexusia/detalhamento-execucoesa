@@ -1,8 +1,8 @@
-import { publicCatalogLink } from './public-share-links'
+import { publicCatalogLink, publicStoreLink, publicSellerLink } from './public-share-links'
 import { useEffect, useState } from 'react'
 import { Check, Copy, Download, ExternalLink, FolderClosed, FolderOpen, MoreHorizontal, Plus, Search, Share2, Trash2, X } from 'lucide-react'
 import { api, type AdminCatalog } from './api'
-import type { AdminProduct } from './types'
+import type { AdminProduct, AdminSeller } from './types'
 import { confirmAction } from './ui-dialogs'
 import './catalog-manager.css'
 
@@ -11,6 +11,7 @@ type Pane = 'create'|'settings'|'add'|null
 type Props = {
  storeSlug:string
  categories:string[]
+ sellers?:AdminSeller[]
  onSelect:(catalog:AdminCatalog|null)=>void
  onChanged:()=>void
  onReady?:()=>void
@@ -28,7 +29,7 @@ function download(blob:Blob,filename:string){
  a.href=url;a.download=filename;document.body.append(a);a.click();a.remove()
  setTimeout(()=>URL.revokeObjectURL(url),1000)
 }
-export default function CatalogManager({storeSlug,categories,onSelect,onChanged,onReady}:Props){
+export default function CatalogManager({storeSlug,categories,sellers=[],onSelect,onChanged,onReady}:Props){
  const [catalogs,setCatalogs]=useState<AdminCatalog[]>([])
  const [gold,setGold]=useState(false)
  const [selectedId,setSelectedId]=useState('')
@@ -49,6 +50,7 @@ export default function CatalogManager({storeSlug,categories,onSelect,onChanged,
  const [error,setError]=useState('')
  const [message,setMessage]=useState('')
  const [linkFeedback,setLinkFeedback]=useState<{id:string;text:string;error:boolean}|null>(null)
+ const [linkSellerSlug,setLinkSellerSlug]=useState('')
  const selected=catalogs.find(c=>c.id===selectedId)||catalogs[0]||null
  const changeCustomFormat=(value:string)=>{
    setCustomFormat(value)
@@ -100,23 +102,44 @@ export default function CatalogManager({storeSlug,categories,onSelect,onChanged,
    return()=>window.removeEventListener('keydown',onKey)
  },[pane,busy])
  const choose=(catalog:AdminCatalog)=>{setSelectedId(catalog.id);onSelect(catalog)}
- const catalogLink=(catalog:AdminCatalog)=>publicCatalogLink(storeSlug,catalog.slug)
- const copyLink=async(catalog:AdminCatalog)=>{
+ const activeSellers=sellers.filter(seller=>seller.is_active)
+ const selectedSeller=activeSellers.find(seller=>seller.slug===linkSellerSlug)
+ const storeLink=selectedSeller?publicSellerLink(storeSlug,selectedSeller.slug):publicStoreLink(storeSlug)
+ const catalogLink=(catalog:AdminCatalog)=>publicCatalogLink(storeSlug,catalog.slug,selectedSeller?.slug)
+ const copyLink=async(url:string,key:string)=>{
    try{
-     await navigator.clipboard.writeText(catalogLink(catalog))
-     setLinkFeedback({id:catalog.id,text:'Link copiado.',error:false})
+     await navigator.clipboard.writeText(url)
+     setLinkFeedback({id:key,text:'Link copiado.',error:false})
    }catch{
-     setLinkFeedback({id:catalog.id,text:'Não foi possível copiar automaticamente. Selecione o endereço acima e copie.',error:true})
+     setLinkFeedback({id:key,text:'Não foi possível copiar automaticamente. Selecione o endereço e copie.',error:true})
    }
  }
- const shareLink=async(catalog:AdminCatalog)=>{
-   if(typeof navigator.share!=='function'){await copyLink(catalog);return}
+ const shareLink=async(url:string,key:string,title:string)=>{
+   if(typeof navigator.share!=='function'){await copyLink(url,key);return}
    try{
-     await navigator.share({title:catalog.name,url:catalogLink(catalog)})
-     setLinkFeedback({id:catalog.id,text:'Compartilhamento iniciado.',error:false})
+     await navigator.share({title,url})
+     setLinkFeedback({id:key,text:'Compartilhamento iniciado.',error:false})
    }catch(error){
-     if((error as Error)?.name!=='AbortError')setLinkFeedback({id:catalog.id,text:'Não foi possível compartilhar. Use Copiar link.',error:true})
+     if((error as Error)?.name!=='AbortError')setLinkFeedback({id:key,text:'Não foi possível compartilhar. Use Copiar.',error:true})
    }
+ }
+ const linkCard=(type:'store'|'catalog',url:string,disabled=false)=>{
+   const key=type+':'+(selected?.id||'')+':'+(selectedSeller?.slug||'')
+   const parts=new URL(url)
+   const title=type==='store'?(selectedSeller?'Link da vendedora':'Link geral da loja'):'Link desta pasta'
+   const description=type==='store'?(selectedSeller?'Abre a loja com atendimento de '+selectedSeller.name+'.':'Abre a vitrine principal, com os produtos da loja.'):(selectedSeller?'Abre esta pasta com atendimento de '+selectedSeller.name+'.':'Abre diretamente os produtos deste catálogo.')
+   return <article className={'svx-catalog-share__card'+(disabled?' is-disabled':'')} key={key}>
+     <div className="svx-catalog-share__card-heading"><span className="svx-catalog-share__icon">{type==='store'?<ExternalLink size={17} aria-hidden="true"/>:<FolderOpen size={17} aria-hidden="true"/>}</span><div><strong>{title}</strong><small>{description}</small></div></div>
+     {disabled?<p className="svx-catalog-card__disabled">Esta pasta está desativada ou bloqueada pelo plano.</p>:<>
+       <div className="svx-catalog-share__url" aria-label={title+': '+url} tabIndex={0}><span>{parts.host}</span><strong>{parts.pathname+parts.search}</strong></div>
+       <div className="svx-catalog-share__actions">
+         <button type="button" onClick={()=>void copyLink(url,key)}><Copy size={15} aria-hidden="true"/> Copiar</button>
+         <a href={url} target="_blank" rel="noopener noreferrer"><ExternalLink size={15} aria-hidden="true"/> Abrir</a>
+         {typeof navigator.share==='function'&&<button type="button" onClick={()=>void shareLink(url,key,title)}><Share2 size={15} aria-hidden="true"/> Compartilhar</button>}
+       </div>
+       {linkFeedback?.id===key&&<p className="svx-catalog-card__feedback" role={linkFeedback.error?'alert':'status'}>{linkFeedback.text}</p>}
+     </>}
+   </article>
  }
  const show=(next:Pane)=>{setError('');setMessage('');setPane(next);setAddChecked([]);setAddSearch('')}
  const create=async(e:React.FormEvent)=>{
@@ -207,18 +230,14 @@ export default function CatalogManager({storeSlug,categories,onSelect,onChanged,
        </div>
        <span className="svx-catalog-folder-details__count">Pasta selecionada</span>
      </header>
-     {selected.active&&!selected.lockedByPlan
-       ?<div className="svx-catalog-card__link">
-         <label htmlFor={'catalog-link-'+selected.id}>Link público desta pasta</label>
-         <input id={'catalog-link-'+selected.id} readOnly value={catalogLink(selected)} onFocus={event=>event.currentTarget.select()}/>
-         <div className="svx-catalog-card__actions">
-           <button type="button" onClick={()=>void copyLink(selected)}><Copy size={15} aria-hidden="true"/> Copiar link</button>
-           {typeof navigator.share==='function'&&<button type="button" onClick={()=>void shareLink(selected)}><Share2 size={15} aria-hidden="true"/> Compartilhar</button>}
-           <a href={catalogLink(selected)} target="_blank" rel="noreferrer"><ExternalLink size={15} aria-hidden="true"/> Abrir catálogo</a>
-         </div>
+     <section className="svx-catalog-share" aria-label="Links de divulgação">
+       <div className="svx-catalog-share__heading"><h4>Links para compartilhar</h4><p>Escolha entre divulgar a loja inteira ou somente esta pasta.</p></div>
+       {activeSellers.length>0&&<label className="svx-catalog-share__seller"><span>Quem vai atender o comprador?</span><select aria-label="Vendedora do link" value={selectedSeller?.slug||''} onChange={event=>{setLinkSellerSlug(event.target.value);setLinkFeedback(null)}}><option value="">Atendimento geral da loja</option>{activeSellers.map(seller=><option key={seller.id} value={seller.slug}>{seller.name}</option>)}</select><small>Escolha uma vendedora para enviar o pedido diretamente ao atendimento dela.</small></label>}
+       <div className="svx-catalog-share__cards">
+         {linkCard('store',storeLink)}
+         {linkCard('catalog',catalogLink(selected),!selected.active||selected.lockedByPlan)}
        </div>
-       :<p className="svx-catalog-card__disabled">Este catálogo não possui link público disponível enquanto estiver desativado ou bloqueado pelo plano.</p>}
-     {linkFeedback?.id===selected.id&&<p className="svx-catalog-card__feedback" role={linkFeedback.error?'alert':'status'}>{linkFeedback.text}</p>}
+     </section>
      <p className="svx-catalog-folder-details__hint">Os produtos e as categorias exibidos abaixo pertencem à pasta <strong>{selected.name}</strong>. Alterar esta pasta não apaga produtos da base da loja.</p>
    </section>}
    {error&&!pane&&<p className="svx-catalog-inline__error" role="alert">{error}</p>}
@@ -265,7 +284,7 @@ export default function CatalogManager({storeSlug,categories,onSelect,onChanged,
          {pane==='settings'&&selected&&!selected.lockedByPlan&&<>
            <div className="svx-catalog-dialog__extra">
              {!selected.isDefault&&<button type="button" onClick={()=>show('add')}><Plus size={16}/> Adicionar produtos</button>}
-             <a href={'/'+encodeURIComponent(storeSlug)+'?catalog='+encodeURIComponent(selected.slug)} target="_blank" rel="noreferrer"><ExternalLink size={15}/> Abrir link do catálogo</a>
+             <a href={catalogLink(selected)} target="_blank" rel="noreferrer"><ExternalLink size={15}/> Abrir link do catálogo</a>
            </div>
            <label>PDF por categoria<select value={pdfCategory} onChange={e=>setPdfCategory(e.target.value)}><option value="">Todas as categorias</option>{categories.map(c=><option key={c} value={c}>{c}</option>)}</select></label>
            <button type="button" onClick={()=>void exportPdf()} disabled={busy}><Download size={15}/> Gerar PDF</button>

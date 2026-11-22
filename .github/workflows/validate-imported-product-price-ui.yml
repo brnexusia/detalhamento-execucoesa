@@ -4,6 +4,13 @@ on:
     branches: [main]
     paths:
       - 'src/AdminApp.tsx'
+      - 'src/CatalogManager.tsx'
+      - 'src/public-share-links.ts'
+      - 'src/catalog-manager.css'
+      - 'src/api.ts'
+      - 'server/page-metadata-hooks.mjs'
+      - 'tests/shopvax-product-catalog-ui.e2e.mjs'
+      - 'tests/shopvax-pretty-catalog-links.e2e.mjs'
       - 'src/ProductCategoryPicker.tsx'
       - 'src/product-category-picker.css'
       - 'tests/shopvax-imported-product-price.e2e.mjs'
@@ -12,6 +19,13 @@ on:
     branches: [main]
     paths:
       - 'src/AdminApp.tsx'
+      - 'src/CatalogManager.tsx'
+      - 'src/public-share-links.ts'
+      - 'src/catalog-manager.css'
+      - 'src/api.ts'
+      - 'server/page-metadata-hooks.mjs'
+      - 'tests/shopvax-product-catalog-ui.e2e.mjs'
+      - 'tests/shopvax-pretty-catalog-links.e2e.mjs'
       - 'src/ProductPriceEditor.tsx'
       - 'src/ProductCategoryPicker.tsx'
       - 'src/product-category-utils.ts'
@@ -52,5 +66,7 @@ jobs:
         run: node tests/shopvax-imported-product-price.e2e.mjs
       - name: Validate buyer selection and grade prices
         run: node tests/shopvax-grade.e2e.mjs
+      - name: Validate pretty catalog links and folder sharing
+        run: node tests/shopvax-pretty-catalog-links.e2e.mjs && node tests/shopvax-product-catalog-ui.e2e.mjs
       - if: failure()
         run: tail -150 /tmp/shopvax-ui-test.log || true
