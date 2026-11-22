@@ -101,7 +101,7 @@ try{
  assert.equal(registered.status,201,JSON.stringify(registeredBody))
  assert.equal(registeredBody.status,'active','Conta ativa e link disponível no ato do cadastro')
  const cookie=String(registered.headers.get('set-cookie')||'').split(';')[0]
- assert.match(cookie,/(shopvax_session|atacado_session)=/)
+ assert.match(cookie,/shopvax_partner_session=/)
  const newUser=(await pool.query('SELECT id FROM users WHERE email=$1',[newEmail])).rows[0]
  users.push(newUser.id)
  assert.equal((await pool.query('SELECT 1 FROM stores WHERE owner_id=$1',[newUser.id])).rowCount,0,'Parceiro não cria loja')
@@ -146,14 +146,18 @@ try{
  // Apenas administradores consultam identidade e histórico paginado das lojas de cada parceiro.
  assert.equal((await fetch(base+'/api/platform/referrals/partners/'+partnerRowId+'/referrals',{headers:{cookie}})).status,403)
  await pool.query('INSERT INTO platform_admins(user_id,created_by) VALUES($1,$1) ON CONFLICT DO NOTHING',[newUser.id])
- const adminReport=await fetch(base+'/api/platform/referrals',{headers:{cookie}})
+ const ownerLogin=await fetch(base+'/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:newEmail,password:'SenhaTesteSegura2026!'})})
+ assert.equal(ownerLogin.status,200,'Sessão administrativa usa cookie de proprietário separado da sessão de parceiro')
+ const adminCookie=String(ownerLogin.headers.get('set-cookie')||'').split(';')[0]
+ assert.match(adminCookie,/atacado_session=/)
+ const adminReport=await fetch(base+'/api/platform/referrals',{headers:{cookie:adminCookie}})
  assert.equal(adminReport.status,200)
  const adminData=await adminReport.json()
  const partnerStats=adminData.partners.find(p=>p.id===partnerRowId)
  assert.equal(Number(partnerStats.registered_only),1,'ADM mostra cadastro abandonado antes de checkout')
  assert.equal(Number(partnerStats.checkout_started),0)
  const detailUrl=base+'/api/platform/referrals/partners/'+partnerRowId+'/referrals'
- const firstDetailResponse=await fetch(detailUrl+'?page=1&limit=1',{headers:{cookie}})
+ const firstDetailResponse=await fetch(detailUrl+'?page=1&limit=1',{headers:{cookie:adminCookie}})
  assert.equal(firstDetailResponse.status,200)
  const firstDetail=await firstDetailResponse.json()
  assert.equal(firstDetail.total,1)
@@ -161,7 +165,7 @@ try{
  assert.equal(firstDetail.items[0].checkout_started_at,null)
  const fakeStartedAt=new Date().toISOString()
  await pool.query('INSERT INTO shopvax_stripe_billing(store_id,checkout_started_at) VALUES($1,$2)',[registeredStore.id,fakeStartedAt])
- const checkoutReport=await (await fetch(base+'/api/platform/referrals',{headers:{cookie}})).json()
+ const checkoutReport=await (await fetch(base+'/api/platform/referrals',{headers:{cookie:adminCookie}})).json()
  const startedStats=checkoutReport.partners.find(p=>p.id===partnerRowId)
  assert.equal(Number(startedStats.registered_only),0)
  assert.equal(Number(startedStats.checkout_started),1,'Checkout pendente difere de cadastro sem pagamento')
@@ -171,9 +175,9 @@ try{
    await qualifyReferralOnPaidInvoice(paidClient,registeredStore.id,'in_linked_signup_'+seed)
    await paidClient.query('COMMIT')
  }catch(e){await paidClient.query('ROLLBACK');throw e}finally{paidClient.release()}
- const paidReport=await (await fetch(base+'/api/platform/referrals',{headers:{cookie}})).json()
+ const paidReport=await (await fetch(base+'/api/platform/referrals',{headers:{cookie:adminCookie}})).json()
  assert.equal(Number(paidReport.partners.find(p=>p.id===partnerRowId).paid_referrals),1)
- const qualifiedDetail=await (await fetch(detailUrl,{headers:{cookie}})).json()
+ const qualifiedDetail=await (await fetch(detailUrl,{headers:{cookie:adminCookie}})).json()
  assert.equal(qualifiedDetail.items[0].status,'qualified')
  assert.equal(qualifiedDetail.items[0].commission_status,'awaiting_rule','Sem comissão definida não gera dívida fictícia')
  const reversalClient=await pool.connect()
@@ -182,7 +186,7 @@ try{
    await reverseReferralForRefund(reversalClient,'in_linked_signup_'+seed,fakeStripe,'test')
    await reversalClient.query('COMMIT')
  }catch(e){await reversalClient.query('ROLLBACK');throw e}finally{reversalClient.release()}
- const reversedReport=await (await fetch(base+'/api/platform/referrals',{headers:{cookie}})).json()
+ const reversedReport=await (await fetch(base+'/api/platform/referrals',{headers:{cookie:adminCookie}})).json()
  assert.equal(Number(reversedReport.partners.find(p=>p.id===partnerRowId).reversed_referrals),1,'ADM identifica estorno')
  // Mais indicações do que o limite de uma página: totais completos em ambos os painéis.
  // Uma loja por usuário evita violar o vínculo exclusivo da conta lojista.
@@ -218,9 +222,13 @@ try{
  assert.equal(dashboardPage2.metrics.registered,extra+1,'Total constante na segunda página')
  assert.equal(dashboardPage2.referralsPage,2)
  assert.equal(dashboardPage2.referrals.length,extra+1-30,'As indicações antigas continuam acessíveis')
- const adminAfterBulk=await (await fetch(base+'/api/platform/referrals',{headers:{cookie}})).json()
+ const adminAfterBulk=await (await fetch(base+'/api/platform/referrals',{headers:{cookie:adminCookie}})).json()
  assert.equal(Number(adminAfterBulk.partners.find(p=>p.id===partnerRowId).referrals),extra+1,
   'ADM e parceiro precisam apresentar a mesma quantidade de cadastros')
+ const partnerLogout=await fetch(base+'/api/partners/logout',{method:'POST',headers:{cookie}})
+ assert.equal(partnerLogout.status,200)
+ assert.equal((await fetch(base+'/api/partners/dashboard',{headers:{cookie}})).status,401,'Logout parceiro revoga apenas a sessão do parceiro')
+ assert.equal((await fetch(base+'/api/platform/referrals',{headers:{cookie:adminCookie}})).status,200,'Sessão administrativa permanece ativa após sair do parceiro')
  await pool.query('DELETE FROM platform_admins WHERE user_id=$1',[newUser.id])
 
  const invalidLogin=await fetch(base+'/api/partners/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:newEmail,password:'incorrect!'})})

@@ -2,15 +2,16 @@ import crypto from 'node:crypto'
 
 // A single browser may have owner, WhatsApp buyer and legacy customer cookies.
 // Logout revokes *all* existing server sessions before dropping the cookies.
-export const browserSessionCookies = ['atacado_session', 'shopvax_buyer_session', 'shopvax_customer_session']
+export const browserSessionCookies = ['atacado_session', 'shopvax_partner_session', 'shopvax_buyer_session', 'shopvax_customer_session']
 
 const tokenHash = (value) => crypto.createHash('sha256').update(String(value)).digest('hex')
 
 export async function revokeAllBrowserSessions(pool, cookies = {}) {
   const ownerToken = cookies.atacado_session
+  const partnerToken = cookies.shopvax_partner_session
   const buyerToken = cookies.shopvax_buyer_session
   const legacyToken = cookies.shopvax_customer_session
-  if (!ownerToken && !buyerToken && !legacyToken) return
+  if (!ownerToken && !partnerToken && !buyerToken && !legacyToken) return
   if (!pool) throw new Error('Banco indisponível para revogação das sessões.')
 
   const client = await pool.connect()
@@ -18,6 +19,9 @@ export async function revokeAllBrowserSessions(pool, cookies = {}) {
     await client.query('BEGIN')
     if (ownerToken) {
       await client.query('DELETE FROM sessions WHERE token_hash=$1', [tokenHash(ownerToken)])
+    }
+    if (partnerToken) {
+      await client.query('DELETE FROM sessions WHERE token_hash=$1', [tokenHash(partnerToken)])
     }
     if (buyerToken || legacyToken) {
       // A conta WhatsApp e as contas antigas são opcionais em instalações anteriores.

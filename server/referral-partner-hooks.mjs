@@ -3,20 +3,37 @@ import express from 'express'
 import { ensureReferralSchema, referralPool, lookupReferral, referralCode } from './referral-program-core.mjs'
 
 const pool = referralPool
-const sessionCookie = 'atacado_session'
+const sessionCookie = 'shopvax_partner_session'
+const ownerSessionCookie = 'atacado_session'
 const secureText = (raw,max) => String(raw || '').trim().slice(0,max)
 const hash = raw => crypto.createHash('sha256').update(String(raw || '')).digest('hex')
 const id = () => crypto.randomUUID()
 const wrap = fn => (req,res,next) => Promise.resolve(fn(req,res)).catch(next)
 const sendError = (res,status,message) => res.status(status).json({ error: message })
 const noCache = (_req,res,next) => {res.set('Cache-Control','private, no-store');next()}
-const parseToken = req => {
-  const cookie=String(req.headers.cookie || '').split(';').map(x=>x.trim()).find(x=>x.startsWith(sessionCookie+'='))
-  if(!cookie)return ''
-  try{return decodeURIComponent(cookie.slice(sessionCookie.length+1))}catch{return ''}
+const authAttempts=new Map()
+function partnerRateLimit(max,windowMs,scope='ip'){
+  return (req,res,next)=>{
+    if(process.env.NODE_ENV==='test' && process.env.SHOPVAX_SECURITY_RATE_LIMIT_DISABLED==='1')return next()
+    const identity=scope==='email'?String(req.body?.email||'').trim().toLowerCase():String(req.ip||req.socket?.remoteAddress||'unknown')
+    const key=req.path+'|'+scope+'|'+identity
+    const now=Date.now()
+    if(authAttempts.size>5000)for(const [k,v] of authAttempts){if(now-v.start>windowMs)authAttempts.delete(k)}
+    const prev=authAttempts.get(key)
+    const current=!prev||now-prev.start>=windowMs?{start:now,count:1}:{start:prev.start,count:prev.count+1}
+    authAttempts.set(key,current)
+    if(current.count>max){res.set('Retry-After',String(Math.ceil((windowMs-(now-current.start))/1000)));return sendError(res,429,'Muitas tentativas. Aguarde alguns minutos e tente novamente.')}
+    next()
+  }
 }
-async function currentUser(req) {
-  const token=parseToken(req)
+
+const parseToken = (req,cookieName=sessionCookie) => {
+  const cookie=String(req.headers.cookie || '').split(';').map(x=>x.trim()).find(x=>x.startsWith(cookieName+'='))
+  if(!cookie)return ''
+  try{return decodeURIComponent(cookie.slice(cookieName.length+1))}catch{return ''}
+}
+async function currentUser(req,cookieName=sessionCookie) {
+  const token=parseToken(req,cookieName)
   if (!token) return null
   return (await pool.query([
     'SELECT u.id,u.email,u.name FROM sessions se JOIN users u ON u.id=se.user_id',
@@ -33,7 +50,7 @@ async function requirePartner(req,res) {
   return {user,partner}
 }
 async function requirePlatform(req,res) {
-  const user=await currentUser(req)
+  const user=await currentUser(req,ownerSessionCookie)
   if(!user){sendError(res,401,'Sessão necessária.');return null}
   const allowed=await pool.query('SELECT 1 FROM platform_admins WHERE user_id=$1',[user.id])
   if(!allowed.rowCount){sendError(res,403,'Permissão administrativa necessária.');return null}
@@ -70,7 +87,16 @@ async function resolveCode(req,res) {
   const code=referralCode(req.query.code)
   const resolved=await lookupReferral(pool,code)
   if(!resolved)return sendError(res,404,'Código de indicação não encontrado.')
-  await pool.query('INSERT INTO shopvax_referral_visits(id,code) VALUES($1,$2)',[id(),resolved.code])
+  const cookieName='shopvax_ref_visit'
+  const existing=parseToken(req,cookieName)
+  const visitor=/^[a-f0-9]{64}$/i.test(existing)?existing:crypto.randomBytes(32).toString('hex')
+  if(visitor!==existing)res.cookie(cookieName,visitor,{httpOnly:true,sameSite:'lax',secure:req.secure||req.get('x-forwarded-proto')==='https',maxAge:2592000000,path:'/'})
+  const visitorHash=hash(visitor)
+  const visitedOn=new Date().toISOString().slice(0,10)
+  await pool.query(
+    'INSERT INTO shopvax_referral_visits(id,code,visitor_hash,visited_on) VALUES($1,$2,$3,$4) ON CONFLICT (code,visitor_hash,visited_on) WHERE visitor_hash IS NOT NULL DO NOTHING',
+    [id(),resolved.code,visitorHash,visitedOn],
+  )
   res.json({valid:true,code:resolved.code,type:resolved.type,name:resolved.name,rule:resolved.type==='merchant'?'Mês grátis para a loja indicadora após primeiro pagamento elegível.':'Comissão de parceiro definida pelo Shopvax, após primeiro pagamento elegível.'})
 }
 async function registerPartner(req,res){
@@ -101,6 +127,16 @@ async function registerPartner(req,res){
   res.cookie(sessionCookie,token,{httpOnly:true,sameSite:'lax',secure:req.secure||req.get('x-forwarded-proto')==='https',maxAge:2592000000,path:'/'})
   res.set('Cache-Control','private, no-store')
   res.status(201).json({ok:true,status:'active',code,referralPath:'/criar-conta?ref='+encodeURIComponent(code),message:'Conta criada. Seu código e seu link de indicação já estão disponíveis no painel.'})
+}
+async function logoutPartner(req,res){
+  const token=parseToken(req)
+  if(token){
+    if(!pool)return sendError(res,503,'Serviço de parceiros indisponível.')
+    await pool.query('DELETE FROM sessions WHERE token_hash=$1',[hash(token)])
+  }
+  res.clearCookie(sessionCookie,{httpOnly:true,sameSite:'lax',secure:req.secure||req.get('x-forwarded-proto')==='https',path:'/'})
+  res.set('Cache-Control','private, no-store')
+  res.json({ok:true})
 }
 async function loginPartner(req,res){
   await ensureReferralSchema()
@@ -167,7 +203,7 @@ async function updatePartnerPix(req,res) {
 async function platformReferrals(req,res){
   const admin=await requirePlatform(req,res);if(!admin)return
   await ensureReferralSchema()
-  const [partners,claims]=await Promise.all([
+  const [partners,claims,aggregate]=await Promise.all([
     pool.query([
       'SELECT p.id,p.code,p.status,p.commission_cents,p.pix_key,p.created_at,u.name,u.email,',
       'COALESCE(t.referrals,0) AS referrals, COALESCE(t.registered_only,0) AS registered_only,',
@@ -202,14 +238,22 @@ async function platformReferrals(req,res){
       'LEFT JOIN shopvax_stripe_billing b ON b.store_id=c.referred_store_id',
       'ORDER BY c.created_at DESC LIMIT 500',
     ].join(' ')),
+    pool.query([
+      'SELECT count(*) FILTER (WHERE status=\'pending\')::int AS pending,',
+      'count(*) FILTER (WHERE status=\'qualified\')::int AS qualified,',
+      'count(*) FILTER (WHERE status=\'reversed\')::int AS reversed,',
+      "COALESCE(sum(commission_cents) FILTER (WHERE status='qualified' AND commission_status='pending_approval'),0)::bigint AS commission_pending_cents,",
+      "COALESCE(sum(commission_cents) FILTER (WHERE commission_status='paid'),0)::bigint AS commission_paid_cents,",
+      "count(*) FILTER (WHERE credit_status='applied')::int AS credited_months",
+      'FROM shopvax_referral_claims',
+    ].join(' ')),
   ])
+  const totals=aggregate.rows[0]
   res.json({partners:partners.rows,claims:claims.rows,metrics:{
-    pending:claims.rows.filter(x=>x.status==='pending').length,
-    qualified:claims.rows.filter(x=>x.status==='qualified').length,
-    reversed:claims.rows.filter(x=>x.status==='reversed').length,
-    commissionPendingCents:claims.rows.filter(x=>x.status==='qualified'&&x.commission_status!=='paid').reduce((s,x)=>s+Number(x.commission_cents),0),
-    commissionPaidCents:claims.rows.filter(x=>x.commission_status==='paid').reduce((s,x)=>s+Number(x.commission_cents),0),
-    creditedMonths:claims.rows.filter(x=>x.credit_status==='applied').length,
+    pending:Number(totals.pending),qualified:Number(totals.qualified),reversed:Number(totals.reversed),
+    commissionPendingCents:Number(totals.commission_pending_cents),
+    commissionPaidCents:Number(totals.commission_paid_cents),
+    creditedMonths:Number(totals.credited_months),
   }})
 }
 async function platformPartnerReferrals(req,res){
@@ -287,9 +331,10 @@ async function payout(req,res){
 function install(app) {
   if(app.__shopvaxReferralPartnersInstalled)return
   app.__shopvaxReferralPartnersInstalled=true
-  app.get('/api/public/referrals/resolve',wrap(resolveCode))
-  app.post('/api/partners/register',express.json({limit:'16kb'}),sameOrigin,wrap(registerPartner))
-  app.post('/api/partners/login',express.json({limit:'8kb'}),sameOrigin,wrap(loginPartner))
+  app.get('/api/public/referrals/resolve',partnerRateLimit(120,10*60_000),noCache,wrap(resolveCode))
+  app.post('/api/partners/register',express.json({limit:'16kb'}),sameOrigin,partnerRateLimit(12,15*60_000),wrap(registerPartner))
+  app.post('/api/partners/login',express.json({limit:'8kb'}),sameOrigin,partnerRateLimit(40,15*60_000),partnerRateLimit(10,15*60_000,'email'),wrap(loginPartner))
+  app.post('/api/partners/logout',sameOrigin,wrap(logoutPartner))
   app.get('/api/partners/dashboard',noCache,wrap(partnerDashboard))
   app.put('/api/partners/pix',express.json({limit:'4kb'}),sameOrigin,wrap(updatePartnerPix))
   app.get('/api/platform/referrals',noCache,wrap(platformReferrals))

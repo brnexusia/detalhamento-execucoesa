@@ -25,11 +25,13 @@ test('logout atomically revokes owner, WhatsApp buyer and legacy store customer 
   const db = fakePool()
   await revokeAllBrowserSessions(db.pool, {
     atacado_session: 'owner-secret',
+    shopvax_partner_session: 'partner-secret',
     shopvax_buyer_session: 'buyer-secret',
     shopvax_customer_session: 'legacy-secret',
   })
   assert.deepEqual(db.calls.map((call) => call.sql), [
     'BEGIN',
+    'DELETE FROM sessions WHERE token_hash=$1',
     'DELETE FROM sessions WHERE token_hash=$1',
     "SELECT to_regclass('public.buyer_sessions') AS buyer_sessions, to_regclass('public.store_customer_sessions') AS store_customer_sessions",
     'DELETE FROM buyer_sessions WHERE token_hash=$1',
@@ -37,7 +39,7 @@ test('logout atomically revokes owner, WhatsApp buyer and legacy store customer 
     'COMMIT',
   ])
   assert.deepEqual(db.calls.filter((c) => c.sql.startsWith('DELETE')).map((c) => c.params), [
-    [sha('owner-secret')], [sha('buyer-secret')], [sha('legacy-secret')],
+    [sha('owner-secret')], [sha('partner-secret')], [sha('buyer-secret')], [sha('legacy-secret')],
   ])
   assert.equal(db.released, true)
 })
@@ -70,7 +72,7 @@ test('logout expires all three cookies with consistent security attributes', () 
     clearCookie(name, options) { cleared.push({ name, options }) },
   })
   assert.deepEqual(cleared.map((entry) => entry.name), [
-    'atacado_session', 'shopvax_buyer_session', 'shopvax_customer_session',
+    'atacado_session', 'shopvax_partner_session', 'shopvax_buyer_session', 'shopvax_customer_session',
   ])
   for (const { options } of cleared) {
     assert.deepEqual(options, { httpOnly: true, sameSite: 'lax', secure: true, path: '/' })
