@@ -9,20 +9,21 @@ try {
     { viewport: 390, panel: 366, columns: 1, name: 'mobile' },
     { viewport: 768, panel: 680, columns: 2, name: 'tablet' },
     { viewport: 1024, panel: 760, columns: 2, name: 'compact-desktop' },
-    { viewport: 1440, panel: 1090, columns: 2, name: 'wide-desktop' },
-    { viewport: 1440, panel: 590, columns: 2, name: 'narrow-panel-large-viewport' },
+    { viewport: 1440, panel: 1090, columns: 3, name: 'wide-desktop' },
+    { viewport: 1280, panel: 1280, columns: 3, zoom: 0.8, name: 'firefox-80-percent-zoom' },
+    { viewport: 1440, panel: 590, columns: 1, name: 'narrow-panel-large-viewport' },
     { viewport: 320, panel: 296, columns: 1, name: 'small-mobile' },
   ]) {
     const page = await browser.newPage({ viewport: { width: scenario.viewport, height: 900 } })
     try {
       await page.setContent(`<!DOCTYPE html><meta name="viewport" content="width=device-width,initial-scale=1">
-      <style>*,*::before,*::after{box-sizing:border-box}body{margin:0}section.panel-shell{width:100%}.svx-products{margin:12px}.test-panel{width:${scenario.panel}px;max-width:calc(100vw - 24px)}
+      <style>*,*::before,*::after{box-sizing:border-box}body{margin:0;zoom:${scenario.zoom||1}}section.panel-shell{width:100%}.svx-products{margin:12px}.test-panel{width:${scenario.panel}px;max-width:calc(100vw - 24px)}
       ${css}</style>
       <section class="panel-shell"><main class="svx-products">
       <div class="test-panel"><div class="svx-catalog-inline" aria-label="Catálogos da loja">
         <header class="svx-catalog-inline__header"><div><h2>Minhas pastas</h2><p>Selecione o catálogo</p></div></header>
         <div class="svx-catalog-folders">
-          ${['Varejo', 'Atacado'].map((name,i)=>`<button class="svx-catalog-folder ${i===0?'is-selected':''}" aria-label="${name}" aria-pressed="${i===0}">
+          ${['Catálogo brincos','Catálogo colares','Colares & maxi colares Mamabijoux','Colares verniz Mamabijoux','Pulseiras & braceletes Mamabijoux','Coleção premium'].map((name,i)=>`<button class="svx-catalog-folder ${i===0?'is-selected':''}" aria-label="${name}" aria-pressed="${i===0}">
             <span class="svx-catalog-folder__icon"></span><span class="svx-catalog-folder__text"><strong>${name}</strong><small>Pedido mínimo R$ 1.000,00</small></span>
             <span class="svx-catalog-folder__state">Publicado</span>
             <span class="svx-catalog-folder__action">Abrir pasta</span></button>`).join('')}
@@ -65,9 +66,13 @@ try {
       assert(metrics.actions.every(item => item.left >= metrics.container.x - 1 &&
         item.right <= metrics.container.right + 1),
         `${scenario.name}: ações fora do painel: ${JSON.stringify(metrics)}`)
-      const visualColumns = Math.abs(metrics.folders[0].y - metrics.folders[1].y) < 3 ? 2 : 1
+      const visualColumns = metrics.folders.filter(item => Math.abs(item.y - metrics.folders[0].y) < 3).length
       assert.equal(visualColumns, scenario.columns,
         `${scenario.name}: colunas incompatíveis: ${JSON.stringify(metrics)}`)
+      assert.equal(new Set(metrics.folders.map(item => Math.round(item.y))).size,Math.ceil(metrics.folders.length/scenario.columns),
+        scenario.name + ': cartões devem quebrar em linhas, sem faixa horizontal')
+      assert(metrics.folders.every(item=>item.width >= (scenario.columns===1?200:225)),
+        scenario.name + ': cartões estreitos demais para nomes longos')
       console.log('CATALOG_FOLDER_WIDTH_PASS ' + JSON.stringify({ scenario: scenario.name, ...metrics }))
     } finally { await page.close() }
   }
