@@ -1,6 +1,7 @@
 import { notifyAuthChange, listenAuthChanges } from './auth-session-sync'
 import { prepareCatalogPhoto } from './catalog-photo-upload'
 import type { AdminBootstrap, AdminProduct, Catalog, PublicPayload } from './types'
+import { parsePublicStorePath } from './public-share-links'
 
 export type ImportScannerState = {
   localWorkerEnabled: boolean
@@ -217,7 +218,7 @@ async function requestBlob(url: string): Promise<{ blob: Blob; filename: string 
 
 function currentCatalogSlug() {
   if (typeof window === 'undefined') return ''
-  return new URLSearchParams(window.location.search).get('catalog') || ''
+  return new URLSearchParams(window.location.search).get('catalog') || parsePublicStorePath(window.location.pathname).catalogSlug || ''
 }
 
 export const api = {

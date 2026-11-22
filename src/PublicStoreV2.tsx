@@ -3,6 +3,7 @@ import ShopvaxLoading from './ShopvaxLoading'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, Check, ChevronLeft, ChevronRight, Grid2X2, ImageOff, Minus, Plus, Search, ShoppingBag, Menu, Sparkles, Heart, MessageCircle, Share2, X } from 'lucide-react'
 import { api } from './api'
+import { parsePublicStorePath, publicCatalogLink } from './public-share-links'
 import { ProductGrade, getGradeGroups, type GradeLine } from './ShopvaxGrade'
 import ShopvaxCheckoutReview, { type CheckoutBuyer } from './ShopvaxCheckoutReview'
 import ShopvaxOrderReady from './ShopvaxOrderReady'
@@ -22,8 +23,8 @@ type ViewMode = 'store' | 'feed'
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
 function routeParts() {
-  const [storeSlug, sellerSlug] = window.location.pathname.split('/').filter(Boolean)
-  return { storeSlug: storeSlug || demoPayload.store.slug, sellerSlug }
+  const route = parsePublicStorePath(window.location.pathname)
+  return { ...route, storeSlug:route.storeSlug || demoPayload.store.slug }
 }
 
 function requestedProductId() {
@@ -422,7 +423,7 @@ export default function PublicStoreV2() {
       {!demo && (payload?.catalogs?.length||0)>1 && <nav className="svx-store-catalog-switch" aria-label="Escolher catálogo comercial">
          <span>Comprar por catálogo</span><div>{payload?.catalogs?.map(c=><a key={c.id}
           aria-current={payload.activeCatalog?.id===c.id?'page':undefined}
-          href={'/'+encodeURIComponent(route.storeSlug)+(route.sellerSlug?'/'+encodeURIComponent(route.sellerSlug):'')+'?catalog='+encodeURIComponent(c.slug)}>
+          href={publicCatalogLink(route.storeSlug,c.slug,route.sellerSlug)}>
           {c.name} {c.kind==='caixa_fechada'?'· Caixa fechada':c.kind==='atacado'?'· Atacado':c.kind==='varejo'?'· Varejo':c.kind==='personalizado'?'· '+(c.customLabel||'Personalizado'):''}
          </a>)}</div>
         </nav>}
