@@ -126,8 +126,8 @@ export default function CatalogManager({storeSlug,categories,sellers=[],onSelect
  const linkCard=(type:'store'|'catalog',url:string,disabled=false)=>{
    const key=type+':'+(selected?.id||'')+':'+(selectedSeller?.slug||'')
    const parts=new URL(url)
-   const title=type==='store'?'Link geral da loja':'Link desta pasta'
-   const description=type==='store'?'Abre a vitrine principal, com os produtos da loja.':'Abre diretamente os produtos deste catálogo.'
+   const title=type==='store'?(selectedSeller?'Link da vendedora':'Link geral da loja'):'Link desta pasta'
+   const description=type==='store'?(selectedSeller?'Abre a loja com atendimento de '+selectedSeller.name+'.':'Abre a vitrine principal, com os produtos da loja.'):(selectedSeller?'Abre esta pasta com atendimento de '+selectedSeller.name+'.':'Abre diretamente os produtos deste catálogo.')
    return <article className={'svx-catalog-share__card'+(disabled?' is-disabled':'')} key={key}>
      <div className="svx-catalog-share__card-heading"><span className="svx-catalog-share__icon">{type==='store'?<ExternalLink size={17} aria-hidden="true"/>:<FolderOpen size={17} aria-hidden="true"/>}</span><div><strong>{title}</strong><small>{description}</small></div></div>
      {disabled?<p className="svx-catalog-card__disabled">Esta pasta está desativada ou bloqueada pelo plano.</p>:<>

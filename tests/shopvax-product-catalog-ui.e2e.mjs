@@ -7,7 +7,7 @@ const data={
  user:{id:'owner-ux',name:'Lojista Teste',email:'loja@example.test'},
  store:{id:'store-ux',slug:'loja-ux',name:'Loja UX',accent:'#F25C05',plan_tier:'ouro',whatsapp:'5511999999999',onboarding_palette_selected:true},
  products:[],productCount:100,activeProductCount:95,productCategories:[{category:'Bolsas',count:100}],
- sellers:[],orders:[],stats:{value:0},
+ sellers:[{id:'seller-1',slug:'ana',name:'Ana',phone:'5511999999999',is_active:true}],orders:[],stats:{value:0},
 }
 const general={id:'catalog-geral',slug:'geral',name:'Catálogo principal',kind:'geral',minimumOrder:null,isDefault:true,active:true,lockedByPlan:false,explicitMembership:false,items:[]}
 const retail={...general,id:'catalog-varejo',slug:'varejo',name:'Minha Vitrine',kind:'varejo',isDefault:false,explicitMembership:true}
@@ -50,14 +50,21 @@ try{
   const generalFolder=page.getByRole('button',{name:'Catálogo principal',exact:true})
   const retailFolder=page.getByRole('button',{name:'Minha Vitrine',exact:true})
   assert.equal(await generalFolder.getAttribute('aria-pressed'),'true')
-  assert.equal(await page.locator('.svx-catalog-folder-details input[readonly]').inputValue(),base+'/loja-ux?catalog=geral')
+  assert.equal(await page.locator('.svx-catalog-share__card').count(),2)
+  assert.match(await page.locator('.svx-catalog-share__card').first().innerText(),/Link geral da loja/)
+  assert.match(await page.locator('.svx-catalog-share__card').last().innerText(),/loja-ux\/catalogo\/geral/)
+  assert.equal(await page.locator('.svx-catalog-share__card').last().getByRole('link',{name:'Abrir'}).getAttribute('href'),'https://shopvax.com.br/loja-ux/catalogo/geral')
   assert.equal(await page.locator('.svx-catalog-folder-details').count(),1,'Somente a pasta aberta pode mostrar ações')
   await retailFolder.click()
   await page.locator('.svx-products__categories').getByRole('button',{name:/Todos 1/}).waitFor()
   assert.equal(await retailFolder.getAttribute('aria-pressed'),'true')
-  assert.equal(await page.locator('.svx-catalog-folder-details input[readonly]').inputValue(),base+'/loja-ux?catalog=varejo')
-  assert.equal(await page.locator('.svx-catalog-folder-details').getByRole('link',{name:'Abrir catálogo'}).getAttribute('href'),base+'/loja-ux?catalog=varejo')
-  assert.equal(await page.locator('.svx-catalog-folder-details').getByRole('button',{name:'Copiar link'}).count(),1)
+  assert.equal(await page.locator('.svx-catalog-share__card').last().getByRole('link',{name:'Abrir'}).getAttribute('href'),'https://shopvax.com.br/loja-ux/catalogo/varejo')
+  await page.getByLabel('Vendedora do link').selectOption('ana')
+  assert.match(await page.locator('.svx-catalog-share__card').first().innerText(),/Link da vendedora/)
+  assert.equal(await page.locator('.svx-catalog-share__card').last().getByRole('link',{name:'Abrir'}).getAttribute('href'),'https://shopvax.com.br/loja-ux/ana/varejo')
+  assert.equal(await page.locator('.svx-catalog-share__card').first().getByRole('link',{name:'Abrir'}).getAttribute('href'),'https://shopvax.com.br/loja-ux/ana')
+  assert.equal(await page.locator('.svx-catalog-folder-details').getByRole('link',{name:'Abrir'}).count(),2)
+  assert.equal(await page.locator('.svx-catalog-folder-details').getByRole('button',{name:'Copiar',exact:true}).count(),2)
   await generalFolder.click()
   await page.locator('.svx-products__categories').getByRole('button',{name:/Todos 100/}).waitFor()
   assert.equal(await page.getByText('Catálogos e pedidos mínimos').count(),0,'Não deve existir o antigo painel inline')

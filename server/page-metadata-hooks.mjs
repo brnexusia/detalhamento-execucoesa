@@ -95,13 +95,13 @@ async function metadataFor(req) {
   if (parts[0] === 'perfil' && parts.length !== 2) return { ...meta, status: 404, index: false }
   const profile = parts[0] === 'perfil' && parts.length === 2
   const storeSlug = profile ? parts[1] : parts[0]
-  if (!pool || !storeSlug || NON_PUBLIC.has(storeSlug) || (!profile && parts.length > 2)) {
+  if (!pool || !storeSlug || NON_PUBLIC.has(storeSlug) || (!profile && parts.length > 3)) {
     return { ...meta, index: false, status: pool ? 200 : 503 }
   }
   if (!/^[a-z0-9][a-z0-9-]{0,119}$/.test(storeSlug)) return { ...meta, status: 404, index: false }
   try {
     const stores = await pool.query(
-      'SELECT id,slug,name,tagline,logo_url,social_enabled FROM stores WHERE slug=$1 AND is_active=true LIMIT 1',
+      'SELECT id,slug,name,tagline,logo_url,social_enabled,plan_tier FROM stores WHERE slug=$1 AND is_active=true LIMIT 1',
       [storeSlug],
     )
     if (!stores.rowCount || (profile && stores.rows[0].social_enabled !== true)) {
@@ -120,6 +120,20 @@ async function metadataFor(req) {
     meta.image = publicImage(store.logo_url)
     meta.headline = plain(store.name)
     meta.excerpt = meta.description
+    if (!profile && parts.length === 3) {
+      const slug = parts[2]
+      const catalog = await pool.query(
+        'SELECT name FROM catalogs WHERE store_id=$1 AND slug=$2 AND active=true AND (is_default=true OR $3=$4) LIMIT 1',
+        [store.id,slug,store.plan_tier,'ouro'],
+      )
+      if (!catalog.rowCount) return { ...meta, status: 404, index: false }
+      const folderName = plain(catalog.rows[0].name)
+      meta.url = documentUrl(pathname)
+      meta.title = folderName + ' | ' + storeName + ' | Shopvax'
+      meta.description = seoSummary('Veja os produtos da pasta ' + folderName + ' da loja ' + storeName + ' e monte seu pedido pelo WhatsApp.')
+      meta.headline = folderName
+      meta.excerpt = meta.description
+    }
     meta.index = cleanQuery && (profile || parts.length === 1)
     const storeSchema = {
       '@context': 'https://schema.org', '@type': 'Store',
