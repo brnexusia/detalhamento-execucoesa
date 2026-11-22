@@ -1,0 +1,58 @@
+name: ShopVax - Catalog sharing UX
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/CatalogManager.tsx'
+      - 'src/catalog-manager.css'
+      - 'src/public-share-links.ts'
+      - 'src/api.ts'
+      - 'src/PublicStoreV2.tsx'
+      - 'tests/public-share-links.test.mjs'
+      - 'tests/shopvax-pretty-catalog-links.e2e.mjs'
+      - 'tests/shopvax-catalog-share-ui.e2e.mjs'
+      - '.github/workflows/shopvax-catalog-share-ux.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/CatalogManager.tsx'
+      - 'src/catalog-manager.css'
+      - 'src/public-share-links.ts'
+      - 'src/api.ts'
+      - 'src/PublicStoreV2.tsx'
+      - 'tests/public-share-links.test.mjs'
+      - 'tests/shopvax-pretty-catalog-links.e2e.mjs'
+      - 'tests/shopvax-catalog-share-ui.e2e.mjs'
+      - '.github/workflows/shopvax-catalog-share-ux.yml'
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.58.2-noble
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund --package-lock=false
+      - run: npm install --no-save --no-audit --no-fund playwright@1.58.2
+      - run: node --test tests/public-share-links.test.mjs
+      - run: npm run build
+      - name: Start isolated storefront
+        run: |
+          npm run dev -- --host 127.0.0.1 > /tmp/shopvax-link-test.log 2>&1 &
+          for i in $(seq 1 80); do
+            if curl -fsS http://127.0.0.1:5173/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/shopvax-link-test.log
+          exit 1
+      - name: Test new and legacy catalog links
+        run: node tests/shopvax-pretty-catalog-links.e2e.mjs
+      - name: Test panel share cards in desktop and mobile
+        run: node tests/shopvax-catalog-share-ui.e2e.mjs
+      - if: failure()
+        run: tail -120 /tmp/shopvax-link-test.log || true
