@@ -123,8 +123,8 @@ async function metadataFor(req) {
     if (!profile && parts.length === 3) {
       const slug = parts[2]
       const catalog = await pool.query(
-        'SELECT name FROM catalogs WHERE store_id=$1 AND slug=$2 AND active=true AND (is_default=true OR $3=$4) LIMIT 1',
-        [store.id,slug,store.plan_tier,'ouro'],
+        'SELECT name FROM catalogs WHERE store_id=$1 AND slug=$2 AND active=true AND (is_default=true OR $3::text=\'ouro\') LIMIT 1',
+        [store.id,slug,store.plan_tier],
       )
       if (!catalog.rowCount) return { ...meta, status: 404, index: false }
       const folderName = plain(catalog.rows[0].name)
