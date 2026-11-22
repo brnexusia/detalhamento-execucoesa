@@ -9,6 +9,7 @@ type Referral = {storeName:string;status:string;createdAt:string;qualifiedAt:str
 type Dashboard = {partner:Partner;metrics:{visits:number;registered:number;qualified:number;pending:number;registeredOnly:number;checkoutStarted:number;earnedCents:number;paidCents:number};referrals:Referral[];referralsPage?:number;referralsLimit?:number;referralsTotal?:number}
 const money=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'})
 const date=new Intl.DateTimeFormat('pt-BR',{dateStyle:'short'})
+const routeBase=window.location.pathname.startsWith('/afiliados')?'/afiliados':'/parceiros'
 function go(path:string){window.history.pushState({},'',path);window.dispatchEvent(new PopStateEvent('popstate'))}
 export default function ShopvaxPartnerPortal(){
  const [mode,setMode]=useState<'login'|'register'>(window.location.pathname.endsWith('/cadastro')?'register':'login')
@@ -43,7 +44,7 @@ export default function ShopvaxPartnerPortal(){
    if(result?.ok!==true)throw new Error('O servidor não confirmou a operação. Verifique se o backend do ShopVax está publicado e acessível.')
    const signedIn=await load()
    if(!signedIn){
-     if(mode==='register'){setMode('login');go('/parceiros/entrar')}
+     if(mode==='register'){setMode('login');go(routeBase+'/entrar')}
      throw new Error(mode==='register'?'Conta cadastrada, mas a sessão não abriu. Entre com o e-mail e a senha que acabou de cadastrar.':'Não foi possível abrir seu painel. Tente entrar novamente.')
    }
    setForm(x=>({...x,password:''}))
@@ -55,7 +56,7 @@ export default function ShopvaxPartnerPortal(){
   setBusy(true);setError('')
   try{
     await apiRequest<{ok:boolean}>('/api/partners/logout',{method:'POST'})
-    setDashboard(null);setMode('login');setForm(current=>({...current,password:''}));go('/parceiros/entrar')
+    setDashboard(null);setMode('login');setForm(current=>({...current,password:''}));go(routeBase+'/entrar')
   }catch(err){setError(err instanceof Error?err.message:'Não foi possível encerrar sua sessão. Tente novamente.')}
   finally{setBusy(false)}
  }
@@ -104,7 +105,7 @@ export default function ShopvaxPartnerPortal(){
      {error&&<p role="alert" className="svx-partner__error">{error}</p>}
      <button disabled={busy}>{busy?'Processando…':mode==='register'?'Criar conta de parceiro':'Entrar como parceiro'} <ArrowRight size={17}/></button>
     </form>
-    <button className="svx-partner__link" type="button" onClick={()=>{const next=mode==='login'?'register':'login';setMode(next);go('/parceiros/'+(next==='login'?'entrar':'cadastro'))}}>{mode==='login'?'Ainda não é parceiro? Cadastre-se':'Já tem cadastro? Entre'}</button>
+    <button className="svx-partner__link" type="button" onClick={()=>{const next=mode==='login'?'register':'login';setMode(next);go(routeBase+'/'+(next==='login'?'entrar':'cadastro'))}}>{mode==='login'?'Ainda não é parceiro? Cadastre-se':'Já tem cadastro? Entre'}</button>
    </section>:
    <div className="svx-partner__dashboard">
     <div className="svx-partner__heading"><div><span className="svx-partner__eyebrow">ÁREA DO PARCEIRO</span><h1>Olá, {dashboard.partner.name}.</h1><p>Indicações são separadas entre cadastros, pagamentos confirmados e repasses.</p></div><div><button type="button" onClick={()=>void load(historyPage)}><RefreshCcw size={16}/> Atualizar</button><button type="button" disabled={busy} onClick={()=>void logout()}><LogOut size={16}/> Sair</button></div></div>

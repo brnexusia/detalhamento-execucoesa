@@ -33,7 +33,7 @@ function pageFor(pathname: string) {
   if (pathname === '/entrar' || pathname === '/login') return 'login'
   if (pathname === '/criar-conta') return 'register'
   if (pathname === '/comprador') return 'buyer'
-  if (pathname === '/parceiros' || pathname.startsWith('/parceiros/')) return 'partners'
+  if (pathname === '/parceiros' || pathname.startsWith('/parceiros/') || pathname === '/afiliados' || pathname.startsWith('/afiliados/')) return 'partners'
   if (pathname === '/cliente' || pathname.startsWith('/cliente/')) return 'customer'
   if (pathname === '/admin' || pathname.startsWith('/admin/')) return 'platform'
   if (pathname === '/painel' || pathname.startsWith('/painel/')) return 'admin'

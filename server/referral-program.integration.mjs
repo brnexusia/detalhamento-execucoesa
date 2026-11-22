@@ -96,6 +96,10 @@ try{
  // HTTP: independent partner has a real account but no merchant store.
  const base=process.env.BASE_URL || 'http://127.0.0.1:3000'
  const newEmail='grp2-newpartner-'+seed+'@example.test'
+ for(const route of ['/parceiros','/parceiros/cadastro','/afiliados','/afiliados/cadastro']){
+   const page=await fetch(base+route)
+   assert.equal(page.status,200,'Rota pública de parceiros deve abrir: '+route)
+ }
  const registered=await fetch(base+'/api/partners/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:'Parceira Independente',email:newEmail,password:'SenhaTesteSegura2026!'})})
  const registeredBody=await registered.json()
  assert.equal(registered.status,201,JSON.stringify(registeredBody))

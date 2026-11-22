@@ -11,6 +11,10 @@ try{
   assert.equal(await page.getByRole('button',{name:/Criar conta de parceiro/}).count(),1)
   await page.getByRole('button',{name:/Já tem cadastro/}).click()
   await page.getByRole('heading',{name:'Acesse seu painel de indicações.'}).waitFor()
+  await page.goto('http://127.0.0.1:5173/afiliados/cadastro')
+  await page.getByRole('heading',{name:'Seja parceiro ShopVax.'}).waitFor()
+  await page.getByRole('button',{name:/Já tem cadastro/}).click()
+  assert.match(page.url(),/\/afiliados\/entrar$/)
   await page.close()
  }
  // Cadastro confirmado libera, na mesma sessão, o código e o link atribuíveis.

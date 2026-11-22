@@ -38,7 +38,7 @@ function absoluteUrl(req, value) {
 const SITE = 'https://shopvax.com.br'
 const NON_PUBLIC = new Set([
   'feed','descobrir','para-lojas','entrar','login','criar-conta','comprador',
-  'cliente','painel','admin','api','media','assets','health','robots.txt','sitemap.xml',
+  'cliente','painel','admin','api','media','assets','health','robots.txt','sitemap.xml','parceiros','afiliados',
   'perfil','favicon.svg'
 ])
 const plain = (value, fallback = '') => String(value || fallback).replace(/\s+/g, ' ').trim().slice(0, 220)
