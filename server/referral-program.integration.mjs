@@ -230,6 +230,33 @@ try{
  const qualifiedDetail=await (await fetch(detailUrl,{headers:{cookie:adminCookie}})).json()
  assert.equal(qualifiedDetail.items[0].status,'qualified')
  assert.equal(qualifiedDetail.items[0].commission_status,'awaiting_rule','Sem comissão definida não gera dívida fictícia')
+ // Aprovação, Pix cadastrado, registro de repasse e idempotência: ciclo completo.
+ const configCommission=await fetch(base+'/api/platform/referrals/partners/'+partnerRowId,{
+   method:'PATCH',headers:{'content-type':'application/json',cookie:adminCookie},
+   body:JSON.stringify({commissionCents:2500,applyToPending:true}),
+ })
+ assert.equal(configCommission.status,200,'Administrador precisa conseguir definir a comissão')
+ const updatedClaim=(await pool.query('SELECT commission_cents,commission_status FROM shopvax_referral_claims WHERE referred_store_id=$1',[registeredStore.id])).rows[0]
+ assert.deepEqual(updatedClaim,{commission_cents:2500,commission_status:'pending_approval'})
+ const pix=await fetch(base+'/api/partners/pix',{
+   method:'PUT',headers:{'content-type':'application/json',cookie},
+   body:JSON.stringify({pixKey:'parceiro@example.test'}),
+ })
+ assert.equal(pix.status,200,'Parceiro consegue registrar chave de recebimento')
+ const payoutRef='PIX-REF-'+seed
+ const payoutUrl=base+'/api/platform/referrals/claims/'+registeredStore.id+'/payout'
+ const pay=await fetch(payoutUrl,{method:'POST',headers:{'content-type':'application/json',cookie:adminCookie},
+   body:JSON.stringify({reference:payoutRef})})
+ assert.equal(pay.status,200,'ADM deve registrar pagamento externo comprovado')
+ assert.equal((await pay.json()).recorded,true)
+ const secondPay=await fetch(payoutUrl,{method:'POST',headers:{'content-type':'application/json',cookie:adminCookie},
+   body:JSON.stringify({reference:payoutRef})})
+ assert.equal(secondPay.status,409,'Nunca registrar a mesma comissão como paga duas vezes')
+ const paidDash=await (await fetch(base+'/api/partners/dashboard',{headers:{cookie}})).json()
+ assert.equal(paidDash.metrics.paidCents,2500,'Parceiro vê repasse confirmado no próprio painel')
+ const payoutRow=(await pool.query('SELECT paid_at,payout_reference FROM shopvax_referral_claims WHERE referred_store_id=$1',[registeredStore.id])).rows[0]
+ assert.ok(payoutRow.paid_at)
+ assert.equal(payoutRow.payout_reference,payoutRef)
  const reversalClient=await pool.connect()
  try{
    await reversalClient.query('BEGIN')

@@ -307,19 +307,26 @@ async function updatePartner(req,res){
   if(status!==undefined && !allowed.includes(status))return sendError(res,400,'Status inválido.')
   if(cents!==undefined && (!Number.isSafeInteger(cents)||cents<0||cents>10000000))return sendError(res,400,'Comissão fixa inválida.')
   if(status===undefined&&cents===undefined)return sendError(res,400,'Nenhuma alteração informada.')
-  const result=await pool.query([
-    'UPDATE shopvax_partners SET status=COALESCE($1,status),commission_cents=COALESCE($2,commission_cents),updated_at=now()',
-    'WHERE id=$3 RETURNING id',
-  ].join(' '),[status??null,cents??null,req.params.id])
-  if(!result.rowCount)return sendError(res,404,'Parceiro não encontrado.')
-  if(cents>0 && body.applyToPending===true){
-    await pool.query([
-      "UPDATE shopvax_referral_claims SET commission_cents=$2,commission_status='pending_approval'",
-      "WHERE partner_id=$1 AND status='qualified' AND commission_status='awaiting_rule'",
-    ].join(' '),[req.params.id,cents])
-  }
-  await pool.query('INSERT INTO shopvax_referral_audit(id,actor_user_id,action,meta) VALUES($1,$2,$3,$4)',[id(),admin.id,'partner.update',JSON.stringify({partnerId:req.params.id,status:status??null,commissionCents:cents??null,applyToPending:body.applyToPending===true})])
-  res.json({ok:true})
+  const client=await pool.connect()
+  try{
+    await client.query('BEGIN')
+    const result=await client.query([
+      'UPDATE shopvax_partners SET status=COALESCE($1,status),commission_cents=COALESCE($2,commission_cents),updated_at=now()',
+      'WHERE id=$3 RETURNING id',
+    ].join(' '),[status??null,cents??null,req.params.id])
+    if(!result.rowCount){await client.query('ROLLBACK');return sendError(res,404,'Parceiro não encontrado.')}
+    if(cents>0 && body.applyToPending===true){
+      await client.query([
+        "UPDATE shopvax_referral_claims SET commission_cents=$2,commission_status='pending_approval'",
+        "WHERE partner_id=$1 AND status='qualified' AND commission_status='awaiting_rule'",
+      ].join(' '),[req.params.id,cents])
+    }
+    await client.query('INSERT INTO shopvax_referral_audit(id,actor_user_id,action,meta) VALUES($1,$2,$3,$4)',
+      [id(),admin.id,'partner.update',JSON.stringify({partnerId:req.params.id,status:status??null,commissionCents:cents??null,applyToPending:body.applyToPending===true})])
+    await client.query('COMMIT')
+    res.json({ok:true})
+  }catch(error){await client.query('ROLLBACK').catch(()=>undefined);throw error}
+  finally{client.release()}
 }
 async function payout(req,res){
   const admin=await requirePlatform(req,res);if(!admin)return
