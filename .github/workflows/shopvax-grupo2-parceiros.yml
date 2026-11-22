@@ -22,6 +22,8 @@ on:
       - 'src/PlatformReferralPanel.tsx'
       - 'src/partner-portal.css'
       - 'src/Auth.tsx'
+      - 'src/Home.tsx'
+      - 'src/shopvax-home.css'
       - 'server/global-logout.mjs'
       - 'server/global-logout.test.mjs'
       - 'server/product-category-schema.mjs'
