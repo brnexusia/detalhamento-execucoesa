@@ -29,6 +29,19 @@ try{
   await new Promise(resolve=>setTimeout(resolve,250))
  }
  assert.equal(stripeTableReady,true,'O backend deve inicializar a tabela de cobrança antes de validar indicações')
+ // O health da aplicação sinaliza o schema base; hooks do catálogo ainda podem
+ // executar DDL em paralelo. Não movimentar créditos em meio à primeira migração.
+ let otherMigrationsReady=false
+ for(let attempt=0;attempt<160;attempt++){
+   const ready=(await pool.query([
+     "SELECT count(*)::int AS count FROM information_schema.columns",
+     "WHERE (table_name='orders' AND column_name='coupon_code')",
+     "OR (table_name='platform_plans' AND column_name='feature_flags')",
+   ].join(' '))).rows[0]
+   if(Number(ready?.count)===2){otherMigrationsReady=true;break}
+   await new Promise(resolve=>setTimeout(resolve,250))
+ }
+ assert.equal(otherMigrationsReady,true,'Esperar as migrações concorrentes do painel antes do ledger Stripe')
  const indicadora=await makeUser('indicadora')
  const indicada=await makeUser('indicada')
  const code='SVX-'+seed.toUpperCase()
@@ -121,6 +134,12 @@ try{
  const resolvedHttp=await fetch(base+'/api/public/referrals/resolve?code='+codeNew)
  assert.equal(resolvedHttp.status,200)
  assert.equal((await resolvedHttp.json()).type,'partner')
+ const visitCookie=String(resolvedHttp.headers.get('set-cookie')||'').split(';')[0]
+ assert.match(visitCookie,/shopvax_ref_visit=/)
+ const viewedAgain=await fetch(base+'/api/public/referrals/resolve?code='+codeNew,{headers:{cookie:visitCookie}})
+ assert.equal(viewedAgain.status,200)
+ assert.equal((await pool.query('SELECT count(*)::int AS visits FROM shopvax_referral_visits WHERE code=$1',[codeNew])).rows[0].visits,1,
+   'Atualização da mesma página pelo mesmo visitante não infla a métrica de visitas')
  assert.equal((await fetch(base+'/api/platform/referrals')).status,401,'Métricas centralizadas exigem autorização administrativa')
  // Cadastro sem checkout já registra a loja no parceiro, sem gerar comissão.
  const storeEmail='grp2-merchant-'+seed+'@example.test'

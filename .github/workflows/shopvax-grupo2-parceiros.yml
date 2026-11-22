@@ -22,6 +22,11 @@ on:
       - 'src/PlatformReferralPanel.tsx'
       - 'src/partner-portal.css'
       - 'src/Auth.tsx'
+      - 'server/global-logout.mjs'
+      - 'server/global-logout.test.mjs'
+      - 'server/product-category-schema.mjs'
+      - 'server/page-metadata-hooks.mjs'
+      - 'server/seo-routes-hooks.mjs'
       - 'src/ShopvaxStripeBilling.tsx'
       - 'src/App.tsx'
       - 'tests/shopvax-admin-partner-funnel.e2e.mjs'
@@ -108,6 +113,8 @@ jobs:
           done
           cat /tmp/shopvax-referral-backend.log
           exit 1
+      - name: Verify isolated partner and global session revocation
+        run: node --test server/global-logout.test.mjs
       - name: Verify partner registration, attribution and Stripe referral ledger
         run: node server/referral-program.integration.mjs
       - name: Debug backend startup
