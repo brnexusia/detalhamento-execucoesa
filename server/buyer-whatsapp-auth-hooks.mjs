@@ -279,7 +279,8 @@ async function me(req,res) {
   await schema()
   const account = await buyer(req)
   if (!account) return fail(res,401,'Entre com telefone e senha.')
-  return res.json({ buyer: publicBuyer(account) })
+  const credentials = await pool.query('SELECT 1 FROM buyer_password_credentials WHERE buyer_id=$1 LIMIT 1', [account.id])
+  return res.json({ buyer: { ...publicBuyer(account), passwordEnabled: credentials.rowCount > 0 } })
 }
 async function logout(req,res,next) {
   const current = cookies(req)
