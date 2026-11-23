@@ -102,7 +102,7 @@ export default function GlobalBuyerAccount(){
    {loading?<p className="buyer-state" role="status">Abrindo sua conta…</p>:
     buyer?.profileCompleted?<div>
       <section className="buyer-profile-identity"><span className="buyer-profile-identity__avatar"><UserRound size={29}/></span>
-        <div><h2>{buyer.name}</h2><p>{buyer.phone} · Telefone verificado</p></div></section>
+        <div><h2>{buyer.name}</h2><p>{buyer.phone} · Telefone cadastrado</p></div></section>
       <div className="buyer-profile-grid">{cards.map(({Icon,title,detail,path})=>path
         ? <a key={title} href={path} onClick={e=>{if(e.button||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;e.preventDefault();buyerGo(path)}}>
             <Icon size={24}/><strong>{title}</strong><small>{detail}</small><ChevronRight size={14}/></a>
@@ -121,7 +121,7 @@ export default function GlobalBuyerAccount(){
         </article>):<div className="buyer-empty">Você ainda não possui pedidos vinculados a esta conta. <button className="buyer-inline-link" onClick={()=>buyerGo('/feed')}>Descobrir produtos</button></div>)}
       </section>
       <div className="buyer-section"><button type="button" className="buyer-secondary-button" disabled={busy} onClick={()=>void logout()}><LogOut size={16}/>{busy?'Saindo…':'Sair da conta'}</button></div>
-    </div>:<section className="buyer-section"><div className="buyer-profile-identity"><span className="buyer-profile-identity__avatar"><UserRound size={27}/></span><div><h2>Bem-vindo ao ShopVax</h2><p>Explore sem cadastro. Entre com WhatsApp para consultar preços e acompanhar pedidos.</p></div></div><BuyerWhatsappLogin onVerified={refresh}/></section>}
+    </div>:<section className="buyer-section"><div className="buyer-profile-identity"><span className="buyer-profile-identity__avatar"><UserRound size={27}/></span><div><h2>Bem-vindo ao ShopVax</h2><p>Explore sem cadastro. Crie sua conta com telefone e senha para consultar preços e acompanhar pedidos.</p></div></div><BuyerWhatsappLogin onVerified={refresh}/></section>}
    {error&&<p role="alert" className="buyer-state">{error}</p>}
    <SellerAccess/>
  </div></main>
