@@ -345,13 +345,23 @@ async function main() {
     for(const album of albums)console.log('[mama] pasta planejada',JSON.stringify(album))
     return
   }
+  // Create all 17 requested folders first; slow Google Photos downloads never
+  // leave half the folders missing when a runner is interrupted.
+  const folders=new Map()
+  if(remainingOnly){
+    for(const album of albums){
+      const folder=await ensureMamaFolder(store,album.displayName)
+      folders.set(album.url,folder)
+      console.log('[mama] pasta',JSON.stringify({name:folder.name,slug:folder.slug,reused:folder.reused}))
+    }
+  }
   const summary=[]
   for(let i=0;i<albums.length;i++) {
     const {name:album,url,displayName}=albums[i]
     console.log('[mama] álbum',JSON.stringify({number:i+1,of:albums.length,album,displayName}))
     let jobId=''
     try {
-      const target=remainingOnly?await ensureMamaFolder(store,displayName):catalog
+      const target=remainingOnly?folders.get(url):catalog
       if(remainingOnly){
         const previous=await linkPreviouslyPublished(store.id,url,target.id)
         if(previous){summary.push({album,folder:target.name,status:'linked_previous',...previous});continue}
