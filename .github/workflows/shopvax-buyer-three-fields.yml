@@ -4,11 +4,15 @@ on:
     branches: [main]
     paths:
       - 'src/BuyerWhatsappLogin.tsx'
+      - 'src/SocialShopping.tsx'
       - 'src/GlobalBuyerAccount.tsx'
       - 'server/buyer-document.mjs'
       - 'server/buyer-document.test.mjs'
       - 'server/buyer-whatsapp-auth-hooks.mjs'
+      - 'server/phase2-public-config-hooks.mjs'
       - 'server/buyer-whatsapp-auth.test.mjs'
+      - 'server/buyer-password-auth.mjs'
+      - 'server/buyer-password-auth.test.mjs'
       - 'public/politica-de-privacidade.html'
       - 'public/termos-de-uso.html'
       - 'tests/shopvax-buyer-three-fields.e2e.mjs'
@@ -32,7 +36,7 @@ jobs:
         with:
           node-version: '22'
       - run: npm install --no-fund --no-audit
-      - run: node --test server/buyer-document.test.mjs server/buyer-whatsapp-auth.test.mjs
+      - run: node --test server/buyer-document.test.mjs server/buyer-whatsapp-auth.test.mjs server/buyer-password-auth.test.mjs
       - run: npm run build
       - run: npm install --no-save --no-fund --no-audit playwright@1.58.2
       - run: npx playwright install --with-deps chromium
@@ -40,5 +44,5 @@ jobs:
         run: |
           nohup npm run preview -- --host 127.0.0.1 --port 5173 > /tmp/shopvax-preview.log 2>&1 &
           for i in $(seq 1 50); do curl -fsS http://127.0.0.1:5173/ >/dev/null && break; sleep 1; done
-      - name: Cadastro WhatsApp + CPF/CNPJ em mobile e desktop
+      - name: Cadastro por telefone e senha, sem OTP, mobile e desktop
         run: node tests/shopvax-buyer-three-fields.e2e.mjs
