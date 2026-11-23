@@ -34,7 +34,7 @@ try {
   await page.getByLabel('Nome completo').fill('Maria da Silva')
   await page.getByLabel('CPF ou CNPJ').fill('529.982.247-25')
   await page.getByLabel('Telefone com DDD').fill('(71) 99999-9999')
-  await page.getByLabel('Senha').fill('Senha-super-segura-2026!')
+  await page.locator('.buyer-password-input input').fill('Senha-super-segura-2026!')
   await page.getByRole('button',{name:'Criar minha conta'}).click()
   await page.getByRole('heading',{name:'Maria da Silva'}).first().waitFor({timeout:20000})
   assert.equal(registrations,1,'Cadastro não deve repetir requests')
