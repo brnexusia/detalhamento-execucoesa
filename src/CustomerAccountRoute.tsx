@@ -18,6 +18,7 @@ type StoreConfig = {
   store: { slug: string; name: string; logoUrl?: string; accent?: string }
   customerLoginEnabled: boolean
   buyerWhatsAppLoginEnabled?: boolean
+  buyerPasswordLoginEnabled?: boolean
 }
 
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -157,7 +158,7 @@ export default function CustomerAccountRoute() {
 
       {!config.customerLoginEnabled ? <section className="customer-card"><h1>Conta de cliente indisponível</h1><p>Esta loja desativou temporariamente o acesso por conta.</p></section> : account ? <>
         <section className="customer-card customer-profile"><div><small>Olá,</small><h1>{account.customer.name}</h1><p>{account.customer.email}</p></div><button disabled={busy} onClick={logout}><LogOut size={16}/> {busy ? 'Saindo…' : 'Sair'}</button></section>{error && <div className="customer-error" role="alert">{error}</div>}
-        {config.buyerWhatsAppLoginEnabled && <BuyerWhatsappLogin key={storeSlug + "-profile"} storeSlug={storeSlug} editOnly onVerified={loadAccount}/>}
+        {(config.buyerPasswordLoginEnabled || config.buyerWhatsAppLoginEnabled) && <BuyerWhatsappLogin key={storeSlug + "-profile"} storeSlug={storeSlug} editOnly onVerified={loadAccount}/>}
         <section className="customer-card"><div className="customer-section-head"><div><small>Histórico</small><h2>Seus pedidos</h2></div><strong>{account.orders.length}</strong></div><p className="customer-semantics">{account.semantics}</p><div className="customer-orders">{account.orders.map((order) => <article key={order.id}><div className="customer-order-top"><div><small>{date.format(new Date(order.created_at))}</small><strong>{order.code}</strong></div><span className={`customer-status status-${order.status}`}><CheckCircle2 size={14}/>{statusLabel(order.status)}</span></div><div className="customer-order-info"><span>{(() => { const total = order.items.reduce((sum, item) => sum + Number(item.quantity || 0), 0); return `${total} ${total === 1 ? 'item' : 'itens'}` })()}</span><span>{order.seller_name ? `Atendimento: ${order.seller_name}` : 'Atendimento da loja'}</span><b>{money.format(order.total)}</b></div><p className="customer-order-explanation">{statusExplanation(order.status)}</p></article>)}{!account.orders.length && <div className="customer-empty"><PackageCheck size={30}/><strong>Nenhum pedido ainda.</strong><p>Quando você preparar um pedido nesta loja com sua conta, ele aparecerá aqui.</p></div>}</div></section>
       </> : <div className="buyer-auth-entry">
         {error && <div className="customer-error" role="alert">{error}</div>}
@@ -169,7 +170,7 @@ export default function CustomerAccountRoute() {
           </button>
           {legacyOpen && <section className="customer-card customer-auth">
             <div><small>Acesso antigo</small><h2>Entrar na conta existente</h2>
-              <p>Somente para clientes que já usavam e-mail e senha. O novo cadastro de comprador é feito por WhatsApp.</p></div>
+              <p>Somente para clientes que já usavam e-mail e senha. O novo cadastro global de comprador é feito com telefone e senha.</p></div>
             <form onSubmit={(event) => { event.preventDefault(); void submit() }}>
               <label><span>E-mail</span><input type="email" required value={form.email}
                 onChange={(e) => setForm((value) => ({ ...value, email: e.target.value }))} autoComplete="email"/></label>
