@@ -5,6 +5,8 @@ on:
       - 'scripts/import-mama-once.mjs'
       - 'scripts/mama-export-visual-review.mjs'
       - 'server/mama-import-plan.mjs'
+      - 'scripts/mama-import-remaining-plan.mjs'
+      - 'scripts/mama-import-remaining-plan.test.mjs'
       - 'server/mama-import-plan.test.mjs'
       - 'server/scanner-import-grouping.mjs'
       - 'server/scanner-publish-hooks.mjs'
@@ -21,9 +23,11 @@ jobs:
         run: |
           grep -Fq 'COPY scripts/import-mama-once.mjs ./scripts/import-mama-once.mjs' Dockerfile
           grep -Fq 'COPY scripts/mama-public-album-links.mjs ./scripts/mama-public-album-links.mjs' Dockerfile
+          grep -Fq 'COPY scripts/mama-import-remaining-plan.mjs ./scripts/mama-import-remaining-plan.mjs' Dockerfile
       - name: Validate syntax
         run: |
           node --check scripts/import-mama-once.mjs
+          node --check scripts/mama-import-remaining-plan.mjs
           node --check scripts/mama-export-visual-review.mjs
           node --check server/mama-import-plan.mjs
           node --check server/scanner-publish-hooks.mjs
@@ -31,4 +35,4 @@ jobs:
       - name: Install dependencies
         run: npm install --ignore-scripts
       - name: Verify photo isolation and non-invented prices
-        run: node --test server/mama-import-plan.test.mjs
+        run: node --test server/mama-import-plan.test.mjs scripts/mama-import-remaining-plan.test.mjs

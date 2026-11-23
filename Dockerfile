@@ -35,6 +35,7 @@ COPY scripts/backfill-media-variants.mjs ./scripts/backfill-media-variants.mjs
 # This does not execute during build or application startup.
 COPY scripts/import-mama-once.mjs ./scripts/import-mama-once.mjs
 COPY scripts/mama-public-album-links.mjs ./scripts/mama-public-album-links.mjs
+COPY scripts/mama-import-remaining-plan.mjs ./scripts/mama-import-remaining-plan.mjs
 # Tesseract OCR + Poppler stay in the main Node container; no Python ML runtime.
 EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD node -e "fetch('http://127.0.0.1/health').then(async r=>{const h=await r.json();if(!r.ok||h.ok!==true||h.database!==true)process.exit(1)}).catch(()=>process.exit(1))"

@@ -2,7 +2,9 @@
  * One-time MAMA public Google Photos import. Not wired into app startup.
  * Preview: node scripts/import-mama-once.mjs
  * Collect (review only): node scripts/import-mama-once.mjs --apply
- * Publication is intentionally not automated: photos missed by OCR need visual verification.
+ * The original --publish-verified flow still requires visual validation.
+ * The owner-approved --remaining --publish-importable flow publishes ONLY products
+ * whose price, local image and stable Google photo identity were recognized.
  *
  * Uses the existing scanner and publisher in the deployed container.
  * Photos whose price was not confidently parsed remain in review; no
@@ -12,6 +14,8 @@ import crypto from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import pg from 'pg'
 import { links } from './mama-public-album-links.mjs'
+import { remainingMamaAlbums, mamaFolderSlug } from './mama-import-remaining-plan.mjs'
+import { ensureCatalogSchema } from '../server/catalog-features-hooks.mjs'
 import { ensureScannerSchema, processImportJob, processNormalizationJob } from '../server/scanner-hooks.mjs'
 import { collectCatalog } from '../server/scanner-collector.mjs'
 import { publishJob } from '../server/scanner-publish-hooks.mjs'
@@ -20,22 +24,82 @@ import { MAMA_IMPORT_MARKER, canonicalMamaName, prepareMamaPhoto } from '../serv
 
 const apply = process.argv.includes('--apply')
 const publishVerified = process.argv.includes('--publish-verified')
-const reviewOnly = !publishVerified
+const publishImportable = process.argv.includes('--publish-importable')
+const remainingOnly = process.argv.includes('--remaining')
+const reviewOnly = !publishVerified && !publishImportable
+if(publishVerified&&publishImportable)throw Error('Selecione apenas um modo de publicação.')
+if(publishImportable&&(!remainingOnly||!apply))throw Error('Use --apply --remaining --publish-importable para publicar somente os 17 álbuns pendentes.')
 const timeoutMs = 12 * 60 * 60 * 1000
 const sleep = ms => new Promise(resolve => setTimeout(resolve,ms))
 const pool = new pg.Pool({connectionString:process.env.DATABASE_URL,max:2,connectionTimeoutMillis:10000})
 pool.on('error',e=>console.error('[mama] pool:',e.message))
 
 async function tenantAndCatalog() {
-  const names = await pool.query("SELECT id,name,slug,plan_tier FROM stores WHERE lower(name) LIKE '%mama%'")
-  const matches = names.rows.filter(s=>canonicalMamaName(s.name)==='mama acessorios')
-  if(matches.length!==1)throw Error('Esperada uma única conta exatamente chamada Mama Acessórios; encontradas: '+matches.length)
+  const names = await pool.query(remainingOnly
+    ? "SELECT id,name,slug,plan_tier FROM stores WHERE slug='mama-acessorios'"
+    : "SELECT id,name,slug,plan_tier FROM stores WHERE lower(name) LIKE '%mama%'")
+  const matches = names.rows.filter(s=>remainingOnly
+    ? s.slug==='mama-acessorios' && canonicalMamaName(s.name).startsWith('mama ')
+    : canonicalMamaName(s.name)==='mama acessorios')
+  if(matches.length!==1)throw Error('Conta MAMA de destino não encontrada de maneira inequívoca; encontradas: '+matches.length)
   const store=matches[0]
   const catalogs=await pool.query('SELECT id,name FROM catalogs WHERE store_id=$1 AND is_default=true AND active=true',[store.id])
   if(catalogs.rowCount!==1)throw Error('Catálogo padrão da Mama inexistente ou ambíguo.')
   const plans=await pool.query('SELECT product_limit FROM platform_plans WHERE code=$1 AND active=true',[store.plan_tier])
   if(plans.rowCount!==1)throw Error('Plano da Mama sem configuração de limites.')
   return {store,catalog:catalogs.rows[0],limit:plans.rows[0].product_limit}
+}
+
+async function ensureMamaFolder(store,displayName) {
+  if(store.plan_tier!=='ouro')throw Error('A conta da Mama deve ter plano Ouro para criar pastas adicionais.')
+  const slug=mamaFolderSlug(displayName)
+  const client=await pool.connect()
+  try {
+    await client.query('BEGIN')
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1)::bigint)', ['mama-folder:'+store.id+':'+slug])
+    let existing=await client.query('SELECT id,name,slug FROM catalogs WHERE store_id=$1 AND slug=$2',[store.id,slug])
+    if(existing.rowCount){
+      if(canonicalMamaName(existing.rows[0].name)!==canonicalMamaName(displayName))throw Error('Existe uma pasta com slug conflitante: '+slug)
+      await client.query('COMMIT')
+      return {...existing.rows[0],reused:true}
+    }
+    const created=await client.query(
+      "INSERT INTO catalogs(id,store_id,slug,name,kind,price_mode,is_default,active,explicit_membership) VALUES($1,$2,$3,$4,'varejo','base',false,true,true) RETURNING id,name,slug",
+      [crypto.randomUUID(),store.id,slug,displayName],
+    )
+    await client.query('COMMIT')
+    return {...created.rows[0],reused:false}
+  }catch(error){await client.query('ROLLBACK').catch(()=>{});throw error}
+  finally{client.release()}
+}
+
+async function linkPreviouslyPublished(storeId,url,catalogId) {
+  const found=await pool.query(
+    "SELECT id FROM import_jobs WHERE store_id=$1 AND source_url=$2 AND status='completed' ORDER BY created_at DESC LIMIT 1",
+    [storeId,url],
+  )
+  if(!found.rowCount)return null
+  const jobId=found.rows[0].id
+  const productIds=await pool.query(
+    `SELECT DISTINCT n.published_product_id AS product_id FROM import_normalized_products n
+     JOIN products p ON p.id=n.published_product_id AND p.store_id=$1
+     WHERE n.job_id=$2 AND n.store_id=$1 AND n.published_product_id IS NOT NULL`,
+    [storeId,jobId],
+  )
+  if(!productIds.rowCount)return null
+  const client=await pool.connect()
+  try{
+    await client.query('BEGIN')
+    await client.query(
+      `INSERT INTO catalog_products(catalog_id,product_id,price_override,visible)
+       SELECT $1,ids.product_id,NULL,true FROM unnest($2::text[]) AS ids(product_id)
+       ON CONFLICT(catalog_id,product_id) DO UPDATE SET visible=true,updated_at=now()`,
+      [catalogId,productIds.rows.map(x=>x.product_id)],
+    )
+    await client.query('COMMIT')
+    return {jobId,linked:productIds.rowCount}
+  }catch(error){await client.query('ROLLBACK').catch(()=>{});throw error}
+  finally{client.release()}
 }
 
 async function jobFor(storeId,url) {
@@ -73,7 +137,10 @@ async function stageAlbum(job) {
   if(job.status==='queued') {
     const scanned=await processImportJob(job.id,async(url,opts)=>{
       const result=await collectCatalog(url,{...opts,maxProducts:10000})
-      if(Number(result.skipped||0)>0)throw Error('Álbum incompleto: '+result.skipped+' foto(s) sem download.')
+      if(Number(result.skipped||0)>0){
+        if(!publishImportable)throw Error('Álbum incompleto: '+result.skipped+' foto(s) sem download.')
+        console.warn('[mama] coleta parcial:',result.skipped,'foto(s) ignoradas; somente as disponíveis serão importadas.')
+      }
       return result
     })
     if(!scanned)throw Error('Outro worker iniciou a coleta. Não foi possível garantir a completude; verifique o job.')
@@ -92,7 +159,7 @@ async function stageAlbum(job) {
   return {...job,status:'review'}
 }
 
-async function selectPricedPhotos(jobId,storeId,album,url,visualDecisions) {
+async function selectPricedPhotos(jobId,storeId,album,url,visualDecisions,{skipUnstable=false}={}) {
   const rows=await pool.query(
     'SELECT n.id,n.normalized_data,n.review_data,n.selected,c.raw_data AS candidate '+
     'FROM import_normalized_products n JOIN import_candidates c '+
@@ -103,10 +170,30 @@ async function selectPricedPhotos(jobId,storeId,album,url,visualDecisions) {
   let priced=0,unresolved=0,protectedEdits=0,visuallyConfirmed=0,confirmedNoPrice=0
   for(const row of rows.rows) {
     const photoKey=String(row.candidate?.source_image_key||'')
-    if (!/^[A-Za-z0-9_-]{22}$/.test(photoKey)) throw Error('Job antigo ou foto sem identidade estável: '+jobId+'. Recapture o álbum antes de publicar.')
+    if (!/^[A-Za-z0-9_-]{22}$/.test(photoKey)) {
+      if(skipUnstable){
+        if(row.selected)await pool.query(
+          'UPDATE import_normalized_products SET selected=false,updated_at=now() WHERE id=$1 AND job_id=$2 AND store_id=$3',
+          [row.id,jobId,storeId],
+        )
+        unresolved++;continue
+      }
+      throw Error('Job antigo ou foto sem identidade estável: '+jobId+'. Recapture o álbum antes de publicar.')
+    }
     if(row.review_data) {
-      if(row.selected && /^MAMA-[A-F0-9]{22}$/.test(String(row.review_data.sku||'')))priced++
-      else protectedEdits++
+      const saved=prepareMamaPhoto({album,albumUrl:url,candidate:row.candidate,
+        normalized:row.review_data,requireStableIdentity:true})
+      if(row.selected && /^MAMA-[A-F0-9]{22}$/.test(String(row.review_data.sku||'')) && saved.eligible &&
+        prepareReview(saved.data).publishable){
+        priced++
+      }else {
+        // Existing manually edited values are never overwritten, but incomplete
+        // rows must not enter the merchant's public catalog.
+        if(skipUnstable && row.selected){
+          await pool.query('UPDATE import_normalized_products SET selected=false,updated_at=now() WHERE id=$1 AND job_id=$2 AND store_id=$3',[row.id,jobId,storeId])
+        }
+        protectedEdits++
+      }
       continue
     }
     const key=url+'#photo:'+photoKey
@@ -233,7 +320,9 @@ async function publish(jobId,storeId,catalogId) {
 async function main() {
   if(!process.env.DATABASE_URL)throw Error('DATABASE_URL ausente.')
   await ensureScannerSchema()
+  if(remainingOnly)await ensureCatalogSchema()
   const {store,catalog,limit}=await tenantAndCatalog()
+  const albums=remainingOnly?remainingMamaAlbums():links.map(([name,url])=>({name,url,displayName:name}))
   let visualDecisions=null
   if(publishVerified) {
     const file=String(process.env.MAMA_VISUAL_PRICES_FILE||'').trim()
@@ -249,34 +338,51 @@ async function main() {
   }
   console.log('[mama] destino',JSON.stringify({
     name:store.name,slug:store.slug,plan:store.plan_tier,catalog:catalog.name,
-    albumCount:links.length,mode:!apply?'preview':publishVerified?'publish_verified':'collect_for_visual_review',
+    albumCount:albums.length,mode:!apply?'preview':publishVerified?'publish_verified':publishImportable?'publish_importable':'collect_for_visual_review',
   }))
   if(!apply) {
-    console.log('[mama] Prévia apenas. Para coletar: node scripts/import-mama-once.mjs --apply')
+    console.log('[mama] Prévia apenas. Para importar pendentes: node scripts/import-mama-once.mjs --apply --remaining --publish-importable')
+    for(const album of albums)console.log('[mama] pasta planejada',JSON.stringify(album))
     return
   }
+  // Create all 17 requested folders first; slow Google Photos downloads never
+  // leave half the folders missing when a runner is interrupted.
+  const folders=new Map()
+  if(remainingOnly){
+    for(const album of albums){
+      const folder=await ensureMamaFolder(store,album.displayName)
+      folders.set(album.url,folder)
+      console.log('[mama] pasta',JSON.stringify({name:folder.name,slug:folder.slug,reused:folder.reused}))
+    }
+  }
   const summary=[]
-  for(let i=0;i<links.length;i++) {
-    const [album,url]=links[i]
-    console.log('[mama] álbum',JSON.stringify({number:i+1,of:links.length,album}))
+  for(let i=0;i<albums.length;i++) {
+    const {name:album,url,displayName}=albums[i]
+    console.log('[mama] álbum',JSON.stringify({number:i+1,of:albums.length,album,displayName}))
     let jobId=''
     try {
+      const target=remainingOnly?folders.get(url):catalog
+      if(remainingOnly){
+        const previous=await linkPreviouslyPublished(store.id,url,target.id)
+        if(previous){summary.push({album,folder:target.name,status:'linked_previous',...previous});continue}
+      }
       const job=await jobFor(store.id,url)
       jobId=job.id
       const ready=await stageAlbum(job)
       if(ready.status==='completed') {
-        summary.push({album,jobId,status:'already_completed'})
+        const previous=remainingOnly?await linkPreviouslyPublished(store.id,url,target.id):null
+        summary.push({album,jobId,folder:target.name,status:previous?'linked_previous':'already_completed',linked:previous?.linked||0})
         continue
       }
-      const review=await selectPricedPhotos(jobId,store.id,album,url,visualDecisions)
-      const record={album,jobId,...review}
+      const review=await selectPricedPhotos(jobId,store.id,album,url,visualDecisions,{skipUnstable:publishImportable})
+      const record={album,folder:target.name,jobId,...review}
       if(reviewOnly)record.status='review_ready'
-      else if(review.unresolved>0 || review.protectedEdits>0)throw Error('Há '+review.unresolved+' foto(s) sem decisão visual e '+review.protectedEdits+' edição(ões) prévias. Publicação bloqueada até concluir a conferência.')
+      else if(!publishImportable && (review.unresolved>0 || review.protectedEdits>0))throw Error('Há '+review.unresolved+' foto(s) sem decisão visual e '+review.protectedEdits+' edição(ões) prévias. Publicação bloqueada até concluir a conferência.')
       else if(review.priced===0)record.status='no_confirmed_prices'
       else {
         record.toCreate=await ensureRoom(store.id,limit,jobId)
         record.pendingReviewJobId=await preserveUnpricedForReview(jobId,store.id,url)
-        const result=await publish(jobId,store.id,catalog.id)
+        const result=await publish(jobId,store.id,target.id)
         record.status='published'
         record.created=result.created
         record.skippedExisting=result.skipped_existing
@@ -284,7 +390,7 @@ async function main() {
       summary.push(record)
       console.log('[mama] resultado',JSON.stringify(record))
     } catch(e) {
-      const failed={album,jobId,status:'requires_attention',error:String(e.message||e).slice(0,300)}
+      const failed={album,displayName,jobId,status:'requires_attention',error:String(e.message||e).slice(0,300)}
       summary.push(failed)
       console.error('[mama] problema',JSON.stringify(failed))
     }
