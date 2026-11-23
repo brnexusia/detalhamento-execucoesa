@@ -23,6 +23,7 @@ jobs:
         run: |
           grep -Fq 'COPY scripts/import-mama-once.mjs ./scripts/import-mama-once.mjs' Dockerfile
           grep -Fq 'COPY scripts/mama-public-album-links.mjs ./scripts/mama-public-album-links.mjs' Dockerfile
+          grep -Fq 'COPY scripts/mama-import-remaining-plan.mjs ./scripts/mama-import-remaining-plan.mjs' Dockerfile
       - name: Validate syntax
         run: |
           node --check scripts/import-mama-once.mjs
