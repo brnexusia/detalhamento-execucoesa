@@ -171,7 +171,13 @@ async function selectPricedPhotos(jobId,storeId,album,url,visualDecisions,{skipU
   for(const row of rows.rows) {
     const photoKey=String(row.candidate?.source_image_key||'')
     if (!/^[A-Za-z0-9_-]{22}$/.test(photoKey)) {
-      if(skipUnstable){unresolved++;continue}
+      if(skipUnstable){
+        if(row.selected)await pool.query(
+          'UPDATE import_normalized_products SET selected=false,updated_at=now() WHERE id=$1 AND job_id=$2 AND store_id=$3',
+          [row.id,jobId,storeId],
+        )
+        unresolved++;continue
+      }
       throw Error('Job antigo ou foto sem identidade estável: '+jobId+'. Recapture o álbum antes de publicar.')
     }
     if(row.review_data) {
