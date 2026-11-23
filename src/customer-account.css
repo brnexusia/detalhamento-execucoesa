@@ -222,3 +222,12 @@
   .customer-page .customer-section-head {align-items:flex-start;flex-wrap:wrap;}
   .customer-page .buyer-two-columns {grid-template-columns:minmax(0,1fr);}
 }
+
+/* Login global sem código WhatsApp: duas ações simples, campos claros. */
+.buyer-password-tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:4px;border:1px solid #dcd9d2;border-radius:10px;background:#f5f2ed}
+.buyer-password-tabs button{min-height:42px;border:0;border-radius:7px;background:transparent;color:#504a43;font:700 14px var(--svx-font-body,'Archivo',sans-serif);cursor:pointer}
+.buyer-password-tabs button.is-active{background:#fff;color:#161514;box-shadow:0 1px 6px rgba(0,0,0,.08)}
+.buyer-password-input{display:flex;align-items:center;min-width:0;position:relative}
+.buyer-password-input input{flex:1;min-width:0;padding-right:46px!important}
+.buyer-password-input button{position:absolute;right:5px;top:50%;transform:translateY(-50%);border:0;background:transparent;padding:9px;min-width:34px;min-height:34px;display:grid;place-items:center;color:#514a43;cursor:pointer}
+.buyer-password-input button:focus-visible,.buyer-password-tabs button:focus-visible{outline:2px solid #f25c05;outline-offset:2px}
