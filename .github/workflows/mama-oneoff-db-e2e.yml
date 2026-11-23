@@ -5,6 +5,8 @@ on:
       - 'tests/mama-oneoff-db.integration.mjs'
       - 'server/mama-import-plan.mjs'
       - 'scripts/import-mama-once.mjs'
+      - 'scripts/mama-import-remaining-plan.mjs'
+      - 'scripts/mama-import-remaining-plan.test.mjs'
       - 'server/scanner-import-grouping.mjs'
       - 'server/scanner-publish-hooks.mjs'
       - '.github/workflows/mama-oneoff-db-e2e.yml'
@@ -44,7 +46,7 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund --package-lock=false
       - name: Check test syntax
-        run: node --check tests/mama-oneoff-db.integration.mjs
+        run: node --check tests/mama-oneoff-db.integration.mjs && node --test scripts/mama-import-remaining-plan.test.mjs
       - name: Start the actual application with isolated database
         run: |
           npm start >/tmp/mama-e2e-app.log 2>&1 &

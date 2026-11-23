@@ -172,8 +172,19 @@ async function selectPricedPhotos(jobId,storeId,album,url,visualDecisions,{skipU
       throw Error('Job antigo ou foto sem identidade estável: '+jobId+'. Recapture o álbum antes de publicar.')
     }
     if(row.review_data) {
-      if(row.selected && /^MAMA-[A-F0-9]{22}$/.test(String(row.review_data.sku||'')))priced++
-      else protectedEdits++
+      const saved=prepareMamaPhoto({album,albumUrl:url,candidate:row.candidate,
+        normalized:row.review_data,requireStableIdentity:true})
+      if(row.selected && /^MAMA-[A-F0-9]{22}$/.test(String(row.review_data.sku||'')) && saved.eligible &&
+        prepareReview(saved.data).publishable){
+        priced++
+      }else {
+        // Existing manually edited values are never overwritten, but incomplete
+        // rows must not enter the merchant's public catalog.
+        if(skipUnstable && row.selected){
+          await pool.query('UPDATE import_normalized_products SET selected=false,updated_at=now() WHERE id=$1 AND job_id=$2 AND store_id=$3',[row.id,jobId,storeId])
+        }
+        protectedEdits++
+      }
       continue
     }
     const key=url+'#photo:'+photoKey
