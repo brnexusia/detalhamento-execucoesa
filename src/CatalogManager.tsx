@@ -1,6 +1,6 @@
 import { publicCatalogLink, publicStoreLink, publicSellerLink } from './public-share-links'
-import { useEffect, useState } from 'react'
-import { Check, Copy, Download, ExternalLink, FolderClosed, FolderOpen, MoreHorizontal, Plus, Search, Share2, Trash2, X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Check, ChevronLeft, ChevronRight, Copy, Download, ExternalLink, FolderClosed, FolderOpen, LayoutGrid, List, MoreHorizontal, Plus, Search, Share2, Trash2, X } from 'lucide-react'
 import { api, type AdminCatalog } from './api'
 import type { AdminProduct, AdminSeller } from './types'
 import { confirmAction } from './ui-dialogs'
@@ -17,6 +17,8 @@ type Props = {
  onReady?:()=>void
 }
 const currency=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'})
+const FOLDERS_PER_PAGE=12
+const folderKey=(value:string)=>value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR').trim()
 const presetCustomLabels=['Caixa fechada','Pacote','6 unidades'] as const
 const kindLabel=(catalog:AdminCatalog)=>catalog.kind==='personalizado'
  ? 'Personalizado · '+(catalog.customLabel||'Outro')
@@ -51,7 +53,18 @@ export default function CatalogManager({storeSlug,categories,sellers=[],onSelect
  const [message,setMessage]=useState('')
  const [linkFeedback,setLinkFeedback]=useState<{id:string;text:string;error:boolean}|null>(null)
  const [linkSellerSlug,setLinkSellerSlug]=useState('')
+ const [folderQuery,setFolderQuery]=useState('')
+ const [folderPage,setFolderPage]=useState(1)
+ const [folderView,setFolderView]=useState<'compact'|'cards'>('compact')
+ const detailsRef=useRef<HTMLElement>(null)
  const selected=catalogs.find(c=>c.id===selectedId)||catalogs[0]||null
+ const matchingCatalogs=catalogs.filter(c=>folderKey(c.name).includes(folderKey(folderQuery)))
+   .sort((a,b)=>Number(b.isDefault)-Number(a.isDefault)||a.name.localeCompare(b.name,'pt-BR'))
+ const totalPages=Math.max(1,Math.ceil(matchingCatalogs.length/FOLDERS_PER_PAGE))
+ const actualPage=Math.min(folderPage,totalPages)
+ const visibleCatalogs=matchingCatalogs.slice((actualPage-1)*FOLDERS_PER_PAGE,actualPage*FOLDERS_PER_PAGE)
+ const folderStart=matchingCatalogs.length?(actualPage-1)*FOLDERS_PER_PAGE+1:0
+ const folderEnd=Math.min(actualPage*FOLDERS_PER_PAGE,matchingCatalogs.length)
  const changeCustomFormat=(value:string)=>{
    setCustomFormat(value)
    if(value==='outro'){setCustomLabel('');return}
@@ -101,7 +114,14 @@ export default function CatalogManager({storeSlug,categories,sellers=[],onSelect
    window.addEventListener('keydown',onKey)
    return()=>window.removeEventListener('keydown',onKey)
  },[pane,busy])
- const choose=(catalog:AdminCatalog)=>{setSelectedId(catalog.id);onSelect(catalog)}
+ const choose=(catalog:AdminCatalog)=>{
+   setSelectedId(catalog.id)
+   onSelect(catalog)
+   requestAnimationFrame(()=>detailsRef.current?.scrollIntoView({
+     behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth',
+     block:'start',
+   }))
+ }
  const activeSellers=sellers.filter(seller=>seller.is_active)
  const selectedSeller=activeSellers.find(seller=>seller.slug===linkSellerSlug)
  const storeLink=selectedSeller?publicSellerLink(storeSlug,selectedSeller.slug):publicStoreLink(storeSlug)
@@ -199,29 +219,23 @@ export default function CatalogManager({storeSlug,categories,sellers=[],onSelect
        <button type="button" className="svx-catalog-inline__more" disabled={!selected} aria-label="Opções do catálogo selecionado" onClick={()=>show('settings')}><MoreHorizontal size={20}/> <span>Opções</span></button>
      </div>
    </header>
-   <div className="svx-catalog-folders" role="group" aria-label="Pastas dos catálogos">
-     {catalogs.map(c=>{
-       const opened=selected?.id===c.id
-       return <button
-         type="button"
-         key={c.id}
-         className={'svx-catalog-folder'+(opened?' is-selected':'')}
-         aria-pressed={opened}
-         aria-label={c.name}
-         disabled={busy}
-         onClick={()=>choose(c)}
-       >
-         <span className="svx-catalog-folder__icon" aria-hidden="true">{opened?<FolderOpen size={22}/>:<FolderClosed size={22}/>}</span>
-         <span className="svx-catalog-folder__text">
-           <strong>{c.name}</strong>
-           <small>{kindLabel(c)}</small>
-         </span>
-         <span className="svx-catalog-folder__state">{c.lockedByPlan?'Bloqueada':c.active?'Publicada':'Não publicada'}</span>
-         <span className="svx-catalog-folder__action" aria-hidden="true">{opened?'Pasta aberta':'Abrir pasta'}</span>
-       </button>
-     })}
+   <div className="svx-catalog-toolbar">
+     <div className="svx-catalog-toolbar__top">
+       <strong>{catalogs.length} {catalogs.length===1?'pasta':'pastas'}</strong>
+       <span>Selecione uma pasta para ver produtos, editar ou compartilhar o link.</span>
+     </div>
+     <div className="svx-catalog-toolbar__controls">
+       <label className="svx-catalog-search">
+         <Search size={17} aria-hidden="true"/>
+         <input type="search" value={folderQuery} aria-label="Buscar pastas" placeholder="Buscar pastas pelo nome" onChange={event=>{setFolderQuery(event.target.value);setFolderPage(1)}}/>
+       </label>
+       <div className="svx-catalog-view" role="group" aria-label="Visualização das pastas">
+         <button type="button" className={folderView==='compact'?'is-active':''} aria-label="Visualização compacta" aria-pressed={folderView==='compact'} onClick={()=>setFolderView('compact')}><List size={18}/><span>Compacta</span></button>
+         <button type="button" className={folderView==='cards'?'is-active':''} aria-label="Visualização em cartões" aria-pressed={folderView==='cards'} onClick={()=>setFolderView('cards')}><LayoutGrid size={18}/><span>Cartões</span></button>
+       </div>
+     </div>
    </div>
-   {selected&&<section className="svx-catalog-folder-details" aria-label={'Pasta '+selected.name}>
+   {selected&&<section ref={detailsRef} className="svx-catalog-folder-details" aria-label={'Pasta '+selected.name}>
      <header className="svx-catalog-folder-details__header">
        <span className="svx-catalog-folder-details__icon" aria-hidden="true"><FolderOpen size={20}/></span>
        <div>
@@ -240,6 +254,39 @@ export default function CatalogManager({storeSlug,categories,sellers=[],onSelect
      </section>
      <p className="svx-catalog-folder-details__hint">Os produtos e as categorias exibidos abaixo pertencem à pasta <strong>{selected.name}</strong>. Alterar esta pasta não apaga produtos da base da loja.</p>
    </section>}
+   <div className={"svx-catalog-folders"+(folderView==="compact"?" is-compact":"")} role="group" aria-label="Pastas dos catálogos">
+     {visibleCatalogs.map(c=>{
+       const opened=selected?.id===c.id
+       return <button
+         type="button"
+         key={c.id}
+         className={'svx-catalog-folder'+(opened?' is-selected':'')}
+         aria-pressed={opened}
+         aria-label={c.name}
+         title={c.name}
+         disabled={busy}
+         onClick={()=>choose(c)}
+       >
+         <span className="svx-catalog-folder__icon" aria-hidden="true">{opened?<FolderOpen size={22}/>:<FolderClosed size={22}/>}</span>
+         <span className="svx-catalog-folder__text">
+           <strong>{c.name}</strong>
+           <small>{kindLabel(c)}</small>
+         </span>
+         <span className="svx-catalog-folder__state">{c.lockedByPlan?'Bloqueada':c.active?'Publicada':'Não publicada'}</span>
+         <span className="svx-catalog-folder__action" aria-hidden="true">{opened?'Pasta aberta':'Abrir pasta'}</span>
+       </button>
+     })}
+   </div>
+   {matchingCatalogs.length===0
+     ?<div className="svx-catalog-empty" role="status"><Search size={22}/><strong>Nenhuma pasta encontrada</strong><span>Tente outro nome ou limpe a busca.</span><button type="button" onClick={()=>{setFolderQuery('');setFolderPage(1)}}>Limpar busca</button></div>
+     :<div className="svx-catalog-pagination">
+        <span>Mostrando {folderStart}–{folderEnd} de {matchingCatalogs.length} pastas</span>
+        {totalPages>1&&<div className="svx-catalog-pagination__actions">
+          <button type="button" aria-label="Página anterior das pastas" disabled={actualPage===1} onClick={()=>setFolderPage(page=>Math.max(1,page-1))}><ChevronLeft size={16}/> Anterior</button>
+          <span aria-live="polite">Página {actualPage} de {totalPages}</span>
+          <button type="button" aria-label="Próxima página das pastas" disabled={actualPage===totalPages} onClick={()=>setFolderPage(page=>Math.min(totalPages,page+1))}>Próxima <ChevronRight size={16}/></button>
+        </div>}
+       </div>}
    {error&&!pane&&<p className="svx-catalog-inline__error" role="alert">{error}</p>}
    {pane&&<div className="svx-catalog-dialog">
      <button type="button" className="svx-catalog-dialog__backdrop" aria-label="Fechar" onClick={()=>!busy&&setPane(null)}/>
