@@ -29,6 +29,8 @@ permissions:
 jobs:
   validate-buyer-signup:
     runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.58.2-noble
     timeout-minutes: 16
     steps:
       - uses: actions/checkout@v4
@@ -39,7 +41,6 @@ jobs:
       - run: node --test server/buyer-document.test.mjs server/buyer-whatsapp-auth.test.mjs server/buyer-password-auth.test.mjs
       - run: npm run build
       - run: npm install --no-save --no-fund --no-audit playwright@1.58.2
-      - run: npx playwright install --with-deps chromium
       - name: Servir frontend
         run: |
           nohup npm run preview -- --host 127.0.0.1 --port 5173 > /tmp/shopvax-preview.log 2>&1 &
