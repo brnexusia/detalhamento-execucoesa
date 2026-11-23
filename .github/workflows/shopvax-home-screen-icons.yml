@@ -1,0 +1,32 @@
+name: shopvax-home-screen-icons
+
+on:
+  push:
+    paths:
+      - index.html
+      - landing-integration/index.html
+      - public/manifest.webmanifest
+      - public/shopvax-icon-*.png
+      - tests/shopvax-mobile-home-icons.test.mjs
+      - .github/workflows/shopvax-home-screen-icons.yml
+  pull_request:
+    paths:
+      - index.html
+      - landing-integration/index.html
+      - public/manifest.webmanifest
+      - public/shopvax-icon-*.png
+      - tests/shopvax-mobile-home-icons.test.mjs
+      - .github/workflows/shopvax-home-screen-icons.yml
+
+jobs:
+  verify-icons:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check iOS and Android home-screen assets
+        run: node --test tests/shopvax-mobile-home-icons.test.mjs
