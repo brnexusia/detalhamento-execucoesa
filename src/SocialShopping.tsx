@@ -50,15 +50,16 @@ export default function SocialShopping({storeSlug,storeName,productId,initialCar
       const session=await fetch('/api/public/buyer-auth/me',{credentials:'include',cache:'no-store'})
       let preview=false
       if(!session.ok){
-        if(session.status!==401&&session.status!==403)throw Error('Não foi possível verificar sua conta.')
+        if(session.status===503)throw Error('O acesso aos preços está indisponível no momento. Tente novamente mais tarde.')
+        if(session.status!==401&&session.status!==403)throw Error('Não conseguimos confirmar seu acesso agora. Confira a conexão e tente novamente.')
         // Só o proprietário desta loja pode ver o próprio preço sem perfil de comprador.
         // Um lojista de outra loja NÃO ganha acesso aos preços deste vendedor.
-        const ownerResponse=await fetch('/api/auth/me',{credentials:'include',cache:'no-store'})
-        if(ownerResponse.ok){
+        // A falha opcional da sessão de lojista não pode impedir o visitante
+        // anônimo de entrar com WhatsApp. O preview requer confirmação 200.
+        const ownerResponse=await fetch('/api/auth/me',{credentials:'include',cache:'no-store'}).catch(()=>null)
+        if(ownerResponse?.ok){
           const identity=await parseJson(ownerResponse)
           preview=typeof identity?.user?.id==='string' && typeof identity?.store?.id==='string' && identity.store.slug===storeSlug
-        }else if(ownerResponse.status!==401&&ownerResponse.status!==403){
-          throw Error('Não foi possível verificar sua sessão de lojista. Tente novamente.')
         }
         if(!preview){setStep('auth');return false}
         setBuyer(null)
@@ -170,13 +171,13 @@ export default function SocialShopping({storeSlug,storeName,productId,initialCar
     <button className="svx-social-shop-backdrop" type="button" onClick={onClose} aria-label="Fechar compra" disabled={busy}/>
     <section className="svx-social-shop" role="dialog" aria-modal="true" aria-labelledby="svx-social-shop-title">
       <header className="svx-social-shop-head">
-        <div><small>{storeName||storeSlug} · compra pelo feed</small><h2 id="svx-social-shop-title">{step==='auth'?'Ver preços':step==='item'?offerData?.product.name:step==='ready'?'Pedido preparado':'Seu pedido'}</h2></div>
+        <div><small>{storeName||storeSlug} · compra pelo feed</small><h2 id="svx-social-shop-title">{step==='auth'?'Ver preços':step==='item'?offerData?.product.name:step==='ready'?'Pedido preparado':step==='error'?'Preços indisponíveis':'Seu pedido'}</h2></div>
         <button type="button" onClick={onClose} disabled={busy} aria-label="Fechar"><X size={20}/></button>
       </header>
       <div className="svx-social-shop-body">
         {step==='loading'&&<p role="status">Abrindo…</p>}
-        {step==='error'&&<><p role="alert">{error}</p><button className="svx-social-shop-primary" onClick={()=>void load()}>Tentar novamente</button></>}
-        {step==='auth'&&<><p className="svx-social-shop-description">Para ver valores e comprar, confirme seu WhatsApp e informe se compra no varejo, atacado ou em ambos. Você volta ao mesmo produto.</p><BuyerWhatsappLogin storeSlug={storeSlug} onVerified={load}/></>}
+        {step==='error'&&<div className="svx-social-shop-recovery"><p role="alert" className="svx-social-shop-description">{error}</p><button type="button" className="svx-social-shop-primary" onClick={()=>void load()}>Tentar novamente</button><button type="button" className="svx-social-shop-secondary" onClick={onClose}>Voltar aos produtos</button></div>}
+        {step==='auth'&&<><p className="svx-social-shop-description">Entre ou crie sua conta pelo WhatsApp para consultar os preços. Depois você volta a este produto.</p><BuyerWhatsappLogin storeSlug={storeSlug} onVerified={load}/></>}
         {step==='owner-view'&&<div className="svx-social-owner-preview"><p>Você está autenticado como proprietário desta loja. Para ver preços, abra um produto do feed. Para montar pedidos como comprador, use uma conta de comprador verificada.</p><button type="button" className="svx-social-shop-primary" onClick={()=>{onClose();window.history.pushState({},'', '/painel');window.dispatchEvent(new PopStateEvent('popstate'))}}>Ir ao painel da loja</button></div>}
         {step==='item'&&offerData&&offer&&<>
           {photos.length>0&&<div className="svx-social-gallery">

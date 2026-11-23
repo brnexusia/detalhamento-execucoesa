@@ -140,3 +140,7 @@
   .social-profile-page .social-profile-grid {gap:6px;}
   .social-profile-page .social-profile-actions button {flex:1 1 auto;}
 }
+
+/* O lojista pode copiar o endereço público oficial, mesmo ao abrir o painel pelo host técnico. */
+.social-profile-page .social-profile-share-feedback{font-size:12px;line-height:1.45;margin:7px 0 0;max-width:40ch;color:var(--svx-muted-strong,#4D4943)}
+.social-profile-page .social-profile-actions button svg{flex:none}

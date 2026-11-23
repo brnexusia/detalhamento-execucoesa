@@ -3,7 +3,7 @@ import ShopvaxLoading from './ShopvaxLoading'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, Check, ChevronLeft, ChevronRight, Grid2X2, ImageOff, Minus, Plus, Search, ShoppingBag, Menu, Sparkles, Heart, MessageCircle, Share2, X } from 'lucide-react'
 import { api } from './api'
-import { parsePublicStorePath, publicCatalogLink } from './public-share-links'
+import { parsePublicStorePath, publicCatalogLink, SHOPVAX_PUBLIC_ORIGIN } from './public-share-links'
 import { ProductGrade, getGradeGroups, type GradeLine } from './ShopvaxGrade'
 import ShopvaxCheckoutReview, { type CheckoutBuyer } from './ShopvaxCheckoutReview'
 import ShopvaxOrderReady from './ShopvaxOrderReady'
@@ -118,7 +118,7 @@ export default function PublicStoreV2() {
   const [feedNotice, setFeedNotice] = useState('')
   const toggleSaved = (id: string) => setSavedProducts((items) => items.includes(id) ? items.filter((x) => x !== id) : [...items, id])
   const shareProduct = async (product: Product) => {
-    const url = new URL(window.location.href)
+    const url = new URL(window.location.pathname + window.location.search + window.location.hash, SHOPVAX_PUBLIC_ORIGIN)
     url.searchParams.set('produto', product.id)
     try {
       if (navigator.share) await navigator.share({ title: product.name, text: `Veja ${product.name} na ${store?.name || 'loja'}`, url: url.toString() })

@@ -8,6 +8,12 @@ on:
       - 'src/public-share-links.ts'
       - 'src/api.ts'
       - 'src/PublicStoreV2.tsx'
+      - 'src/SocialShopping.tsx'
+      - 'src/SocialFeed.tsx'
+      - 'src/SocialStoreProfile.tsx'
+      - 'src/social-shopping.css'
+      - 'src/social-profile.css'
+      - 'tests/shopvax-social-buyer-auth-ux.e2e.mjs'
       - 'tests/public-share-links.test.mjs'
       - 'tests/shopvax-pretty-catalog-links.e2e.mjs'
       - 'tests/shopvax-catalog-share-ui.e2e.mjs'
@@ -20,6 +26,12 @@ on:
       - 'src/public-share-links.ts'
       - 'src/api.ts'
       - 'src/PublicStoreV2.tsx'
+      - 'src/SocialShopping.tsx'
+      - 'src/SocialFeed.tsx'
+      - 'src/SocialStoreProfile.tsx'
+      - 'src/social-shopping.css'
+      - 'src/social-profile.css'
+      - 'tests/shopvax-social-buyer-auth-ux.e2e.mjs'
       - 'tests/public-share-links.test.mjs'
       - 'tests/shopvax-pretty-catalog-links.e2e.mjs'
       - 'tests/shopvax-catalog-share-ui.e2e.mjs'
@@ -54,5 +66,7 @@ jobs:
         run: node tests/shopvax-pretty-catalog-links.e2e.mjs
       - name: Test panel share cards in desktop and mobile
         run: node tests/shopvax-catalog-share-ui.e2e.mjs
+      - name: Testar ver preço, entrada de comprador e links oficiais
+        run: node tests/shopvax-social-buyer-auth-ux.e2e.mjs
       - if: failure()
         run: tail -120 /tmp/shopvax-link-test.log || true

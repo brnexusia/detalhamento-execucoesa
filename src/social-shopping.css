@@ -365,3 +365,8 @@
 }
 .svx-social-owner-preview p {margin:0 0 12px;}
 .svx-social-owner-preview .svx-social-shop-primary {min-height:42px;border-radius:8px;}
+
+/* A falha de sessão jamais é apresentada como um pedido sem saída. */
+.svx-social-shop-recovery{display:flex;flex-direction:column;gap:11px;min-width:0}
+.svx-social-shop-recovery .svx-social-shop-secondary{width:100%;min-height:43px}
+.svx-social-shop-recovery p{margin:0}

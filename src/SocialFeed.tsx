@@ -5,6 +5,7 @@ import { isSocialSaved, listSocialSaved, socialSaveEvent, toggleSocialSaved } fr
 const SocialShopping = lazy(() => import('./SocialShopping'))
 import { useOwnerSession } from './owner-session'
 import { useBuyerSession } from './buyer-session'
+import { SHOPVAX_PUBLIC_ORIGIN } from './public-share-links'
 import { lazy, memo, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { showToast } from './ui-dialogs'
 import { Bookmark, Heart, MessageCircleQuestion, Play, Plus, Share2, ShoppingBag, Store, Volume2, VolumeX } from 'lucide-react'
@@ -195,7 +196,7 @@ const SocialPostCard = memo(function SocialPostCard({ post, cartCount, active, s
   }
 
   const share = async () => {
-    const url = `${window.location.origin}${profilePath(post.store.slug, post.product.id)}`
+    const url = `${SHOPVAX_PUBLIC_ORIGIN}${profilePath(post.store.slug, post.product.id)}`
     try {
       if (navigator.share) await navigator.share({ title: post.product.name, text: `${post.product.name} · ${post.store.name}`, url })
       else if (!(await copyText(url))) return
