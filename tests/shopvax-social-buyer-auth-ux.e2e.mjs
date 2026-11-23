@@ -34,15 +34,15 @@ try {
     assert.match(await page.locator('.svx-social-shop').innerText(),/acesso aos preços está indisponível/)
     assert.equal(await page.locator('.svx-social-shop').getByRole('button',{name:'Tentar novamente'}).count(),1)
     assert.equal(await page.locator('.svx-social-shop').getByRole('button',{name:'Voltar aos produtos'}).count(),1)
-    assert.equal(await page.locator('.svx-social-shop').getByRole('heading',{name:'Entrar com WhatsApp'}).count(),0)
+    assert.equal(await page.locator('.svx-social-shop').getByRole('heading',{name:'Entrar na minha conta'}).count(),0)
 
     // A API de comprador responde 401 e a sessão opcional de lojista fica 503.
     // Isso deve oferecer o formulário de comprador, não travar no erro genérico.
     sessionStatus = 401
     ownerStatus = 503
     await page.locator('.svx-social-shop').getByRole('button',{name:'Tentar novamente'}).click()
-    await page.locator('.svx-social-shop').getByRole('heading',{name:'Entrar com WhatsApp'}).waitFor()
-    assert.equal(await page.locator('.svx-social-shop').getByRole('button',{name:'Receber código no WhatsApp'}).count(),1)
+    await page.locator('.svx-social-shop').getByRole('heading',{name:'Entrar na minha conta'}).waitFor()
+    assert.equal(await page.locator('.svx-social-shop').getByRole('button',{name:'Entrar e ver preços'}).count(),1)
     assert.match(await page.locator('.svx-social-shop').innerText(),/Depois você volta a este produto/)
 
     await page.locator('.svx-social-shop').getByRole('button',{name:'Fechar'}).click()

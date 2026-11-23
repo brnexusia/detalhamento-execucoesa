@@ -9,7 +9,7 @@ import './customer-account.css'
 import './buyer-app.css'
 
 type GlobalBuyer={
- id:string;phone:string;name:string;document?:string;profileCompleted:boolean
+ id:string;phone:string;name:string;document?:string;profileCompleted:boolean;passwordEnabled?:boolean
 }
 type BuyerOrder={
  id:string;code:string;total:number;status:string;createdAt:string;catalogName:string
@@ -59,6 +59,9 @@ export default function GlobalBuyerAccount(){
  const [busy,setBusy]=useState(false)
  const [error,setError]=useState('')
  const [ordersError,setOrdersError]=useState('')
+ const [newPassword,setNewPassword]=useState('')
+ const [passwordBusy,setPasswordBusy]=useState(false)
+ const [passwordError,setPasswordError]=useState('')
  const refresh=async()=>{
    try{
      const result=await apiRequest<{buyer:GlobalBuyer}>('/api/public/buyer-auth/me')
@@ -91,6 +94,16 @@ export default function GlobalBuyerAccount(){
    }catch(e){setError(e instanceof Error?e.message:'Não foi possível sair.')}
    finally{setBusy(false)}
  }
+ const setupPassword=async()=>{
+   if(passwordBusy||newPassword.length<10)return
+   setPasswordBusy(true);setPasswordError('')
+   try{
+     await apiRequest('/api/public/buyer-auth/set-password',{method:'POST',body:JSON.stringify({password:newPassword})})
+     setNewPassword('')
+     setBuyer(current=>current?{...current,passwordEnabled:true}:current)
+   }catch(e){setPasswordError(e instanceof Error?e.message:'Não foi possível definir a senha.')}
+   finally{setPasswordBusy(false)}
+ }
  const cards=[
    {Icon:Bookmark,title:'Salvos',detail:'Produtos favoritos',path:'/salvos'},
    {Icon:Store,title:'Seguindo',detail:'Lojas que acompanho',path:'/salvos?aba=lojas'},
@@ -102,7 +115,16 @@ export default function GlobalBuyerAccount(){
    {loading?<p className="buyer-state" role="status">Abrindo sua conta…</p>:
     buyer?.profileCompleted?<div>
       <section className="buyer-profile-identity"><span className="buyer-profile-identity__avatar"><UserRound size={29}/></span>
-        <div><h2>{buyer.name}</h2><p>{buyer.phone} · Telefone verificado</p></div></section>
+        <div><h2>{buyer.name}</h2><p>{buyer.phone} · Telefone cadastrado</p></div></section>
+      {buyer.passwordEnabled===false&&<section className="buyer-section" aria-label="Migrar conta antiga">
+        <h2 className="buyer-section__heading">Defina uma senha para sua conta</h2>
+        <p className="buyer-screen__hint">Seu acesso anterior usava código por WhatsApp. Crie uma senha para continuar entrando sem receber mensagens. Seu histórico será preservado.</p>
+        <form onSubmit={event=>{event.preventDefault();void setupPassword()}}>
+          <label><span>Nova senha (mínimo 10 caracteres)</span><input type="password" autoComplete="new-password" minLength={10} maxLength={128} value={newPassword} onChange={event=>setNewPassword(event.target.value)} required/></label>
+          <button className="buyer-primary-button" type="submit" disabled={passwordBusy||newPassword.length<10}>{passwordBusy?'Salvando…':'Definir minha senha'}</button>
+        </form>
+        {passwordError&&<p role="alert" className="buyer-state">{passwordError}</p>}
+      </section>}
       <div className="buyer-profile-grid">{cards.map(({Icon,title,detail,path})=>path
         ? <a key={title} href={path} onClick={e=>{if(e.button||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;e.preventDefault();buyerGo(path)}}>
             <Icon size={24}/><strong>{title}</strong><small>{detail}</small><ChevronRight size={14}/></a>
@@ -121,7 +143,7 @@ export default function GlobalBuyerAccount(){
         </article>):<div className="buyer-empty">Você ainda não possui pedidos vinculados a esta conta. <button className="buyer-inline-link" onClick={()=>buyerGo('/feed')}>Descobrir produtos</button></div>)}
       </section>
       <div className="buyer-section"><button type="button" className="buyer-secondary-button" disabled={busy} onClick={()=>void logout()}><LogOut size={16}/>{busy?'Saindo…':'Sair da conta'}</button></div>
-    </div>:<section className="buyer-section"><div className="buyer-profile-identity"><span className="buyer-profile-identity__avatar"><UserRound size={27}/></span><div><h2>Bem-vindo ao ShopVax</h2><p>Explore sem cadastro. Entre com WhatsApp para consultar preços e acompanhar pedidos.</p></div></div><BuyerWhatsappLogin onVerified={refresh}/></section>}
+    </div>:<section className="buyer-section"><div className="buyer-profile-identity"><span className="buyer-profile-identity__avatar"><UserRound size={27}/></span><div><h2>Bem-vindo ao ShopVax</h2><p>Explore sem cadastro. Crie sua conta com telefone e senha para consultar preços e acompanhar pedidos.</p></div></div><BuyerWhatsappLogin onVerified={refresh}/></section>}
    {error&&<p role="alert" className="buyer-state">{error}</p>}
    <SellerAccess/>
  </div></main>

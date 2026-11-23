@@ -55,7 +55,7 @@ export default function SocialShopping({storeSlug,storeName,productId,initialCar
         // Só o proprietário desta loja pode ver o próprio preço sem perfil de comprador.
         // Um lojista de outra loja NÃO ganha acesso aos preços deste vendedor.
         // A falha opcional da sessão de lojista não pode impedir o visitante
-        // anônimo de entrar com WhatsApp. O preview requer confirmação 200.
+        // anônimo de entrar com telefone e senha. O preview requer confirmação 200.
         const ownerResponse=await fetch('/api/auth/me',{credentials:'include',cache:'no-store'}).catch(()=>null)
         if(ownerResponse?.ok){
           const identity=await parseJson(ownerResponse)
@@ -177,7 +177,7 @@ export default function SocialShopping({storeSlug,storeName,productId,initialCar
       <div className="svx-social-shop-body">
         {step==='loading'&&<p role="status">Abrindo…</p>}
         {step==='error'&&<div className="svx-social-shop-recovery"><p role="alert" className="svx-social-shop-description">{error}</p><button type="button" className="svx-social-shop-primary" onClick={()=>void load()}>Tentar novamente</button><button type="button" className="svx-social-shop-secondary" onClick={onClose}>Voltar aos produtos</button></div>}
-        {step==='auth'&&<><p className="svx-social-shop-description">Entre ou crie sua conta pelo WhatsApp para consultar os preços. Depois você volta a este produto.</p><BuyerWhatsappLogin storeSlug={storeSlug} onVerified={load}/></>}
+        {step==='auth'&&<><p className="svx-social-shop-description">Entre ou crie sua conta com telefone e senha para consultar os preços. Depois você volta a este produto.</p><BuyerWhatsappLogin storeSlug={storeSlug} onVerified={load}/></>}
         {step==='owner-view'&&<div className="svx-social-owner-preview"><p>Você está autenticado como proprietário desta loja. Para ver preços, abra um produto do feed. Para montar pedidos como comprador, use uma conta de comprador verificada.</p><button type="button" className="svx-social-shop-primary" onClick={()=>{onClose();window.history.pushState({},'', '/painel');window.dispatchEvent(new PopStateEvent('popstate'))}}>Ir ao painel da loja</button></div>}
         {step==='item'&&offerData&&offer&&<>
           {photos.length>0&&<div className="svx-social-gallery">
