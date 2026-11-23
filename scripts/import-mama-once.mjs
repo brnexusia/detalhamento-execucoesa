@@ -137,7 +137,10 @@ async function stageAlbum(job) {
   if(job.status==='queued') {
     const scanned=await processImportJob(job.id,async(url,opts)=>{
       const result=await collectCatalog(url,{...opts,maxProducts:10000})
-      if(Number(result.skipped||0)>0)throw Error('Álbum incompleto: '+result.skipped+' foto(s) sem download.')
+      if(Number(result.skipped||0)>0){
+        if(!publishImportable)throw Error('Álbum incompleto: '+result.skipped+' foto(s) sem download.')
+        console.warn('[mama] coleta parcial:',result.skipped,'foto(s) ignoradas; somente as disponíveis serão importadas.')
+      }
       return result
     })
     if(!scanned)throw Error('Outro worker iniciou a coleta. Não foi possível garantir a completude; verifique o job.')
