@@ -13,7 +13,7 @@ test('senha de comprador usa scrypt com salt único e comparação segura', asyn
   assert.equal(await verifyBuyerPassword('Senha errada 2026!',a),false)
   assert.equal(await verifyBuyerPassword(password,'invalid'),false)
   assert.equal(await verifyBuyerPassword(password,''),false)
-  await assert.rejects(hashBuyerPassword('fraca'),/10 a 128/)
+  await assert.rejects(hashBuyerPassword('fraca'),/10 e 128/)
 })
 
 test('novo cadastro não sobrescreve contas antigas nem concede propriedade do telefone',()=>{
