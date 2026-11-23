@@ -95,27 +95,21 @@ test('pagamento e entrega e um detalhe inline, nao um elemento flutuante', () =>
   assert.doesNotMatch(app, /import '\.\/public-commercial-info'/)
 })
 
-test('comprador recebe formulario WhatsApp e perguntas comerciais, sem senha na abertura', () => {
+test('comprador usa cadastro global de telefone e senha, sem depender de WhatsApp OTP', () => {
   const route = read('src/CustomerAccountRoute.tsx')
   const buyer = read('src/BuyerWhatsappLogin.tsx')
   const server = read('server/buyer-whatsapp-auth-hooks.mjs')
   assert.match(route, /<BuyerWhatsappLogin key=\{storeSlug\} storeSlug=\{storeSlug\} onVerified=/)
-  assert.doesNotMatch(route, /customers\/register|customer-tabs|Criar minha conta/)
-  assert.match(route, /Já tinha conta com e-mail\?/)
-  assert.match(buyer, /Receber código no WhatsApp/)
-  assert.doesNotMatch(buyer, /disabled=\{!enabled/)
-  assert.doesNotMatch(buyer, /if \(!enabled\)/)
-  for (const option of ['Varejo — comprar para mim','Atacado — empresa, MEI ou revenda','Ambos — varejo e atacado']) {
-    assert(buyer.includes(option), 'Finalidade ausente: '+option)
-  }
-  assert.match(buyer, /<details className="buyer-business-details">/, 'dados comerciais devem ser progressivos')
-  assert.match(buyer, /Você possui um negócio\?/)
-  assert.match(buyer, /Onde vende ou pretende vender\?/)
-  assert.match(buyer, /Possui CNPJ\?/)
-  assert.doesNotMatch(buyer, /marketingConsent|Aceito receber comunicações promocionais/, 'o formulário deve ter apenas a caixa obrigatória')
-  assert.match(buyer, /Li e aceito a/)
-  assert.match(server, /marketing_consent=CASE WHEN profile_completed=false THEN true ELSE marketing_consent END/)
-  assert.match(server, /const purposes = new Set\(\['revenda', 'negocio'/)
+  assert.match(buyer, /Criar minha conta/)
+  assert.match(buyer, /login-password/)
+  assert.match(buyer, /register-password/)
+  assert.match(buyer, /CPF ou CNPJ/)
+  assert.match(buyer, /Telefone com DDD/)
+  assert.match(buyer, /Termos de Uso/)
+  assert.doesNotMatch(buyer, /Receber código no WhatsApp|Confirmar código|verify-code/)
+  assert.match(server,/buyerAuthReady/)
+  assert.match(server,/phone_verified/)
+  assert.doesNotMatch(buyer, /marketingConsent|Aceito receber comunicações promocionais/)
 })
 
 test('Safari mobile só aprova quando a mesma revisão da main está publicada', () => {
