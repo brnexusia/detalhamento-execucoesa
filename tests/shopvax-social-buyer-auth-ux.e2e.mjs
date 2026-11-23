@@ -46,6 +46,9 @@ try {
     assert.match(await page.locator('.svx-social-shop').innerText(),/Depois você volta a este produto/)
 
     await page.locator('.svx-social-shop').getByRole('button',{name:'Fechar'}).click()
+    // Product details overlay remains open after checkout closes. Close it
+    // before using the profile share action (avoids a hidden click).
+    await page.locator('.social-profile-viewer__close').click()
     await page.getByRole('button',{name:'Compartilhar perfil com link oficial'}).click()
     await page.getByText('Link oficial da ShopVax copiado.').waitFor()
     assert.equal(await page.evaluate(()=>window.__shopvaxSharedUrl),'https://shopvax.com.br/perfil/loja-teste')
