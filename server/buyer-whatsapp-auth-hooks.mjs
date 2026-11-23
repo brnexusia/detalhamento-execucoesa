@@ -4,6 +4,7 @@ import pg from 'pg'
 import { revokeAllBrowserSessions, clearAllBrowserSessionCookies, browserSessionCookies } from './global-logout.mjs'
 import { buyerWhatsappDeliveryConfigured, deliverBuyerVerificationCode } from './buyer-whatsapp-delivery.mjs'
 import { normalizeBuyerDocument, isValidBuyerDocument } from './buyer-document.mjs'
+import { installBuyerPasswordRoutes } from './buyer-password-auth.mjs'
 
 // Serviço independente: jamais modifica o webhook da central, o Chatwoot ou o n8n.
 const pool = process.env.DATABASE_URL ? new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 4 }) : null
@@ -20,6 +21,7 @@ function otpHmacKey() {
   return crypto.hkdfSync('sha256', Buffer.from(integration), Buffer.from('shopvax-buyer-otp-v1'), Buffer.from('buyer-otp-hmac'), 32)
 }
 export const buyerWhatsappReady = () => enabled() && buyerWhatsappDeliveryConfigured() && Boolean(otpHmacKey())
+export const buyerAuthReady = () => Boolean(pool)
 const mac = (value) => {
   const key = otpHmacKey()
   if (!key) throw new Error('Configuração OTP indisponível')
@@ -60,6 +62,10 @@ async function schema() {
     await pool.query([
       "CREATE TABLE IF NOT EXISTS buyer_accounts (id text PRIMARY KEY, phone text UNIQUE NOT NULL, name text NOT NULL DEFAULT '', document text NOT NULL DEFAULT '', email text NOT NULL DEFAULT '', city text NOT NULL DEFAULT '', state text NOT NULL DEFAULT '', purpose text NOT NULL DEFAULT '', business_status text NOT NULL DEFAULT '', business_name text NOT NULL DEFAULT '', cnpj text NOT NULL DEFAULT '', cnpj_status text NOT NULL DEFAULT '', segment text NOT NULL DEFAULT '', instagram text NOT NULL DEFAULT '', channels jsonb NOT NULL DEFAULT '[]'::jsonb, profile_completed boolean NOT NULL DEFAULT false, marketing_consent boolean NOT NULL DEFAULT false, privacy_accepted_at timestamptz, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now())",
       "ALTER TABLE buyer_accounts ADD COLUMN IF NOT EXISTS document text NOT NULL DEFAULT ''",
+      "ALTER TABLE buyer_accounts ADD COLUMN IF NOT EXISTS phone_verified boolean NOT NULL DEFAULT false",
+      "CREATE TABLE IF NOT EXISTS buyer_password_credentials (buyer_id text PRIMARY KEY REFERENCES buyer_accounts(id) ON DELETE CASCADE, password_hash text NOT NULL, updated_at timestamptz NOT NULL DEFAULT now())",
+      "CREATE TABLE IF NOT EXISTS buyer_password_attempts (id text PRIMARY KEY, key_hash text NOT NULL, created_at timestamptz NOT NULL DEFAULT now())",
+      "CREATE INDEX IF NOT EXISTS idx_buyer_password_attempts_key ON buyer_password_attempts(key_hash,created_at DESC)",
       "UPDATE buyer_accounts SET document=cnpj WHERE document='' AND cnpj<>''",
       'CREATE TABLE IF NOT EXISTS buyer_sessions (token_hash text PRIMARY KEY, buyer_id text NOT NULL REFERENCES buyer_accounts(id) ON DELETE CASCADE, expires_at timestamptz NOT NULL, created_at timestamptz NOT NULL DEFAULT now())',
       'CREATE INDEX IF NOT EXISTS idx_buyer_sessions_lookup ON buyer_sessions(buyer_id,expires_at DESC)',
@@ -160,7 +166,7 @@ async function verifyCode(req, res) {
       return fail(res, 401, 'Código incorreto ou expirado.')
     }
     await client.query('UPDATE buyer_otp_challenges SET consumed_at=now() WHERE id=$1', [challenge.id])
-    const saved = await client.query('INSERT INTO buyer_accounts(id,phone) VALUES($1,$2) ON CONFLICT(phone) DO UPDATE SET updated_at=buyer_accounts.updated_at RETURNING *', [createdId,phone])
+    const saved = await client.query('INSERT INTO buyer_accounts(id,phone,phone_verified) VALUES($1,$2,true) ON CONFLICT(phone) DO UPDATE SET phone_verified=true,updated_at=now() RETURNING *', [createdId,phone])
     account = saved.rows[0]
     await client.query("INSERT INTO buyer_sessions(token_hash,buyer_id,expires_at) VALUES($1,$2,now()+interval '30 days')", [sha(token),account.id])
     await client.query('COMMIT')
@@ -179,10 +185,10 @@ function profileFields(body) {
   return { name, document }
 }
 async function saveProfile(req, res) {
-  if (!buyerWhatsappReady()) return fail(res, 503, 'Serviço indisponível.')
+  if (!buyerAuthReady()) return fail(res, 503, 'Serviço indisponível.')
   await schema()
   const account = await buyer(req)
-  if (!account) return fail(res, 401, 'Verifique seu WhatsApp para continuar.')
+  if (!account) return fail(res, 401, 'Entre na sua conta para continuar.')
   const form = profileFields(req.body)
   if (form.error) return fail(res, 400, form.error)
   // Não exige e-mail, finalidade, localização, dados comerciais nem consentimento de marketing.
@@ -197,14 +203,14 @@ async function saveProfile(req, res) {
 
 // A frente social exige uma sessão de comprador com perfil completo.
 export async function currentSocialBuyer(req) {
-  if (!pool || !buyerWhatsappReady() || !cookies(req)[COOKIE]) return null
+  if (!buyerAuthReady() || !cookies(req)[COOKIE]) return null
   await schema()
   const account = await buyer(req)
   return account?.profile_completed ? publicBuyer(account) : null
 }
 
 export async function currentBuyerCustomer(req,storeId,{createIfMissing=true}={}) {
-  if (!buyerWhatsappReady() || !storeId || !cookies(req)[COOKIE]) return null
+  if (!buyerAuthReady() || !storeId || !cookies(req)[COOKIE]) return null
   await schema()
   const account = await buyer(req)
   if (!account?.profile_completed) return null
@@ -223,7 +229,9 @@ export async function currentBuyerCustomer(req,storeId,{createIfMissing=true}={}
     let result = await client.query('SELECT id FROM store_customers WHERE store_id=$1 AND buyer_account_id=$2 LIMIT 1', [storeId,account.id])
     if (!result.rowCount) {
       // Associar legado somente pelo telefone previamente verificado.
-      const legacy = await client.query("SELECT id FROM store_customers WHERE store_id=$1 AND CASE WHEN length(regexp_replace(phone,'[^0-9]','','g')) IN (10,11) THEN '55'||regexp_replace(phone,'[^0-9]','','g') ELSE regexp_replace(phone,'[^0-9]','','g') END=$2 AND buyer_account_id IS NULL ORDER BY created_at ASC LIMIT 1 FOR UPDATE", [storeId,account.phone])
+      const legacy = account.phone_verified
+        ? await client.query("SELECT id FROM store_customers WHERE store_id=$1 AND CASE WHEN length(regexp_replace(phone,'[^0-9]','','g')) IN (10,11) THEN '55'||regexp_replace(phone,'[^0-9]','','g') ELSE regexp_replace(phone,'[^0-9]','','g') END=$2 AND buyer_account_id IS NULL ORDER BY created_at ASC LIMIT 1 FOR UPDATE", [storeId,account.phone])
+        : { rowCount: 0 }
       if (legacy.rowCount) {
         result = await client.query('UPDATE store_customers SET buyer_account_id=$1,name=$2,updated_at=now() WHERE id=$3 RETURNING id', [account.id,account.name,legacy.rows[0].id])
       } else {
@@ -247,13 +255,13 @@ export async function currentBuyerCustomer(req,storeId,{createIfMissing=true}={}
   } finally { client.release() }
 }
 export async function buyerProfilesForStore(storeId) {
-  if (!buyerWhatsappReady()) return []
+  if (!buyerAuthReady()) return []
   await schema()
   const r = await pool.query('SELECT c.id AS customer_id,b.purpose,b.business_status,b.business_name,b.cnpj_status,b.segment,b.channels FROM store_customers c JOIN buyer_accounts b ON b.id=c.buyer_account_id WHERE c.store_id=$1', [storeId])
   return r.rows
 }
 async function attributeOrigin(req, res) {
-  if (!buyerWhatsappReady()) return fail(res, 503, 'Serviço indisponível.')
+  if (!buyerAuthReady()) return fail(res, 503, 'Serviço indisponível.')
   await schema()
   const account = await buyer(req)
   if (!account?.profile_completed) return fail(res, 401, 'Conclua o cadastro de comprador.')
@@ -267,10 +275,10 @@ async function attributeOrigin(req, res) {
   return res.status(204).end()
 }
 async function me(req,res) {
-  if (!buyerWhatsappReady()) return fail(res,503,'Serviço indisponível.')
+  if (!buyerAuthReady()) return fail(res,503,'Serviço indisponível.')
   await schema()
   const account = await buyer(req)
-  if (!account) return fail(res,401,'Entre com seu WhatsApp.')
+  if (!account) return fail(res,401,'Entre com telefone e senha.')
   return res.json({ buyer: publicBuyer(account) })
 }
 async function logout(req,res,next) {
@@ -285,7 +293,8 @@ async function logout(req,res,next) {
 function install(app) {
   if (app.__shopvaxBuyerWhatsappAuthInstalled) return
   app.__shopvaxBuyerWhatsappAuthInstalled = true
-  app.get('/api/public/buyer-auth/config',noCache,(_req,res)=>res.json({enabled:buyerWhatsappReady()}))
+  app.get('/api/public/buyer-auth/config',noCache,(_req,res)=>res.json({enabled:buyerAuthReady(),mode:'password',whatsappOtpEnabled:buyerWhatsappReady()}))
+  installBuyerPasswordRoutes(app, {pool,ensureSchema:schema,publicBuyer,cookieOptions:opts,getBuyer:buyer})
   app.post('/api/public/buyer-auth/request-code',express.json({limit:'8kb'}),noCache,wrap(requestCode))
   app.post('/api/public/buyer-auth/verify-code',express.json({limit:'8kb'}),noCache,wrap(verifyCode))
   app.get('/api/public/buyer-auth/me',noCache,wrap(me))
