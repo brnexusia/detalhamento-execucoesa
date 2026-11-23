@@ -26,7 +26,11 @@ try {
     await page.route('**/api/admin/plan-context',r=>r.fulfill(response({plan:{code:'ouro',name:'Ouro',limits:{photosPerProduct:20},features:{stock:false}},usage:{products:0,sellers:1,catalogs:2}})))
     await page.route('**/api/admin/imports*',r=>r.fulfill(response({jobs:[]})))
     await page.goto('http://127.0.0.1:5173/painel/produtos')
+    // Links are intentionally collapsed until the user opens a catalog.
+    await page.getByRole('button',{name:/Escolher uma pasta/}).click()
     await page.getByRole('button',{name:'Colares da coleção',exact:true}).click()
+    assert.equal(await page.locator('.svx-catalog-share__card').count(),0)
+    await page.getByRole('button',{name:/Links e detalhes/}).click()
     const section=page.getByRole('region',{name:'Links de divulgação'})
     await section.waitFor()
     const cards=section.locator('.svx-catalog-share__card')

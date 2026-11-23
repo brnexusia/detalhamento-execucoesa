@@ -1,6 +1,6 @@
 import { publicCatalogLink, publicStoreLink, publicSellerLink } from './public-share-links'
-import { useEffect, useRef, useState } from 'react'
-import { Check, ChevronLeft, ChevronRight, Copy, Download, ExternalLink, FolderClosed, FolderOpen, LayoutGrid, List, MoreHorizontal, Plus, Search, Share2, Trash2, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Download, ExternalLink, FolderClosed, FolderOpen, LayoutGrid, List, MoreHorizontal, Plus, Search, Share2, Trash2, X } from 'lucide-react'
 import { api, type AdminCatalog } from './api'
 import type { AdminProduct, AdminSeller } from './types'
 import { confirmAction } from './ui-dialogs'
@@ -56,8 +56,10 @@ export default function CatalogManager({storeSlug,categories,sellers=[],onSelect
  const [folderQuery,setFolderQuery]=useState('')
  const [folderPage,setFolderPage]=useState(1)
  const [folderView,setFolderView]=useState<'compact'|'cards'>('compact')
- const detailsRef=useRef<HTMLElement>(null)
- const selected=catalogs.find(c=>c.id===selectedId)||catalogs[0]||null
+ const [foldersOpen,setFoldersOpen]=useState(false)
+ const [linksOpen,setLinksOpen]=useState(false)
+ // No selected catalog means all products from the store, including every folder.
+ const selected=catalogs.find(c=>c.id===selectedId)||null
  const matchingCatalogs=catalogs.filter(c=>folderKey(c.name).includes(folderKey(folderQuery)))
    .sort((a,b)=>Number(b.isDefault)-Number(a.isDefault)||a.name.localeCompare(b.name,'pt-BR'))
  const totalPages=Math.max(1,Math.ceil(matchingCatalogs.length/FOLDERS_PER_PAGE))
@@ -77,7 +79,7 @@ export default function CatalogManager({storeSlug,categories,sellers=[],onSelect
      const response=await api.catalogs()
      setCatalogs(response.catalogs)
      setGold(response.canCreateMultiple)
-     const next=response.catalogs.find(c=>c.id===(preferred||selectedId))||response.catalogs[0]||null
+     const next=response.catalogs.find(c=>c.id===(preferred===undefined?selectedId:preferred))||null
      setSelectedId(next?.id||'')
      onSelect(next)
      setError('')
@@ -116,11 +118,15 @@ export default function CatalogManager({storeSlug,categories,sellers=[],onSelect
  },[pane,busy])
  const choose=(catalog:AdminCatalog)=>{
    setSelectedId(catalog.id)
+   setFoldersOpen(false)
+   setLinksOpen(false)
    onSelect(catalog)
-   requestAnimationFrame(()=>detailsRef.current?.scrollIntoView({
-     behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth',
-     block:'start',
-   }))
+ }
+ const chooseAll=()=>{
+   setSelectedId('')
+   setFoldersOpen(false)
+   setLinksOpen(false)
+   onSelect(null)
  }
  const activeSellers=sellers.filter(seller=>seller.is_active)
  const selectedSeller=activeSellers.find(seller=>seller.slug===linkSellerSlug)
@@ -168,7 +174,7 @@ export default function CatalogManager({storeSlug,categories,sellers=[],onSelect
    setBusy(true);setError('')
    try{
      const r=await api.createCatalog({name:name.trim(),kind,customLabel:kind==='personalizado'?customLabel.trim():'',priceMode:kind==='personalizado'?priceMode:'base',minimumOrder:minimum===''?null:Number(minimum)})
-     await load(r.catalog.id);setPane(null);onChanged()
+     await load(r.catalog.id);setFoldersOpen(false);setLinksOpen(false);setPane(null);onChanged()
    }catch(e){setError(e instanceof Error?e.message:'Erro ao criar o catálogo.')}
    finally{setBusy(false)}
  }
@@ -188,7 +194,7 @@ export default function CatalogManager({storeSlug,categories,sellers=[],onSelect
    setBusy(true)
    try{
      await api.deleteCatalog(selected.id)
-     await load('');setPane(null);onChanged()
+     await load('');setFoldersOpen(false);setLinksOpen(false);setPane(null);onChanged()
    }catch(e){setError(e instanceof Error?e.message:'Falha ao excluir catálogo.')}
    finally{setBusy(false)}
  }
@@ -213,12 +219,23 @@ export default function CatalogManager({storeSlug,categories,sellers=[],onSelect
  }
  return <div className="svx-catalog-inline" aria-label="Catálogos da loja">
    <header className="svx-catalog-inline__header">
-     <div><h2>Minhas pastas</h2><p>Cada catálogo funciona como uma pasta: abra para ver apenas seus produtos e gerenciar o link público. Os produtos permanecem na base da loja.</p></div>
+     <div><h2>Catálogos</h2><p>Visualize todos os produtos ou filtre por pasta.</p></div>
      <div className="svx-catalog-inline__buttons">
        {gold&&<button type="button" className="svx-catalog-inline__create" onClick={()=>{setName('');setKind('varejo');setCustomLabel('');setCustomFormat('');setPriceMode('base');setMinimum('');show('create')}}><Plus size={15}/> Criar catálogo</button>}
-       <button type="button" className="svx-catalog-inline__more" disabled={!selected} aria-label="Opções do catálogo selecionado" onClick={()=>show('settings')}><MoreHorizontal size={20}/> <span>Opções</span></button>
+       {selected&&<button type="button" className="svx-catalog-inline__more" aria-label="Opções do catálogo selecionado" onClick={()=>show('settings')}><MoreHorizontal size={20}/> <span>Opções</span></button>}
      </div>
    </header>
+   <div className="svx-catalog-quickbar" role="group" aria-label="Filtrar produtos por catálogo">
+     <button type="button" className={'svx-catalog-quickbar__all'+(!selected?' is-active':'')} aria-pressed={!selected} onClick={chooseAll} disabled={busy}>
+       <LayoutGrid size={18} aria-hidden="true"/><span><strong>Todos os produtos</strong><small>Base inteira da loja</small></span>
+     </button>
+     <button type="button" className={'svx-catalog-quickbar__folders'+(selected?' is-selected':'')} aria-expanded={foldersOpen} aria-controls="svx-catalog-picker" onClick={()=>setFoldersOpen(open=>!open)} disabled={busy}>
+       <FolderClosed size={19} aria-hidden="true"/><span><strong>{selected?selected.name:'Escolher uma pasta'}</strong><small>{catalogs.length} {catalogs.length===1?'pasta':'pastas'} disponíveis</small></span><ChevronDown className={foldersOpen?'is-open':''} size={18} aria-hidden="true"/>
+     </button>
+     {selected&&<button type="button" className="svx-catalog-quickbar__links" aria-expanded={linksOpen} aria-controls="svx-catalog-links" onClick={()=>setLinksOpen(open=>!open)}><Share2 size={17} aria-hidden="true"/> Links e detalhes <ChevronDown className={linksOpen?'is-open':''} size={16} aria-hidden="true"/></button>}
+   </div>
+   {selected&&<p className="svx-catalog-quickbar__context">Exibindo produtos da pasta <strong>{selected.name}</strong>. <button type="button" onClick={chooseAll}>Ver todos os produtos</button></p>}
+   {foldersOpen&&<section id="svx-catalog-picker" className="svx-catalog-picker" aria-label="Escolher catálogo">
    <div className="svx-catalog-toolbar">
      <div className="svx-catalog-toolbar__top">
        <strong>{catalogs.length} {catalogs.length===1?'pasta':'pastas'}</strong>
@@ -235,25 +252,6 @@ export default function CatalogManager({storeSlug,categories,sellers=[],onSelect
        </div>
      </div>
    </div>
-   {selected&&<section ref={detailsRef} className="svx-catalog-folder-details" aria-label={'Pasta '+selected.name}>
-     <header className="svx-catalog-folder-details__header">
-       <span className="svx-catalog-folder-details__icon" aria-hidden="true"><FolderOpen size={20}/></span>
-       <div>
-         <h3>{selected.name}</h3>
-         <p>{kindLabel(selected)} · {selected.minimumOrder==null?'Mínimo conforme configuração da loja':'Pedido mínimo '+currency.format(selected.minimumOrder)}{selected.isDefault?' · Principal':''}</p>
-       </div>
-       <span className="svx-catalog-folder-details__count">Pasta selecionada</span>
-     </header>
-     <section className="svx-catalog-share" aria-label="Links de divulgação">
-       <div className="svx-catalog-share__heading"><h4>Links para compartilhar</h4><p>Escolha entre divulgar a loja inteira ou somente esta pasta.</p></div>
-       {activeSellers.length>0&&<label className="svx-catalog-share__seller"><span>Quem vai atender o comprador?</span><select aria-label="Vendedora do link" value={selectedSeller?.slug||''} onChange={event=>{setLinkSellerSlug(event.target.value);setLinkFeedback(null)}}><option value="">Atendimento geral da loja</option>{activeSellers.map(seller=><option key={seller.id} value={seller.slug}>{seller.name}</option>)}</select><small>Escolha uma vendedora para enviar o pedido diretamente ao atendimento dela.</small></label>}
-       <div className="svx-catalog-share__cards">
-         {linkCard('store',storeLink)}
-         {linkCard('catalog',catalogLink(selected),!selected.active||selected.lockedByPlan)}
-       </div>
-     </section>
-     <p className="svx-catalog-folder-details__hint">Os produtos e as categorias exibidos abaixo pertencem à pasta <strong>{selected.name}</strong>. Alterar esta pasta não apaga produtos da base da loja.</p>
-   </section>}
    <div className={"svx-catalog-folders"+(folderView==="compact"?" is-compact":"")} role="group" aria-label="Pastas dos catálogos">
      {visibleCatalogs.map(c=>{
        const opened=selected?.id===c.id
@@ -287,6 +285,26 @@ export default function CatalogManager({storeSlug,categories,sellers=[],onSelect
           <button type="button" aria-label="Próxima página das pastas" disabled={actualPage===totalPages} onClick={()=>setFolderPage(page=>Math.min(totalPages,page+1))}>Próxima <ChevronRight size={16}/></button>
         </div>}
        </div>}
+   </section>}
+   {selected&&linksOpen&&<section id="svx-catalog-links" className="svx-catalog-folder-details" aria-label={'Pasta '+selected.name}>
+     <header className="svx-catalog-folder-details__header">
+       <span className="svx-catalog-folder-details__icon" aria-hidden="true"><FolderOpen size={20}/></span>
+       <div>
+         <h3>{selected.name}</h3>
+         <p>{kindLabel(selected)} · {selected.minimumOrder==null?'Mínimo conforme configuração da loja':'Pedido mínimo '+currency.format(selected.minimumOrder)}{selected.isDefault?' · Principal':''}</p>
+       </div>
+       <span className="svx-catalog-folder-details__count">Pasta selecionada</span>
+     </header>
+     <section className="svx-catalog-share" aria-label="Links de divulgação">
+       <div className="svx-catalog-share__heading"><h4>Links para compartilhar</h4><p>Escolha entre divulgar a loja inteira ou somente esta pasta.</p></div>
+       {activeSellers.length>0&&<label className="svx-catalog-share__seller"><span>Quem vai atender o comprador?</span><select aria-label="Vendedora do link" value={selectedSeller?.slug||''} onChange={event=>{setLinkSellerSlug(event.target.value);setLinkFeedback(null)}}><option value="">Atendimento geral da loja</option>{activeSellers.map(seller=><option key={seller.id} value={seller.slug}>{seller.name}</option>)}</select><small>Escolha uma vendedora para enviar o pedido diretamente ao atendimento dela.</small></label>}
+       <div className="svx-catalog-share__cards">
+         {linkCard('store',storeLink)}
+         {linkCard('catalog',catalogLink(selected),!selected.active||selected.lockedByPlan)}
+       </div>
+     </section>
+     <p className="svx-catalog-folder-details__hint">Os produtos e as categorias exibidos abaixo pertencem à pasta <strong>{selected.name}</strong>. Alterar esta pasta não apaga produtos da base da loja.</p>
+   </section>}
    {error&&!pane&&<p className="svx-catalog-inline__error" role="alert">{error}</p>}
    {pane&&<div className="svx-catalog-dialog">
      <button type="button" className="svx-catalog-dialog__backdrop" aria-label="Fechar" onClick={()=>!busy&&setPane(null)}/>

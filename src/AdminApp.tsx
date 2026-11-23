@@ -453,7 +453,7 @@ function Products({ data, revision, query, setQuery, onCreate, onEdit, onVisibil
       onChanged={onRefreshed}/>
     <div className="svx-products__toolbar">
       <ThinCategoryScroll refreshKey={(activeCatalog?.id||'base')+':'+categories.map(item=>item.category+':'+item.count).join('|')}>
-        <button type="button" aria-pressed={activeCategory === 'Todas'} className={activeCategory === 'Todas' ? 'is-active' : ''} onClick={() => setActiveCategory('Todas')}>Todos <small>{catalogStats?.total??'…'}</small></button>
+        <button type="button" aria-pressed={activeCategory === 'Todas'} className={activeCategory === 'Todas' ? 'is-active' : ''} onClick={() => setActiveCategory('Todas')}>Todas as categorias <small>{catalogStats?.total??'…'}</small></button>
         {categories.map((item) => <button type="button" key={item.category} aria-pressed={activeCategory === item.category} className={activeCategory === item.category ? 'is-active' : ''} onClick={() => setActiveCategory(item.category)}>{item.category} <small>{item.count}</small></button>)}
       </ThinCategoryScroll>
       {categoryStatsError&&<small className="svx-products__category-error" role="alert">{categoryStatsError}</small>}
