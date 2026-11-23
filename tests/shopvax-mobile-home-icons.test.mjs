@@ -2,13 +2,15 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 
-const html = readFileSync('index.html', 'utf8')
+const htmlDocuments = [readFileSync('index.html', 'utf8'), readFileSync('landing-integration/index.html', 'utf8')]
 const manifest = JSON.parse(readFileSync('public/manifest.webmanifest', 'utf8'))
 
 test('iOS and Android home-screen metadata use the official Shopvax icon', () => {
+  for (const html of htmlDocuments) {
   assert.match(html, /<link rel="apple-touch-icon" sizes="180x180" href="\/shopvax-icon-180\.png\?v=shopvax-20261123"\s*\/>/)
   assert.match(html, /<link rel="manifest" href="\/manifest\.webmanifest\?v=shopvax-20261123"/)
   assert.match(html, /<meta name="apple-mobile-web-app-title" content="Shopvax"\s*\/>/)
+  }
   assert.equal(manifest.name, 'Shopvax')
   assert.equal(manifest.short_name, 'Shopvax')
   assert.equal(manifest.start_url, '/')
