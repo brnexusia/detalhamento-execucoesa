@@ -182,18 +182,18 @@ test('resposta após OTP válido conserva o identificador do comprador fora da t
 })
 
 
-test('cadastro pede somente nome, CPF/CNPJ e telefone verificado', () => {
+test('cadastro global sem OTP exige nome, documento, telefone e senha', () => {
   const client = readFileSync(new URL('../src/BuyerWhatsappLogin.tsx', import.meta.url), 'utf8')
-  const form = client.slice(client.indexOf("{stage === 'profile' && <form"),client.indexOf('{error && <div role="alert"'))
-  assert.match(form, /Nome completo/)
-  assert.match(form, /CPF ou CNPJ/)
-  assert.match(form, /Telefone verificado/)
-  assert.match(form, /readOnly/)
-  assert.doesNotMatch(form, /type="email"|<select|buyer-channels|buyer-consent|buyer-business-details|type="checkbox"/)
-  assert.doesNotMatch(form, /Cidade|finalidade das suas compras|Nome da loja ou empresa/)
-  assert.match(form, /href="\/politica-de-privacidade.html"/)
-  assert.match(client, /verify-code/, 'o telefone continua verificado por OTP')
+  assert.match(client,/Nome completo/)
+  assert.match(client,/CPF ou CNPJ/)
+  assert.match(client,/Telefone com DDD/)
+  assert.match(client,/register-password/)
+  assert.match(client,/login-password/)
+  assert.match(client,/type=\{showPassword\?'text':'password'\}/)
+  assert.doesNotMatch(client,/request-code|verify-code|Código de verificação/)
+  assert.doesNotMatch(client,/UAZAPI_INSTANCE_TOKEN|SHOPVAX_OTP_HMAC_SECRET/)
 })
+
 
 test('API persiste documento válido sem exigir e-mail ou consentir automaticamente marketing', () => {
   const auth = readFileSync(new URL('./buyer-whatsapp-auth-hooks.mjs', import.meta.url), 'utf8')
@@ -210,8 +210,8 @@ test('API persiste documento válido sem exigir e-mail ou consentir automaticame
 test('termos e política de privacidade refletem o cadastro simplificado sem marketing automático', () => {
   const terms = readFileSync(new URL('../public/termos-de-uso.html', import.meta.url), 'utf8')
   const privacy = readFileSync(new URL('../public/politica-de-privacidade.html', import.meta.url), 'utf8')
-  assert.match(terms, /nome completo, CPF ou CNPJ e telefone verificado/)
-  assert.match(privacy, /nome completo, CPF ou CNPJ e telefone verificado/)
+  assert.match(terms, /nome completo, CPF ou CNPJ, telefone e senha/)
+  assert.match(privacy, /nome completo, CPF ou CNPJ, telefone e uma senha/)
   assert.match(terms, /não equivale a uma autorização/)
   assert.match(privacy, /não ativa automaticamente/)
   assert.doesNotMatch(terms, /marcar a caixa obrigatória/)
