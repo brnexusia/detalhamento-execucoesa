@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
-import { ArrowLeft, Bookmark, Grid2X2, Play, ShoppingBag, Store, X } from 'lucide-react'
+import { ArrowLeft, Bookmark, Grid2X2, Play, Share2, ShoppingBag, Store, X } from 'lucide-react'
 import { isSocialSaved, socialSaveEvent, toggleSocialSaved } from './social-saves'
 const SocialShopping = lazy(() => import('./SocialShopping'))
 import './social-profile.css'
@@ -8,6 +8,7 @@ import { shopvaxAccentTextColor } from './ShopvaxDesignSystem'
 import SocialAccountChoice from './SocialAccountChoice'
 import { useOwnerSession } from './owner-session'
 import { useBuyerSession } from './buyer-session'
+import { SHOPVAX_PUBLIC_ORIGIN } from './public-share-links'
 
 type VariationGroup = { name: string; options: string[] }
 type Publication = {
@@ -57,6 +58,7 @@ export default function SocialStoreProfile() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [accountChoice, setAccountChoice] = useState<'login' | 'follow' | null>(null)
+  const [shareFeedback,setShareFeedback] = useState('')
   const ownerSession = useOwnerSession()
   const buyerSession = useBuyerSession()
 
@@ -155,6 +157,20 @@ export default function SocialStoreProfile() {
   }
 
   const follow = () => setAccountChoice('follow')
+  const shareProfile = async () => {
+    const url = `${SHOPVAX_PUBLIC_ORIGIN}/perfil/${encodeURIComponent(slug)}`
+    setShareFeedback('')
+    try {
+      if (typeof navigator.share === 'function') {
+        await navigator.share({ title: profile?.store.name || 'Loja na ShopVax', url })
+      } else {
+        await navigator.clipboard.writeText(url)
+        setShareFeedback('Link oficial da ShopVax copiado.')
+      }
+    } catch (error) {
+      if ((error as Error)?.name !== 'AbortError') setShareFeedback('Não foi possível compartilhar. Copie o link oficial no painel da loja.')
+    }
+  }
 
   if (loading) return <div className="social-profile-state"><span><img src="/brand/shopvax-symbol.svg" className="svx-brand-symbol" alt="Shopvax" /></span><strong>Abrindo perfil…</strong></div>
   if (!profile) return <div className="social-profile-state"><strong>{error || 'Perfil não encontrado.'}</strong><button onClick={() => go('/')}>Voltar ao feed</button></div>
@@ -178,8 +194,9 @@ export default function SocialStoreProfile() {
             <p>{store.tagline}</p>
             <div className="social-profile-actions">
               <button className={stats.following ? 'is-following' : ''} onClick={follow}>{stats.following ? 'Seguindo' : 'Seguir'}</button>
-
+              <button type="button" onClick={()=>void shareProfile()} aria-label="Compartilhar perfil com link oficial"><Share2 size={16} aria-hidden="true"/> Compartilhar</button>
             </div>
+            {shareFeedback&&<p role="status" className="social-profile-share-feedback">{shareFeedback}</p>}
           </div>
         </div>
         <div className="social-profile-stats">
