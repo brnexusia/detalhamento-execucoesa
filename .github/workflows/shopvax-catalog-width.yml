@@ -4,12 +4,16 @@ on:
     branches: [main]
     paths:
       - 'src/catalog-manager.css'
+      - 'src/CatalogManager.tsx'
+      - 'tests/shopvax-many-catalogs.e2e.mjs'
       - 'tests/shopvax-catalog-width.e2e.mjs'
       - '.github/workflows/shopvax-catalog-width.yml'
   push:
     branches: [main]
     paths:
       - 'src/catalog-manager.css'
+      - 'src/CatalogManager.tsx'
+      - 'tests/shopvax-many-catalogs.e2e.mjs'
       - 'tests/shopvax-catalog-width.e2e.mjs'
       - '.github/workflows/shopvax-catalog-width.yml'
 permissions:
@@ -17,7 +21,7 @@ permissions:
 jobs:
   responsive:
     runs-on: ubuntu-latest
-    timeout-minutes: 9
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -26,5 +30,16 @@ jobs:
       - run: npm install --no-fund --no-audit
       - run: npm install --no-save --no-fund --no-audit playwright@1.58.2
       - run: npx playwright install --with-deps chromium
-      - name: Verificar bordas dos catálogos no desktop e no celular
-        run: node tests/shopvax-catalog-width.e2e.mjs
+      - name: Compilar o painel de produtos
+        run: npm run build
+      - name: Iniciar painel isolado para testar 22 pastas
+        run: |
+          npm run dev -- --host 127.0.0.1 > /tmp/shopvax-catalog-ux.log 2>&1 &
+          for i in $(seq 1 50); do
+            curl -fsS http://127.0.0.1:5173/ >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/shopvax-catalog-ux.log
+          exit 1
+      - name: Testar 22 catálogos, busca, paginação e visualização no mobile
+        run: node tests/shopvax-many-catalogs.e2e.mjs
