@@ -2,7 +2,7 @@ import crypto from 'node:crypto'
 import express from 'express'
 import pg from 'pg'
 import { revokeAllBrowserSessions, clearAllBrowserSessionCookies, browserSessionCookies } from './global-logout.mjs'
-import { buyerWhatsappReady, currentBuyerCustomer, buyerProfilesForStore } from './buyer-whatsapp-auth-hooks.mjs'
+import { buyerWhatsappReady, buyerAuthReady, currentBuyerCustomer, buyerProfilesForStore } from './buyer-whatsapp-auth-hooks.mjs'
 
 const { Pool } = pg
 const databaseUrl = process.env.DATABASE_URL?.trim() || ''
@@ -472,7 +472,7 @@ async function hideCancelledOrder(req, res) {
 }
 
 async function registerCustomer(req, res) {
-  if (buyerWhatsappReady()) return res.status(410).json({ error: 'O cadastro agora é realizado pelo WhatsApp.' })
+  if (buyerAuthReady()) return res.status(410).json({ error: 'Crie sua conta global de comprador com telefone e senha.' })
   res.set('Cache-Control', 'no-store, private')
   await ensureSchema()
   const store = await storeBySlug(req.params.storeSlug)
