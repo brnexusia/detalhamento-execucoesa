@@ -229,6 +229,42 @@ try {
   assert.equal(await priceIn(highId),23,'Sem alto atacado, usa o preço base')
   assert.equal(await priceIn(highCopy.json.catalog.id),23)
   assert.equal(await priceIn(retailId),60)
+  // Same SKU, two independent galleries. Owner preview must pair the right
+  // image with the price and the public feed must not expose disabled catalogs.
+  const retailAsset=id(),wholesaleAsset=id()
+  for(const asset of [retailAsset,wholesaleAsset]){
+    await pool.query("INSERT INTO media_assets(id,store_id,mime_type,original_name,byte_size,data) VALUES($1,$2,'image/png','test.png',1,$3)",[asset,owner.storeId,Buffer.from([1])])
+  }
+  await importedUpdate(23,{retailPrice:60,wholesalePrice:19,catalogMemberships:[
+    {catalogId:retailId,included:true,mediaImages:['/media/'+retailAsset]},
+    {catalogId:wholesaleId,included:true,mediaImages:['/media/'+wholesaleAsset]}
+  ]})
+  const slug=(await pool.query('SELECT slug FROM stores WHERE id=$1',[owner.storeId])).rows[0].slug
+  const offerResponse=await request(owner.cookie,'/api/social/stores/'+slug+'/products/'+importedId+'/offers')
+  assert.equal(offerResponse.status,200,JSON.stringify(offerResponse.json))
+  const retailOffer=offerResponse.json.offers.find(x=>x.id===retailId)
+  const wholesaleOffer=offerResponse.json.offers.find(x=>x.id===wholesaleId)
+  assert.equal(retailOffer.price,60)
+  assert.equal(retailOffer.mediaUrl,'/media/'+retailAsset)
+  assert.equal(wholesaleOffer.price,19)
+  assert.equal(wholesaleOffer.mediaUrl,'/media/'+wholesaleAsset)
+  const enableRetail=await request(owner.cookie,'/api/admin/catalogs/'+retailId,'PATCH',{feedEnabled:true})
+  assert.equal(enableRetail.status,200,JSON.stringify(enableRetail.json))
+  const hideGeneral=await request(owner.cookie,'/api/admin/catalogs/'+general.id,'PATCH',{feedEnabled:false})
+  assert.equal(hideGeneral.status,200,JSON.stringify(hideGeneral.json))
+  const publications=await request('', '/api/social/stores/'+slug+'/publications')
+  assert.equal(publications.status,200,JSON.stringify(publications.json))
+  assert.equal(publications.json.publications.filter(x=>x.id===importedId).length,1)
+  assert.equal(publications.json.publications.find(x=>x.id===importedId).mediaUrl,'/media/'+retailAsset)
+  const enableWholesale=await request(owner.cookie,'/api/admin/catalogs/'+wholesaleId,'PATCH',{feedEnabled:true})
+  assert.equal(enableWholesale.status,200)
+  const disableRetail=await request(owner.cookie,'/api/admin/catalogs/'+retailId,'PATCH',{feedEnabled:false})
+  assert.equal(disableRetail.status,200)
+  const switched=await request('', '/api/social/stores/'+slug+'/publications')
+  assert.equal(switched.json.publications.find(x=>x.id===importedId).mediaUrl,'/media/'+wholesaleAsset)
+  const rejected=await request(stranger.cookie,'/api/admin/catalogs/'+retailId+'/recover-media','POST',{})
+  assert.equal(rejected.status,404)
+  console.log('SHOPVAX_CATALOG_MEDIA_AND_FEED_ISOLATION_PASS')
   console.log('SHOPVAX_TYPED_WHOLESALE_PRICES_PASS')
   console.log('SHOPVAX_CATALOG_MEMBERSHIP_AND_DESTINATION_PRICE_PASS')
   console.log('SHOPVAX_IMPORTED_PRICE_MODES_SYNC_PASS')
