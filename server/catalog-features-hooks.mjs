@@ -1,4 +1,5 @@
 import { resolvedVariantPrices, variantUnitPrice } from './variant-pricing.mjs'
+import { subscriptionAccess } from './stripe-billing-policy.mjs'
 import crypto from 'node:crypto'
 import express from 'express'
 import pg from 'pg'
@@ -125,6 +126,11 @@ async function ensureSchema() {
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS buyer jsonb NOT NULL DEFAULT '{}'::jsonb;
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS notes text NOT NULL DEFAULT '';
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS edit_revision integer NOT NULL DEFAULT 0;
+    CREATE TABLE IF NOT EXISTS seller_order_access (
+      seller_id text PRIMARY KEY REFERENCES sellers(id) ON DELETE CASCADE,
+      invite_hash text UNIQUE, invite_expires_at timestamptz,
+      session_hash text UNIQUE, session_expires_at timestamptz
+    );
     CREATE TABLE IF NOT EXISTS order_edit_history (id bigserial PRIMARY KEY,order_id text NOT NULL REFERENCES orders(id) ON DELETE CASCADE,store_id text NOT NULL REFERENCES stores(id) ON DELETE CASCADE,user_id text NOT NULL,old_items jsonb NOT NULL,new_items jsonb NOT NULL,old_total numeric(12,2) NOT NULL,new_total numeric(12,2) NOT NULL,created_at timestamptz NOT NULL DEFAULT now());
   `)
 }
@@ -795,6 +801,85 @@ async function createCatalogOrder(req, res) {
 }
 
 
+const sellerCookie='shopvax_seller_orders'
+const sellerCookieOptions={httpOnly:true,sameSite:'strict',secure:process.env.NODE_ENV!=='test'&&process.env.NODE_ENV!=='development',path:'/api/seller-orders'}
+const sellerToken=()=>crypto.randomBytes(32).toString('base64url')
+function sellerTokenValid(token){return typeof token==='string'&&/^[A-Za-z0-9_-]{43}$/.test(token)}
+async function issueSellerOrderAccess(req,res){
+  const seller=await pool.query('SELECT id FROM sellers WHERE id=$1 AND store_id=$2 AND is_active=true',[req.params.sellerId,req.catalogStore.store_id])
+  if(!seller.rowCount)return res.status(404).json({error:'Vendedora ativa não encontrada.'})
+  const token=sellerToken()
+  await pool.query(`INSERT INTO seller_order_access(seller_id,invite_hash,invite_expires_at)
+    VALUES($1,$2,now()+interval '24 hours') ON CONFLICT(seller_id) DO UPDATE
+    SET invite_hash=EXCLUDED.invite_hash,invite_expires_at=EXCLUDED.invite_expires_at,session_hash=NULL,session_expires_at=NULL`,[seller.rows[0].id,hashToken(token)])
+  res.set('Cache-Control','no-store').json({token})
+}
+async function revokeSellerOrderAccess(req,res){
+  await pool.query('DELETE FROM seller_order_access a USING sellers s WHERE a.seller_id=s.id AND s.id=$1 AND s.store_id=$2',[req.params.sellerId,req.catalogStore.store_id])
+  res.set('Cache-Control','no-store').json({ok:true})
+}
+async function exchangeSellerOrderAccess(req,res){
+  await schemaReady()
+  res.set('Cache-Control','no-store')
+  const invite=req.body?.token
+  if(!sellerTokenValid(invite))return res.status(401).json({error:'Convite inválido ou expirado.'})
+  const token=sellerToken()
+  const found=await pool.query(`UPDATE seller_order_access a SET invite_hash=NULL,invite_expires_at=NULL,
+    session_hash=$2,session_expires_at=now()+interval '7 days' FROM sellers s
+    WHERE a.seller_id=s.id AND s.is_active=true AND a.invite_hash=$1 AND a.invite_expires_at>now()
+    RETURNING a.seller_id`,[hashToken(invite),hashToken(token)])
+  if(!found.rowCount)return res.status(401).json({error:'Convite já utilizado ou expirado. Solicite um novo acesso à loja.'})
+  res.cookie(sellerCookie,token,{...sellerCookieOptions,maxAge:7*86400000}).json({ok:true})
+}
+async function requireSellerOrder(req,res,next){
+  try{
+    res.set('Cache-Control','no-store')
+    await schemaReady()
+    const token=parseCookies(req)[sellerCookie]
+    if(!sellerTokenValid(token))return res.status(401).json({error:'Acesso de vendedora necessário.'})
+    const result=await pool.query(`SELECT s.id AS seller_id,s.slug AS seller_slug,s.name AS seller_name,
+      st.id AS store_id,st.name AS store_name,st.plan_tier,st.billing_required,st.admin_grant_active,st.admin_grant_expires_at,
+      b.subscription_status,b.active_plan_code,b.paid_until
+      FROM seller_order_access a JOIN sellers s ON s.id=a.seller_id JOIN stores st ON st.id=s.store_id
+      LEFT JOIN shopvax_stripe_billing b ON b.store_id=st.id
+      WHERE a.session_hash=$1 AND a.session_expires_at>now() AND s.is_active=true AND st.is_active=true`,[hashToken(token)])
+    const seller=result.rows[0]
+    if(!seller)return res.status(401).json({error:'Acesso expirado ou revogado. Solicite um novo convite.'})
+    if(!(process.env.NODE_ENV==='test'&&process.env.SHOPVAX_TEST_BILLING_BYPASS==='1')&&!subscriptionAccess(seller))
+      return res.status(402).json({error:'A assinatura da loja precisa estar ativa.'})
+    req.catalogStore={...seller,user_id:'seller:'+seller.seller_id,seller_session_hash:hashToken(token)}
+    next()
+  }catch(error){next(error)}
+}
+async function sellerOrders(req,res){
+  const s=req.catalogStore
+  const result=await pool.query('SELECT * FROM orders WHERE store_id=$1 AND seller_id=$2 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 100',[s.store_id,s.seller_id])
+  res.json({store:{name:s.store_name},sellers:[{id:s.seller_id,name:s.seller_name,slug:s.seller_slug}],orders:result.rows.map(o=>({...o,total:Number(o.total)}))})
+}
+async function sellerOrderProducts(req,res){
+  const s=req.catalogStore
+  const order=(await pool.query('SELECT catalog_id FROM orders WHERE id=$1 AND store_id=$2 AND seller_id=$3 AND deleted_at IS NULL',[req.params.orderId,s.store_id,s.seller_id])).rows[0]
+  if(!order)return res.status(404).json({error:'Pedido não encontrado.'})
+  const q=String(req.query.q||'').trim().slice(0,150)
+  if(!q)return res.json({products:[]})
+  const result=await pool.query(`SELECT p.id,p.name,p.sku,p.price,p.variations,p.variant_prices,p.active,
+      CASE WHEN c.id IS NULL THEN p.price ELSE ${effectiveCatalogPrice} END AS catalog_price
+    FROM products p LEFT JOIN catalogs c ON c.id=$3 AND c.store_id=p.store_id
+    LEFT JOIN catalog_products cp ON cp.catalog_id=c.id AND cp.product_id=p.id
+    WHERE p.store_id=$1 AND p.active=true AND lower(p.name||' '||p.sku) LIKE $2
+      AND (c.id IS NULL OR CASE WHEN c.explicit_membership THEN cp.visible=true ELSE COALESCE(cp.visible,true) END)
+    ORDER BY p.name,p.id LIMIT 20`,[s.store_id,'%'+q.toLowerCase()+'%',order.catalog_id])
+  res.json({products:result.rows.map(p=>({...p,price:Number(p.price),catalogPrice:Number(p.catalog_price)}))})
+}
+async function logoutSellerOrder(req,res){
+  const token=parseCookies(req)[sellerCookie]
+  if(sellerTokenValid(token)){
+    await schemaReady()
+    await pool.query('UPDATE seller_order_access SET session_hash=NULL,session_expires_at=NULL WHERE session_hash=$1',[hashToken(token)])
+  }
+  res.clearCookie(sellerCookie,sellerCookieOptions).set('Cache-Control','no-store').json({ok:true})
+}
+
 async function editCatalogOrder(req,res) {
   const storeId=req.catalogStore.store_id
   const requested=req.body?.items
@@ -804,7 +889,14 @@ async function editCatalogOrder(req,res) {
   const reject=(status,message)=>Object.assign(new Error(message),{editStatus:status})
   try {
     await client.query('BEGIN')
-    const found=await client.query('SELECT * FROM orders WHERE id=$1 AND store_id=$2 AND deleted_at IS NULL FOR UPDATE',[req.params.orderId,storeId])
+    const sellerId=req.catalogStore.seller_id||null
+    if(sellerId){
+      const access=await client.query(`SELECT a.seller_id FROM seller_order_access a JOIN sellers s ON s.id=a.seller_id
+        WHERE a.seller_id=$1 AND a.session_hash=$2 AND a.session_expires_at>now() AND s.is_active=true AND s.store_id=$3 FOR SHARE OF a,s`,
+        [sellerId,req.catalogStore.seller_session_hash,storeId])
+      if(!access.rowCount)throw reject(401,'Acesso de vendedora expirado ou revogado.')
+    }
+    const found=await client.query('SELECT * FROM orders WHERE id=$1 AND store_id=$2 AND ($3::text IS NULL OR seller_id=$3) AND deleted_at IS NULL FOR UPDATE',[req.params.orderId,storeId,sellerId])
     if(!found.rowCount)throw reject(404,'Pedido não encontrado.')
     const order=found.rows[0]
     if(!['whatsapp','em_atendimento','confirmado'].includes(order.status)||order.stock_reverted)
@@ -907,6 +999,13 @@ async function editCatalogOrder(req,res) {
 function install(app) {
   if (app.__atacadoCatalogFeaturesInstalled) return
   app.__atacadoCatalogFeaturesInstalled = true
+  app.post('/api/admin/sellers/:sellerId/order-access',express.json({limit:'8kb'}),requireStore,(req,res,next)=>Promise.resolve(issueSellerOrderAccess(req,res)).catch(next))
+  app.delete('/api/admin/sellers/:sellerId/order-access',requireStore,(req,res,next)=>Promise.resolve(revokeSellerOrderAccess(req,res)).catch(next))
+  app.post('/api/seller-orders/session',express.json({limit:'8kb'}),(req,res,next)=>Promise.resolve(exchangeSellerOrderAccess(req,res)).catch(next))
+  app.post('/api/seller-orders/logout',(req,res,next)=>Promise.resolve(logoutSellerOrder(req,res)).catch(next))
+  app.get('/api/seller-orders',requireSellerOrder,(req,res,next)=>Promise.resolve(sellerOrders(req,res)).catch(next))
+  app.get('/api/seller-orders/:orderId/products',requireSellerOrder,(req,res,next)=>Promise.resolve(sellerOrderProducts(req,res)).catch(next))
+  app.patch('/api/seller-orders/:orderId/items',express.json({limit:'256kb'}),requireSellerOrder,(req,res,next)=>Promise.resolve(editCatalogOrder(req,res)).catch(next))
   app.patch('/api/admin/orders/:orderId/items', express.json({limit:'256kb'}), requireStore, (req,res,next)=>Promise.resolve(editCatalogOrder(req,res)).catch(next))
   app.get('/api/admin/products/pdf', requireStore, (req, res, next) => Promise.resolve(downloadProductsPdf(req, res)).catch(next))
   app.get('/api/admin/catalogs', requireStore, (req, res, next) => Promise.resolve(listCatalogs(req, res)).catch(next))
