@@ -560,8 +560,14 @@ export async function publishJob(req, res) {
         const members = [...membershipByProduct].map(([product_id, price_override]) => ({ product_id, price_override }))
         await client.query(
           `INSERT INTO catalog_products(catalog_id,product_id,price_override,visible)
-           SELECT $1,p.product_id,p.price_override,true
+           SELECT $1,p.product_id,
+             NULLIF(p.price_override,COALESCE(
+               CASE WHEN c.kind='varejo' OR (c.kind='personalizado' AND c.price_mode='varejo') THEN product.retail_price
+                    WHEN c.kind='caixa_fechada' OR (c.kind='personalizado' AND c.price_mode='caixa_fechada') THEN product.box_price
+                    ELSE product.price END,product.price)),true
            FROM jsonb_to_recordset($2::jsonb) AS p(product_id text,price_override numeric)
+           JOIN catalogs c ON c.id=$1
+           JOIN products product ON product.id=p.product_id AND product.store_id=c.store_id
            WHERE p.product_id IS NOT NULL
            ON CONFLICT(catalog_id,product_id)
            DO UPDATE SET price_override=EXCLUDED.price_override,visible=true,updated_at=now()`,
@@ -1001,7 +1007,11 @@ async function assignCompletedImportToCatalog(req,res) {
       RETURNING product_id`,[job.id,store.store_id,catalogId])
     const linked=await client.query(`
       INSERT INTO catalog_products(catalog_id,product_id,price_override,visible)
-      SELECT $3,src.product_id,src.imported_price,true
+      SELECT $3,src.product_id,
+        NULLIF(src.imported_price,COALESCE(
+          CASE WHEN c.kind='varejo' OR (c.kind='personalizado' AND c.price_mode='varejo') THEN product.retail_price
+               WHEN c.kind='caixa_fechada' OR (c.kind='personalizado' AND c.price_mode='caixa_fechada') THEN product.box_price
+               ELSE product.price END,product.price)),true
       FROM (
         SELECT DISTINCT ON (n.published_product_id)
           n.published_product_id AS product_id,
@@ -1012,6 +1022,8 @@ async function assignCompletedImportToCatalog(req,res) {
           AND n.published_product_id IS NOT NULL
         ORDER BY n.published_product_id,n.id
       ) src
+      JOIN catalogs c ON c.id=$3
+      JOIN products product ON product.id=src.product_id AND product.store_id=c.store_id
       WHERE src.product_id IS NOT NULL
       ON CONFLICT(catalog_id,product_id)
       DO UPDATE SET price_override=EXCLUDED.price_override,visible=true,updated_at=now()
