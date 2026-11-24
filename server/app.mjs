@@ -961,6 +961,17 @@ app.put(
         }
       }
 
+      // Compare against the locked previous state: editing metadata alone must not
+      // remove catalog prices. Catalog price synchronization and product writes are atomic.
+      const previous = await client.query(
+        'SELECT price,retail_price,box_price,variant_prices FROM products WHERE id=$1 AND store_id=$2 FOR UPDATE',
+        [req.params.id, store.rows[0].id],
+      )
+      if (!previous.rowCount) {
+        await client.query('ROLLBACK')
+        return res.status(404).json({ error: 'Produto não encontrado.' })
+      }
+
       const result = await client.query(
         `UPDATE products
          SET sku=$1,name=$2,description=$3,price=$4,category=$5,media_url=$6,media_type=$7,pack=$8,variations=$9,featured=$10,active=$11,
@@ -993,6 +1004,62 @@ app.put(
       if (!result.rowCount) {
         await client.query('ROLLBACK')
         return res.status(404).json({ error: 'Produto não encontrado.' })
+      }
+      // Imported catalog memberships historically copied the imported price into
+      // price_override, masking later edits of the underlying price. Release only
+      // those automatic copies in the price mode that changed. A later, explicit
+      // catalog-specific override remains independent.
+      const before = previous.rows[0]
+      const after = result.rows[0]
+      const sameMoney = (a,b) => a == null || b == null ? a == null && b == null : Number(a) === Number(b)
+      const baseChanged = !sameMoney(before.price,after.price)
+      const retailChanged = !sameMoney(before.retail_price,after.retail_price)
+      const boxChanged = !sameMoney(before.box_price,after.box_price)
+      const variantsChanged = JSON.stringify(before.variant_prices) !== JSON.stringify(after.variant_prices)
+      if (baseChanged || retailChanged || boxChanged || variantsChanged) {
+        // The publication and its membership use now() in the same transaction.
+        // The recovered-import path likewise updates the job and membership together.
+        // Timestamp equality distinguishes historical imports from later manual edits.
+        const importerReady = (await client.query(`
+          SELECT count(*)=3 AS ready FROM information_schema.columns
+          WHERE table_schema=current_schema() AND (
+            (table_name='import_jobs' AND column_name IN ('target_catalog_id','published_at'))
+            OR (table_name='import_normalized_products' AND column_name='published_product_id')
+          )`
+        )).rows[0]?.ready
+        const imported = importerReady ? `
+          OR EXISTS (
+            SELECT 1 FROM import_normalized_products n
+            JOIN import_jobs j ON j.id=n.job_id AND j.store_id=n.store_id
+            WHERE n.published_product_id=cp.product_id AND n.store_id=c.store_id
+              AND j.target_catalog_id=cp.catalog_id AND j.status='completed'
+              AND (cp.updated_at=j.published_at OR cp.updated_at=j.updated_at)
+          )` : ''
+        await client.query(`
+          UPDATE catalog_products cp SET price_override=NULL,updated_at=now()
+          FROM catalogs c
+          WHERE cp.catalog_id=c.id AND cp.product_id=$1 AND c.store_id=$2
+            AND cp.price_override IS NOT NULL
+            AND (
+              CASE
+                WHEN c.kind='varejo' OR (c.kind='personalizado' AND c.price_mode='varejo')
+                  THEN $4::boolean OR (($3::boolean OR $6::boolean) AND $8::numeric IS NULL)
+                WHEN c.kind='caixa_fechada' OR (c.kind='personalizado' AND c.price_mode='caixa_fechada')
+                  THEN $5::boolean OR (($3::boolean OR $6::boolean) AND $9::numeric IS NULL)
+                ELSE $3::boolean OR $6::boolean
+              END
+            )
+            AND (
+              cp.price_override=CASE
+                WHEN c.kind='varejo' OR (c.kind='personalizado' AND c.price_mode='varejo') THEN COALESCE($8::numeric,$7::numeric)
+                WHEN c.kind='caixa_fechada' OR (c.kind='personalizado' AND c.price_mode='caixa_fechada') THEN COALESCE($9::numeric,$7::numeric)
+                ELSE $7::numeric
+              END
+              ${imported}
+            )`,
+          [req.params.id,store.rows[0].id,baseChanged,retailChanged,boxChanged,variantsChanged,
+            before.price,before.retail_price,before.box_price],
+        )
       }
       if (hasCatalogPrice) {
         // Preserve any existing per-catalog visibility and the prices of
