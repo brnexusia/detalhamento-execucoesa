@@ -564,6 +564,8 @@ export async function publishJob(req, res) {
              NULLIF(p.price_override,COALESCE(
                CASE WHEN c.kind='varejo' OR (c.kind='personalizado' AND c.price_mode='varejo') THEN product.retail_price
                     WHEN c.kind='caixa_fechada' OR (c.kind='personalizado' AND c.price_mode='caixa_fechada') THEN product.box_price
+                    WHEN c.kind='atacado' OR (c.kind='personalizado' AND c.price_mode='atacado') THEN product.wholesale_price
+                    WHEN c.kind='alto_atacado' THEN product.high_wholesale_price
                     ELSE product.price END,product.price)),true
            FROM jsonb_to_recordset($2::jsonb) AS p(product_id text,price_override numeric)
            JOIN catalogs c ON c.id=$1
@@ -1011,6 +1013,8 @@ async function assignCompletedImportToCatalog(req,res) {
         NULLIF(src.imported_price,COALESCE(
           CASE WHEN c.kind='varejo' OR (c.kind='personalizado' AND c.price_mode='varejo') THEN product.retail_price
                WHEN c.kind='caixa_fechada' OR (c.kind='personalizado' AND c.price_mode='caixa_fechada') THEN product.box_price
+                    WHEN c.kind='atacado' OR (c.kind='personalizado' AND c.price_mode='atacado') THEN product.wholesale_price
+                    WHEN c.kind='alto_atacado' THEN product.high_wholesale_price
                ELSE product.price END,product.price)),true
       FROM (
         SELECT DISTINCT ON (n.published_product_id)
