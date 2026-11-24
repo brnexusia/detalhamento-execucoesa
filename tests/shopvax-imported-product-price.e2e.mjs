@@ -5,6 +5,8 @@ import { chromium } from 'playwright'
 const browser = await chromium.launch({ headless: true })
 const general = { id:'catalogo-geral', slug:'geral', name:'Catálogo geral', kind:'geral',
   isDefault:true, active:true, explicitMembership:false, lockedByPlan:false, items:[] }
+const retail={...general,id:'catalogo-varejo',slug:'varejo',name:'Varejo',kind:'varejo',isDefault:false,explicitMembership:true}
+const wholesale={...general,id:'catalogo-atacado',slug:'atacado',name:'Atacado',kind:'atacado',isDefault:false,explicitMembership:true}
 const store = { id:'store-sw', slug:'sw-moda', name:'SW Moda', eyebrow:'Atacado', tagline:'Coleção',
   minimum_order:0,whatsapp:'5571999999999',logo_url:'',accent:'#F25C05',is_active:true,
   plan_tier:'ouro',onboarding_palette_selected:true }
@@ -27,7 +29,10 @@ try {
     productCategories:[{category:'Geral',count:products.length}],sellers:[],orders:[],
     stats:{views:0,carts:0,orders:0,value:0},
   })))
-  await page.route('**/api/admin/catalogs',route=>route.fulfill(json({catalogs:[general],canCreateMultiple:true})))
+  await page.route('**/api/admin/catalogs',route=>route.fulfill(json({catalogs:[general,retail,wholesale],canCreateMultiple:true})))
+  await page.route('**/api/admin/products/*/catalog-memberships',route=>route.fulfill(json({catalogs:[
+    {...general,included:true,priceOverride:129.9},{...retail,included:false,priceOverride:null},{...wholesale,included:false,priceOverride:null}
+  ]})))
   await page.route('**/api/admin/products/categories**',route=>route.fulfill(json({
     catalogId:general.id,total:products.length,categories:[{category:'Geral',count:products.length},{category:'Colar',count:4},{category:'Brincos',count:3}],
   })))
@@ -74,6 +79,12 @@ try {
   await categoryModal.waitFor({state:'hidden'})
   assert.equal(await editor.locator('.svx-category-trigger').innerText(),'Colar')
   await activePrice.fill('109.9')
+  await editor.getByLabel('Preço varejo (R$)',{exact:true}).fill('150')
+  await editor.getByLabel('Preço atacado (R$)',{exact:true}).fill('70')
+  await editor.getByLabel('Incluir em Varejo',{exact:true}).check()
+  await editor.getByLabel('Incluir em Atacado',{exact:true}).check()
+  assert.match(await editor.locator('.svx-product-membership').filter({hasText:'Varejo'}).innerText(),/150,00/)
+  assert.match(await editor.locator('.svx-product-membership').filter({hasText:'Atacado'}).innerText(),/70,00/)
   await editor.getByRole('button',{name:'Salvar produto'}).click()
   await editor.waitFor({state:'hidden'})
   await page.waitForFunction(()=>document.querySelector('.product-admin-card')?.textContent?.includes('109,90'),{timeout:15000})
@@ -81,6 +92,9 @@ try {
   assert.equal(submitted[0]?.catalogId,general.id)
   assert.equal(submitted[0]?.catalogPrice,109.9)
   assert.equal(submitted[0]?.price,89.9,'Editar catálogo não pode alterar preço base sem solicitação')
+  assert.equal(submitted[0]?.retailPrice,150)
+  assert.equal(submitted[0]?.wholesalePrice,70)
+  assert.deepEqual(submitted[0]?.catalogMemberships,[{catalogId:retail.id,included:true},{catalogId:wholesale.id,included:true}])
 
   await page.reload()
   const refreshed=page.locator('.svx-products .product-admin-card').filter({hasText:'Pantalona Celeste LUX Fluity'})
