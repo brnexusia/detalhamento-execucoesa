@@ -43,6 +43,7 @@ export default function CatalogManager({storeSlug,categories,sellers=[],onSelect
  const [priceMode,setPriceMode]=useState<'base'|'varejo'|'atacado'|'caixa_fechada'>('base')
  const [minimum,setMinimum]=useState('')
  const [active,setActive]=useState(true)
+ const [feedEnabled,setFeedEnabled]=useState(false)
  const [pdfCategory,setPdfCategory]=useState('')
  const [addSearch,setAddSearch]=useState('')
  const [sourceCatalogId,setSourceCatalogId]=useState('')
@@ -101,6 +102,7 @@ export default function CatalogManager({storeSlug,categories,sellers=[],onSelect
    setPriceMode(selected.kind==='caixa_fechada'?'caixa_fechada':selected.priceMode||'base')
    setMinimum(selected.minimumOrder==null?'':String(selected.minimumOrder))
    setActive(selected.active)
+   setFeedEnabled(selected.feedEnabled??selected.isDefault)
  },[selected?.id])
  useEffect(()=>{
    if(pane!=='add')return
@@ -171,13 +173,13 @@ export default function CatalogManager({storeSlug,categories,sellers=[],onSelect
      </>}
    </article>
  }
- const show=(next:Pane)=>{setError('');setMessage('');setPane(next);setAddChecked([]);setAddSearch('');setAddSource('');setAddPage(1);setAddTotal(0);setSourceCatalogId('')}
+ const show=(next:Pane)=>{setError('');setMessage('');setPane(next);setAddChecked([]);setAddSearch('');setAddSource('');setAddPage(1);setAddTotal(0);setSourceCatalogId('');setFeedEnabled(next==='create'?false:selected?.feedEnabled??selected?.isDefault??false)}
  const create=async(e:React.FormEvent)=>{
    e.preventDefault()
    if(!gold||busy||!name.trim())return
    setBusy(true);setError('')
    try{
-     const r=await api.createCatalog({name:name.trim(),kind,customLabel:kind==='personalizado'?customLabel.trim():'',priceMode:kind==='personalizado'?priceMode:'base',minimumOrder:minimum===''?null:Number(minimum),sourceCatalogId:sourceCatalogId||undefined})
+     const r=await api.createCatalog({name:name.trim(),kind,customLabel:kind==='personalizado'?customLabel.trim():'',priceMode:kind==='personalizado'?priceMode:'base',minimumOrder:minimum===''?null:Number(minimum),sourceCatalogId:sourceCatalogId||undefined,feedEnabled})
      await load(r.catalog.id);setFoldersOpen(false);setLinksOpen(false);setPane(null);onChanged()
    }catch(e){setError(e instanceof Error?e.message:'Erro ao criar o catálogo.')}
    finally{setBusy(false)}
@@ -187,7 +189,7 @@ export default function CatalogManager({storeSlug,categories,sellers=[],onSelect
    if(!selected||selected.lockedByPlan||busy)return
    setBusy(true);setError('')
    try{
-     await api.updateCatalog(selected.id,{name:name.trim(),kind,customLabel:kind==='personalizado'?customLabel.trim():'',priceMode:kind==='personalizado'?priceMode:'base',minimumOrder:minimum===''?null:Number(minimum),active})
+     await api.updateCatalog(selected.id,{name:name.trim(),kind,customLabel:kind==='personalizado'?customLabel.trim():'',priceMode:kind==='personalizado'?priceMode:'base',minimumOrder:minimum===''?null:Number(minimum),active,feedEnabled})
      await load(selected.id);setPane(null);onChanged()
    }catch(e){setError(e instanceof Error?e.message:'Não foi possível salvar.')}
    finally{setBusy(false)}
@@ -352,11 +354,13 @@ export default function CatalogManager({storeSlug,categories,sellers=[],onSelect
            </select></label>
          </>}
          {pane==='create'&&<label>Copiar produtos de<select aria-label="Copiar produtos de" value={sourceCatalogId} onChange={e=>setSourceCatalogId(e.target.value)} disabled={busy}><option value="">Começar com catálogo vazio</option><option value="all">Todos os produtos da loja</option>{catalogs.filter(c=>!c.lockedByPlan).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select><small>Os produtos são vinculados ao novo catálogo e recebem o preço correspondente ao tipo escolhido, sem duplicação.</small></label>}
+         <label className="svx-catalog-dialog__check"><input type="checkbox" checked={feedEnabled} onChange={e=>setFeedEnabled(e.target.checked)} disabled={busy||Boolean(selected?.lockedByPlan)&&pane==='settings'}/> Exibir produtos no feed geral</label><small>O link direto continua disponível independentemente desta opção.</small>
          <label>Pedido mínimo (R$)<input type="number" min="0" step="0.01" placeholder="Usar mínimo da loja" value={minimum} onChange={e=>setMinimum(e.target.value)} disabled={busy||Boolean(selected?.lockedByPlan)&&pane==='settings'}/></label>
          {pane==='settings'&&selected&&!selected.isDefault&&<label className="svx-catalog-dialog__check"><input type="checkbox" checked={active} onChange={e=>setActive(e.target.checked)} disabled={busy||selected.lockedByPlan}/> Catálogo publicado</label>}
          {pane==='settings'&&selected&&!selected.lockedByPlan&&<>
            <div className="svx-catalog-dialog__extra">
              {!selected.isDefault&&<button type="button" onClick={()=>show('add')}><Plus size={16}/> Adicionar produtos</button>}
+             <button type="button" disabled={busy} onClick={async()=>{setBusy(true);setError('');try{const result=await api.recoverCatalogMedia(selected.id);setMessage(result.recovered+' produto(s) com fotos recuperadas do histórico.');onChanged()}catch(e){setError(e instanceof Error?e.message:'Falha ao recuperar fotos.')}finally{setBusy(false)}}}>Recuperar fotos da importação</button>
              <a href={catalogLink(selected)} target="_blank" rel="noreferrer"><ExternalLink size={15}/> Abrir link do catálogo</a>
            </div>
            <label>PDF por categoria<select value={pdfCategory} onChange={e=>setPdfCategory(e.target.value)}><option value="">Todas as categorias</option>{categories.map(c=><option key={c} value={c}>{c}</option>)}</select></label>
