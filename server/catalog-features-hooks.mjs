@@ -215,6 +215,20 @@ async function listCatalogs(req, res) {
       items: byCatalog.get(row.id) || [] })) })
 }
 
+async function productCatalogMemberships(req,res){
+  const storeId=req.catalogStore.store_id
+  await ensureDefaultCatalog(storeId)
+  const productId=String(req.params.productId||'')
+  if(productId!=='new'&&!(await pool.query('SELECT 1 FROM products WHERE id=$1 AND store_id=$2',[productId,storeId])).rowCount)
+    return res.status(404).json({error:'Produto não encontrado.'})
+  const result=await pool.query(`SELECT c.*,cp.price_override,
+    CASE WHEN c.explicit_membership THEN COALESCE(cp.visible,false) ELSE COALESCE(cp.visible,true) END AS included
+    FROM catalogs c LEFT JOIN catalog_products cp ON cp.catalog_id=c.id AND cp.product_id=$2
+    WHERE c.store_id=$1 ORDER BY c.is_default DESC,c.name,c.id`,[storeId,productId==='new'?null:productId])
+  return res.json({catalogs:result.rows.map(row=>({...catalogShape(row),lockedByPlan:req.catalogStore.plan_tier!=='ouro'&&!row.is_default,
+    included:Boolean(row.included),priceOverride:row.price_override==null?null:Number(row.price_override)}))})
+}
+
 async function createCatalog(req, res) {
   const storeId = req.catalogStore.store_id
   await ensureDefaultCatalog(storeId)
@@ -234,12 +248,34 @@ async function createCatalog(req, res) {
     if (!exists.rowCount) break
     slug = `${baseSlug}-${attempt}`.slice(0, 60)
   }
-  const result = await pool.query(
-    `INSERT INTO catalogs (id,store_id,slug,name,kind,custom_label,price_mode,minimum_order,is_default,active,explicit_membership)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,false,true,true) RETURNING *`,
-    [id(), storeId, slug, name, kind, customLabel, priceMode, minimumOrder],
-  )
-  return res.status(201).json({ catalog: { ...catalogShape(result.rows[0]), items: [] } })
+  const sourceId=String(req.body?.sourceCatalogId||'').trim()
+  const client=await pool.connect()
+  try{
+    await client.query('BEGIN')
+    if(sourceId&&sourceId!=='all'&&!(await client.query('SELECT 1 FROM catalogs WHERE id=$1 AND store_id=$2 FOR SHARE',[sourceId,storeId])).rowCount){
+      await client.query('ROLLBACK')
+      return res.status(404).json({error:'Catálogo de origem não encontrado nesta loja.'})
+    }
+    const result=await client.query(
+      `INSERT INTO catalogs (id,store_id,slug,name,kind,custom_label,price_mode,minimum_order,is_default,active,explicit_membership)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,false,true,true) RETURNING *`,
+      [id(),storeId,slug,name,kind,customLabel,priceMode,minimumOrder])
+    const catalog=result.rows[0]
+    let copied=0
+    if(sourceId){
+      const copy=await client.query(`INSERT INTO catalog_products(catalog_id,product_id,price_override,visible)
+        SELECT $1,p.id,NULL,true FROM products p
+        LEFT JOIN catalogs src ON src.id=$3 AND src.store_id=p.store_id
+        LEFT JOIN catalog_products cp ON cp.catalog_id=src.id AND cp.product_id=p.id
+        WHERE p.store_id=$2 AND ($3='all' OR (src.id IS NOT NULL AND
+          CASE WHEN src.explicit_membership THEN cp.visible=true ELSE COALESCE(cp.visible,true) END))
+        ON CONFLICT(catalog_id,product_id) DO NOTHING`,[catalog.id,storeId,sourceId])
+      copied=copy.rowCount
+    }
+    await client.query('COMMIT')
+    return res.status(201).json({catalog:{...catalogShape(catalog),items:[]},copied})
+  }catch(error){await client.query('ROLLBACK').catch(()=>{});throw error}
+  finally{client.release()}
 }
 
 async function updateCatalog(req, res) {
@@ -307,7 +343,9 @@ async function setCatalogMembers(req,res) {
    const result=await pool.query(`
      INSERT INTO catalog_products (catalog_id,product_id,visible)
      SELECT $1,p.id,true FROM products p WHERE p.store_id=$2 AND p.id=ANY($3::text[])
-     ON CONFLICT(catalog_id,product_id) DO UPDATE SET visible=true,updated_at=now()
+     ON CONFLICT(catalog_id,product_id) DO UPDATE SET visible=true,
+       price_override=CASE WHEN catalog_products.visible THEN catalog_products.price_override ELSE NULL END,
+       updated_at=CASE WHEN catalog_products.visible THEN catalog_products.updated_at ELSE now() END
      RETURNING product_id`,[catalog.id,storeId,ids])
    return res.json({ok:true,changed:result.rowCount})
  }
@@ -1008,6 +1046,7 @@ function install(app) {
   app.patch('/api/seller-orders/:orderId/items',express.json({limit:'256kb'}),requireSellerOrder,(req,res,next)=>Promise.resolve(editCatalogOrder(req,res)).catch(next))
   app.patch('/api/admin/orders/:orderId/items', express.json({limit:'256kb'}), requireStore, (req,res,next)=>Promise.resolve(editCatalogOrder(req,res)).catch(next))
   app.get('/api/admin/products/pdf', requireStore, (req, res, next) => Promise.resolve(downloadProductsPdf(req, res)).catch(next))
+  app.get('/api/admin/products/:productId/catalog-memberships',requireStore,(req,res,next)=>Promise.resolve(productCatalogMemberships(req,res)).catch(next))
   app.get('/api/admin/catalogs', requireStore, (req, res, next) => Promise.resolve(listCatalogs(req, res)).catch(next))
   app.post('/api/admin/catalogs', express.json({ limit: '64kb' }), requireStore, (req, res, next) => Promise.resolve(createCatalog(req, res)).catch(next))
   app.patch('/api/admin/catalogs/:catalogId', express.json({ limit: '2mb' }), requireStore, (req, res, next) => Promise.resolve(updateCatalog(req, res)).catch(next))
