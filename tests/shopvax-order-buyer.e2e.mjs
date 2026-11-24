@@ -117,6 +117,8 @@ try {
     const context=await browser.newContext({viewport:{width,height:800}})
     const page=await context.newPage()
     const order=structuredClone(data.orders[0])
+    order.items.push({...order.items[0],quantity:1,lineTotal:59.9,selections:{Cor:'Grena',Tamanho:'M'}})
+    order.total=179.7
     const json=body=>({status:200,contentType:'application/json',body:JSON.stringify(body)})
     let session=false
     let submitted
@@ -141,6 +143,16 @@ try {
     assert.equal(await page.getByLabel('Alterar estado do pedido').count(),0)
     await page.getByRole('button',{name:'Editar pedido'}).click()
     const editor=page.getByRole('dialog',{name:'Editar pedido'})
+    const groups=editor.getByRole('region',{name:'Remover produtos completos'})
+    await groups.getByRole('button',{name:/Blusa.*2 grades.*Remover todas/}).click()
+    assert.equal(await editor.locator('.svx-order-edit__item').count(),0)
+    assert.equal(await editor.getByRole('button',{name:'Salvar alterações'}).isDisabled(),true)
+    const removed=editor.getByRole('region',{name:'Itens removidos'})
+    assert.match(await removed.innerText(),/Tamanho: P/)
+    assert.match(await removed.innerText(),/Tamanho: M/)
+    await removed.getByRole('button',{name:'Restaurar item 0'}).click()
+    assert.equal(await editor.locator('.svx-order-edit__item').count(),1)
+    assert.match(await editor.locator('footer').innerText(),/119,80/)
     await editor.getByLabel('Quantidade do item 1').fill('3')
     await editor.getByLabel('Preço unitário do item 1').fill('50')
     await editor.getByLabel('Buscar produto para o pedido').fill('Calça')
