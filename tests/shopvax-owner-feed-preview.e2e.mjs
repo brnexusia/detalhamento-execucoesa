@@ -5,7 +5,8 @@ const json=(body,status=200)=>({status,contentType:'application/json',body:JSON.
 const post={id:'post-1',product:{id:'p-1',name:'Brinco Aço Inox',description:'Coleção',sku:'FZ123',category:'Brincos',mediaUrl:'',mediaType:'image',images:[],variations:[],publishedAt:'2026-11-13T00:00:00Z'},
   store:{id:'store-1',slug:'galego-bijux',name:'Galego Bijux',logoUrl:'',accent:'#F25C05',planTier:'ouro'},
   interactions:{views:0,likes:0,shares:0,followers:0,liked:false,following:false}}
-const offer={id:'c-1',slug:'geral',name:'Atacado',kind:'atacado',price:89.9,minimumOrder:0,unitsPerBox:1}
+const offer={id:'c-1',slug:'geral',name:'Atacado',kind:'atacado',price:89.9,minimumOrder:0,unitsPerBox:1,images:['/media/wholesale-photo'],mediaType:'image'}
+const retailOffer={...offer,id:'c-2',slug:'varejo',name:'Varejo',kind:'varejo',price:129.9,images:['/media/retail-photo']}
 const browser=await chromium.launch({headless:true})
 try {
   for(const sc of [
@@ -23,7 +24,7 @@ try {
         sc.owner?json({user:{id:'owner'},store:{id:'store-1',slug:sc.owner}}):json({error:'Entrar'},401)))
       await context.route('**/api/social/stores/galego-bijux/seller-route',r=>r.fulfill(json({seller:{name:'Atendimento',slug:''}})))
       await context.route('**/api/social/stores/galego-bijux/products/p-1/offers',r=>r.fulfill(
-        (sc.buyer||sc.preview)?json({product:post.product,offers:[offer],buyerPurpose:'revenda',ownerPreview:sc.preview})
+        (sc.buyer||sc.preview)?json({product:post.product,offers:[offer,retailOffer],buyerPurpose:'revenda',ownerPreview:sc.preview})
         :json({code:'BUYER_PROFILE_REQUIRED',error:'Comprador necessário'},401)))
       await context.route('**/api/social/posts/**',r=>r.fulfill(json({views:1})))
       const page=await context.newPage()
@@ -47,6 +48,16 @@ try {
       }else{
         await modal.getByRole('button',{name:'Receber código no WhatsApp'}).waitFor()
         assert.equal(offerCalls,0,'Não buscar preços com sessão não autorizada')
+      }
+      if(sc.preview||sc.buyer){
+        const hero=modal.locator('.svx-social-gallery__hero')
+        assert.equal(await hero.getAttribute('src'),'/media/wholesale-photo')
+        await modal.locator('.svx-social-offers button').filter({hasText:'Varejo'}).click()
+        assert.equal(await hero.getAttribute('src'),'/media/retail-photo')
+        assert.match(await modal.locator('.svx-social-offers button.is-selected').innerText(),/129,90/)
+        await modal.locator('.svx-social-offers button').filter({hasText:'Atacado'}).click()
+        assert.equal(await hero.getAttribute('src'),'/media/wholesale-photo')
+        assert.match(await modal.locator('.svx-social-offers button.is-selected').innerText(),/89,90/)
       }
       console.log('SHOPVAX_OWNER_FEED_PREVIEW_PASS',sc.name)
     }finally{await context.close()}
