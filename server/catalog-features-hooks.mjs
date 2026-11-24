@@ -23,11 +23,11 @@ const toMoney = (value) => {
   const number = Number(value)
   return Number.isFinite(number) ? Math.round(number * 100) / 100 : 0
 }
-// Atacado e Alto Atacado usam preço unitário base até que o produto tenha
-// preço específico configurado no catálogo (catalog_products.price_override).
+// Cada tipo comercial usa seu preço próprio, com fallback para o preço base.
+// Uma exceção manual explícita do catálogo continua tendo prioridade.
 // Caixa fechada preserva seu preço e multiplicador de estoque próprios.
 // Catálogos personalizados escolhem explicitamente qual tabela utilizar.
-const effectiveCatalogPrice = "COALESCE(cp.price_override,CASE WHEN c.kind='varejo' OR (c.kind='personalizado' AND c.price_mode='varejo') THEN p.retail_price WHEN c.kind='caixa_fechada' OR (c.kind='personalizado' AND c.price_mode='caixa_fechada') THEN p.box_price ELSE p.price END,p.price)"
+const effectiveCatalogPrice = "COALESCE(cp.price_override,CASE WHEN c.kind='varejo' OR (c.kind='personalizado' AND c.price_mode='varejo') THEN p.retail_price WHEN c.kind='caixa_fechada' OR (c.kind='personalizado' AND c.price_mode='caixa_fechada') THEN p.box_price WHEN c.kind='atacado' OR (c.kind='personalizado' AND c.price_mode='atacado') THEN p.wholesale_price WHEN c.kind='alto_atacado' THEN p.high_wholesale_price ELSE p.price END,p.price)"
 const isBoxCatalog = (catalog) => catalog.kind === 'caixa_fechada' || (catalog.kind === 'personalizado' && catalog.price_mode === 'caixa_fechada')
 const catalogKinds = new Set(['varejo','atacado','alto_atacado','caixa_fechada','personalizado'])
 const pricingModes = new Set(['base','varejo','atacado','caixa_fechada'])
@@ -120,6 +120,8 @@ async function ensureSchema() {
     ALTER TABLE products ADD COLUMN IF NOT EXISTS images jsonb NOT NULL DEFAULT '[]'::jsonb;
     ALTER TABLE products ADD COLUMN IF NOT EXISTS variant_prices jsonb;
     ALTER TABLE products ADD COLUMN IF NOT EXISTS retail_price numeric(12,2);
+    ALTER TABLE products ADD COLUMN IF NOT EXISTS wholesale_price numeric(12,2);
+    ALTER TABLE products ADD COLUMN IF NOT EXISTS high_wholesale_price numeric(12,2);
     ALTER TABLE products ADD COLUMN IF NOT EXISTS box_price numeric(12,2);
     ALTER TABLE products ADD COLUMN IF NOT EXISTS units_per_box integer;
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS catalog_id text REFERENCES catalogs(id) ON DELETE SET NULL;
