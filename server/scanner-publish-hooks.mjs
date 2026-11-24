@@ -561,6 +561,22 @@ export async function publishJob(req, res) {
       }
       if (membershipByProduct.size) {
         const members = [...membershipByProduct].map(([product_id, member]) => ({ product_id, ...member }))
+        // Initialize the commercial price table from the import only if it has
+        // not been configured yet. A distinct price in another catalog is an override.
+        await client.query(`
+          UPDATE products product SET
+            retail_price=CASE WHEN c.kind='varejo' OR (c.kind='personalizado' AND c.price_mode='varejo') THEN COALESCE(product.retail_price,p.price_override) ELSE product.retail_price END,
+            wholesale_price=CASE WHEN c.kind='atacado' OR (c.kind='personalizado' AND c.price_mode='atacado') THEN COALESCE(product.wholesale_price,p.price_override) ELSE product.wholesale_price END,
+            high_wholesale_price=CASE WHEN c.kind='alto_atacado' THEN COALESCE(product.high_wholesale_price,p.price_override) ELSE product.high_wholesale_price END,
+            box_price=CASE WHEN c.kind='caixa_fechada' OR (c.kind='personalizado' AND c.price_mode='caixa_fechada') THEN COALESCE(product.box_price,p.price_override) ELSE product.box_price END
+          FROM catalogs c CROSS JOIN jsonb_to_recordset($2::jsonb) AS p(product_id text,price_override numeric)
+          WHERE c.id=$1 AND product.id=p.product_id AND product.store_id=c.store_id
+            AND p.price_override>0 AND (
+              ((c.kind='varejo' OR (c.kind='personalizado' AND c.price_mode='varejo')) AND product.retail_price IS NULL)
+              OR ((c.kind='atacado' OR (c.kind='personalizado' AND c.price_mode='atacado')) AND product.wholesale_price IS NULL)
+              OR (c.kind='alto_atacado' AND product.high_wholesale_price IS NULL)
+              OR ((c.kind='caixa_fechada' OR (c.kind='personalizado' AND c.price_mode='caixa_fechada')) AND product.box_price IS NULL))
+        `,[targetCatalogId,JSON.stringify(members)])
         await client.query(
           `INSERT INTO catalog_products(catalog_id,product_id,price_override,visible,media_override)
            SELECT $1,p.product_id,
