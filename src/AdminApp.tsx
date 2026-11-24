@@ -662,7 +662,7 @@ function ProductEditor({ draft, setDraft, onClose, onSaved, targetCatalogId }: {
     if(draft.catalogId===catalog.id&&draft.catalogPrice!==draft.originalCatalogPrice&&!change?.resetPrice)return Number(draft.catalogPrice)
     const mode=catalog.kind==='personalizado'?catalog.priceMode:catalog.kind
     const fallback=Number(draft.price)||Math.min(...draft.priceRows.map(row=>Number(row.price)).filter(n=>n>0),Infinity)
-    const value=mode==='varejo'?Number(draft.retailPrice):mode==='caixa_fechada'?Number(draft.boxPrice):0
+    const value=mode==='varejo'?Number(draft.retailPrice):mode==='caixa_fechada'?Number(draft.boxPrice):mode==='atacado'?Number(draft.wholesalePrice):mode==='alto_atacado'?Number(draft.highWholesalePrice):0
     return value>0?value:fallback
   }
   const [photoLimit, setPhotoLimit] = useState<number | null>(null)
@@ -753,7 +753,7 @@ function ProductEditor({ draft, setDraft, onClose, onSaved, targetCatalogId }: {
     let pricing
     try { pricing = buildPricingPayload(draft) }
     catch (err) { setError(err instanceof Error ? err.message : 'Confira os preços do produto.'); setBusy(false); return }
-    const body = { ...pricing, ...(Object.keys(membershipChanges).length?{catalogMemberships:Object.entries(membershipChanges).map(([catalogId,change])=>({catalogId,...change}))}:{}), name: draft.name, sku: draft.sku, description: draft.description, ...(draft.id && draft.catalogId && draft.catalogPrice !== undefined && draft.catalogPrice !== draft.originalCatalogPrice && !membershipChanges[draft.catalogId]?.resetPrice && membershipChanges[draft.catalogId]?.included!==false ? { catalogId: draft.catalogId, catalogPrice: Number(draft.catalogPrice) } : {}), retailPrice: draft.retailPrice === '' ? null : Number(draft.retailPrice), boxPrice: draft.boxPrice === '' ? null : Number(draft.boxPrice), unitsPerBox: draft.unitsPerBox === '' ? null : Number(draft.unitsPerBox), category: draft.category, pack: draft.pack, mediaUrl: cover, mediaType: draft.mediaType, featured: draft.featured, active: draft.active, ...(draft.id || (!membershipLoading&&!membershipError&&memberships.length) ? {} : { catalogId: targetCatalogId || undefined }) }
+    const body = { ...pricing, ...(Object.keys(membershipChanges).length?{catalogMemberships:Object.entries(membershipChanges).map(([catalogId,change])=>({catalogId,...change}))}:{}), name: draft.name, sku: draft.sku, description: draft.description, ...(draft.id && draft.catalogId && draft.catalogPrice !== undefined && draft.catalogPrice !== draft.originalCatalogPrice && !membershipChanges[draft.catalogId]?.resetPrice && membershipChanges[draft.catalogId]?.included!==false ? { catalogId: draft.catalogId, catalogPrice: Number(draft.catalogPrice) } : {}), retailPrice: draft.retailPrice === '' ? null : Number(draft.retailPrice), wholesalePrice:draft.wholesalePrice===''?null:Number(draft.wholesalePrice),highWholesalePrice:draft.highWholesalePrice===''?null:Number(draft.highWholesalePrice), boxPrice: draft.boxPrice === '' ? null : Number(draft.boxPrice), unitsPerBox: draft.unitsPerBox === '' ? null : Number(draft.unitsPerBox), category: draft.category, pack: draft.pack, mediaUrl: cover, mediaType: draft.mediaType, featured: draft.featured, active: draft.active, ...(draft.id || (!membershipLoading&&!membershipError&&memberships.length) ? {} : { catalogId: targetCatalogId || undefined }) }
     try {
       let productId = draft.id
       if (productId) await api.updateProduct(productId, body)
@@ -783,7 +783,7 @@ function ProductEditor({ draft, setDraft, onClose, onSaved, targetCatalogId }: {
         const override=catalog.priceOverride!=null&&catalog.included&&!change?.resetPrice
         const price=membershipPrice(catalog)
         const mode=catalog.kind==='personalizado'?catalog.priceMode:catalog.kind
-        const label=mode==='varejo'?'Varejo':mode==='caixa_fechada'?'Caixa fechada':mode==='alto_atacado'?'Alto atacado (base)':mode==='atacado'?'Atacado (base)':'Preço base'
+        const label=mode==='varejo'?'Varejo':mode==='caixa_fechada'?'Caixa fechada':mode==='alto_atacado'?'Alto atacado':mode==='atacado'?'Atacado':'Preço base'
         return <div className="svx-product-membership" key={catalog.id}>
           <label><input type="checkbox" aria-label={'Incluir em '+catalog.name} checked={isIncluded} disabled={busy||catalog.lockedByPlan} onChange={e=>{const value=e.target.checked;setMembershipChanges(prev=>{const next={...prev};if(value===catalog.included&&!prev[catalog.id]?.resetPrice)delete next[catalog.id];else next[catalog.id]={included:value};return next})}}/>
             <span><strong>{catalog.name}</strong><small>{label}{catalog.lockedByPlan?' · Bloqueado pelo plano':!catalog.active?' · Não publicado':''}</small></span>
