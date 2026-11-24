@@ -1,6 +1,7 @@
 import { Bookmark, House, Search, ShoppingBag, UserRound } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { allStoredSocialCarts } from './social-cart'
+import { useBuyerSession } from './buyer-session'
 import './buyer-app.css'
 
 export function buyerGo(path:string){
@@ -17,6 +18,7 @@ const links=[
  {href:'/comprador',label:'Perfil',Icon:UserRound}
 ]
 export default function BuyerAppNav({pathname}:{pathname:string}){
+ const buyerSession=useBuyerSession()
  const [count,setCount]=useState(()=>allStoredSocialCarts().reduce((n,c)=>n+c.cart.items.reduce((s,i)=>s+i.quantity,0),0))
  useEffect(()=>{
    const refresh=()=>setCount(allStoredSocialCarts().reduce((n,c)=>n+c.cart.items.reduce((s,i)=>s+i.quantity,0),0))
@@ -31,7 +33,7 @@ export default function BuyerAppNav({pathname}:{pathname:string}){
        onClick={e=>{if(e.button||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;e.preventDefault();buyerGo(href)}}>
        <span className="buyer-app-nav__icon"><Icon size={22} strokeWidth={active?2.5:1.85}/>
        {href==='/carrinhos'&&count>0&&<b>{count>99?'99+':count}</b>}</span>
-       <span>{label}</span>
+       <span>{href==='/comprador'&&buyerSession!=='authenticated'?'Entrar':label}</span>
      </a>
    })}</div>
  </nav>
