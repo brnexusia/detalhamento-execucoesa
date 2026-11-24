@@ -279,3 +279,19 @@
 .seller-actions button[title="Gerar convite privado para editar pedidos"]{width:auto;min-width:40px;min-height:40px;white-space:normal;display:inline-flex;gap:6px;align-items:center;font-size:11px;padding:6px 9px}
 .seller-actions{flex-wrap:wrap}
 @media(max-width:650px){.svx-seller-orders__header>div{width:100%}.svx-seller-orders__header>div span{flex-basis:100%}.svx-seller-orders__header button{flex:1}.svx-seller-orders .svx-orders__header{gap:10px}.svx-seller-orders .svx-orders__header>strong{font-size:30px}}
+
+
+/* Removing unavailable items from an order is explicit and reversible until save. */
+.svx-order-edit__item-head>button{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 10px;border-color:#e0b8b0;font-size:12px;font-weight:700}
+.svx-order-edit__item-head>button:hover:not(:disabled){background:#fff0ed}
+.svx-order-edit__groups,.svx-order-edit__removed{display:grid;gap:8px;padding:12px;border:1px solid #d9d3c6;border-radius:10px;background:#f6f2eb;min-width:0}
+.svx-order-edit__groups h3,.svx-order-edit__removed h3{margin:0;font-size:14px}
+.svx-order-edit__groups p,.svx-order-edit__removed p{margin:0;color:#655e55;font-size:12px;line-height:1.4}
+.svx-order-edit__groups>button,.svx-order-edit__removed>div{display:flex;align-items:center;gap:8px;min-width:0;padding:9px;border:1px solid #ded5c8;border-radius:8px;background:#fcfbf8;text-align:left}
+.svx-order-edit__groups>button{color:#a3261c;cursor:pointer;font-size:12px;min-height:44px}
+.svx-order-edit__groups>button>span,.svx-order-edit__removed>div>span{flex:1;min-width:0;overflow-wrap:anywhere}
+.svx-order-edit__groups>button>svg{flex-shrink:0}
+.svx-order-edit__groups>button>strong{flex-shrink:0;font-size:11px}
+.svx-order-edit__removed>div>span{display:grid;gap:3px;font-size:13px}
+.svx-order-edit__removed>div>button{border:1px solid #c9c1b4;border-radius:8px;background:#fff;padding:8px;min-height:40px;font-size:12px;font-weight:700;cursor:pointer}
+@media(max-width:420px){.svx-order-edit__item-head{flex-wrap:wrap}.svx-order-edit__item-head>div{flex:1 1 120px}.svx-order-edit__item-head>button{font-size:11px;padding:7px}.svx-order-edit__groups>button{flex-wrap:wrap}.svx-order-edit__groups>button>span{flex-basis:100px}}
