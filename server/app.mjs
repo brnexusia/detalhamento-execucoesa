@@ -1,4 +1,4 @@
-import { buildOrderWhatsappMessage, assertKnownOrderSelections } from './order-whatsapp-message.mjs'
+import { buildOrderWhatsappMessage, assertKnownOrderSelections, orderProductDetails } from './order-whatsapp-message.mjs'
 import { normalizeVariantPrices, resolvedVariantPrices, variantUnitPrice } from './variant-pricing.mjs'
 import { installProductCategorySchema } from './product-category-schema.mjs'
 import { installProductBulkJobs } from './product-bulk-jobs.mjs'
@@ -1378,6 +1378,7 @@ app.post(
         productId: product.id,
         sku: product.sku,
         name: product.name,
+        ...orderProductDetails(product, selections),
         quantity,
         unitPrice,
         lineTotal,

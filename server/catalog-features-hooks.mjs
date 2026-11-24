@@ -1,4 +1,4 @@
-import { buildOrderWhatsappMessage, assertKnownOrderSelections } from './order-whatsapp-message.mjs'
+import { buildOrderWhatsappMessage, assertKnownOrderSelections, orderProductDetails } from './order-whatsapp-message.mjs'
 import { resolvedVariantPrices, variantUnitPrice } from './variant-pricing.mjs'
 import { withCatalogMedia, catalogMediaProjection } from './catalog-media.mjs'
 import { subscriptionAccess } from './stripe-billing-policy.mjs'
@@ -759,7 +759,7 @@ async function createCatalogOrder(req, res) {
   try {
     await client.query('BEGIN')
     const productsResult = await client.query(
-      `SELECT p.*,${effectiveCatalogPrice} AS public_price,(CASE WHEN c.explicit_membership THEN cp.visible=true ELSE COALESCE(cp.visible,true) END) AS catalog_visible
+      `SELECT p.*,cp.media_override,${effectiveCatalogPrice} AS public_price,(CASE WHEN c.explicit_membership THEN cp.visible=true ELSE COALESCE(cp.visible,true) END) AS catalog_visible
        FROM products p JOIN catalogs c ON c.id=$3
        LEFT JOIN catalog_products cp ON cp.product_id=p.id AND cp.catalog_id=$3
        WHERE p.store_id=$1 AND p.active=true AND p.id=ANY($2::text[]) ORDER BY p.id FOR UPDATE OF p`,
@@ -782,7 +782,7 @@ async function createCatalogOrder(req, res) {
       const unitPrice = variantUnitPrice(product, selections)
       const lineTotal = toMoney(unitPrice * quantity)
       total += lineTotal
-      items.push({ productId: product.id, sku: product.sku, name: product.name, quantity, unitPrice, lineTotal, selections, stockKey: variantKey(selections), catalogId: catalog.id, stockUnits, unitsPerBox, stockDebited:Boolean(product.stock_enabled) })
+      items.push({ productId: product.id, sku: product.sku, name: product.name, ...orderProductDetails(withCatalogMedia(product), selections), quantity, unitPrice, lineTotal, selections, stockKey: variantKey(selections), catalogId: catalog.id, stockUnits, unitsPerBox, stockDebited:Boolean(product.stock_enabled) })
       if (product.stock_enabled) {
         const map = normalizeVariantStock(product.variant_stock)
         const key = variantKey(selections)
@@ -1009,8 +1009,10 @@ async function editCatalogOrder(req,res) {
       }else{
         product=byId.get(String(item.productId||''))
         if(!product?.active)throw reject(400,'Produto não disponível nesta loja.')
+        let mediaProduct=product
         if(catalog){
-          const member=(await client.query('SELECT visible FROM catalog_products WHERE catalog_id=$1 AND product_id=$2',[catalog.id,product.id])).rows[0]
+          const member=(await client.query('SELECT visible,media_override FROM catalog_products WHERE catalog_id=$1 AND product_id=$2',[catalog.id,product.id])).rows[0]
+          mediaProduct=withCatalogMedia({...product,media_override:member?.media_override})
           if(catalog.explicit_membership?member?.visible!==true:member?.visible===false)
             throw reject(400,'Produto não disponível neste catálogo.')
         }
@@ -1018,7 +1020,7 @@ async function editCatalogOrder(req,res) {
         try{selections=validateProductSelections(product,item.selections)}catch(error){throw reject(400,error.message)}
         const unitsPerBox=catalog&&isBoxCatalog(catalog)?Math.max(1,Number(product.units_per_box||1)):1
         const stockUnits=quantity*unitsPerBox,stockKey=variantKey(selections)
-        row={productId:product.id,sku:product.sku,name:product.name,quantity,unitPrice:cents/100,lineTotal:lineCents/100,selections,stockKey,stockUnits,unitsPerBox,stockDebited:Boolean(product.stock_enabled),catalogId:catalog?.id||null}
+        row={productId:product.id,sku:product.sku,name:product.name,...orderProductDetails(mediaProduct,selections),quantity,unitPrice:cents/100,lineTotal:lineCents/100,selections,stockKey,stockUnits,unitsPerBox,stockDebited:Boolean(product.stock_enabled),catalogId:catalog?.id||null}
         delta(product,stockKey,-stockUnits)
       }
       nextItems.push(row)

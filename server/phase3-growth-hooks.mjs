@@ -1,3 +1,4 @@
+import { buildOrderWhatsappMessage } from './order-whatsapp-message.mjs'
 import crypto from 'node:crypto'
 import express from 'express'
 import pg from 'pg'
@@ -435,31 +436,6 @@ async function releaseCoupon(couponId) {
   await pool.query('UPDATE coupons SET used_count=GREATEST(0,used_count-1),updated_at=now() WHERE id=$1', [couponId]).catch(() => undefined)
 }
 
-function orderMessage(order, store, seller, catalog, subtotal, discount, total, code) {
-  const formatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
-  const items = Array.isArray(order.items) ? order.items : []
-  const lines = items.map((item) => {
-    const selections = item?.selections && typeof item.selections === 'object'
-      ? Object.entries(item.selections).map(([key, value]) => `${key}: ${value}`).join(' · ')
-      : ''
-    return `${Number(item.quantity || 0)}x ${item.name || 'Produto'}${selections ? ` (${selections})` : ''} — ${formatter.format(Number(item.lineTotal || 0))}`
-  })
-  const message = [
-    `Olá! Montei este pedido na ${store.name}:`,
-    catalog?.name ? `Catálogo: ${catalog.name}` : '',
-    '',
-    ...lines,
-    '',
-    `Subtotal: ${formatter.format(subtotal)}`,
-    discount > 0 ? `Cupom ${code}: -${formatter.format(discount)}` : '',
-    `Total dos produtos: ${formatter.format(total)}`,
-    `Pedido: ${order.code}`,
-    '',
-    `Quero finalizar com ${seller?.name || 'atendimento'}.`,
-  ].filter((line, index, all) => line !== '' || (index > 0 && all[index - 1] !== ''))
-  return message.join('\n')
-}
-
 async function markRecoveryConverted(req, orderId, storeId) {
   const key = visitorKey(req)
   await pool.query(`
@@ -497,7 +473,7 @@ async function finalizeOrder(req, payload, reservedCoupon) {
   const seller = sellerResult.rows[0] || null
   const catalog = catalogResult.rows[0] || null
   const phone = digits(seller?.phone || '')
-  const message = orderMessage(order, store, seller, catalog, subtotal, discount, total, reservedCoupon.code)
+  const message = buildOrderWhatsappMessage({ order, store, seller, catalog, subtotal, discount, total, coupon: reservedCoupon })
   return {
     ...payload,
     subtotal,

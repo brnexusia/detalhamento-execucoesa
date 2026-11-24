@@ -137,9 +137,15 @@ try {
   })
   assert.equal(response.status, 201, 'pedido deve usar mínimo do catálogo')
   const order = await response.json()
-  const dbOrder = (await db.query('SELECT total,catalog_id FROM orders WHERE id=$1', [order.orderId])).rows[0]
+  const dbOrder = (await db.query('SELECT total,catalog_id,items FROM orders WHERE id=$1', [order.orderId])).rows[0]
   assert.equal(Number(dbOrder.total), 110)
   assert.equal(dbOrder.catalog_id, catalog.id)
+  assert.equal(dbOrder.items[0].description, 'Teste')
+  assert.equal(dbOrder.items[0].imageUrl, 'https://shopvax.com.br' + uploaded.url)
+  const orderText = new URL(order.whatsappUrl).searchParams.get('text')
+  assert.ok(orderText.includes('Descrição: Teste'))
+  assert.ok(orderText.includes('Foto: https://shopvax.com.br' + uploaded.url))
+  assert.ok(orderText.includes('ID: ' + product.id))
 
   response = await admin(`/api/admin/catalogs/${catalog.id}`, account.cookie, {
     method: 'PATCH', body: JSON.stringify({ items: [{ productId: product.id, priceOverride: 55, visible: false }] }),

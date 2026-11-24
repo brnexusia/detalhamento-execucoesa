@@ -1,4 +1,4 @@
-import { buildOrderWhatsappMessage, assertKnownOrderSelections } from './order-whatsapp-message.mjs'
+import { buildOrderWhatsappMessage, assertKnownOrderSelections, orderProductDetails } from './order-whatsapp-message.mjs'
 import crypto from 'node:crypto'
 import express from 'express'
 import pg from 'pg'
@@ -180,7 +180,7 @@ async function createStockOrder(req, res) {
       const unitPrice = Number(product.price)
       const lineTotal = toMoney(unitPrice * quantity)
       total += lineTotal
-      items.push({ productId: product.id, sku: product.sku, name: product.name, quantity, unitPrice, lineTotal, selections, stockKey: variantKey(selections), stockUnits:quantity, unitsPerBox:1, stockDebited:Boolean(product.stock_enabled) })
+      items.push({ productId: product.id, sku: product.sku, name: product.name, ...orderProductDetails(product, selections), quantity, unitPrice, lineTotal, selections, stockKey: variantKey(selections), stockUnits:quantity, unitsPerBox:1, stockDebited:Boolean(product.stock_enabled) })
 
       if (product.stock_enabled) {
         const map = normalizeVariantStock(product.variant_stock)

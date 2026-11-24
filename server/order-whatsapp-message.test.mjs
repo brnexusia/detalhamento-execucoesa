@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { buildOrderWhatsappMessage, assertKnownOrderSelections } from './order-whatsapp-message.mjs'
+import { buildOrderWhatsappMessage, assertKnownOrderSelections, orderProductDetails } from './order-whatsapp-message.mjs'
 const base = { store: { name: 'Look Premium' }, seller: { name: 'Chang' }, catalog: { name: 'Catálogo geral' }, total: 280 }
 const item = { name: 'CALÇA DOMINIQUE', sku: 'CD1', quantity: 2, unitPrice: 70, lineTotal: 140 }
 const order = { code: 'AS-TEST', items: [{ ...item, selections: { Cor: 'Preto', Tamanho: 'M', Tecido: 'Linho' } }, { ...item, selections: { Cor: 'Branco', Tamanho: 'G' } }], buyer: { name: 'Cliente', city: 'Salvador', cep: '40000000', phone: '71999999999' }, notes: 'Retirar na loja' }
@@ -22,4 +22,27 @@ test('produto sem variação não inventa cor ou tamanho; seleção perdida é r
   assert.doesNotMatch(result, /Cor:|Tamanho:/)
   assert.doesNotThrow(() => assertKnownOrderSelections(item, { Cor: 'Preto' }, { Cor: 'Preto' }))
   assert.throws(() => assertKnownOrderSelections(item, { Cor: 'Preto' }, {}), /Atualize o carrinho/)
+})
+
+test('produtos homônimos sem variações guardam identidade, descrição e foto individual', () => {
+  const first = { id: 'calca-1', description: 'Tecido: Crepe\nTamanho: Único (38/40)', images: ['/media/calca-1'], media_type: 'image' }
+  const second = { ...first, id: 'calca-2', images: ['/media/calca-2'] }
+  const items = [first, second].map(p => ({ ...item, sku: '', productId: p.id, selections: {}, ...orderProductDetails(p) }))
+  const result = buildOrderWhatsappMessage({ ...base, order: { ...order, items } })
+  assert.match(result, /ID: calca-1\nDescrição: Tecido: Crepe Tamanho: Único \(38\/40\)\nFoto: https:\/\/shopvax\.com\.br\/media\/calca-1/)
+  assert.match(result, /ID: calca-2\nDescrição: Tecido: Crepe Tamanho: Único \(38\/40\)\nFoto: https:\/\/shopvax\.com\.br\/media\/calca-2/)
+  assert.doesNotMatch(result, /Cor:/)
+})
+test('foto da combinação selecionada prevalece sobre a galeria base', () => {
+  const product = { description: 'Crepe', images: ['/media/base'], variant_images: [{ selections: { Cor: 'Azul' }, images: ['/media/azul'] }, { selections: { Cor: 'Rosa' }, images: ['/media/rosa'] }] }
+  assert.equal(orderProductDetails(product, { Cor: 'Rosa' }).imageUrl, 'https://shopvax.com.br/media/rosa')
+  assert.equal(orderProductDetails(product, { Cor: 'Verde' }).imageUrl, 'https://shopvax.com.br/media/base')
+  assert.equal(orderProductDetails({ media_type: 'video', media_url: '/media/video' }).imageUrl, '')
+  assert.equal(orderProductDetails({ images: ['javascript:alert(1)', '//other.test/pic', '/media/safe'] }).imageUrl, 'https://shopvax.com.br/media/safe')
+})
+test('cupom mantém descrição e foto persistidas no pedido', () => {
+  const result = buildOrderWhatsappMessage({ ...base, order: { ...order, items: [{ ...item, productId: 'a', ...orderProductDetails({ description: 'Tamanho único', images: ['/media/a'] }) }] }, subtotal: 140, discount: 10, total: 130, coupon: { code: 'DEZ' } })
+  assert.ok(result.includes('Descrição: Tamanho único'))
+  assert.ok(result.includes('Foto: https://shopvax.com.br/media/a'))
+  assert.match(result, /Cupom DEZ/)
 })

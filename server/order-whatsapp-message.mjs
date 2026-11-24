@@ -2,6 +2,32 @@ const formatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 
 const text = (value) => String(value ?? '').replace(/[\r\n]+/g, ' ').trim()
 const money = (value) => formatter.format(Number(value || 0))
 
+// Use the image displayed for the chosen variation, otherwise the catalog gallery.
+const publicOrigin = 'https://shopvax.com.br'
+function publicImageUrl(value) {
+  const raw = String(value || '').trim()
+  if (!raw || /[\s\\]/.test(raw)) return ''
+  const local = raw.startsWith(publicOrigin + '/') ? raw.slice(publicOrigin.length) : raw
+  // Local media assets have immutable identifiers; don't accept protocol-relative paths.
+  if (/^\/media\/[A-Za-z0-9_-]+(?:\?[^#]*)?$/.test(local)) return publicOrigin + local
+  if (!/^https?:\/\//i.test(raw)) return ''
+  try {
+    const url = new URL(raw)
+    return ['https:', 'http:'].includes(url.protocol) && !url.username && !url.password ? url.href : ''
+  } catch { return '' }
+}
+
+export function orderProductDetails(product, selections = {}) {
+  const groups = Array.isArray(product.variant_images) ? product.variant_images : []
+  const matched = groups.filter(group => {
+    const entries = Object.entries(group?.selections || {})
+    return entries.length > 0 && entries.every(([key, value]) => selections[key] === value)
+  }).flatMap(group => Array.isArray(group.images) ? group.images : [])
+  const base = [...(Array.isArray(product.images) ? product.images : []), product.media_type === 'video' ? '' : product.media_url]
+  const imageUrl = [...matched, ...base].map(publicImageUrl).find(Boolean) || ''
+  return { description: String(product.description || '').trim(), imageUrl }
+}
+
 export function assertKnownOrderSelections(product, requested, selections) {
   if (requested == null) return
   if (typeof requested !== 'object' || Array.isArray(requested)) throw new Error('Variações inválidas. Atualize o carrinho.')
@@ -22,6 +48,10 @@ export function buildOrderWhatsappMessage({ order, store, seller, catalog, subto
     for (const [name, value] of Object.entries(item.selections || {})) {
       if (text(value)) lines.push(`${text(name)}: ${text(value)}`)
     }
+    if (item.productId) lines.push(`ID: ${text(item.productId)}`)
+    if (text(item.description)) lines.push(`Descrição: ${text(item.description)}`)
+    const image = publicImageUrl(item.imageUrl)
+    if (image) lines.push(`Foto: ${image}`)
     if (Number(item.unitsPerBox) > 1) lines.push(`Unidades por caixa: ${Number(item.unitsPerBox)}`, `Total de unidades: ${Number(item.stockUnits || item.quantity * item.unitsPerBox)}`)
     lines.push(`Valor unitário: ${money(item.unitPrice)}`, `Total do item: ${money(item.lineTotal)}`)
   }
