@@ -257,3 +257,25 @@
 .svx-order-edit>footer>div strong{font-size:24px}
 .svx-order-edit>footer button{min-height:44px;border-radius:8px}
 @media(max-width:560px){.svx-order-edit-layer{padding:8px}.svx-order-edit{max-height:calc(100dvh - 16px)}.svx-order-edit__body,.svx-order-edit>header,.svx-order-edit>footer{padding:12px}.svx-order-edit__fields{grid-template-columns:1fr 1fr}.svx-order-edit__fields>div{grid-column:1/-1;padding-bottom:0;display:flex;justify-content:space-between}.svx-order-edit>footer>div{flex-basis:100%}.svx-order-edit>footer button{flex:1}}
+
+
+/* Private sales workspace: same order cards, without the administration sidebar. */
+.svx-seller-orders{box-sizing:border-box;min-height:100dvh;background:#f3f0e8;color:#161514;padding:0 clamp(14px,4vw,42px) 36px}
+.svx-seller-orders__header{max-width:1400px;margin:auto;min-height:68px;border-bottom:1px solid #d9d3c6;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:10px 0}
+.svx-seller-orders__header>a{display:flex;align-items:center;gap:9px}
+.svx-seller-orders__header>a img:first-child{width:22px;height:auto;display:block}
+.svx-seller-orders__header>a img:nth-child(2){width:106px;height:auto;display:block}
+.svx-seller-orders__header>div{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
+.svx-seller-orders__header>div span{font-size:12px;overflow-wrap:anywhere}
+.svx-seller-orders__header button,.svx-seller-invite button{display:inline-flex;align-items:center;gap:6px;min-height:40px;border:1px solid #d9d3c6;border-radius:8px;background:#fcfbf8;padding:9px 12px;color:#161514;cursor:pointer}
+.svx-seller-orders>.svx-orders{max-width:1400px;margin:0 auto;padding:16px 0 24px}
+.svx-seller-orders .svx-orders__header h1{font-size:clamp(26px,4vw,44px)}
+.svx-seller-orders__auth{width:min(450px,100%);box-sizing:border-box;margin:clamp(28px,8vw,100px) auto;padding:24px;background:#fcfbf8;border:1px solid #d9d3c6;border-radius:14px;display:grid;gap:12px}
+.svx-seller-orders__auth>svg{color:#c94c08}.svx-seller-orders__auth h1,.svx-seller-orders__auth p{margin:0}.svx-seller-orders__auth p{line-height:1.5;font-size:14px}
+.svx-seller-invite{padding:14px;border:1px solid #d9d3c6;border-radius:10px;background:#fcfbf8;margin:12px 0;overflow-wrap:anywhere}
+.svx-seller-invite p{margin:0 0 9px;font-size:13px}
+.svx-seller-invite>div{display:flex;gap:8px;flex-wrap:wrap}
+.svx-seller-invite input{flex:1 1 220px;min-width:0;max-width:100%;padding:9px;border:1px solid #d9d3c6;border-radius:8px;background:#fff;font-size:12px}
+.seller-actions button[title="Gerar convite privado para editar pedidos"]{width:auto;min-width:40px;min-height:40px;white-space:normal;display:inline-flex;gap:6px;align-items:center;font-size:11px;padding:6px 9px}
+.seller-actions{flex-wrap:wrap}
+@media(max-width:650px){.svx-seller-orders__header>div{width:100%}.svx-seller-orders__header>div span{flex-basis:100%}.svx-seller-orders__header button{flex:1}.svx-seller-orders .svx-orders__header{gap:10px}.svx-seller-orders .svx-orders__header>strong{font-size:30px}}
