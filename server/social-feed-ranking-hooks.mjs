@@ -2,6 +2,8 @@ import crypto from 'node:crypto'
 import express from 'express'
 import pg from 'pg'
 import { ensureSocialDailyViews } from './social-daily-views-schema.mjs'
+import { ensureCatalogSchema } from './catalog-features-hooks.mjs'
+import { feedCatalogJoin, feedCatalogEligible, withCatalogMedia } from './catalog-media.mjs'
 
 const { Pool } = pg
 const databaseUrl = process.env.DATABASE_URL?.trim() || ''
@@ -108,6 +110,7 @@ function decodeCursor(value) {
 }
 
 function publication(row) {
+  row=withCatalogMedia(row)
   return {
     id: row.id,
     product: {
@@ -147,6 +150,7 @@ function publication(row) {
 
 async function rankedFeed(req, res) {
   await ensureSchema()
+  await ensureCatalogSchema()
   const cursor = decodeCursor(req.query.cursor)
   const limit = Math.max(1, Math.min(30, Math.floor(Number(req.query.limit) || 12)))
   const key = visitorKey(req, res)
@@ -154,7 +158,7 @@ async function rankedFeed(req, res) {
     WITH eligible AS (
       -- Rank only narrow identifiers; defer wide media/JSON columns and interaction counts
       -- until the final page has been selected.
-      SELECT p.id,p.social_published_at,s.id AS store_id,
+      SELECT p.id,p.social_published_at,s.id AS store_id,fc.id AS feed_catalog_id,
         CASE
           WHEN COALESCE(pp.social_weight, CASE WHEN s.plan_tier='ouro' THEN 3 WHEN s.plan_tier='prata' THEN 2 ELSE 1 END) >= 3 THEN 'ouro'
           WHEN COALESCE(pp.social_weight, CASE WHEN s.plan_tier='ouro' THEN 3 WHEN s.plan_tier='prata' THEN 2 ELSE 1 END) >= 2 THEN 'prata'
@@ -163,7 +167,9 @@ async function rankedFeed(req, res) {
       FROM products p
       JOIN stores s ON s.id=p.store_id
       LEFT JOIN platform_plans pp ON pp.code=s.plan_tier
+      ${feedCatalogJoin}
       WHERE p.active=true AND p.social_published=true AND s.is_active=true AND s.social_enabled=true
+        AND ${feedCatalogEligible}
         AND p.social_published_at <= $1::timestamptz
     ), store_latest AS (
       SELECT tier,store_id,MAX(social_published_at) AS latest
@@ -195,14 +201,14 @@ async function rankedFeed(req, res) {
     ), page AS MATERIALIZED (
       -- Materialization guarantees that per-visitor interactions and product payloads
       -- are fetched for at most limit+1 posts, never for the entire ranked universe.
-      SELECT id,store_id,tier,feed_slot FROM slotted
+      SELECT id,store_id,tier,feed_slot,feed_catalog_id FROM slotted
       WHERE feed_slot > $2::bigint
       ORDER BY feed_slot ASC
       LIMIT $3
     )
     SELECT
       p.id,p.sku,p.name,p.description,p.category,p.media_url,p.media_type,
-      p.images,p.pack,p.variations,p.featured,p.social_published_at,
+      p.images,p.pack,p.variations,p.featured,p.social_published_at,cp.media_override,
       page.store_id,s.slug AS store_slug,s.name AS store_name,
       s.logo_url AS store_logo_url,s.accent AS store_accent,page.tier,page.feed_slot,
       (SELECT COUNT(*)::int FROM social_post_daily_views v WHERE v.product_id=p.id) AS social_views,
@@ -214,6 +220,7 @@ async function rankedFeed(req, res) {
     FROM page
     JOIN products p ON p.id=page.id
     JOIN stores s ON s.id=page.store_id
+    LEFT JOIN catalog_products cp ON cp.catalog_id=page.feed_catalog_id AND cp.product_id=p.id
     ORDER BY page.feed_slot ASC
   `, [cursor.snapshot, cursor.slot, limit + 1, key])
   const hasMore = result.rows.length > limit
