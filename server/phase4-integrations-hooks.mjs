@@ -602,10 +602,11 @@ async function attachShipping(req, res) {
   if (!quoteMatchesOrder(row, order.rows[0])) return res.status(409).json({ error: 'Cotação de frete não corresponde ao valor deste pedido. Faça uma nova cotação.' })
   const updated = await pool.query(`
     UPDATE orders SET shipping_method=$1,shipping_amount=$2
-    WHERE id=$3 AND store_id=$4 AND customer_id=$5
+    WHERE id=$3 AND store_id=$4 AND customer_id=$5 AND total=$6 AND status<>'cancelled'
+      AND payment_status='none' AND NOT EXISTS(SELECT 1 FROM shopvax_payment_claims WHERE store_id=$4 AND order_id=$3)
     RETURNING id,code,total,shipping_method,shipping_amount,payment_status
-  `, [row.method_name, row.amount, order.rows[0].id, store.id, customer.id])
-  if (!updated.rowCount) return res.status(403).json({ error: 'Pedido não autorizado.' })
+  `, [row.method_name, row.amount, order.rows[0].id, store.id, customer.id, order.rows[0].total])
+  if (!updated.rowCount) return res.status(409).json({ error: 'Pedido alterado ou cobrança iniciada. Atualize o pedido antes de selecionar o frete.' })
   const shaped = updated.rows[0]
   return res.json({ order: { ...shaped, total: Number(shaped.total || 0), shippingAmount: Number(shaped.shipping_amount || 0), grandTotal: money(Number(shaped.total || 0) + Number(shaped.shipping_amount || 0)) } })
 }
