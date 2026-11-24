@@ -53,8 +53,8 @@ async function discover(req,res){
        AND (c.is_default OR s.plan_tier='ouro')
        AND (CASE WHEN c.explicit_membership THEN cp.visible=true ELSE COALESCE(cp.visible,true)=true END)
        AND ($3::text='' OR c.kind=$3)
-       AND ($4::numeric IS NULL OR COALESCE(cp.price_override,CASE WHEN c.kind='varejo' OR (c.kind='personalizado' AND c.price_mode='varejo') THEN p.retail_price WHEN c.kind='caixa_fechada' OR (c.kind='personalizado' AND c.price_mode='caixa_fechada') THEN p.box_price ELSE p.price END,p.price)>=$4)
-       AND ($5::numeric IS NULL OR COALESCE(cp.price_override,CASE WHEN c.kind='varejo' OR (c.kind='personalizado' AND c.price_mode='varejo') THEN p.retail_price WHEN c.kind='caixa_fechada' OR (c.kind='personalizado' AND c.price_mode='caixa_fechada') THEN p.box_price ELSE p.price END,p.price)<=$5)
+       AND ($4::numeric IS NULL OR COALESCE(cp.price_override,CASE WHEN c.kind='varejo' OR (c.kind='personalizado' AND c.price_mode='varejo') THEN p.retail_price WHEN c.kind='caixa_fechada' OR (c.kind='personalizado' AND c.price_mode='caixa_fechada') THEN p.box_price WHEN c.kind='atacado' OR (c.kind='personalizado' AND c.price_mode='atacado') THEN p.wholesale_price WHEN c.kind='alto_atacado' THEN p.high_wholesale_price ELSE p.price END,p.price)>=$4)
+       AND ($5::numeric IS NULL OR COALESCE(cp.price_override,CASE WHEN c.kind='varejo' OR (c.kind='personalizado' AND c.price_mode='varejo') THEN p.retail_price WHEN c.kind='caixa_fechada' OR (c.kind='personalizado' AND c.price_mode='caixa_fechada') THEN p.box_price WHEN c.kind='atacado' OR (c.kind='personalizado' AND c.price_mode='atacado') THEN p.wholesale_price WHEN c.kind='alto_atacado' THEN p.high_wholesale_price ELSE p.price END,p.price)<=$5)
    )`
  }
  const base=`FROM products p JOIN stores s ON s.id=p.store_id
@@ -84,7 +84,7 @@ async function discover(req,res){
  if(account&&products.rows.length){
    const offers=await pool.query(`
     SELECT p.id AS product_id,MIN(COALESCE(cp.price_override,
-       CASE WHEN c.kind='varejo' OR (c.kind='personalizado' AND c.price_mode='varejo') THEN p.retail_price WHEN c.kind='caixa_fechada' OR (c.kind='personalizado' AND c.price_mode='caixa_fechada') THEN p.box_price ELSE p.price END,p.price))::numeric AS display_price,
+       CASE WHEN c.kind='varejo' OR (c.kind='personalizado' AND c.price_mode='varejo') THEN p.retail_price WHEN c.kind='caixa_fechada' OR (c.kind='personalizado' AND c.price_mode='caixa_fechada') THEN p.box_price WHEN c.kind='atacado' OR (c.kind='personalizado' AND c.price_mode='atacado') THEN p.wholesale_price WHEN c.kind='alto_atacado' THEN p.high_wholesale_price ELSE p.price END,p.price))::numeric AS display_price,
        COUNT(*)::int AS catalog_count
     FROM products p JOIN stores s ON s.id=p.store_id
       JOIN catalogs c ON c.store_id=s.id AND c.active=true AND (c.is_default OR s.plan_tier='ouro')
