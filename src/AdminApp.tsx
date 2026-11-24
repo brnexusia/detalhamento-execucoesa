@@ -187,7 +187,7 @@ export default function AdminApp() {
   }
 
   if (loading) return <ShopvaxLoading label="Abrindo seu painel…" />
-  if (!data) return <div className="panel-loading panel-loading--error"><span className="brand__mark"><img src="/brand/shopvax-symbol-dark.svg" className="svx-brand-symbol" alt="" aria-hidden="true" /></span><strong>O painel não conseguiu iniciar.</strong><p>{error}</p><button className="primary-action" onClick={() => { void load() }}>Tentar novamente</button></div>
+  if (!data) return <div className="panel-loading panel-loading--error"><span className="brand__mark"><img src="/brand/shopvax-symbol.svg" className="svx-brand-symbol" alt="" aria-hidden="true" /></span><strong>O painel não conseguiu iniciar.</strong><p>{error}</p><button className="primary-action" onClick={() => { void load() }}>Tentar novamente</button></div>
 
   const baseUrl = SHOPVAX_PUBLIC_ORIGIN
   const storeUrl = publicStoreLink(data.store.slug)
