@@ -29,7 +29,8 @@ export default function SocialShopping({storeSlug,storeName,productId,initialCar
   const [selections,setSelections]=useState<Record<string,string>>({})
   const [quantity,setQuantity]=useState(1)
   const [imageIndex,setImageIndex]=useState(0)
-  const photos=useMemo(()=>offerData?Array.from(new Set([...(offerData.product.images||[]),...(offerData.product.mediaType==='image'&&offerData.product.mediaUrl?[offerData.product.mediaUrl]:[])].filter(Boolean))).slice(0,8):[],[offerData])
+  const media=offer&&offer.images!==undefined?offer:offerData?.product
+  const photos=useMemo(()=>media?Array.from(new Set([...(media.images||[]),...(media.mediaType==='image'&&media.mediaUrl?[media.mediaUrl]:[])].filter(Boolean))).slice(0,8):[],[media])
   const [notes,setNotes]=useState('')
   const [error,setError]=useState('')
   const [busy,setBusy]=useState(false)
@@ -80,7 +81,7 @@ export default function SocialShopping({storeSlug,storeName,productId,initialCar
         if(!response.ok)throw Error(data.error||'Produto indisponível.')
         if(!Array.isArray(data.offers)||!data.offers.length)throw Error('Não há modalidade disponível para este produto.')
         if(preview && data.ownerPreview!==true)throw Error('Não foi possível confirmar a visualização do proprietário.')
-        const first=preferred(data.offers,data.buyerPurpose)
+        const first=(data.offers as Offer[]).find(x=>x.slug===initialCatalogSlug)||preferred(data.offers,data.buyerPurpose)
         setOfferData(data);setOffer(first);setCatalogSlug(first.slug);setImageIndex(0)
         setSelections(Object.fromEntries((data.product.variations||[]).filter((v:Variant)=>v.options.length===1).map((v:Variant)=>[v.name,v.options[0]])))
         setStep(preview?'item':initialCart?'cart':'item')
@@ -100,12 +101,12 @@ export default function SocialShopping({storeSlug,storeName,productId,initialCar
     return()=>{document.removeEventListener('keydown',onKey);document.body.style.overflow=previous}
   },[onClose,busy])
 
-  const selectOffer=(next:Offer)=>{setOffer(next);setCatalogSlug(next.slug);setError('')}
+  const selectOffer=(next:Offer)=>{setOffer(next);setCatalogSlug(next.slug);setImageIndex(0);setQuantity(1);setError('')}
   const addItem=()=>{
     if(!offerData||!offer)return
     for(const v of offerData.product.variations||[])if(!selections[v.name]){setError('Escolha '+v.name.toLowerCase()+'.');return}
     const p=offerData.product
-    const line:CartLine={key:lineKey(p.id,selections),productId:p.id,name:p.name,sku:p.sku,quantity,price:variantUnitPrice(offer,selections),selections:{...selections},image:p.images?.[0]||'',unitsPerBox:offer.unitsPerBox}
+    const line:CartLine={key:lineKey(p.id,selections),productId:p.id,name:p.name,sku:p.sku,quantity,price:variantUnitPrice(offer,selections),selections:{...selections},image:photos[0]||'',unitsPerBox:offer.unitsPerBox}
     const previous=readCart(storeSlug,offer.slug)
     const items=previous?.items||[]
     const found=items.find(i=>i.key===line.key)
@@ -184,13 +185,13 @@ export default function SocialShopping({storeSlug,storeName,productId,initialCar
             <img className="svx-social-gallery__hero" src={photos[Math.min(imageIndex,photos.length-1)]} alt={offerData.product.name} loading="eager"/>
             {photos.length>1&&<div className="svx-social-gallery__thumbs" aria-label="Fotos do produto">{photos.map((src,i)=><button type="button" className={imageIndex===i?'is-active':''} key={i} aria-label={'Ver foto '+(i+1)} onClick={()=>setImageIndex(i)}><img src={src} alt="" loading="lazy"/></button>)}</div>}
           </div>}
-          {!photos.length&&offerData.product.mediaType==='video'&&offerData.product.mediaUrl&&
-            <video className="svx-social-gallery__hero" src={offerData.product.mediaUrl} controls playsInline preload="metadata" aria-label={'Vídeo de '+offerData.product.name}/>}
+          {!photos.length&&media?.mediaType==='video'&&media.mediaUrl&&
+            <video className="svx-social-gallery__hero" src={media.mediaUrl} controls playsInline preload="metadata" aria-label={'Vídeo de '+offerData.product.name}/>}
 
           {offerData.product.description&&<p className="svx-social-shop-description">{offerData.product.description}</p>}
           <p className="svx-social-shop-label">{ownerPreview?'Preços cadastrados na sua loja':'Como deseja comprar?'}</p>
           <div className="svx-social-offers">{offerData.offers.map(x=><button type="button" key={x.id} className={offer.slug===x.slug?'is-selected':''} onClick={()=>selectOffer(x)}>
-            <span><strong>{x.name}</strong><small>{x.kind==='caixa_fechada'?'Caixa fechada':x.kind==='atacado'?'Atacado':x.kind==='varejo'?'Varejo':x.kind==='personalizado'?x.customLabel||'Personalizado':'Catálogo da loja'}</small></span><b>{priceLabel(x,offerData.product.variations,money,selections)}</b>
+            <span><strong>{x.name}</strong><small>{x.kind==='caixa_fechada'?'Caixa fechada':x.kind==='atacado'?'Atacado':x.kind==='alto_atacado'?'Alto atacado':x.kind==='varejo'?'Varejo':x.kind==='personalizado'?x.customLabel||'Personalizado':'Catálogo da loja'}</small></span><b>{priceLabel(x,offerData.product.variations,money,selections)}</b>
           </button>)}</div>
           {offer.unitsPerBox>1&&<p className="svx-social-shop-hint">1 caixa contém {offer.unitsPerBox} unidades. O preço exibido é por caixa.</p>}
           <p className="svx-social-shop-hint">Pedido mínimo neste catálogo: {money.format(offer.minimumOrder)}</p>
