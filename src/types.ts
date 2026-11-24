@@ -20,6 +20,7 @@ export type Catalog = {
   lockedByPlan?: boolean
   isDefault: boolean
   active: boolean
+  feedEnabled?:boolean
 }
 
 export type Product = {
