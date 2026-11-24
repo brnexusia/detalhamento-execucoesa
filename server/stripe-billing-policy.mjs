@@ -54,3 +54,9 @@ export function subscriptionAccess(row, now = Date.now()) {
     Boolean(row.paid_until) &&
     new Date(row.paid_until).getTime() > now
 }
+
+// A Stripe também emite invoice.paid para faturas gratuitas; elas não são conversões.
+export function isPositivePaidInvoice(invoice) {
+  return invoice?.status === 'paid' && invoice.paid_out_of_band !== true &&
+    Number.isSafeInteger(invoice.amount_paid) && invoice.amount_paid > 0
+}
