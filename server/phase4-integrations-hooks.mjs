@@ -680,11 +680,26 @@ async function createPayment(req, res) {
   const due = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
   // Reserve the order before the remote side effect. A conflict means another
   // worker already started a charge, so this request must never call Asaas.
-  const reserved = await pool.query(`
-    INSERT INTO shopvax_payment_claims (store_id,order_id,customer_id,state)
-    VALUES ($1,$2,$3,'processing')
-    ON CONFLICT (store_id,order_id) DO NOTHING RETURNING order_id
-  `, [store.id, order.id, customer.id])
+  // Serialize the claim with order editing; never charge a stale total.
+  const claimClient=await pool.connect()
+  let reserved
+  try {
+    await claimClient.query('BEGIN')
+    const locked=(await claimClient.query('SELECT * FROM orders WHERE id=$1 AND store_id=$2 FOR UPDATE',[order.id,store.id])).rows[0]
+    if(!locked||locked.status==='cancelled'||locked.deleted_at||locked.payment_status==='paid'||Number(locked.total)!==Number(order.total)||Number(locked.shipping_amount||0)!==Number(order.shipping_amount||0)||locked.shipping_method!==order.shipping_method){
+      await claimClient.query('ROLLBACK')
+      return res.status(409).json({error:'O pedido foi atualizado. Reabra o pedido antes de gerar a cobrança.'})
+    }
+    reserved=await claimClient.query(`
+      INSERT INTO shopvax_payment_claims (store_id,order_id,customer_id,state)
+      VALUES ($1,$2,$3,'processing')
+      ON CONFLICT (store_id,order_id) DO NOTHING RETURNING order_id
+    `,[store.id,order.id,customer.id])
+    await claimClient.query('COMMIT')
+  }catch(error){
+    await claimClient.query('ROLLBACK').catch(()=>{})
+    throw error
+  }finally{claimClient.release()}
   if (!reserved.rowCount) {
     const existing = await pool.query(`
       SELECT id,external_id,billing_type,status,value,invoice_url
