@@ -334,7 +334,7 @@ export default function CatalogManager({storeSlug,categories,sellers=[],onSelect
            <option value="alto_atacado">Alto Atacado</option>
            <option value="personalizado">Personalizado</option>
          </select></label>
-         {kind==='alto_atacado'&&<small>Usa o preço principal por unidade, sem desconto automático nem multiplicação por caixa.</small>}
+         {kind==='alto_atacado'&&<small>Usa o preço de alto atacado por unidade, ou o preço principal por unidade quando não houver valor específico.</small>}
          {kind==='personalizado'&&<>
            <label>Formato personalizado<select value={customFormat} onChange={e=>changeCustomFormat(e.target.value)} disabled={busy||Boolean(selected?.lockedByPlan)&&pane==='settings'}>
              <option value="">Selecione um formato</option>
@@ -347,7 +347,7 @@ export default function CatalogManager({storeSlug,categories,sellers=[],onSelect
            <label>Qual preço utilizar?<select value={priceMode} onChange={e=>setPriceMode(e.target.value as typeof priceMode)} disabled={busy||Boolean(selected?.lockedByPlan)&&pane==='settings'}>
              <option value="base">Preço principal do produto</option>
              <option value="varejo">Preço de varejo</option>
-             <option value="atacado">Preço de atacado (principal)</option>
+             <option value="atacado">Preço de atacado</option>
              <option value="caixa_fechada">Preço por caixa fechada</option>
            </select></label>
          </>}
