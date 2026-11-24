@@ -112,5 +112,48 @@ try {
     console.log('ORDER_BUYER_DETAIL_PASS',width,height)
     await context.close()
   }
+  // Seller workspace uses its own API, not the owner session or public catalog.
+  for(const width of [360,1366]){
+    const context=await browser.newContext({viewport:{width,height:800}})
+    const page=await context.newPage()
+    const order=structuredClone(data.orders[0])
+    const json=body=>({status:200,contentType:'application/json',body:JSON.stringify(body)})
+    let session=false
+    let submitted
+    await page.route('**/api/admin/**',route=>route.fulfill({status:403,contentType:'application/json',body:'{"error":"Admin bloqueado"}'}))
+    await page.route('**/api/seller-orders/session',route=>{
+      assert.equal(route.request().postDataJSON().token,'convite-teste')
+      session=true
+      return route.fulfill(json({ok:true}))
+    })
+    await page.route('**/api/seller-orders',route=>route.fulfill(session?json({store:{name:data.store.name},sellers:data.sellers,orders:[order]}):{status:401,contentType:'application/json',body:'{"error":"Acesso necessário"}'}))
+    await page.route('**/api/seller-orders/order-1/products?*',route=>route.fulfill(json({products:[{id:'p2',name:'Calça',sku:'CAL-1',price:40,catalogPrice:40,active:true,variations:[]}]})))
+    await page.route('**/api/seller-orders/order-1/items',route=>{
+      submitted=route.request().postDataJSON()
+      order.items=submitted.items.map(item=>({...item,name:item.productId==='p2'?'Calça':'Blusa',sku:item.productId==='p2'?'CAL-1':'SW-22',lineTotal:item.quantity*item.unitPrice}))
+      order.total=order.items.reduce((sum,item)=>sum+item.lineTotal,0)
+      order.edit_revision=1
+      return route.fulfill(json({order}))
+    })
+    await page.goto('http://127.0.0.1:5173/painel/vendedora#convite=convite-teste')
+    await page.getByRole('button',{name:'Acessar meus pedidos'}).click()
+    await page.getByRole('button',{name:'Ver talão AS-000041'}).click()
+    assert.equal(await page.getByLabel('Alterar estado do pedido').count(),0)
+    await page.getByRole('button',{name:'Editar pedido'}).click()
+    const editor=page.getByRole('dialog',{name:'Editar pedido'})
+    await editor.getByLabel('Quantidade do item 1').fill('3')
+    await editor.getByLabel('Preço unitário do item 1').fill('50')
+    await editor.getByLabel('Buscar produto para o pedido').fill('Calça')
+    await editor.getByRole('button',{name:/Calça/}).click()
+    await editor.getByRole('button',{name:'Remover item 1'}).click()
+    await editor.getByRole('button',{name:'Salvar alterações'}).click()
+    await editor.waitFor({state:'hidden'})
+    assert.equal(submitted.items.length,1)
+    assert.equal(submitted.items[0].productId,'p2')
+    assert.match(await page.locator('.svx-orders__total').innerText(),/40,00/)
+    assert.equal(new URL(page.url()).hash,'')
+    await context.close()
+    console.log('SELLER_ORDER_EDIT_PASS',width)
+  }
 } finally {await browser.close()}
 console.log('ORDER_BUYER_DETAIL_TESTS_PASSED',3)
