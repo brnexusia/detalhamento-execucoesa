@@ -640,7 +640,7 @@ function ProductEditor({ draft, setDraft, onClose, onSaved, targetCatalogId }: {
   const gallerySavedRef = useRef<string[]>([...gallery])
   type Membership=Awaited<ReturnType<typeof api.productCatalogMemberships>>['catalogs'][number]
   const [memberships,setMemberships]=useState<Membership[]>([])
-  const [membershipChanges,setMembershipChanges]=useState<Record<string,{included:boolean;resetPrice?:boolean}>>({})
+  const [membershipChanges,setMembershipChanges]=useState<Record<string,{included:boolean;resetPrice?:boolean;mediaImages?:string[]|null}>>({})
   const [membershipLoading,setMembershipLoading]=useState(true)
   const [membershipError,setMembershipError]=useState('')
   const loadMemberships=()=>{
@@ -737,6 +737,26 @@ function ProductEditor({ draft, setDraft, onClose, onSaved, targetCatalogId }: {
       if (failures.length) setError(`${added} foto(s) adicionada(s). ${failures.join(' ')}`)
     } finally { setUploading(false); setUploadProgress('') }
   }
+  const uploadCatalogGallery=async(catalog:Membership,files:FileList|null)=>{
+    if(!files?.length||uploading||busy)return
+    const photos=Array.from(files).filter(isCatalogPhoto)
+    if(!photos.length){setError('Escolha fotos JPG, PNG, WEBP, AVIF ou HEIC.');return}
+    const limit=Math.min(40,photoLimit??40)
+    if(photos.length>limit){setError('Escolha até '+limit+' fotos para este catálogo.');return}
+    setUploading(true);setError('')
+    try{
+      const images:string[]=[]
+      for(const [i,file] of photos.entries()){
+        setUploadProgress('Enviando foto '+(i+1)+' de '+photos.length+' para '+catalog.name+'…')
+        const result=await api.upload(file)
+        if(result.type!=='image')throw Error('Arquivo não reconhecido como foto.')
+        images.push(result.url)
+      }
+      setMembershipChanges(prev=>({...prev,[catalog.id]:{...prev[catalog.id],included:true,mediaImages:images}}))
+      setUploadNotice('Fotos de '+catalog.name+' preparadas. Salve o produto para publicar.')
+    }catch(err){setError(err instanceof Error?err.message:'Falha ao enviar as fotos do catálogo.')}
+    finally{setUploading(false);setUploadProgress('')}
+  }
   const moveGallery = (index: number, direction: -1 | 1) => {
     const target = index + direction
     if (target < 0 || target >= gallery.length) return
@@ -785,12 +805,18 @@ function ProductEditor({ draft, setDraft, onClose, onSaved, targetCatalogId }: {
         const mode=catalog.kind==='personalizado'?catalog.priceMode:catalog.kind
         const label=mode==='varejo'?'Varejo':mode==='caixa_fechada'?'Caixa fechada':mode==='alto_atacado'?'Alto atacado':mode==='atacado'?'Atacado':'Preço base'
         return <div className="svx-product-membership" key={catalog.id}>
-          <label><input type="checkbox" aria-label={'Incluir em '+catalog.name} checked={isIncluded} disabled={busy||catalog.lockedByPlan} onChange={e=>{const value=e.target.checked;setMembershipChanges(prev=>{const next={...prev};if(value===catalog.included&&!prev[catalog.id]?.resetPrice)delete next[catalog.id];else next[catalog.id]={included:value};return next})}}/>
+          <label><input type="checkbox" aria-label={'Incluir em '+catalog.name} checked={isIncluded} disabled={busy||catalog.lockedByPlan} onChange={e=>{const value=e.target.checked;setMembershipChanges(prev=>{const next={...prev};if(value===catalog.included&&!prev[catalog.id]?.resetPrice&&prev[catalog.id]?.mediaImages===undefined)delete next[catalog.id];else next[catalog.id]={...prev[catalog.id],included:value};return next})}}/>
             <span><strong>{catalog.name}</strong><small>{label}{catalog.lockedByPlan?' · Bloqueado pelo plano':!catalog.active?' · Não publicado':''}</small></span>
             <b>{Number.isFinite(price)&&price>0?money.format(price):'—'}</b>
           </label>
-          {isIncluded&&override&&!catalog.lockedByPlan&&<div className="svx-product-membership__override"><small>Preço específico do catálogo</small><button type="button" disabled={busy} onClick={()=>setMembershipChanges(prev=>({...prev,[catalog.id]:{included:true,resetPrice:true}}))}>Usar preço automático</button></div>}
+          {isIncluded&&override&&!catalog.lockedByPlan&&<div className="svx-product-membership__override"><small>Preço específico do catálogo</small><button type="button" disabled={busy} onClick={()=>setMembershipChanges(prev=>({...prev,[catalog.id]:{...prev[catalog.id],included:true,resetPrice:true}}))}>Usar preço automático</button></div>}
           {isIncluded&&change?.resetPrice&&<small>O preço automático será aplicado ao salvar.</small>}
+          {isIncluded&&!catalog.lockedByPlan&&<details className="svx-product-membership__media"><summary>Fotos deste catálogo</summary>
+            <small>{change?.mediaImages===null?'Usará as fotos gerais ao salvar.':change?.mediaImages||catalog.mediaOverride?'Fotos específicas deste catálogo. A primeira é a capa.':'Usando as fotos gerais do produto.'}</small>
+            <div className="svx-product-membership__photos">{(change?.mediaImages!==undefined?change.mediaImages||[]:catalog.mediaOverride?.images||[]).slice(0,5).map((url,i)=><img key={url+i} src={url} alt={'Foto '+(i+1)+' de '+catalog.name}/>)}</div>
+            <div className="svx-product-membership__media-actions"><label className="secondary-action"><Upload size={14}/> {uploading?'Enviando…':'Enviar fotos específicas'}<input type="file" hidden multiple accept="image/jpeg,image/png,image/webp,image/avif,image/heic,image/heif,.heic,.heif" disabled={busy||uploading} onChange={e=>{void uploadCatalogGallery(catalog,e.target.files);e.currentTarget.value=''}}/></label>
+              {(change?.mediaImages!==undefined?change.mediaImages:catalog.mediaOverride)&&<button type="button" className="secondary-action" disabled={busy||uploading} onClick={()=>setMembershipChanges(prev=>({...prev,[catalog.id]:{...prev[catalog.id],included:true,mediaImages:null}}))}>Usar fotos gerais</button>}</div>
+          </details>}
         </div>
       })}
     </section>
