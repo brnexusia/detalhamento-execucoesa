@@ -154,6 +154,29 @@ try {
   assert.equal(result.payload.total, 400)
   const orderId = result.payload.orderId
 
+  // Real edit API: preserve attribution, reserve the correct stock delta and
+  // roll back the order and inventory when an edit is invalid.
+  const editPath='/api/admin/orders/'+orderId+'/items'
+  const original=(await pool.query('SELECT * FROM orders WHERE id=$1',[orderId])).rows[0]
+  const originalItem=original.items[0]
+  const editBody={revision:0,items:[{originalIndex:0,productId:product.id,quantity:5,unitPrice:80,selections:{}}]}
+  const unauthenticated=await request(editPath,{method:'PATCH',body:editBody})
+  assert.equal(unauthenticated.response.status,401)
+  const edited=await request(editPath,{method:'PATCH',cookie:owner.cookie,body:editBody})
+  assert.equal(edited.response.status,200,JSON.stringify(edited.payload))
+  assert.equal(edited.payload.order.total,400)
+  assert.equal(edited.payload.order.code,original.code)
+  assert.equal(edited.payload.order.seller_id,original.seller_id)
+  assert.equal(edited.payload.order.customer_id,original.customer_id)
+  assert.equal(edited.payload.order.items[0].quantity,5)
+  assert.equal(edited.payload.order.edit_revision,1)
+  const stale=await request(editPath,{method:'PATCH',cookie:owner.cookie,body:editBody})
+  assert.equal(stale.response.status,409)
+  const audit=(await pool.query('SELECT old_items,new_items FROM order_edit_history WHERE order_id=$1',[orderId])).rows
+  assert.equal(audit.length,1)
+  assert.equal(audit[0].old_items[0].quantity,originalItem.quantity)
+  assert.equal(audit[0].new_items[0].quantity,5)
+
   // Pentest regression: anonymous / unrelated buyers cannot mutate or pay for
   // an order, even when they know its UUID.
   result = await request(`/api/public/phase4/orders/${orderId}/shipping`, {
@@ -209,6 +232,8 @@ try {
   assert.equal(result.payload.payment.billingType, 'PIX')
   assert.match(result.payload.payment.invoiceUrl, /^https:\/\/sandbox\.asaas\.test\/invoice\//)
   const externalPaymentId = result.payload.payment.externalId
+  const paidEdit=await request(editPath,{method:'PATCH',cookie:owner.cookie,body:{...editBody,revision:1}})
+  assert.equal(paidEdit.response.status,409,'Não editar pedido com cobrança existente')
   result = await request('/api/public/phase4/payments', {
     method: 'POST', cookie: customerCookie,
     body: { storeSlug: owner.slug, orderId, billingType: 'PIX', cpfCnpj: '12345678901' },
