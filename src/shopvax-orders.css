@@ -225,3 +225,35 @@
   opacity:.5;
   cursor:not-allowed;
 }
+
+
+/* Edição do talão: mesma linguagem visual do painel, independente da largura. */
+.svx-orders__actions>button.svx-orders__edit{background:#c94c08;border-color:#c94c08;color:white;border-radius:8px}
+.svx-order-edit-layer{position:fixed;inset:0;z-index:2000;background:#16151499;display:grid;place-items:center;padding:16px;box-sizing:border-box}
+.svx-order-edit{width:min(780px,100%);max-height:calc(100dvh - 32px);display:flex;flex-direction:column;min-width:0;overflow:hidden;background:#fcfbf8;border:1px solid #d9d3c6;border-radius:14px;color:#161514;box-shadow:0 16px 50px #16151430}
+.svx-order-edit>header,.svx-order-edit>footer{display:flex;align-items:center;gap:12px;padding:16px 22px;flex-wrap:wrap}
+.svx-order-edit>header{justify-content:space-between;border-bottom:1px solid #d9d3c6}
+.svx-order-edit h2{font-size:26px;margin:3px 0 0;line-height:1.15}
+.svx-order-edit small{font-size:12px;color:#655e55;overflow-wrap:anywhere}
+.svx-order-edit>header small{font-weight:700;color:#a53e08}
+.svx-order-edit>header button,.svx-order-edit__item-head button{background:transparent;border:1px solid #d9d3c6;border-radius:8px;min-width:40px;min-height:40px;display:grid;place-items:center;cursor:pointer}
+.svx-order-edit__body{padding:18px 22px;overflow:auto;min-height:0;overscroll-behavior:contain;display:grid;gap:12px}
+.svx-order-edit__body>p{font-size:13px;line-height:1.5;margin:0;color:#655e55}
+.svx-order-edit__item{display:grid;gap:10px;padding:14px;border:1px solid #d9d3c6;border-radius:10px;background:white;min-width:0}
+.svx-order-edit__item-head{display:flex;align-items:start;justify-content:space-between;gap:10px}
+.svx-order-edit__item-head>div{min-width:0;display:grid;gap:4px;overflow-wrap:anywhere}
+.svx-order-edit__item-head button{color:#a3261c;flex-shrink:0}
+.svx-order-edit__fields{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) minmax(0,1fr);gap:10px;align-items:end}
+.svx-order-edit label{display:grid;gap:6px;font-size:12px;font-weight:700;min-width:0}
+.svx-order-edit :is(input,select){box-sizing:border-box;width:100%;min-width:0;min-height:42px;border:1px solid #c9c1b4;border-radius:8px;padding:9px;background:white;color:#161514;font:inherit}
+.svx-order-edit__fields>div{display:grid;gap:6px;overflow-wrap:anywhere;padding-bottom:7px}
+.svx-order-edit__add{display:grid;gap:8px;padding:14px;border:1px dashed #c9c1b4;border-radius:10px}
+.svx-order-edit__add h3{display:flex;align-items:center;gap:6px;font-size:15px;margin:0}
+.svx-order-edit__add>label{display:flex;align-items:center;gap:8px}
+.svx-order-edit__add>button{display:flex;align-items:center;gap:10px;text-align:left;min-height:44px;padding:10px;background:white;border:1px solid #d9d3c6;border-radius:8px;cursor:pointer}
+.svx-order-edit__add>button>span{flex:1;min-width:0;display:grid;gap:4px;overflow-wrap:anywhere}
+.svx-order-edit>footer{border-top:1px solid #d9d3c6;background:#f3f0e8}
+.svx-order-edit>footer>div{flex:1 1 130px;display:grid;gap:3px;min-width:0;overflow-wrap:anywhere}
+.svx-order-edit>footer>div strong{font-size:24px}
+.svx-order-edit>footer button{min-height:44px;border-radius:8px}
+@media(max-width:560px){.svx-order-edit-layer{padding:8px}.svx-order-edit{max-height:calc(100dvh - 16px)}.svx-order-edit__body,.svx-order-edit>header,.svx-order-edit>footer{padding:12px}.svx-order-edit__fields{grid-template-columns:1fr 1fr}.svx-order-edit__fields>div{grid-column:1/-1;padding-bottom:0;display:flex;justify-content:space-between}.svx-order-edit>footer>div{flex-basis:100%}.svx-order-edit>footer button{flex:1}}
