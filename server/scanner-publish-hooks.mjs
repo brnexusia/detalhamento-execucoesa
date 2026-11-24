@@ -2,6 +2,8 @@ import crypto from 'node:crypto'
 import express from 'express'
 import pg from 'pg'
 import { prepareReview } from './scanner-review.mjs'
+import { importedCatalogMedia } from './catalog-media.mjs'
+import { ensureCatalogSchema } from './catalog-features-hooks.mjs'
 import { importPublishGroupHash, previewPdfPublishGroups, mergeImportParentProducts } from './scanner-import-grouping.mjs'
 import { inferPdfProductCategory } from './scanner-pdf-category.mjs'
 import { fetchBestImportImage, isBraavoImageUrl, localizeImportedProductMedia } from './import-media-localizer.mjs'
@@ -37,6 +39,7 @@ let publisherSchemaPromise = null
 let publisherSchemaInitialized = false
 async function ensurePublisherSchema() {
   if (!pool) throw new Error('DATABASE_URL não configurada.')
+  await ensureCatalogSchema()
   if (publisherSchemaInitialized) return
   if (publisherSchemaPromise) return publisherSchemaPromise
   publisherSchemaPromise = pool.query(`
@@ -492,7 +495,7 @@ export async function publishJob(req, res) {
           const result = alreadyPublished.publish_result || 'created'
           if (result === 'existing') skippedExisting += 1
           else created += 1
-          membershipByProduct.set(alreadyPublished.published_product_id, Number(item.prepared.data.price))
+          membershipByProduct.set(alreadyPublished.published_product_id, {price_override:Number(item.prepared.data.price),media_override:importedCatalogMedia(item.prepared.data)})
           for (const row of item.members) publishRows.push({ row_id: row.id, product_id: alreadyPublished.published_product_id, result })
           continue
         }
@@ -503,7 +506,7 @@ export async function publishJob(req, res) {
         const existingId = skuKey ? existingBySku.get(skuKey) : null
         if (existingId) {
           skippedExisting += 1
-          membershipByProduct.set(existingId, Number(item.prepared.data.price))
+          membershipByProduct.set(existingId, {price_override:Number(data.price),media_override:importedCatalogMedia(data)})
           for (const row of item.members) publishRows.push({ row_id: row.id, product_id: existingId, result: 'existing' })
           continue
         }
@@ -526,7 +529,7 @@ export async function publishJob(req, res) {
           pack: String(data.pack || '').trim().slice(0, 160),
           variations: Array.isArray(data.variations) ? data.variations : [],
         })
-        membershipByProduct.set(productId, Number(data.price))
+        membershipByProduct.set(productId, {price_override:Number(data.price),media_override:importedCatalogMedia(data)})
         for (const row of item.members) publishRows.push({ row_id: row.id, product_id: productId, result: 'created' })
         created += 1
         if (skuKey) existingBySku.set(skuKey, productId)
@@ -557,22 +560,22 @@ export async function publishJob(req, res) {
         )
       }
       if (membershipByProduct.size) {
-        const members = [...membershipByProduct].map(([product_id, price_override]) => ({ product_id, price_override }))
+        const members = [...membershipByProduct].map(([product_id, member]) => ({ product_id, ...member }))
         await client.query(
-          `INSERT INTO catalog_products(catalog_id,product_id,price_override,visible)
+          `INSERT INTO catalog_products(catalog_id,product_id,price_override,visible,media_override)
            SELECT $1,p.product_id,
              NULLIF(p.price_override,COALESCE(
                CASE WHEN c.kind='varejo' OR (c.kind='personalizado' AND c.price_mode='varejo') THEN product.retail_price
                     WHEN c.kind='caixa_fechada' OR (c.kind='personalizado' AND c.price_mode='caixa_fechada') THEN product.box_price
                     WHEN c.kind='atacado' OR (c.kind='personalizado' AND c.price_mode='atacado') THEN product.wholesale_price
                     WHEN c.kind='alto_atacado' THEN product.high_wholesale_price
-                    ELSE product.price END,product.price)),true
-           FROM jsonb_to_recordset($2::jsonb) AS p(product_id text,price_override numeric)
+                    ELSE product.price END,product.price)),true,p.media_override
+           FROM jsonb_to_recordset($2::jsonb) AS p(product_id text,price_override numeric,media_override jsonb)
            JOIN catalogs c ON c.id=$1
            JOIN products product ON product.id=p.product_id AND product.store_id=c.store_id
            WHERE p.product_id IS NOT NULL
            ON CONFLICT(catalog_id,product_id)
-           DO UPDATE SET price_override=EXCLUDED.price_override,visible=true,updated_at=now()`,
+           DO UPDATE SET price_override=EXCLUDED.price_override,visible=true,media_override=COALESCE(EXCLUDED.media_override,catalog_products.media_override),updated_at=now()`,
           [targetCatalogId, JSON.stringify(members)],
         )
       }
