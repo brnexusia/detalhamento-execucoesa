@@ -218,3 +218,58 @@
 @media(max-width:460px){.svx-partner__share-actions button{flex:1 1 125px}}
 
 .svx-partner__auth form label.svx-partner__existing-account{display:flex;align-items:flex-start;gap:10px;line-height:1.45;font-weight:500;font-size:12px}.svx-partner__existing-account input{width:18px;height:18px;min-height:18px;max-width:18px;flex-shrink:0;margin:0}
+
+
+/* Admin redesign: use the same content gutter as the other platform pages. */
+.platform-main .platform-page.svx-referral-admin{
+  box-sizing:border-box;width:100%;min-width:0;max-width:1600px;
+  padding:clamp(18px,2.5vw,36px);margin:0 auto;display:grid;gap:20px;
+}
+.svx-referral-admin__hero{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.svx-referral-admin__hero .platform-title{margin:0;min-width:0;flex:1 1 300px}
+.svx-referral-admin__hero .platform-title h1{font-size:clamp(27px,3.1vw,42px);line-height:1.1;letter-spacing:-.035em;margin:6px 0 8px}
+.svx-referral-admin__hero .platform-title p{max-width:680px;font-size:14px;line-height:1.5;margin:0}
+.svx-referral-admin__hero>button{flex:0 0 auto;border-radius:8px}
+.svx-referral-admin>.svx-partner__grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:12px;margin:0}
+.svx-referral-admin>.svx-partner__grid article{padding:15px 16px;border-radius:12px;gap:7px;align-content:start}
+.svx-referral-admin>.svx-partner__grid small{display:flex;align-items:center;gap:8px;font-weight:700;font-size:12px}
+.svx-referral-admin>.svx-partner__grid small svg,.svx-referral-admin .svx-partner__card h2 svg{color:#e75a0b;flex-shrink:0}
+.svx-referral-admin>.svx-partner__grid strong{font-size:clamp(23px,2.4vw,31px);line-height:1.2;overflow-wrap:anywhere}
+.svx-referral-admin>.svx-partner__grid article>span{font-size:11px;line-height:1.35;color:#655e55}
+.svx-referral-admin .is-paid{border-color:#ed8d50!important;background:#fff0e3!important}
+.svx-referral-admin .is-paid strong{color:#9a3809}
+.svx-referral-admin>.svx-partner__card{margin:0;min-width:0;padding:clamp(16px,2vw,24px);border-radius:14px}
+.svx-referral-admin .svx-partner__card h2{display:flex;align-items:center;gap:9px;font-size:clamp(19px,2vw,23px);margin:0 0 8px}
+.svx-referral-admin .svx-partner__card>p,.svx-referral-admin__section-head p{font-size:13px;line-height:1.5;margin:0 0 14px;color:#625d55}
+.svx-referral-admin__section-head{display:grid;gap:8px;margin-bottom:16px}
+.svx-referral-admin .svx-referral-admin__search{box-sizing:border-box;width:min(100%,420px);max-width:100%;border-radius:9px;background:#fff;gap:8px}
+.svx-referral-admin .svx-referral-admin__search input{border:0;background:transparent;padding:8px 0;outline:none;min-width:0}
+.svx-referral-admin__search svg{flex-shrink:0;color:#655e55}
+.svx-referral-admin__identity{display:flex;align-items:center;gap:11px;min-width:0}
+.svx-referral-admin__identity>div{min-width:0;overflow-wrap:anywhere}
+.svx-referral-admin__avatar{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:#ffe6d2;color:#a34812;flex:0 0 42px}
+.svx-referral-admin__partner-head>button{border-radius:8px}
+.svx-referral-admin .svx-referral-admin__funnel{grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr));gap:9px}
+.svx-referral-admin__funnel>div{padding:11px 12px}
+.svx-referral-admin__partner-controls{gap:10px}
+.svx-referral-admin__partner-controls label{flex:1 1 210px;max-width:300px}
+.svx-referral-admin__partner-controls button{border-radius:8px}
+.svx-referral-admin button.svx-referral-admin__save{background:#d95108;border-color:#d95108;color:#fff}
+.svx-referral-admin button.svx-referral-admin__secondary{background:#fff;color:#161514;border-color:#bbb4a8}
+.svx-referral-admin__scroll{border-radius:8px}
+.svx-referral-admin__empty{display:grid;justify-items:center;gap:8px;text-align:center;padding:30px 12px;color:#625d55}
+.svx-referral-admin__empty svg{box-sizing:content-box;padding:12px;border-radius:50%;background:#ffe6d2;color:#a34812}
+.svx-referral-admin__empty strong{color:#161514}
+.svx-referral-admin__empty span{font-size:12px;line-height:1.5}
+.svx-referral-admin>.svx-partner__warning{margin:0;border-radius:10px;background:#fff2e5;border-color:#e8af84;color:#793809;font-size:13px;line-height:1.5;align-items:flex-start}
+.svx-referral-admin>.svx-partner__warning svg{flex-shrink:0}
+@media(max-width:640px){
+  .platform-main .platform-page.svx-referral-admin{padding:16px;gap:14px}
+  .svx-referral-admin>.svx-partner__grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .svx-referral-admin>.svx-partner__grid article{padding:12px}
+  .svx-referral-admin>.svx-partner__grid small{align-items:flex-start;gap:5px}
+  .svx-referral-admin>.svx-partner__grid small svg{width:15px;height:15px}
+  .svx-referral-admin .svx-referral-admin__funnel{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .svx-referral-admin__partner-controls label{max-width:none}
+  .svx-referral-admin__hero>button{width:100%}
+}
