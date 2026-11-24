@@ -47,6 +47,8 @@ export default function CatalogManager({storeSlug,categories,sellers=[],onSelect
  const [addSearch,setAddSearch]=useState('')
  const [sourceCatalogId,setSourceCatalogId]=useState('')
  const [addSource,setAddSource]=useState('')
+ const [addPage,setAddPage]=useState(1)
+ const [addTotal,setAddTotal]=useState(0)
  const [candidates,setCandidates]=useState<AdminProduct[]>([])
  const [addChecked,setAddChecked]=useState<string[]>([])
  const [addBusy,setAddBusy]=useState(false)
@@ -105,13 +107,13 @@ export default function CatalogManager({storeSlug,categories,sellers=[],onSelect
    let valid=true
    const timer=setTimeout(()=>{
      setAddBusy(true)
-     void api.listAdminProducts({page:1,limit:30,q:addSearch,catalogId:addSource||undefined}).then(r=>{
-       if(valid)setCandidates(r.products)
+     void api.listAdminProducts({page:addPage,limit:30,q:addSearch,catalogId:addSource||undefined}).then(r=>{
+       if(valid){setCandidates(r.products);setAddTotal(r.pagination.total)}
      }).catch(e=>{if(valid)setError(e instanceof Error?e.message:'Erro ao procurar produtos.')})
        .finally(()=>{if(valid)setAddBusy(false)})
    },200)
    return()=>{valid=false;clearTimeout(timer)}
- },[pane,addSearch,addSource])
+ },[pane,addSearch,addSource,addPage])
  useEffect(()=>{
    if(!pane)return
    const onKey=(event:KeyboardEvent)=>{if(event.key==='Escape'&&!busy)setPane(null)}
@@ -169,7 +171,7 @@ export default function CatalogManager({storeSlug,categories,sellers=[],onSelect
      </>}
    </article>
  }
- const show=(next:Pane)=>{setError('');setMessage('');setPane(next);setAddChecked([]);setAddSearch('');setAddSource('');setSourceCatalogId('')}
+ const show=(next:Pane)=>{setError('');setMessage('');setPane(next);setAddChecked([]);setAddSearch('');setAddSource('');setAddPage(1);setAddTotal(0);setSourceCatalogId('')}
  const create=async(e:React.FormEvent)=>{
    e.preventDefault()
    if(!gold||busy||!name.trim())return
@@ -211,8 +213,9 @@ export default function CatalogManager({storeSlug,categories,sellers=[],onSelect
    if(!selected||selected.isDefault||!addChecked.length||busy)return
    setBusy(true);setError('')
    try{
-     const result=await api.updateCatalogMembers(selected.id,addChecked,'add')
-     setAddChecked([]);setMessage(result.changed+' produto(s) incluído(s).')
+     let changed=0
+     for(let i=0;i<addChecked.length;i+=500){const result=await api.updateCatalogMembers(selected.id,addChecked.slice(i,i+500),'add');changed+=result.changed}
+     setAddChecked([]);setMessage(changed+' produto(s) incluído(s).')
      onChanged()
      await load(selected.id)
      setPane(null)
@@ -316,11 +319,12 @@ export default function CatalogManager({storeSlug,categories,sellers=[],onSelect
        {error&&<p className="svx-catalog-inline__error" role="alert">{error}</p>}
        {message&&<p role="status"><Check size={15}/> {message}</p>}
        {pane==='add'?<div className="svx-catalog-dialog__add">
-         <label><Search size={16}/><input value={addSearch} onChange={e=>{setAddSearch(e.target.value);setAddChecked([])}} placeholder="Buscar produto para adicionar" aria-label="Buscar na base de produtos"/></label>
-         <label>Origem dos produtos<select aria-label="Catálogo de origem" value={addSource} onChange={e=>{setAddSource(e.target.value);setAddChecked([])}}><option value="">Todos os produtos da loja</option>{catalogs.filter(c=>c.id!==selected?.id&&!c.lockedByPlan).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+         <label><Search size={16}/><input value={addSearch} onChange={e=>{setAddSearch(e.target.value);setAddPage(1)}} placeholder="Buscar produto para adicionar" aria-label="Buscar na base de produtos"/></label>
+         <label>Origem dos produtos<select aria-label="Catálogo de origem" value={addSource} onChange={e=>{setAddSource(e.target.value);setAddPage(1);setAddChecked([])}}><option value="">Todos os produtos da loja</option>{catalogs.filter(c=>c.id!==selected?.id&&!c.lockedByPlan).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
          <p>Selecione produtos para incluir em {selected?.name}. O preço seguirá o tipo do catálogo de destino; não serão criadas cópias do estoque.</p>
          {addBusy&&<p>Procurando…</p>}
          <div className="svx-catalog-dialog__candidates">{candidates.map(p=><label key={p.id}><input type="checkbox" checked={addChecked.includes(p.id)} onChange={e=>setAddChecked(curr=>e.target.checked?[...curr,p.id]:curr.filter(id=>id!==p.id))}/><span>{p.name}<small>{p.sku||'Sem referência'}</small></span></label>)}</div>
+         <div className="svx-catalog-add-pages"><button type="button" disabled={addPage<=1||addBusy} onClick={()=>setAddPage(p=>p-1)}>Anterior</button><small>Página {addPage} de {Math.max(1,Math.ceil(addTotal/30))} · {addChecked.length} selecionados</small><button type="button" disabled={addPage*30>=addTotal||addBusy} onClick={()=>setAddPage(p=>p+1)}>Próxima</button></div>
          <footer><button type="button" onClick={()=>void addProducts()} disabled={!addChecked.length||busy}><Plus size={16}/> Incluir {addChecked.length} produto(s)</button></footer>
        </div>:<form onSubmit={pane==='create'?create:save}>
          <label>Nome<input maxLength={100} required autoFocus value={name} onChange={e=>setName(e.target.value)} disabled={busy||Boolean(selected?.lockedByPlan)&&pane==='settings'}/></label>
