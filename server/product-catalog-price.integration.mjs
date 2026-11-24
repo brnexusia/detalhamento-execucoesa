@@ -183,6 +183,37 @@ try {
   assert.equal(await priceIn(general.id),23)
   assert.equal(await priceIn(retailId),52)
   assert.equal(await priceIn(distinctCatalogId),77)
+  // Copy a catalog with a manually overridden source price into a retail
+  // catalog: the same product and stock must be reused with retail pricing.
+  const source=await request(owner.cookie,'/api/admin/catalogs/'+distinctCatalogId,'PATCH',{items:[{productId:importedId,visible:true,priceOverride:77}]})
+  assert.equal(source.status,200,JSON.stringify(source.json))
+  const beforeCopy=(await pool.query('SELECT count(*)::int AS n FROM products WHERE store_id=$1',[owner.storeId])).rows[0].n
+  const copied=await request(owner.cookie,'/api/admin/catalogs','POST',{name:'Varejo copiado',kind:'varejo',sourceCatalogId:distinctCatalogId})
+  assert.equal(copied.status,201,JSON.stringify(copied.json))
+  const copiedId=copied.json.catalog.id
+  assert.equal(await priceIn(copiedId),52)
+  assert.equal(await priceIn(distinctCatalogId),77)
+  assert.equal((await pool.query('SELECT count(*)::int AS n FROM products WHERE store_id=$1',[owner.storeId])).rows[0].n,beforeCopy)
+  assert.equal((await pool.query('SELECT price_override FROM catalog_products WHERE catalog_id=$1 AND product_id=$2',[copiedId,importedId])).rows[0].price_override,null)
+  const membershipUrl='/api/admin/products/'+importedId+'/catalog-memberships'
+  let memberships=await request(owner.cookie,membershipUrl)
+  assert.equal(memberships.status,200)
+  assert.equal(memberships.json.catalogs.find(c=>c.id===copiedId).included,true)
+  await importedUpdate(23,{retailPrice:60,catalogMemberships:[{catalogId:copiedId,included:false},{catalogId:distinctCatalogId,included:true,resetPrice:true}]})
+  assert.equal(await priceIn(copiedId),undefined)
+  assert.equal(await priceIn(distinctCatalogId),23,'Reset usa o preço do destino')
+  assert.equal(await priceIn(retailId),60)
+  await importedUpdate(23,{catalogMemberships:[{catalogId:copiedId,included:true}]})
+  assert.equal(await priceIn(copiedId),60)
+  memberships=await request(owner.cookie,membershipUrl)
+  assert.equal(memberships.json.catalogs.find(c=>c.id===copiedId).priceOverride,null)
+  const illegal=await request(owner.cookie,'/api/admin/products/'+importedId,'PUT',updatePayload(999,{catalogMemberships:[{catalogId:foreignId,included:true}]}))
+  assert.equal(illegal.status,404)
+  assert.equal(await priceIn(copiedId),60)
+  assert.equal((await request(stranger.cookie,membershipUrl)).status,404)
+  const forbiddenCopy=await request(owner.cookie,'/api/admin/catalogs','POST',{name:'Cópia proibida',kind:'varejo',sourceCatalogId:foreignId})
+  assert.equal(forbiddenCopy.status,404)
+  console.log('SHOPVAX_CATALOG_MEMBERSHIP_AND_DESTINATION_PRICE_PASS')
   console.log('SHOPVAX_IMPORTED_PRICE_MODES_SYNC_PASS')
   console.log('SHOPVAX_IMPORTED_CATALOG_PRICE_SAVE_AND_TENANT_ISOLATION_PASS')
 } finally {
