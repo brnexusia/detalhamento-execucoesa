@@ -36,6 +36,7 @@ function editable(order: AdminOrder) {
 function OrderEditor({order,onClose,onSaved,sellerMode=false}:{order:AdminOrder;onClose:()=>void;onSaved:(order:AdminOrder)=>void;sellerMode?:boolean}) {
   const [lines,setLines]=useState<EditLine[]>(()=>order.items.map((item,index)=>({key:index,originalIndex:index,productId:item.productId,name:item.name,sku:item.sku,quantity:String(item.quantity),unitPrice:String(item.unitPrice),selections:item.selections||{}})))
   const nextKey=useRef(order.items.length)
+  const [removed,setRemoved]=useState<EditLine[]>([])
   const [search,setSearch]=useState('')
   const [results,setResults]=useState<AdminProduct[]>([])
   const [searching,setSearching]=useState(false)
@@ -64,6 +65,18 @@ function OrderEditor({order,onClose,onSaved,sellerMode=false}:{order:AdminOrder;
     const variant=config&&selections[config.group]&&config.prices[selections[config.group]]
     patch(line.key,{selections,...(config?.group===group&&variant&&base>0?{unitPrice:String(Math.round(variant/base*effective*100)/100)}:{})})
   }
+  const productKey=(line:EditLine)=>line.productId?'id:'+line.productId:JSON.stringify([line.sku,line.name])
+  const groups=Array.from(new Set(lines.map(productKey))).map(key=>({key,lines:lines.filter(line=>productKey(line)===key)}))
+  const removeLines=(keys:number[])=>{
+    setRemoved(prev=>[...prev,...lines.filter(line=>keys.includes(line.key))])
+    setLines(prev=>prev.filter(line=>!keys.includes(line.key)))
+  }
+  const restoreLine=(key:number)=>{
+    const line=removed.find(item=>item.key===key)
+    if(!line)return
+    setLines(prev=>[...prev,line].sort((a,b)=>a.key-b.key))
+    setRemoved(prev=>prev.filter(item=>item.key!==key))
+  }
   const total=lines.reduce((sum,line)=>sum+(Number(line.quantity)||0)*Math.round((Number(line.unitPrice)||0)*100),0)/100
   const close=async()=>{
     if(busy)return
@@ -85,12 +98,14 @@ function OrderEditor({order,onClose,onSaved,sellerMode=false}:{order:AdminOrder;
   return <div className="svx-order-edit-layer"><form className="svx-order-edit" role="dialog" aria-modal="true" aria-labelledby="svx-order-edit-title" onSubmit={save}>
     <header><div><small>TALÃO {order.code}</small><h2 id="svx-order-edit-title">Editar pedido</h2></div><button type="button" aria-label="Fechar edição" disabled={busy} onClick={()=>void close()}><X size={21}/></button></header>
     <div className="svx-order-edit__body">
-      <p>Altere as quantidades e os preços, remova itens ou adicione produtos. O preço do catálogo não será alterado.</p>
-      {lines.map((line,index)=><article key={line.key} className="svx-order-edit__item"><div className="svx-order-edit__item-head"><div><strong>{line.name}</strong><small>REF. {line.sku||'—'}</small></div><button type="button" aria-label={'Remover item '+(index+1)} disabled={busy} onClick={()=>setLines(prev=>prev.filter(item=>item.key!==line.key))}><Trash2 size={17}/></button></div>
+      <p>Retire produtos ou grades indisponíveis, ajuste quantidades e preços ou adicione produtos. As alterações só valem para este pedido e serão efetivadas ao salvar.</p>
+      {groups.some(group=>group.lines.length>1)&&<section className="svx-order-edit__groups" aria-label="Remover produtos completos"><h3>Remover produto inteiro</h3><p>Retire todas as grades de um mesmo produto de uma vez.</p>{groups.filter(group=>group.lines.length>1).map(group=><button key={group.key} type="button" disabled={busy} onClick={()=>removeLines(group.lines.map(line=>line.key))}><Trash2 size={16}/><span>{group.lines[0].name} · {group.lines.length} grades</span><strong>Remover todas</strong></button>)}</section>}
+      {lines.map((line,index)=><article key={line.key} className="svx-order-edit__item"><div className="svx-order-edit__item-head"><div><strong>{line.name}</strong><small>REF. {line.sku||'—'}</small></div><button type="button" aria-label={'Remover item '+(index+1)} disabled={busy} onClick={()=>removeLines([line.key])}><Trash2 size={17}/><span>{Object.keys(line.selections).length?'Remover grade':'Remover produto'}</span></button></div>
         {line.product?(line.product.variations||[]).map(group=><label key={group.name}>{group.name}<select required value={line.selections[group.name]||''} disabled={busy} onChange={e=>chooseVariation(line,group.name,e.target.value)}><option value="">Selecione</option>{group.options.map(option=><option key={option}>{option}</option>)}</select></label>):<small>{Object.entries(line.selections).map(([k,v])=>k+': '+v).join(' · ')}</small>}
         <div className="svx-order-edit__fields"><label>Quantidade<input aria-label={'Quantidade do item '+(index+1)} type="number" min="1" max="999" step="1" required value={line.quantity} disabled={busy} onChange={e=>patch(line.key,{quantity:e.target.value})}/></label><label>Preço unitário (R$)<input aria-label={'Preço unitário do item '+(index+1)} type="number" min="0" max="9999999999.99" step=".01" required value={line.unitPrice} disabled={busy} onChange={e=>patch(line.key,{unitPrice:e.target.value})}/></label><div><small>Subtotal</small><strong>{money.format((Number(line.quantity)||0)*Math.round((Number(line.unitPrice)||0)*100)/100)}</strong></div></div>
       </article>)}
-      {!lines.length&&<p>Adicione pelo menos um produto para salvar o pedido.</p>}
+      {removed.length>0&&<section className="svx-order-edit__removed" aria-label="Itens removidos"><h3>Retirados do pedido ({removed.length})</h3><p>Você ainda pode desfazer antes de salvar.</p>{removed.map(line=><div key={line.key}><span><strong>{line.name}</strong><small>{Object.entries(line.selections).map(([k,v])=>k+': '+v).join(' · ')||line.sku||'Sem grade'} · {line.quantity} un.</small></span><button type="button" disabled={busy} onClick={()=>restoreLine(line.key)} aria-label={'Restaurar item '+line.key}>Desfazer</button></div>)}</section>}
+      {!lines.length&&<p>Adicione pelo menos um produto para salvar o pedido. Se todo o pedido estiver indisponível, use o cancelamento do talão com a administração da loja.</p>}
       <section className="svx-order-edit__add"><h3><Plus size={18}/> Adicionar produto</h3><label><Search size={16}/><input aria-label="Buscar produto para o pedido" placeholder="Nome ou referência" value={search} disabled={busy} onChange={e=>setSearch(e.target.value)}/></label>
         {searching&&<small role="status">Buscando produtos…</small>}{searchError&&<p role="alert">{searchError}</p>}
         {!searching&&search.trim()&&!results.length&&!searchError&&<small>Nenhum produto encontrado.</small>}
