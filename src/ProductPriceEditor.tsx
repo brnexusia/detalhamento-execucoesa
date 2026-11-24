@@ -63,7 +63,7 @@ export function buildPricingPayload(value: PricingFields): {price:number;variati
 }
 
 export default function ProductPriceEditor({value,onChange}:{value:PricingFields;onChange:(patch:Partial<PricingFields>)=>void}){
-  const [advanced,setAdvanced]=useState(false)
+  const [advanced,setAdvanced]=useState(true)
   const [custom,setCustom]=useState(Boolean(value.priceGroup&&!Object.hasOwn(presets,value.priceGroup)))
   const [otherOpen,setOtherOpen]=useState(value.otherVariations.length>0)
   const multiple=value.pricingMode==='multiple'
@@ -101,7 +101,8 @@ export default function ProductPriceEditor({value,onChange}:{value:PricingFields
       <button type="button" aria-pressed={multiple} onClick={()=>void changeMode('multiple')}><strong>Vários preços</strong><small>Um valor para cada tamanho, embalagem ou opção.</small></button>
     </div>
     {!multiple?<div className="form-grid svx-price-fields">
-      {value.catalogId?moneyInput('Preço exibido neste catálogo (R$)',value.catalogPrice??value.price,raw=>onChange({catalogPrice:raw}),true):moneyInput('Preço do produto (R$)',value.price,raw=>onChange({price:raw}),true)}
+      {moneyInput('Preço do produto (R$)',value.price,raw=>onChange({price:raw}),true)}
+      <p className="svx-price-hint span-2">Preço base utilizado no Geral, Atacado e Alto Atacado. Varejo e caixa fechada podem ter valores próprios abaixo.</p>
       {value.catalogId&&catalogOverride&&<p className="svx-price-hint span-2">Este catálogo tem um preço próprio. Os demais preços do produto são mantidos.</p>}
     </div>:<div className="svx-price-multiple">
       <label><span>O que muda o preço?</span><select aria-label="O que muda o preço?" value={custom?'custom':value.priceGroup} onChange={e=>void changeGroup(e.target.value)}><option value="" disabled>Escolha uma opção</option>{Object.keys(presets).map(name=><option key={name} value={name}>{name==='Embalagem'?'Embalagem (unidade, pacote, caixa)':name}</option>)}
@@ -121,8 +122,8 @@ export default function ProductPriceEditor({value,onChange}:{value:PricingFields
       </>}
     </div>}
     <details className="svx-pricing-details" open={advanced} onToggle={e=>setAdvanced(e.currentTarget.open)}><summary>Preços de outros catálogos e condições adicionais</summary><div className="form-grid svx-price-fields">
-      {(value.catalogId||multiple)&&moneyInput('Preço base (R$)',value.price,raw=>onChange({price:raw}),!multiple)}
-      {multiple&&value.catalogId&&moneyInput('Preço exibido neste catálogo (R$)',value.catalogPrice??value.price,raw=>onChange({catalogPrice:raw}))}
+      {multiple&&moneyInput('Preço base (R$)',value.price,raw=>onChange({price:raw}))}
+      {value.catalogId&&<details className="svx-pricing-details span-2"><summary>Preço específico deste catálogo (opcional)</summary>{moneyInput('Preço exibido neste catálogo (R$)',value.catalogPrice??value.price,raw=>onChange({catalogPrice:raw}))}<p className="svx-price-hint">Altere este campo somente para definir uma exceção ao preço automático do catálogo. Para voltar ao preço do tipo de venda, use a opção Usar preço automático na lista de catálogos.</p></details>}
       {multiple&&<p className="svx-price-hint span-2">Os valores das opções são preços padrão. Se um catálogo tiver outro preço base, suas opções mantêm a mesma proporção. Para produtos novos, o menor preço é usado como base.</p>}
       {moneyInput('Preço varejo (R$)',value.retailPrice,raw=>onChange({retailPrice:raw}))}
       {moneyInput('Preço caixa fechada (R$)',value.boxPrice,raw=>onChange({boxPrice:raw}))}
