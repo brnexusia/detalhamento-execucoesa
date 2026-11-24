@@ -178,7 +178,7 @@ async function createStockOrder(req, res) {
       const unitPrice = Number(product.price)
       const lineTotal = toMoney(unitPrice * quantity)
       total += lineTotal
-      items.push({ productId: product.id, sku: product.sku, name: product.name, quantity, unitPrice, lineTotal, selections, stockKey: variantKey(selections) })
+      items.push({ productId: product.id, sku: product.sku, name: product.name, quantity, unitPrice, lineTotal, selections, stockKey: variantKey(selections), stockUnits:quantity, unitsPerBox:1, stockDebited:Boolean(product.stock_enabled) })
 
       if (product.stock_enabled) {
         const map = normalizeVariantStock(product.variant_stock)
@@ -282,8 +282,8 @@ async function cancelOrder(req, res) {
       const byId = new Map(products.rows.map((product) => [product.id, product]))
       for (const item of items) {
         const product = byId.get(String(item.productId || ''))
-        if (!product?.stock_enabled) continue
-        const quantity = Math.max(0, Math.floor(Number(item.quantity) || 0))
+        if (!product?.stock_enabled || item.stockDebited===false) continue
+        const quantity = Math.max(0, Math.floor(Number(item.stockUnits ?? item.quantity) || 0))
         if (!quantity) continue
         const map = normalizeVariantStock(product.variant_stock)
         const key = String(item.stockKey || variantKey(item.selections))
