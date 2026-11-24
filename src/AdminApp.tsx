@@ -638,6 +638,33 @@ function ProductEditor({ draft, setDraft, onClose, onSaved, targetCatalogId }: {
     return Array.from(new Set(values.filter(Boolean)))
   })
   const gallerySavedRef = useRef<string[]>([...gallery])
+  type Membership=Awaited<ReturnType<typeof api.productCatalogMemberships>>['catalogs'][number]
+  const [memberships,setMemberships]=useState<Membership[]>([])
+  const [membershipChanges,setMembershipChanges]=useState<Record<string,{included:boolean;resetPrice?:boolean}>>({})
+  const [membershipLoading,setMembershipLoading]=useState(true)
+  const [membershipError,setMembershipError]=useState('')
+  const loadMemberships=()=>{
+    setMembershipLoading(true);setMembershipError('')
+    void api.productCatalogMemberships(draft.id).then(result=>{
+      setMemberships(result.catalogs)
+      if(!draft.id&&targetCatalogId&&result.catalogs.some(c=>c.id===targetCatalogId&&!c.included&&!c.lockedByPlan))
+        setMembershipChanges(prev=>({...prev,[targetCatalogId]:{included:true}}))
+    }).catch(err=>setMembershipError(err instanceof Error?err.message:'Não foi possível consultar catálogos.')).finally(()=>setMembershipLoading(false))
+  }
+  useEffect(()=>{loadMemberships()},[])
+  const included=(catalog:Membership)=>membershipChanges[catalog.id]?.included??catalog.included
+  const membershipPrice=(catalog:Membership)=>{
+    const change=membershipChanges[catalog.id]
+    if(catalog.priceOverride!=null&&catalog.included&&!change?.resetPrice&&included(catalog)){
+      if(draft.catalogId===catalog.id&&draft.catalogPrice!==draft.originalCatalogPrice)return Number(draft.catalogPrice)
+      return catalog.priceOverride
+    }
+    if(draft.catalogId===catalog.id&&draft.catalogPrice!==draft.originalCatalogPrice&&!change?.resetPrice)return Number(draft.catalogPrice)
+    const mode=catalog.kind==='personalizado'?catalog.priceMode:catalog.kind
+    const fallback=Number(draft.price)||Math.min(...draft.priceRows.map(row=>Number(row.price)).filter(n=>n>0),Infinity)
+    const value=mode==='varejo'?Number(draft.retailPrice):mode==='caixa_fechada'?Number(draft.boxPrice):0
+    return value>0?value:fallback
+  }
   const [photoLimit, setPhotoLimit] = useState<number | null>(null)
   const [stockAllowed, setStockAllowed] = useState(false)
   const [error, setError] = useState('')
@@ -651,7 +678,7 @@ function ProductEditor({ draft, setDraft, onClose, onSaved, targetCatalogId }: {
     }).catch(() => undefined)
   }, [])
 
-  const dirty = JSON.stringify(draft) !== initialSnapshot || JSON.stringify(gallery) !== JSON.stringify(gallerySavedRef.current)
+  const dirty = JSON.stringify(draft) !== initialSnapshot || JSON.stringify(gallery) !== JSON.stringify(gallerySavedRef.current) || Object.keys(membershipChanges).length>0
   useEffect(() => {
     const beforeUnload = (event: BeforeUnloadEvent) => { if (!dirty) return; event.preventDefault(); event.returnValue = '' }
     window.addEventListener('beforeunload', beforeUnload)
@@ -726,7 +753,7 @@ function ProductEditor({ draft, setDraft, onClose, onSaved, targetCatalogId }: {
     let pricing
     try { pricing = buildPricingPayload(draft) }
     catch (err) { setError(err instanceof Error ? err.message : 'Confira os preços do produto.'); setBusy(false); return }
-    const body = { ...pricing, name: draft.name, sku: draft.sku, description: draft.description, ...(draft.id && draft.catalogId && draft.catalogPrice !== undefined && draft.catalogPrice !== draft.originalCatalogPrice ? { catalogId: draft.catalogId, catalogPrice: Number(draft.catalogPrice) } : {}), retailPrice: draft.retailPrice === '' ? null : Number(draft.retailPrice), boxPrice: draft.boxPrice === '' ? null : Number(draft.boxPrice), unitsPerBox: draft.unitsPerBox === '' ? null : Number(draft.unitsPerBox), category: draft.category, pack: draft.pack, mediaUrl: cover, mediaType: draft.mediaType, featured: draft.featured, active: draft.active, ...(draft.id ? {} : { catalogId: targetCatalogId || undefined }) }
+    const body = { ...pricing, ...(Object.keys(membershipChanges).length?{catalogMemberships:Object.entries(membershipChanges).map(([catalogId,change])=>({catalogId,...change}))}:{}), name: draft.name, sku: draft.sku, description: draft.description, ...(draft.id && draft.catalogId && draft.catalogPrice !== undefined && draft.catalogPrice !== draft.originalCatalogPrice ? { catalogId: draft.catalogId, catalogPrice: Number(draft.catalogPrice) } : {}), retailPrice: draft.retailPrice === '' ? null : Number(draft.retailPrice), boxPrice: draft.boxPrice === '' ? null : Number(draft.boxPrice), unitsPerBox: draft.unitsPerBox === '' ? null : Number(draft.unitsPerBox), category: draft.category, pack: draft.pack, mediaUrl: cover, mediaType: draft.mediaType, featured: draft.featured, active: draft.active, ...(draft.id ? {} : { catalogId: targetCatalogId || undefined }) }
     try {
       let productId = draft.id
       if (productId) await api.updateProduct(productId, body)
@@ -746,6 +773,27 @@ function ProductEditor({ draft, setDraft, onClose, onSaved, targetCatalogId }: {
     <section className="product-inline-section"><div className="product-inline-section__head"><div><strong>Fotos do produto</strong><span>A primeira foto é a capa. {photoLimit == null ? 'Sem limite adicional informado.' : `Até ${photoLimit} fotos no seu plano.`}</span></div><label className="secondary-action"><Upload size={15}/> Adicionar fotos<input type="file" accept="image/jpeg,image/png,image/webp,image/avif,image/heic,image/heif,.heic,.heif" multiple hidden disabled={uploading} onChange={(e) => { void uploadGallery(e.target.files); e.currentTarget.value = '' }}/></label></div>{gallery.length ? <div className="product-inline-gallery">{gallery.map((image, index) => <div key={`${image}-${index}`}><img src={image} alt={`${draft.name || 'Produto'} ${index + 1}`}/>{index === 0 && <span>Capa</span>}<div><button type="button" disabled={index === 0} onClick={() => moveGallery(index, -1)} aria-label="Mover foto para esquerda"><ChevronLeft size={14}/></button><button type="button" disabled={index === gallery.length - 1} onClick={() => moveGallery(index, 1)} aria-label="Mover foto para direita"><ChevronRight size={14}/></button><button type="button" className="danger" onClick={() => setGallery((current) => current.filter((_, itemIndex) => itemIndex !== index))} aria-label="Remover foto"><Trash2 size={14}/></button></div></div>)}</div> : <p className="product-inline-empty">Nenhuma foto adicional. Você pode adicionar várias imagens aqui.</p>}</section>
     <div className="form-grid"><label className="span-2"><span>Nome</span><input value={draft.name} onChange={(e) => update('name', e.target.value)} required /></label><ProductCategoryPicker value={draft.category} onChange={category=>update('category',category)} /><label><span>SKU / referência</span><input value={draft.sku} onChange={(e) => update('sku', e.target.value)} /></label><label className="span-2"><span>Descrição curta</span><textarea rows={3} value={draft.description} onChange={(e) => update('description', e.target.value)} /></label></div>
     <ProductPriceEditor value={draft} onChange={patch => setDraft({...draft,...patch})} />
+    <section className="product-inline-section svx-product-memberships" aria-label="Catálogos do produto">
+      <div className="product-inline-section__head"><div><strong>Catálogos do produto</strong><span>Marque onde este produto deve aparecer. Cada catálogo utiliza seu tipo de preço, sem duplicar o produto ou o estoque.</span></div></div>
+      {membershipLoading&&<p role="status">Carregando catálogos…</p>}
+      {membershipError&&<p role="alert">{membershipError} <button type="button" className="secondary-action" onClick={loadMemberships}>Tentar novamente</button></p>}
+      {!membershipLoading&&!membershipError&&memberships.map(catalog=>{
+        const change=membershipChanges[catalog.id]
+        const isIncluded=included(catalog)
+        const override=catalog.priceOverride!=null&&catalog.included&&!change?.resetPrice
+        const price=membershipPrice(catalog)
+        const mode=catalog.kind==='personalizado'?catalog.priceMode:catalog.kind
+        const label=mode==='varejo'?'Varejo':mode==='caixa_fechada'?'Caixa fechada':mode==='alto_atacado'?'Alto atacado (base)':mode==='atacado'?'Atacado (base)':'Preço base'
+        return <div className="svx-product-membership" key={catalog.id}>
+          <label><input type="checkbox" aria-label={'Incluir em '+catalog.name} checked={isIncluded} disabled={busy||catalog.lockedByPlan} onChange={e=>{const value=e.target.checked;setMembershipChanges(prev=>{const next={...prev};if(value===catalog.included&&!prev[catalog.id]?.resetPrice)delete next[catalog.id];else next[catalog.id]={included:value};return next})}}/>
+            <span><strong>{catalog.name}</strong><small>{label}{catalog.lockedByPlan?' · Bloqueado pelo plano':!catalog.active?' · Não publicado':''}</small></span>
+            <b>{Number.isFinite(price)&&price>0?money.format(price):'—'}</b>
+          </label>
+          {isIncluded&&override&&!catalog.lockedByPlan&&<div className="svx-product-membership__override"><small>Preço específico do catálogo</small><button type="button" disabled={busy} onClick={()=>setMembershipChanges(prev=>({...prev,[catalog.id]:{included:true,resetPrice:true}}))}>Usar preço automático</button></div>}
+          {isIncluded&&change?.resetPrice&&<small>O preço automático será aplicado ao salvar.</small>}
+        </div>
+      })}
+    </section>
     <details className="svx-pricing-details"><summary>Outras informações do produto</summary><div className="form-grid"><label className="span-2"><span>Grade / embalagem (informação complementar)</span><input value={draft.pack} onChange={(e) => update('pack', e.target.value)} placeholder="Kit 6 un. / Grade P-M-G" /></label></div></details>
     {stockAllowed && <section className="product-inline-section"><div className="product-inline-section__head"><div><strong>Estoque</strong><span>Controle básico deste produto. Estoque por grade continua disponível em recursos avançados.</span></div><label className="inline-switch"><input type="checkbox" checked={draft.stockEnabled} onChange={(e) => update('stockEnabled', e.target.checked)}/><span>Controlar estoque</span></label></div>{draft.stockEnabled && <label><span>Quantidade disponível</span><input type="number" min="0" step="1" value={draft.stockQuantity} onChange={(e) => update('stockQuantity', Math.max(0, Number(e.target.value) || 0))}/></label>}</section>}
     <div className="toggle-row"><label><input type="checkbox" checked={draft.featured} onChange={(e) => update('featured', e.target.checked)} /><span>Destaque / mais pedido</span></label><label><input type="checkbox" checked={draft.active} onChange={(e) => update('active', e.target.checked)} /><span>Produto visível</span></label></div>{uploadProgress && <p className="catalog-upload-progress" role="status">{uploadProgress}</p>}{uploadNotice && <p className="catalog-upload-progress" role="status">{uploadNotice}</p>}{error && <p className="form-error">{error}</p>}
