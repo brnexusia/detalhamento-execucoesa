@@ -34,6 +34,23 @@ try {
     const request=new URL(calls[0])
     assert.equal(request.pathname,'/api/public/store/loja-ux'+(scenario.seller?'/'+scenario.seller:''),scenario.pathname)
     assert.equal(request.searchParams.get('catalog')||'',scenario.catalog,scenario.pathname)
+    const filters=page.getByRole('region',{name:'Filtrar produtos por categoria'})
+    await filters.getByRole('button',{name:'Todos',exact:true}).waitFor({state:'visible'})
+    const categoryButton=filters.getByRole('button',{name:'Colares',exact:true})
+    await categoryButton.waitFor({state:'visible'})
+    assert.equal(await filters.getByRole('button',{name:'Todos',exact:true}).getAttribute('aria-pressed'),'true')
+    const filteredResponse=page.waitForResponse(response=>new URL(response.url()).searchParams.get('category')==='Colares'&&response.url().includes('/api/public/store/'))
+    await categoryButton.click()
+    await filteredResponse
+    assert.equal(await categoryButton.getAttribute('aria-pressed'),'true')
+    const filteredRequest=new URL(calls.at(-1))
+    assert.equal(filteredRequest.searchParams.get('category'),'Colares')
+    assert.equal(filteredRequest.searchParams.get('catalog')||'',scenario.catalog)
+    assert.equal(filteredRequest.pathname,request.pathname)
+    const allResponse=page.waitForResponse(response=>response.url().includes('/api/public/store/')&&!new URL(response.url()).searchParams.has('category'))
+    await filters.getByRole('button',{name:'Todos',exact:true}).click()
+    await allResponse
+    assert.equal(await filters.getByRole('button',{name:'Todos',exact:true}).getAttribute('aria-pressed'),'true')
     if(scenario.catalog) {
       const link=page.locator('.svx-store-catalog-switch a').first()
       if(await link.count())assert.equal(new URL(await link.getAttribute('href'),'https://shopvax.com.br').pathname,
