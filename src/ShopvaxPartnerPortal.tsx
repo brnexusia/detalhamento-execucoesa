@@ -91,7 +91,7 @@ export default function ShopvaxPartnerPortal(){
    }catch{setError('Não foi possível copiar automaticamente. Selecione o '+kind+' exibido e copie manualmente.')}
  }
  return <main className="svx-partner svx-partner--redesign">
-  <header className="svx-partner__top"><a href="/" className="svx-partner__brand"><img src="/brand/shopvax-symbol-dark.svg" alt="" aria-hidden="true"/><img src="/brand/shopvax-wordmark.svg" alt="Shopvax"/><span>Parceiros</span></a><span><Handshake size={18}/> Programa de indicações</span></header>
+  <header className="svx-partner__top"><a href="/" className="svx-partner__brand"><img src="/brand/shopvax-symbol.svg" alt="" aria-hidden="true"/><img src="/brand/shopvax-wordmark.svg" alt="Shopvax"/><span>Parceiros</span></a><span><Handshake size={18}/> Programa de indicações</span></header>
   {loading?<p>Carregando área de parceiros…</p>:!dashboard&&loadFailure?
     <section className="svx-partner__auth"><h1>Não foi possível abrir o portal.</h1><p role="alert" className="svx-partner__error">{loadFailure}</p><button type="button" onClick={()=>{setLoadFailure('');setLoading(true);void load()}}>Tentar novamente <RefreshCcw size={16}/></button></section>
     :!dashboard?
