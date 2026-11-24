@@ -91,6 +91,8 @@ export type AdminProduct = {
   description: string
   price: number
   retail_price?: number | null
+  wholesale_price?: number | null
+  high_wholesale_price?: number | null
   box_price?: number | null
   units_per_box?: number | null
   category: string
