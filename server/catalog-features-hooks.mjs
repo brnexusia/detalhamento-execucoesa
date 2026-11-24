@@ -1,3 +1,4 @@
+import { buildOrderWhatsappMessage, assertKnownOrderSelections, orderProductDetails } from './order-whatsapp-message.mjs'
 import { resolvedVariantPrices, variantUnitPrice } from './variant-pricing.mjs'
 import { withCatalogMedia, catalogMediaProjection } from './catalog-media.mjs'
 import { subscriptionAccess } from './stripe-billing-policy.mjs'
@@ -728,6 +729,7 @@ function validateProductSelections(product, requested) {
     if (!selected || !options.includes(selected)) throw new Error(`Escolha ${name} para ${product.name}.`)
     selections[name] = selected
   }
+  assertKnownOrderSelections(product, requested, selections)
   return normalizeSelections(selections)
 }
 function availableStock(product, selections) {
@@ -757,7 +759,7 @@ async function createCatalogOrder(req, res) {
   try {
     await client.query('BEGIN')
     const productsResult = await client.query(
-      `SELECT p.*,${effectiveCatalogPrice} AS public_price,(CASE WHEN c.explicit_membership THEN cp.visible=true ELSE COALESCE(cp.visible,true) END) AS catalog_visible
+      `SELECT p.*,cp.media_override,${effectiveCatalogPrice} AS public_price,(CASE WHEN c.explicit_membership THEN cp.visible=true ELSE COALESCE(cp.visible,true) END) AS catalog_visible
        FROM products p JOIN catalogs c ON c.id=$3
        LEFT JOIN catalog_products cp ON cp.product_id=p.id AND cp.catalog_id=$3
        WHERE p.store_id=$1 AND p.active=true AND p.id=ANY($2::text[]) ORDER BY p.id FOR UPDATE OF p`,
@@ -780,7 +782,7 @@ async function createCatalogOrder(req, res) {
       const unitPrice = variantUnitPrice(product, selections)
       const lineTotal = toMoney(unitPrice * quantity)
       total += lineTotal
-      items.push({ productId: product.id, sku: product.sku, name: product.name, quantity, unitPrice, lineTotal, selections, stockKey: variantKey(selections), catalogId: catalog.id, stockUnits, unitsPerBox, stockDebited:Boolean(product.stock_enabled) })
+      items.push({ productId: product.id, sku: product.sku, name: product.name, ...orderProductDetails(withCatalogMedia(product), selections), quantity, unitPrice, lineTotal, selections, stockKey: variantKey(selections), catalogId: catalog.id, stockUnits, unitsPerBox, stockDebited:Boolean(product.stock_enabled) })
       if (product.stock_enabled) {
         const map = normalizeVariantStock(product.variant_stock)
         const key = variantKey(selections)
@@ -839,9 +841,7 @@ async function createCatalogOrder(req, res) {
     await client.query('INSERT INTO orders (id,code,store_id,seller_id,catalog_id,total,items,status,buyer,notes,customer_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)', [orderId, code, store.id, seller?.id || null, catalog.id, total, JSON.stringify(items), 'whatsapp', JSON.stringify(buyer), notes, req.shopvaxCustomerId || null])
     await client.query('INSERT INTO events (id,store_id,seller_id,kind) VALUES ($1,$2,$3,$4)', [id(), store.id, seller?.id || null, 'whatsapp'])
     await client.query('COMMIT')
-    const formatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
-    const lines = items.map((item) => `${item.quantity}x ${item.name}${Object.keys(item.selections).length ? ` (${Object.entries(item.selections).map(([key,value]) => `${key}: ${value}`).join(' · ')})` : ''} — ${formatter.format(item.lineTotal)}`)
-    const message = [`Olá! Montei este pedido na ${store.name}:`, `Catálogo: ${catalog.name}`, '', ...lines, '', `Total dos produtos: ${formatter.format(total)}`, `Pedido: ${code}`, ...(buyer.name ? [`Comprador: ${buyer.name}`] : []), ...(buyer.city ? [`Cidade: ${buyer.city}`] : []), ...(buyer.cep ? [`CEP: ${buyer.cep}`] : []), ...(buyer.phone ? [`Contato: ${buyer.phone}`] : []), ...(notes ? [`Observações: ${notes}`] : []), '', `Quero finalizar com ${seller?.name || 'atendimento'}.`].join('\n')
+    const message = buildOrderWhatsappMessage({ order: { code, items, buyer, notes }, store, seller, catalog, total })
     return res.status(201).json({ code, orderId, catalog: catalogShape(catalog), whatsappUrl: `https://wa.me/${phone}?text=${encodeURIComponent(message)}` })
   } catch (error) {
     try { await client.query('ROLLBACK') } catch {}
@@ -1009,8 +1009,10 @@ async function editCatalogOrder(req,res) {
       }else{
         product=byId.get(String(item.productId||''))
         if(!product?.active)throw reject(400,'Produto não disponível nesta loja.')
+        let mediaProduct=product
         if(catalog){
-          const member=(await client.query('SELECT visible FROM catalog_products WHERE catalog_id=$1 AND product_id=$2',[catalog.id,product.id])).rows[0]
+          const member=(await client.query('SELECT visible,media_override FROM catalog_products WHERE catalog_id=$1 AND product_id=$2',[catalog.id,product.id])).rows[0]
+          mediaProduct=withCatalogMedia({...product,media_override:member?.media_override})
           if(catalog.explicit_membership?member?.visible!==true:member?.visible===false)
             throw reject(400,'Produto não disponível neste catálogo.')
         }
@@ -1018,7 +1020,7 @@ async function editCatalogOrder(req,res) {
         try{selections=validateProductSelections(product,item.selections)}catch(error){throw reject(400,error.message)}
         const unitsPerBox=catalog&&isBoxCatalog(catalog)?Math.max(1,Number(product.units_per_box||1)):1
         const stockUnits=quantity*unitsPerBox,stockKey=variantKey(selections)
-        row={productId:product.id,sku:product.sku,name:product.name,quantity,unitPrice:cents/100,lineTotal:lineCents/100,selections,stockKey,stockUnits,unitsPerBox,stockDebited:Boolean(product.stock_enabled),catalogId:catalog?.id||null}
+        row={productId:product.id,sku:product.sku,name:product.name,...orderProductDetails(mediaProduct,selections),quantity,unitPrice:cents/100,lineTotal:lineCents/100,selections,stockKey,stockUnits,unitsPerBox,stockDebited:Boolean(product.stock_enabled),catalogId:catalog?.id||null}
         delta(product,stockKey,-stockUnits)
       }
       nextItems.push(row)

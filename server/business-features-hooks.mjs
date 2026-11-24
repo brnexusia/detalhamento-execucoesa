@@ -1,3 +1,4 @@
+import { buildOrderWhatsappMessage, assertKnownOrderSelections, orderProductDetails } from './order-whatsapp-message.mjs'
 import crypto from 'node:crypto'
 import express from 'express'
 import pg from 'pg'
@@ -124,6 +125,7 @@ function validateProductSelections(product, requested) {
     if (!selected || !options.includes(selected)) throw new Error(`Escolha ${name} para ${product.name}.`)
     selections[name] = selected
   }
+  assertKnownOrderSelections(product, requested, selections)
   return normalizeSelections(selections)
 }
 
@@ -178,7 +180,7 @@ async function createStockOrder(req, res) {
       const unitPrice = Number(product.price)
       const lineTotal = toMoney(unitPrice * quantity)
       total += lineTotal
-      items.push({ productId: product.id, sku: product.sku, name: product.name, quantity, unitPrice, lineTotal, selections, stockKey: variantKey(selections), stockUnits:quantity, unitsPerBox:1, stockDebited:Boolean(product.stock_enabled) })
+      items.push({ productId: product.id, sku: product.sku, name: product.name, ...orderProductDetails(product, selections), quantity, unitPrice, lineTotal, selections, stockKey: variantKey(selections), stockUnits:quantity, unitsPerBox:1, stockDebited:Boolean(product.stock_enabled) })
 
       if (product.stock_enabled) {
         const map = normalizeVariantStock(product.variant_stock)
@@ -247,13 +249,7 @@ async function createStockOrder(req, res) {
     await client.query('INSERT INTO events (id,store_id,seller_id,kind) VALUES ($1,$2,$3,$4)', [id(), store.id, seller?.id || null, 'whatsapp'])
     await client.query('COMMIT')
 
-    const formatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
-    const lines = items.map((item) => {
-      const variations = Object.entries(item.selections).map(([key, value]) => `${key}: ${value}`).join(' · ')
-      return `${item.quantity}x ${item.name}${variations ? ` (${variations})` : ''} — ${formatter.format(item.lineTotal)}`
-    })
-    const attendant = seller?.name || 'atendimento'
-    const message = [`Olá! Montei este pedido na ${store.name}:`, '', ...lines, '', `Total dos produtos: ${formatter.format(total)}`, `Pedido: ${code}`, ...(buyer.name ? [`Comprador: ${buyer.name}`] : []), ...(buyer.city ? [`Cidade: ${buyer.city}`] : []), ...(buyer.cep ? [`CEP: ${buyer.cep}`] : []), ...(buyer.phone ? [`Contato: ${buyer.phone}`] : []), ...(notes ? [`Observações: ${notes}`] : []), '', `Quero finalizar com ${attendant}.`].join('\n')
+    const message = buildOrderWhatsappMessage({ order: { code, items, buyer, notes }, store, seller, total })
     return res.status(201).json({ code, orderId, whatsappUrl: `https://wa.me/${phone}?text=${encodeURIComponent(message)}` })
   } catch (error) {
     try { await client.query('ROLLBACK') } catch {}

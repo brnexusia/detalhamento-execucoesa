@@ -1,3 +1,4 @@
+import { buildOrderWhatsappMessage, assertKnownOrderSelections, orderProductDetails } from './order-whatsapp-message.mjs'
 import { normalizeVariantPrices, resolvedVariantPrices, variantUnitPrice } from './variant-pricing.mjs'
 import { installProductCategorySchema } from './product-category-schema.mjs'
 import { installProductBulkJobs } from './product-bulk-jobs.mjs'
@@ -1368,6 +1369,8 @@ app.post(
         selections[group.name] = selected
       }
 
+      try { assertKnownOrderSelections(product, requested.selections, selections) }
+      catch (error) { return res.status(400).json({ error: error.message }) }
       const unitPrice = variantUnitPrice(product, selections)
       const lineTotal = unitPrice * quantity
       total += lineTotal
@@ -1375,6 +1378,7 @@ app.post(
         productId: product.id,
         sku: product.sku,
         name: product.name,
+        ...orderProductDetails(product, selections),
         quantity,
         unitPrice,
         lineTotal,
@@ -1425,24 +1429,7 @@ app.post(
       'whatsapp',
     ])
 
-    const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
-    const lines = items.map((item) => {
-      const variations = Object.entries(item.selections)
-        .map(([key, value]) => `${key}: ${value}`)
-        .join(' · ')
-      return `${item.quantity}x ${item.name}${variations ? ` (${variations})` : ''} — ${money.format(item.lineTotal)}`
-    })
-    const attendant = seller?.name || 'atendimento'
-    const message = [
-      `Olá! Montei este pedido na ${store.name}:`,
-      '',
-      ...lines,
-      '',
-      `Total dos produtos: ${money.format(total)}`,
-      `Pedido: ${code}`,
-      '',
-      `Quero finalizar com ${attendant}.`,
-    ].join('\n')
+    const message = buildOrderWhatsappMessage({ order: { code, items }, store, seller, total })
 
     res.status(201).json({
       code,
