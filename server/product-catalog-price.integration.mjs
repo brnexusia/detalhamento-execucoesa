@@ -128,6 +128,62 @@ try {
     updatePayload(100,{variations,variantPrices:null}))
   assert.equal(response.status,200,JSON.stringify(response.json))
   assert.equal((await getPrice(owner.cookie,general.id)).variant_prices,null)
+  // Reproduce actual historical importer provenance (same transaction timestamp
+  // for the copied price and completed job), not a manual catalog price.
+  const importedId=id()
+  await pool.query(`INSERT INTO products(id,store_id,sku,name,description,price,category,retail_price,box_price)
+    VALUES($1,$2,$3,'Importado sincronizável','',20,'Geral',35,180)`,
+    [importedId,owner.storeId,'SYNC-'+suffix])
+  const makeCatalog=async(name,kind,priceMode)=>{
+    const r=await request(owner.cookie,'/api/admin/catalogs','POST',{name,kind,priceMode,minimumOrder:0,...(kind==='personalizado'?{customLabel:'Especial'}:{})})
+    assert.equal(r.status,201,JSON.stringify(r.json))
+    return r.json.catalog.id
+  }
+  const retailId=await makeCatalog('Varejo sincronizável','varejo','base')
+  const boxId=await makeCatalog('Caixa sincronizável','caixa_fechada','base')
+  const wholesaleId=await makeCatalog('Atacado sincronizável','atacado','base')
+  const customRetail=await makeCatalog('Personalizado varejo','personalizado','varejo')
+  const fixtures=[[general.id,25],[wholesaleId,26],[retailId,40],[boxId,200],[customRetail,45]]
+  for(const [catalogId,oldPrice] of fixtures){
+    const jobId=id()
+    const timestamp=new Date('2026-10-15T12:00:00Z')
+    await pool.query(`INSERT INTO import_jobs(id,store_id,source_url,source_host,status,target_catalog_id,published_at,updated_at)
+      VALUES($1,$2,'https://example.test','example.test','completed',$3,$4,$4)`,[jobId,owner.storeId,catalogId,timestamp])
+    await pool.query(`INSERT INTO import_normalized_products(id,job_id,store_id,fingerprint,normalized_data,selected,published_product_id,publish_result,published_at)
+      VALUES($1,$2,$3,$4,$5,true,$6,'created',$7)`,[id(),jobId,owner.storeId,id(),JSON.stringify({price:oldPrice}),importedId,timestamp])
+    await pool.query(`INSERT INTO catalog_products(catalog_id,product_id,price_override,visible,updated_at)
+      VALUES($1,$2,$3,true,$4)`,[catalogId,importedId,oldPrice,timestamp])
+  }
+  // A manually negotiated price in another catalog stays independent.
+  await pool.query('INSERT INTO catalog_products(catalog_id,product_id,price_override,visible) VALUES($1,$2,77,true)',[distinctCatalogId,importedId])
+  const priceIn=async catalogId=>{
+    const r=await request(owner.cookie,'/api/admin/products?catalogId='+encodeURIComponent(catalogId))
+    assert.equal(r.status,200,JSON.stringify(r.json))
+    return r.json.products.find(p=>p.id===importedId)?.catalogPrice
+  }
+  const importedUpdate=async(price,extra={})=>{
+    const r=await request(owner.cookie,'/api/admin/products/'+importedId,'PUT',updatePayload(price,{sku:'SYNC-'+suffix,name:'Importado sincronizável',...extra}))
+    assert.equal(r.status,200,JSON.stringify(r.json))
+  }
+  await importedUpdate(20,{retailPrice:52})
+  assert.equal(await priceIn(retailId),52)
+  assert.equal(await priceIn(customRetail),52)
+  assert.equal(await priceIn(boxId),200,'Editar varejo não muda caixa')
+  assert.equal(await priceIn(wholesaleId),26,'Editar varejo não muda atacado')
+  await importedUpdate(23,{boxPrice:240})
+  assert.equal(await priceIn(general.id),23)
+  assert.equal(await priceIn(wholesaleId),23)
+  assert.equal(await priceIn(boxId),240)
+  assert.equal(await priceIn(retailId),52)
+  assert.equal(await priceIn(distinctCatalogId),77,'Preço manual independente preservado')
+  const packaging=[{name:'Embalagem',options:['Unidade','Pacote']}]
+  await importedUpdate(23,{variations:packaging,variantPrices:{group:'Embalagem',prices:{Unidade:23,Pacote:115}}})
+  const saved=await pool.query('SELECT variant_prices FROM products WHERE id=$1',[importedId])
+  assert.equal(saved.rows[0].variant_prices.prices.Pacote,115)
+  assert.equal(await priceIn(general.id),23)
+  assert.equal(await priceIn(retailId),52)
+  assert.equal(await priceIn(distinctCatalogId),77)
+  console.log('SHOPVAX_IMPORTED_PRICE_MODES_SYNC_PASS')
   console.log('SHOPVAX_IMPORTED_CATALOG_PRICE_SAVE_AND_TENANT_ISOLATION_PASS')
 } finally {
   for (const userId of users.reverse()) {
