@@ -1,4 +1,6 @@
 import crypto from 'node:crypto'
+import { ensureCatalogSchema } from './catalog-features-hooks.mjs'
+import { feedCatalogJoin, feedCatalogEligible, withCatalogMedia } from './catalog-media.mjs'
 import express from 'express'
 import pg from 'pg'
 import { ensureSocialDailyViews, dailySocialViewInsertSQL } from './social-daily-views-schema.mjs'
@@ -170,6 +172,7 @@ function planTier(value) {
 }
 
 function publicationShape(row) {
+  row=withCatalogMedia(row)
   return {
     id: row.id,
     sku: row.sku,
@@ -204,14 +207,16 @@ function decodeFeedCursor(value) {
 
 async function publicStoreProfile(slug, followerKey, followerStoreId) {
   await schemaReady()
+  await ensureCatalogSchema()
   const result = await pool.query(`
     SELECT s.id,s.slug,s.name,s.tagline,s.eyebrow,s.logo_url,s.accent,s.plan_tier,
-      COUNT(p.id) FILTER (WHERE p.active=true AND p.social_published=true)::int AS product_count,
+      COUNT(p.id) FILTER (WHERE p.active=true AND p.social_published=true AND ${feedCatalogEligible})::int AS product_count,
       (SELECT COUNT(*)::int FROM social_store_follows f WHERE f.store_id=s.id) AS follower_count,
       (SELECT COUNT(*)::int FROM social_post_daily_views v WHERE v.store_id=s.id) AS view_count,
       EXISTS(SELECT 1 FROM social_store_follows f WHERE f.store_id=s.id AND f.visitor_key=$2 AND ($3::text IS NULL OR f.store_id=$3)) AS following
     FROM stores s
     LEFT JOIN products p ON p.store_id=s.id
+    ${feedCatalogJoin}
     WHERE s.slug=$1 AND s.is_active=true AND s.social_enabled=true
     GROUP BY s.id
     LIMIT 1
@@ -236,13 +241,15 @@ async function publicStoreProfile(slug, followerKey, followerStoreId) {
 
 async function publicStorePublications(slug) {
   await schemaReady()
+  await ensureCatalogSchema()
   const store = await pool.query('SELECT id FROM stores WHERE slug=$1 AND is_active=true AND social_enabled=true LIMIT 1', [slug])
   if (!store.rowCount) return null
   const products = await pool.query(`
-    SELECT id,sku,name,description,price,category,media_url,media_type,images,pack,variations,featured,social_published_at
-    FROM products
-    WHERE store_id=$1 AND active=true AND social_published=true
-    ORDER BY social_published_at DESC,id DESC
+    SELECT p.id,p.sku,p.name,p.description,p.price,p.category,p.media_url,p.media_type,p.images,p.pack,p.variations,p.featured,p.social_published_at,fc.media_override
+    FROM products p JOIN stores s ON s.id=p.store_id
+    ${feedCatalogJoin}
+    WHERE p.store_id=$1 AND p.active=true AND p.social_published=true AND ${feedCatalogEligible}
+    ORDER BY p.social_published_at DESC,p.id DESC
     LIMIT 500
   `, [store.rows[0].id])
   return products.rows.map(publicationShape)
@@ -250,10 +257,11 @@ async function publicStorePublications(slug) {
 
 async function publicFeed(cursorValue, requestedLimit, viewerKey, followerKey, followerStoreId) {
   await schemaReady()
+  await ensureCatalogSchema()
   const cursor = decodeFeedCursor(cursorValue)
   const limit = Math.max(1, Math.min(30, Math.floor(Number(requestedLimit) || 12)))
   const result = await pool.query(`
-    SELECT p.id,p.sku,p.name,p.description,p.price,p.category,p.media_url,p.media_type,p.images,p.pack,p.variations,p.featured,p.social_published_at,
+    SELECT p.id,p.sku,p.name,p.description,p.price,p.category,p.media_url,p.media_type,p.images,p.pack,p.variations,p.featured,p.social_published_at,fc.media_override,
       s.id AS store_id,s.slug AS store_slug,s.name AS store_name,s.logo_url AS store_logo_url,s.accent AS store_accent,s.plan_tier,
       (SELECT COUNT(*)::int FROM social_post_daily_views v WHERE v.product_id=p.id) AS social_views,
       (SELECT COUNT(*)::int FROM social_post_likes l WHERE l.product_id=p.id) AS social_likes,
@@ -263,7 +271,8 @@ async function publicFeed(cursorValue, requestedLimit, viewerKey, followerKey, f
       EXISTS(SELECT 1 FROM social_store_follows f WHERE f.store_id=s.id AND f.visitor_key=$5 AND ($6::text IS NULL OR f.store_id=$6)) AS social_following
     FROM products p
     JOIN stores s ON s.id=p.store_id
-    WHERE p.active=true AND p.social_published=true AND s.is_active=true AND s.social_enabled=true
+    ${feedCatalogJoin}
+    WHERE p.active=true AND p.social_published=true AND s.is_active=true AND s.social_enabled=true AND ${feedCatalogEligible}
       AND ($1::timestamptz IS NULL OR p.social_published_at < $1::timestamptz OR (p.social_published_at = $1::timestamptz AND p.id < $2))
     ORDER BY p.social_published_at DESC,p.id DESC
     LIMIT $3
