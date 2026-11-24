@@ -848,11 +848,24 @@ async function applyProductCatalogMemberships(client,store,productId,changes){
         price_override=CASE WHEN $3::boolean OR NOT catalog_products.visible THEN NULL ELSE catalog_products.price_override END,
         updated_at=CASE WHEN $3::boolean OR NOT catalog_products.visible THEN now() ELSE catalog_products.updated_at END`,
         [catalog.id,productId,Boolean(change.resetPrice)])
+      if(Object.hasOwn(change,'mediaImages')){
+        const urls=change.mediaImages
+        let media=null
+        if(urls!==null){
+          if(!Array.isArray(urls)||!urls.length||urls.length>40||urls.some(url=>typeof url!=='string'||!/^\/media\/[A-Za-z0-9_-]+$/.test(url)))
+            throw invalid(400,'Escolha fotos enviadas pela própria loja.')
+          const unique=[...new Set(urls)]
+          const assets=await client.query("SELECT id FROM media_assets WHERE store_id=$1 AND mime_type LIKE 'image/%' AND id=ANY($2::text[])",[store.id,unique.map(url=>url.slice(7))])
+          if(assets.rowCount!==unique.length)throw invalid(400,'Uma foto não está disponível nesta loja.')
+          media={media_url:unique[0],media_type:'image',images:unique,variant_images:[]}
+        }
+        await client.query('UPDATE catalog_products SET media_override=$3::jsonb WHERE catalog_id=$1 AND product_id=$2',[catalog.id,productId,media?JSON.stringify(media):null])
+      }
     }else if(catalog.explicit_membership){
       await client.query('DELETE FROM catalog_products WHERE catalog_id=$1 AND product_id=$2',[catalog.id,productId])
     }else{
       await client.query(`INSERT INTO catalog_products(catalog_id,product_id,visible,price_override)
-        VALUES($1,$2,false,NULL) ON CONFLICT(catalog_id,product_id) DO UPDATE SET visible=false,price_override=NULL,updated_at=now()`,[catalog.id,productId])
+        VALUES($1,$2,false,NULL) ON CONFLICT(catalog_id,product_id) DO UPDATE SET visible=false,price_override=NULL,media_override=NULL,updated_at=now()`,[catalog.id,productId])
     }
   }
 }
