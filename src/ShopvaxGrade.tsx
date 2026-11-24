@@ -1,3 +1,4 @@
+import './product-variations-editor.css'
 import { variantUnitPrice } from './variant-pricing'
 import { useMemo, useState } from 'react'
 import { Minus, Plus, ShoppingBag } from 'lucide-react'
@@ -64,7 +65,7 @@ export function ProductGrade({ product, onAdd, onError }: {
   }
   return <div className="svx-grade" aria-label="Montar grade por cor e tamanho">
     <div className="svx-grade__head"><div><span className="svx-kicker">ESCOLHA AS CORES · DISTRIBUA AS PEÇAS</span><h3>Monte a grade</h3></div><button type="button" className="svx-grade__clear" onClick={() => { setActiveColors([]); setAmounts({}); onError?.('') }}>Limpar</button></div>
-    <div className="svx-grade__colors">{columns.map((color) => <button type="button" key={color} aria-pressed={active.includes(color)} className={active.includes(color) ? 'is-selected' : ''} onClick={() => toggleColor(color)}><span aria-hidden="true">{active.includes(color) ? '■' : '□'}</span> {color}</button>)}</div>
+    <div className="svx-grade__colors">{columns.map((color) => <button type="button" key={color} aria-pressed={active.includes(color)} className={active.includes(color) ? 'is-selected' : ''} onClick={() => toggleColor(color)}><span aria-hidden="true">{active.includes(color) ? '■' : '□'}</span> {groups?.color.swatches?.[color]&&<span aria-hidden="true" className="svx-color-swatch" style={{backgroundColor:groups.color.swatches[color]}}/>}{color}</button>)}</div>
     {!active.length ? <p className="svx-grade__hint">Escolha uma ou mais cores para distribuir as quantidades por tamanho.</p> : <div className="svx-grade__table-scroll"><table className="svx-grade__table"><thead><tr><th scope="col">Tamanho</th>{active.map((color) => <th scope="col" key={color}>{color}</th>)}</tr></thead><tbody>{rows.map((size) => <tr key={size}><th scope="row">{size}</th>{active.map((color) => {
       const value = amounts[`${color}\u001f${size}`] || 0
       const available = stockForVariant(product, { [groups.color.name]: color, [groups.size.name]: size })

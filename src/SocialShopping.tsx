@@ -1,3 +1,4 @@
+import './product-variations-editor.css'
 import { variantUnitPrice, priceLabel } from './variant-pricing'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, Check, Minus, Plus, ShoppingBag, X } from 'lucide-react'
@@ -7,8 +8,9 @@ import type { SocialOffer as Offer, SocialCartLine as CartLine } from './social-
 import './customer-account.css'
 import './social-shopping.css'
 
-type Variant = { name: string; options: string[] }
-type Product = { id: string; sku: string; name: string; description: string; category: string; variations: Variant[]; images: string[]; mediaUrl?:string;mediaType?:'image'|'video' }
+import type { VariationGroup, VariantImageGroup } from './types'
+type Variant = VariationGroup
+type Product = { id: string; sku: string; name: string; description: string; category: string; variations: Variant[]; images: string[]; variantImages?:VariantImageGroup[]; mediaUrl?:string;mediaType?:'image'|'video' }
 type OfferPayload = { product: Product; offers: Offer[]; buyerPurpose: string; ownerPreview?: boolean }
 type Buyer = { id: string; name: string; phone: string; city: string; profileCompleted: boolean }
 type Props = { storeSlug: string; storeName?: string; productId?: string; initialCart?: boolean; initialCatalogSlug?: string; onClose: () => void; onCartChanged?: () => void }
@@ -30,7 +32,7 @@ export default function SocialShopping({storeSlug,storeName,productId,initialCar
   const [quantity,setQuantity]=useState(1)
   const [imageIndex,setImageIndex]=useState(0)
   const media=offer&&offer.images!==undefined?offer:offerData?.product
-  const photos=useMemo(()=>media?Array.from(new Set([...(media.images||[]),...(media.mediaType==='image'&&media.mediaUrl?[media.mediaUrl]:[])].filter(Boolean))).slice(0,8):[],[media])
+  const photos=useMemo(()=>{if(!media)return [];const matches=(media.variantImages||[]).filter(g=>Object.keys(g.selections||{}).length>0&&Object.entries(g.selections).every(([k,v])=>selections[k]===v)).flatMap(g=>g.images||[]);return Array.from(new Set((matches.length?matches:[...(media.images||[]),...(media.mediaType==='image'&&media.mediaUrl?[media.mediaUrl]:[])]).filter(Boolean))).slice(0,8)},[media,selections])
   const [notes,setNotes]=useState('')
   const [error,setError]=useState('')
   const [busy,setBusy]=useState(false)
@@ -196,7 +198,7 @@ export default function SocialShopping({storeSlug,storeName,productId,initialCar
           {offer.unitsPerBox>1&&<p className="svx-social-shop-hint">1 caixa contém {offer.unitsPerBox} unidades. O preço exibido é por caixa.</p>}
           <p className="svx-social-shop-hint">Pedido mínimo neste catálogo: {money.format(offer.minimumOrder)}</p>
           {ownerPreview&&<div className="svx-social-owner-preview" role="status">Visualização do lojista. Você pode conferir os preços dos seus catálogos sem cadastrar um WhatsApp. Pedidos exigem uma conta de comprador verificada.</div>}
-          {!ownerPreview&&(offerData.product.variations||[]).map(v=><div key={v.name} className="svx-social-shop-field"><strong>{v.name}</strong><div className="svx-social-options">{v.options.map(o=><button type="button" key={o} aria-pressed={selections[v.name]===o} className={selections[v.name]===o?'is-selected':''} onClick={()=>{setSelections(s=>({...s,[v.name]:o}));setError('')}}>{o}{offer.variantPrices?.group===v.name&&<small> · {money.format(variantUnitPrice(offer,{[v.name]:o}))}</small>}</button>)}</div></div>)}
+          {!ownerPreview&&(offerData.product.variations||[]).map(v=><div key={v.name} className="svx-social-shop-field"><strong>{v.name}</strong><div className="svx-social-options">{v.options.map(o=><button type="button" key={o} aria-pressed={selections[v.name]===o} className={selections[v.name]===o?'is-selected':''} onClick={()=>{setSelections(s=>({...s,[v.name]:o}));setImageIndex(0);setError('')}}>{v.swatches?.[o]&&<span aria-hidden="true" className="svx-color-swatch" style={{backgroundColor:v.swatches[o]}}/>}{o}{offer.variantPrices?.group===v.name&&<small> · {money.format(variantUnitPrice(offer,{[v.name]:o}))}</small>}</button>)}</div></div>)}
           {!ownerPreview&&<div className="svx-social-qty"><span>Quantidade {offer.unitsPerBox>1?'de caixas':'de itens'}</span><div><button type="button" aria-label="Diminuir" onClick={()=>setQuantity(n=>Math.max(1,n-1))}><Minus size={16}/></button><strong>{quantity}</strong><button type="button" aria-label="Aumentar" onClick={()=>setQuantity(n=>Math.min(999,n+1))}><Plus size={16}/></button></div></div>}
           {!ownerPreview&&<button className="svx-social-shop-primary" onClick={addItem} disabled={Boolean(offer.variantPrices&&!selections[offer.variantPrices.group])}><ShoppingBag size={18}/> {offer.variantPrices&&!selections[offer.variantPrices.group]?'Escolha uma opção de preço':'Adicionar · '+money.format(variantUnitPrice(offer,selections)*quantity)}</button>}
           {!ownerPreview&&<button className="svx-social-shop-secondary" disabled={busy} onClick={()=>void askSeller()}>{busy?'Abrindo…':'Perguntar à vendedora'}</button>}

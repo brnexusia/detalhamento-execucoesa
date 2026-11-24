@@ -1,5 +1,5 @@
-import type { VariantPrices } from './types'
-export type SocialOffer = { id: string; slug: string; name: string; kind: 'varejo'|'atacado'|'alto_atacado'|'geral'|'caixa_fechada'|'personalizado'; customLabel?: string; priceMode?: 'base'|'varejo'|'atacado'|'caixa_fechada'; price: number; variantPrices?: VariantPrices | null; minimumOrder: number; unitsPerBox: number; mediaUrl?:string; mediaType?:'image'|'video'; images?:string[] }
+import type { VariantPrices, VariantImageGroup } from './types'
+export type SocialOffer = { id: string; slug: string; name: string; kind: 'varejo'|'atacado'|'alto_atacado'|'geral'|'caixa_fechada'|'personalizado'; customLabel?: string; priceMode?: 'base'|'varejo'|'atacado'|'caixa_fechada'; price: number; variantPrices?: VariantPrices | null; minimumOrder: number; unitsPerBox: number; mediaUrl?:string; mediaType?:'image'|'video'; images?:string[]; variantImages?:VariantImageGroup[] }
 export type SocialCartLine = { key: string; productId: string; name: string; sku: string; quantity: number; price: number; selections: Record<string,string>; image: string; unitsPerBox: number }
 export type SocialCart = { catalog: SocialOffer; items: SocialCartLine[] }
 

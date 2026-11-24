@@ -2,6 +2,7 @@ export type VariantPrices = { group: string; prices: Record<string, number> }
 export type VariationGroup = {
   name: string
   options: string[]
+  swatches?: Record<string, string>
 }
 
 export type VariantImageGroup = {

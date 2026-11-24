@@ -334,6 +334,12 @@ function normalizeVariations(value) {
     }))
     .filter((group) => group.name && group.options.length)
     .slice(0, 5)
+    .map(group => {
+      if(!/^(cor|cores|color|colors)$/i.test(group.name))return group
+      const original=value.find(g=>String(g?.name||'').trim().slice(0,40)===group.name)
+      const swatches=Object.fromEntries(group.options.flatMap(option=>{const hex=original?.swatches?.[option];return typeof hex==='string'&&/^#[0-9a-f]{6}$/i.test(hex)?[[option,hex]]:[]}))
+      return Object.keys(swatches).length?{...group,swatches}:group
+    })
 }
 function publicStoreShape(store, seller, products) {
   return {

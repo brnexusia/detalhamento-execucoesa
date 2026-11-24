@@ -10,6 +10,7 @@ export type PricingFields = {
   catalogId?: string; catalogPrice?: string; originalCatalogPrice?: string
   pricingMode: 'single' | 'multiple'; priceGroup: string; priceRows: PriceRow[]
   otherVariations: VariationGroup[]
+  colorSwatches?: Record<string,string>
 }
 export const blankPricing: PricingFields = {
   price:'',retailPrice:'',wholesalePrice:'',highWholesalePrice:'',boxPrice:'',unitsPerBox:'',pricingMode:'single',priceGroup:'',priceRows:[],otherVariations:[]
@@ -31,6 +32,7 @@ export function pricingFromProduct(product: AdminProduct): PricingFields {
     boxPrice:product.box_price==null?'':String(product.box_price), unitsPerBox:product.units_per_box==null?'':String(product.units_per_box),
     pricingMode:group?'multiple':'single',priceGroup:group?.name||'',
     priceRows:group&&config?group.options.map(name=>({name,price:String(Object.hasOwn(config.prices,name)?config.prices[name]:product.price)})):[],
+    colorSwatches:groups.find(item=>/^(cor|cores|color|colors)$/i.test(item.name.trim()))?.swatches || {},
     otherVariations:groups.filter(item=>item!==group).map(item=>({name:item.name,options:[...item.options]})),
   }
 }
@@ -60,13 +62,16 @@ export function buildPricingPayload(value: PricingFields): {price:number;variati
     groups.push({name,options})
   }
   if(groups.length>5||hasDuplicate(groups.map(group=>group.name)))throw Error('Use até cinco tipos de variação, sem nomes repetidos.')
+  for(const group of groups) if(/^(cor|cores|color|colors)$/i.test(group.name)) {
+    const swatches=Object.fromEntries(group.options.flatMap(option=>{const hex=value.colorSwatches?.[option];return hex&&/^#[0-9a-f]{6}$/i.test(hex)?[[option,hex]]:[]}))
+    if(Object.keys(swatches).length)group.swatches=swatches
+  }
   return {price,variations:groups,variantPrices}
 }
 
 export default function ProductPriceEditor({value,onChange}:{value:PricingFields;onChange:(patch:Partial<PricingFields>)=>void}){
   const [advanced,setAdvanced]=useState(true)
   const [custom,setCustom]=useState(Boolean(value.priceGroup&&!Object.hasOwn(presets,value.priceGroup)))
-  const [otherOpen,setOtherOpen]=useState(value.otherVariations.length>0)
   const multiple=value.pricingMode==='multiple'
   const catalogOverride=Boolean(value.catalogId&&Number(value.catalogPrice)!==Number(value.price))
   const validRows=value.priceRows.filter(row=>validPrice(row.price))
@@ -79,7 +84,6 @@ export default function ProductPriceEditor({value,onChange}:{value:PricingFields
     }
     if(validRows.length&&!(await confirmAction('As opções continuarão disponíveis ao comprador, mas todas terão o mesmo preço.','Usar preço único','Continuar')))return
     const options=value.priceRows.map(row=>row.name.trim()).filter(Boolean)
-    if(value.priceGroup.trim()&&options.length)setOtherOpen(true)
     onChange({pricingMode:mode,price:basePrice?String(basePrice):'',priceGroup:'',priceRows:[],
       otherVariations:value.priceGroup.trim()&&options.length?[...value.otherVariations,{name:value.priceGroup.trim(),options}]:value.otherVariations})
   }
@@ -93,7 +97,6 @@ export default function ProductPriceEditor({value,onChange}:{value:PricingFields
       otherVariations:former?value.otherVariations.filter(group=>group!==former):value.otherVariations})
   }
   const editRow=(index:number,patch:Partial<PriceRow>)=>onChange({priceRows:value.priceRows.map((row,i)=>i===index?{...row,...patch}:row)})
-  const editGroup=(index:number,patch:Partial<VariationGroup>)=>onChange({otherVariations:value.otherVariations.map((group,i)=>i===index?{...group,...patch}:group)})
   const moneyInput=(label:string,raw:string,onValue:(raw:string)=>void,required=false)=><label><span>{label}</span><div className="svx-price-input"><span aria-hidden="true">R$</span><input aria-label={label} type="number" inputMode="decimal" min=".01" max="9999999999.99" step=".01" value={raw} onChange={e=>onValue(e.target.value)} placeholder="0,00" required={required}/></div></label>
   return <section className="product-inline-section svx-price-editor" aria-label="Preços do produto">
     <div className="svx-price-heading"><h3>Preços do produto</h3><p>Como você vende este produto?</p></div>
@@ -133,12 +136,5 @@ export default function ProductPriceEditor({value,onChange}:{value:PricingFields
       <label><span>Unidades por caixa</span><input type="number" min="1" max="10000" step="1" value={value.unitsPerBox} onChange={e=>onChange({unitsPerBox:e.target.value})} placeholder="Ex.: 12"/></label>
       <p className="svx-price-hint span-2">Use estes campos somente para preços de catálogos separados. Para vender unidade, pacote e caixa no mesmo catálogo, use Vários preços → Embalagem.</p>
     </div></details>
-    <details className="svx-pricing-details" open={otherOpen} onToggle={e=>setOtherOpen(e.currentTarget.open)}><summary>Outras opções do produto (sem alterar o preço)</summary><p className="svx-price-hint">Ex.: cores disponíveis com o mesmo valor. O comprador escolhe no momento do pedido.</p>
-      {value.otherVariations.map((group,i)=><div className="svx-other-variation" key={i}><div className="svx-other-head"><label><span>Tipo de opção</span><input value={group.name} placeholder="Ex.: Cor" maxLength={40} onChange={e=>editGroup(i,{name:e.target.value})}/></label><button type="button" className="svx-price-remove" aria-label={'Remover grupo '+(i+1)} onClick={()=>onChange({otherVariations:value.otherVariations.filter((_,index)=>index!==i)})}><Trash2 size={17}/></button></div>
-        {group.options.map((option,j)=><div className="svx-other-option" key={j}><input aria-label={'Opção '+(i+1)+'.'+(j+1)} value={option} maxLength={60} placeholder="Ex.: Preto" onChange={e=>editGroup(i,{options:group.options.map((raw,k)=>k===j?e.target.value:raw)})}/><button type="button" className="svx-price-remove" aria-label={'Remover opção adicional '+(i+1)+'.'+(j+1)} onClick={()=>editGroup(i,{options:group.options.filter((_,k)=>k!==j)})}><Trash2 size={15}/></button></div>)}
-        <button type="button" className="secondary-action" disabled={group.options.length>=30} onClick={()=>editGroup(i,{options:[...group.options,'']})}><Plus size={15}/> Adicionar valor</button>
-      </div>)}
-      <button type="button" className="secondary-action" disabled={value.otherVariations.length>=(multiple?4:5)} onClick={()=>onChange({otherVariations:[...value.otherVariations,{name:'',options:['']}]})}><Plus size={15}/> Adicionar tipo de opção</button>
-    </details>
   </section>
 }

@@ -1,6 +1,6 @@
 import { notifyAuthChange, listenAuthChanges } from './auth-session-sync'
 import { prepareCatalogPhoto } from './catalog-photo-upload'
-import type { AdminBootstrap, AdminOrder, AdminProduct, Catalog, PublicPayload } from './types'
+import type { AdminBootstrap, AdminOrder, AdminProduct, Catalog, PublicPayload, VariantImageGroup } from './types'
 import { parsePublicStorePath } from './public-share-links'
 
 export type ImportScannerState = {
@@ -271,7 +271,7 @@ export const api = {
   updateStore: (body: Record<string, unknown>) => request('/api/admin/store', { method: 'PUT', body: JSON.stringify(body) }),
   createProduct: (body: Record<string, unknown>) => request<{ product: AdminProduct }>('/api/admin/products', { method: 'POST', body: JSON.stringify(body) }),
   updateProduct: (id: string, body: Record<string, unknown>) => request<{ product: AdminProduct }>(`/api/admin/products/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
-  updateProductGallery: (id: string, images: string[]) => request<{ product: { id: string; images: string[] }; limit: number | null }>(`/api/admin/products/${encodeURIComponent(id)}/gallery`, { method: 'PATCH', body: JSON.stringify({ images }) }),
+  updateProductGallery: (id: string, images: string[], variantImages?: VariantImageGroup[]) => request<{ product: { id: string; images: string[] }; limit: number | null }>(`/api/admin/products/${encodeURIComponent(id)}/gallery`, { method: 'PATCH', body: JSON.stringify({ images, ...(variantImages===undefined?{}:{variantImages}) }) }),
   appendProductGalleryPhoto: (id: string, url: string) => request<{ product: { id: string; images: string[]; media_url: string }; limit: number | null; added: boolean }>(`/api/admin/products/${encodeURIComponent(id)}/gallery/photos`, { method: 'POST', body: JSON.stringify({ url }) }),
   setProductVisibility: (id: string, active: boolean) => request<{ product: { id: string; active: boolean } }>(`/api/admin/products/${encodeURIComponent(id)}/visibility`, { method: 'PATCH', body: JSON.stringify({ active }) }),
   deleteProduct: (id: string) => request(`/api/admin/products/${id}`, { method: 'DELETE' }),
