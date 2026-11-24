@@ -45,6 +45,8 @@ export default function CatalogManager({storeSlug,categories,sellers=[],onSelect
  const [active,setActive]=useState(true)
  const [pdfCategory,setPdfCategory]=useState('')
  const [addSearch,setAddSearch]=useState('')
+ const [sourceCatalogId,setSourceCatalogId]=useState('')
+ const [addSource,setAddSource]=useState('')
  const [candidates,setCandidates]=useState<AdminProduct[]>([])
  const [addChecked,setAddChecked]=useState<string[]>([])
  const [addBusy,setAddBusy]=useState(false)
@@ -103,13 +105,13 @@ export default function CatalogManager({storeSlug,categories,sellers=[],onSelect
    let valid=true
    const timer=setTimeout(()=>{
      setAddBusy(true)
-     void api.listAdminProducts({page:1,limit:30,q:addSearch}).then(r=>{
+     void api.listAdminProducts({page:1,limit:30,q:addSearch,catalogId:addSource||undefined}).then(r=>{
        if(valid)setCandidates(r.products)
      }).catch(e=>{if(valid)setError(e instanceof Error?e.message:'Erro ao procurar produtos.')})
        .finally(()=>{if(valid)setAddBusy(false)})
    },200)
    return()=>{valid=false;clearTimeout(timer)}
- },[pane,addSearch])
+ },[pane,addSearch,addSource])
  useEffect(()=>{
    if(!pane)return
    const onKey=(event:KeyboardEvent)=>{if(event.key==='Escape'&&!busy)setPane(null)}
@@ -167,13 +169,13 @@ export default function CatalogManager({storeSlug,categories,sellers=[],onSelect
      </>}
    </article>
  }
- const show=(next:Pane)=>{setError('');setMessage('');setPane(next);setAddChecked([]);setAddSearch('')}
+ const show=(next:Pane)=>{setError('');setMessage('');setPane(next);setAddChecked([]);setAddSearch('');setAddSource('');setSourceCatalogId('')}
  const create=async(e:React.FormEvent)=>{
    e.preventDefault()
    if(!gold||busy||!name.trim())return
    setBusy(true);setError('')
    try{
-     const r=await api.createCatalog({name:name.trim(),kind,customLabel:kind==='personalizado'?customLabel.trim():'',priceMode:kind==='personalizado'?priceMode:'base',minimumOrder:minimum===''?null:Number(minimum)})
+     const r=await api.createCatalog({name:name.trim(),kind,customLabel:kind==='personalizado'?customLabel.trim():'',priceMode:kind==='personalizado'?priceMode:'base',minimumOrder:minimum===''?null:Number(minimum),sourceCatalogId:sourceCatalogId||undefined})
      await load(r.catalog.id);setFoldersOpen(false);setLinksOpen(false);setPane(null);onChanged()
    }catch(e){setError(e instanceof Error?e.message:'Erro ao criar o catálogo.')}
    finally{setBusy(false)}
@@ -315,7 +317,8 @@ export default function CatalogManager({storeSlug,categories,sellers=[],onSelect
        {message&&<p role="status"><Check size={15}/> {message}</p>}
        {pane==='add'?<div className="svx-catalog-dialog__add">
          <label><Search size={16}/><input value={addSearch} onChange={e=>{setAddSearch(e.target.value);setAddChecked([])}} placeholder="Buscar produto para adicionar" aria-label="Buscar na base de produtos"/></label>
-         <p>Produtos continuam na base da loja. Aqui você apenas os inclui em {selected?.name}.</p>
+         <label>Origem dos produtos<select aria-label="Catálogo de origem" value={addSource} onChange={e=>{setAddSource(e.target.value);setAddChecked([])}}><option value="">Todos os produtos da loja</option>{catalogs.filter(c=>c.id!==selected?.id&&!c.lockedByPlan).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+         <p>Selecione produtos para incluir em {selected?.name}. O preço seguirá o tipo do catálogo de destino; não serão criadas cópias do estoque.</p>
          {addBusy&&<p>Procurando…</p>}
          <div className="svx-catalog-dialog__candidates">{candidates.map(p=><label key={p.id}><input type="checkbox" checked={addChecked.includes(p.id)} onChange={e=>setAddChecked(curr=>e.target.checked?[...curr,p.id]:curr.filter(id=>id!==p.id))}/><span>{p.name}<small>{p.sku||'Sem referência'}</small></span></label>)}</div>
          <footer><button type="button" onClick={()=>void addProducts()} disabled={!addChecked.length||busy}><Plus size={16}/> Incluir {addChecked.length} produto(s)</button></footer>
@@ -344,6 +347,7 @@ export default function CatalogManager({storeSlug,categories,sellers=[],onSelect
              <option value="caixa_fechada">Preço por caixa fechada</option>
            </select></label>
          </>}
+         {pane==='create'&&<label>Copiar produtos de<select aria-label="Copiar produtos de" value={sourceCatalogId} onChange={e=>setSourceCatalogId(e.target.value)} disabled={busy}><option value="">Começar com catálogo vazio</option><option value="all">Todos os produtos da loja</option>{catalogs.filter(c=>!c.lockedByPlan).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select><small>Os produtos são vinculados ao novo catálogo e recebem o preço correspondente ao tipo escolhido, sem duplicação.</small></label>}
          <label>Pedido mínimo (R$)<input type="number" min="0" step="0.01" placeholder="Usar mínimo da loja" value={minimum} onChange={e=>setMinimum(e.target.value)} disabled={busy||Boolean(selected?.lockedByPlan)&&pane==='settings'}/></label>
          {pane==='settings'&&selected&&!selected.isDefault&&<label className="svx-catalog-dialog__check"><input type="checkbox" checked={active} onChange={e=>setActive(e.target.checked)} disabled={busy||selected.lockedByPlan}/> Catálogo publicado</label>}
          {pane==='settings'&&selected&&!selected.lockedByPlan&&<>
