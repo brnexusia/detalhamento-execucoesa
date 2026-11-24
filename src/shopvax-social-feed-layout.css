@@ -261,7 +261,22 @@
 }
 .social-feed-page .social-feed-nav>span{display:none;}
 .social-feed-page .social-feed-nav .svx-social-brand{min-width:0;max-width:100%;}
-.social-feed-page .social-feed-nav .svx-brand-wordmark{max-width:min(27vw,165px);}
+.social-feed-page .social-feed-nav .svx-social-brand img.svx-brand-symbol{
+  width:clamp(18px,5.8vw,26.5px);
+  height:auto;
+  aspect-ratio:220 / 282;
+  flex:0 0 auto;
+  object-fit:contain;
+}
+.social-feed-page .social-feed-nav .svx-social-brand img.svx-brand-wordmark{
+  width:clamp(76px,27vw,126px);
+  height:auto;
+  max-width:100%;
+  min-width:0;
+  aspect-ratio:460 / 84;
+  flex:0 1 auto;
+  object-fit:contain;
+}
 .social-feed-page .social-feed-nav__right{min-width:0;justify-self:end;white-space:nowrap;}
 @media(min-width:800px){
   .social-feed-page .social-feed-card{
@@ -282,7 +297,6 @@
   .social-feed-page .social-feed-buyline>strong{font-size:clamp(29px,3vw,43px);}
 }
 @media(max-width:390px){
-  .social-feed-page .social-feed-nav .svx-brand-wordmark{max-width:23vw;}
   .social-feed-page .social-feed-actions{right:6px;gap:4px;bottom:max(122px,calc(env(safe-area-inset-bottom) + 108px));}
   .social-feed-page .social-feed-actions button,
   .social-feed-page .social-feed-actions__metric{min-height:47px;}
