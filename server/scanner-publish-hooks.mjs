@@ -1117,9 +1117,61 @@ async function runPublishWorker(){
   }
 }
 
+// Recover only verified local media from the latest completed import of each
+// existing visible membership. Never infer a catalog from a SKU alone.
+async function recoverCatalogMedia(req,res){
+  await ensurePublisherSchema()
+  const store=await currentStore(req)
+  if(!store)return res.status(401).json({error:'Sessão necessária.'})
+  const catalogId=String(req.params.catalogId||'')
+  const client=await pool.connect()
+  try{
+    await client.query('BEGIN')
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1)::bigint)",[`scanner-publish-store:${store.store_id}`])
+    const target=await client.query('SELECT c.id,c.is_default,s.plan_tier FROM catalogs c JOIN stores s ON s.id=c.store_id WHERE c.id=$1 AND c.store_id=$2',[catalogId,store.store_id])
+    if(!target.rowCount){await client.query('ROLLBACK');return res.status(404).json({error:'Catálogo não encontrado.'})}
+    if(!target.rows[0].is_default&&target.rows[0].plan_tier!=='ouro'){await client.query('ROLLBACK');return res.status(403).json({error:'Catálogos adicionais exigem o plano Ouro.'})}
+    const candidates=await client.query(`
+      WITH latest AS (
+        SELECT DISTINCT ON(n.published_product_id) n.published_product_id AS product_id,j.id AS job_id
+        FROM import_normalized_products n JOIN import_jobs j ON j.id=n.job_id AND j.store_id=n.store_id
+        JOIN catalog_products cp ON cp.product_id=n.published_product_id AND cp.catalog_id=j.target_catalog_id
+        JOIN products p ON p.id=cp.product_id AND p.store_id=j.store_id
+        WHERE j.store_id=$1 AND j.target_catalog_id=$2 AND j.status='completed'
+          AND n.selected=true AND cp.visible=true AND cp.media_override IS NULL
+        ORDER BY n.published_product_id,j.published_at DESC NULLS LAST,j.updated_at DESC,j.id DESC
+      )
+      SELECT l.product_id,n.id,COALESCE(n.review_data,n.normalized_data) AS data
+      FROM latest l JOIN import_normalized_products n ON n.job_id=l.job_id AND n.published_product_id=l.product_id
+      WHERE n.store_id=$1 AND n.selected=true ORDER BY l.product_id,n.id
+    `,[store.store_id,catalogId])
+    const groups=new Map()
+    for(const row of candidates.rows){
+      const data=row.data||{}
+      const urls=[data.media_url,...(Array.isArray(data.images)?data.images:[])].filter(x=>typeof x==='string'&&/^\\/media\\/[A-Za-z0-9_-]+$/.test(x))
+      if(!urls.length)continue
+      const previous=groups.get(row.product_id)||[]
+      groups.set(row.product_id,[...new Set([...previous,...urls])].slice(0,40))
+    }
+    const allIds=[...new Set([...groups.values()].flat().map(url=>url.slice(7)))]
+    const assets=allIds.length?await client.query('SELECT id FROM media_assets WHERE store_id=$1 AND id=ANY($2::text[])',[store.store_id,allIds]):{rows:[]}
+    const valid=new Set(assets.rows.map(a=>'/media/'+a.id))
+    const updates=[...groups].map(([product_id,urls])=>({product_id,images:urls.filter(url=>valid.has(url))})).filter(x=>x.images.length).map(x=>({product_id:x.product_id,media_override:{media_url:x.images[0],media_type:'image',images:x.images}}))
+    const result=await client.query(`UPDATE catalog_products cp SET media_override=m.media_override
+      FROM jsonb_to_recordset($3::jsonb) AS m(product_id text,media_override jsonb)
+      JOIN products p ON p.id=m.product_id AND p.store_id=$1
+      WHERE cp.catalog_id=$2 AND cp.product_id=m.product_id AND cp.visible=true AND cp.media_override IS NULL`,
+      [store.store_id,catalogId,JSON.stringify(updates)])
+    await client.query('COMMIT')
+    return res.json({recovered:result.rowCount})
+  }catch(error){await client.query('ROLLBACK').catch(()=>{});throw error}
+  finally{client.release()}
+}
+
 function installPublisherRoute(app) {
   if (app.__atacadoScannerPublisherInstalled) return
   app.__atacadoScannerPublisherInstalled = true
+  app.post('/api/admin/catalogs/:catalogId/recover-media',express.json({limit:'8kb'}),(req,res,next)=>Promise.resolve(recoverCatalogMedia(req,res)).catch(next))
   app.get('/api/admin/imports/:jobId/publish-preview', (req, res, next) => {
     Promise.resolve(previewJob(req, res)).catch(next)
   })
