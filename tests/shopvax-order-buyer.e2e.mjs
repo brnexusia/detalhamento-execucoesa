@@ -30,6 +30,7 @@ try {
     const context=await browser.newContext({viewport:{width,height},permissions:['clipboard-read','clipboard-write']})
     await context.route('**/api/billing/status',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({enabled:false,required:false,accessGranted:true,status:'none',planCode:'bronze',prices:[]})}))
     const page=await context.newPage()
+    const orderData=data.orders.map(order=>structuredClone(order))
     const bootstrapRequests = []
     const failedApiResponses = []
     page.on('response',response=>{
@@ -44,8 +45,19 @@ try {
       assert.equal(requestUrl.pathname,'/api/admin/bootstrap')
       assert.equal(requestUrl.searchParams.get('compact'),'1','Painel deve usar bootstrap compacto')
       return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
-        ...data, productCount:0, productCategories:[],
+        ...data, orders:orderData, productCount:0, productCategories:[],
       })})
+    })
+    let submitted
+    await page.route('**/api/admin/products?*',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({products:[{id:'p2',name:'Calça',sku:'CAL-1',price:40,catalogPrice:40,active:true,variations:[]}],pagination:{total:1,page:1,limit:20}})}))
+    await page.route('**/api/admin/orders/order-1/items',route=>{
+      assert.equal(route.request().method(),'PATCH')
+      submitted=route.request().postDataJSON()
+      const order=orderData[0]
+      order.items=submitted.items.map(item=>({...item,name:item.productId==='p2'?'Calça':'Blusa',sku:item.productId==='p2'?'CAL-1':'SW-22',lineTotal:item.quantity*item.unitPrice}))
+      order.total=order.items.reduce((sum,item)=>sum+item.lineTotal,0)
+      order.edit_revision=(order.edit_revision||0)+1
+      return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({order})})
     })
     await page.goto('http://127.0.0.1:5173/painel/pedidos')
     await page.getByRole('button',{name:'Ver talão AS-000041'}).waitFor({state:'visible',timeout:10000})
@@ -68,6 +80,31 @@ try {
     assert.match(copied,/Comprador: Maria Silva/)
     assert.match(copied,/Cidade: Salvador/)
     assert.match(copied,/Observações: Entregar na loja/)
+    await page.getByRole('button',{name:'Editar pedido'}).click()
+    const editor=page.getByRole('dialog',{name:'Editar pedido'})
+    await editor.waitFor()
+    await editor.getByLabel('Quantidade do item 1').fill('3')
+    await editor.getByLabel('Preço unitário do item 1').fill('50')
+    await editor.getByLabel('Buscar produto para o pedido').fill('Calça')
+    await editor.getByRole('button',{name:/Calça/}).click()
+    await editor.getByLabel('Quantidade do item 2').fill('2')
+    await editor.getByLabel('Preço unitário do item 2').fill('35')
+    assert.match(await editor.locator('footer').innerText(),/220,00/)
+    await editor.getByRole('button',{name:'Salvar alterações'}).click()
+    await editor.waitFor({state:'hidden'})
+    assert.equal(submitted.revision,0)
+    assert.deepEqual(submitted.items.map(item=>[item.productId,item.quantity,item.unitPrice]),[['p1',3,50],['p2',2,35]])
+    await page.getByRole('button',{name:'Ver talão AS-000041'}).waitFor()
+    assert.match(await page.locator('.svx-orders__total').innerText(),/220,00/)
+    await page.getByRole('button',{name:'Copiar talão'}).click()
+    assert.match(await page.evaluate(()=>navigator.clipboard.readText()),/220,00/)
+    await page.getByRole('button',{name:'Editar pedido'}).click()
+    await editor.getByRole('button',{name:'Remover item 2'}).click()
+    assert.match(await editor.locator('footer').innerText(),/150,00/)
+    await editor.getByRole('button',{name:'Salvar alterações'}).click()
+    await editor.waitFor({state:'hidden'})
+    assert.equal(submitted.revision,1)
+    assert.equal(submitted.items.length,1)
     await page.getByRole('button',{name:'Ver talão AS-000140'}).click()
     const otherBuyer = page.getByRole('region',{name:'Dados do comprador e observações'})
     assert.match(await otherBuyer.innerText(),/Comprador de teste 99/)
