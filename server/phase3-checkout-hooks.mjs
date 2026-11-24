@@ -1,3 +1,4 @@
+import { buildOrderWhatsappMessage } from './order-whatsapp-message.mjs'
 import crypto from 'node:crypto'
 import express from 'express'
 import pg from 'pg'
@@ -99,30 +100,6 @@ function discountFor(coupon, subtotal) {
   return Math.max(0, Math.min(subtotal, money(raw)))
 }
 
-function buildMessage(order, store, seller, catalog, subtotal, discount, total, coupon) {
-  const formatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
-  const items = Array.isArray(order.items) ? order.items : []
-  const lines = items.map((item) => {
-    const selections = item?.selections && typeof item.selections === 'object'
-      ? Object.entries(item.selections).map(([key, value]) => `${key}: ${value}`).join(' · ')
-      : ''
-    return `${Number(item.quantity || 0)}x ${item.name || 'Produto'}${selections ? ` (${selections})` : ''} — ${formatter.format(Number(item.lineTotal || 0))}`
-  })
-  return [
-    `Olá! Montei este pedido na ${store.name}:`,
-    catalog?.name ? `Catálogo: ${catalog.name}` : '',
-    '',
-    ...lines,
-    '',
-    `Subtotal: ${formatter.format(subtotal)}`,
-    discount > 0 ? `Cupom ${coupon.code}: -${formatter.format(discount)}` : '',
-    `Total dos produtos: ${formatter.format(total)}`,
-    `Pedido: ${order.code}`,
-    '',
-    `Quero finalizar com ${seller?.name || 'atendimento'}.`,
-  ].filter((line, index, linesAll) => line !== '' || (index > 0 && linesAll[index - 1] !== '')).join('\n')
-}
-
 async function convertRecovery(req, order) {
   await pool.query(`
     UPDATE cart_recoveries SET state='converted',order_id=$1,updated_at=now()
@@ -157,7 +134,7 @@ async function finalize(req, payload, coupon) {
   const catalog = catalogResult.rows[0] || null
   // Cupom não pode reintroduzir o número administrativo como fallback.
   const phone = digits(seller?.phone || '')
-  const message = buildMessage(order, store, seller, catalog, subtotal, discount, total, coupon)
+  const message = buildOrderWhatsappMessage({ order, store, seller, catalog, subtotal, discount, total, coupon })
   return {
     ...payload,
     subtotal,
