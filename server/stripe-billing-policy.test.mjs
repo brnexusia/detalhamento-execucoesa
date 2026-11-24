@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
-import { cycles, planPrice, subscriptionAccess, verifyStripeSignature } from './stripe-billing-policy.mjs'
+import { cycles, planPrice, subscriptionAccess, verifyStripeSignature, isPositivePaidInvoice } from './stripe-billing-policy.mjs'
 
 test('preços oficiais em BRL, incluindo desconto semestral/anual com arredondamento', () => {
   assert.deepEqual(['bronze','prata','ouro'].map((p) => planPrice(p, 'monthly').amountCents), [2999,4999,6999])
@@ -45,4 +45,16 @@ test('acesso pago exige evento de cobrança, plano ativo e prazo válido', () =>
   assert.equal(subscriptionAccess({ ...valid, paid_until: new Date(now) }, now), false)
   assert.equal(subscriptionAccess({ ...valid, paid_until: null }, now), false)
   assert.equal(subscriptionAccess({ ...valid, billing_required: false }, now), true)
+})
+
+
+test('indicação exige pagamento positivo confirmado, sem fatura gratuita ou pagamento externo', () => {
+  const paid = {status:'paid', amount_paid:4999, paid_out_of_band:false}
+  assert.equal(isPositivePaidInvoice(paid),true)
+  assert.equal(isPositivePaidInvoice({...paid,amount_paid:0}),false)
+  assert.equal(isPositivePaidInvoice({...paid,amount_paid:-1}),false)
+  assert.equal(isPositivePaidInvoice({...paid,amount_paid:undefined}),false)
+  assert.equal(isPositivePaidInvoice({...paid,status:'open'}),false)
+  assert.equal(isPositivePaidInvoice({...paid,paid_out_of_band:true}),false)
+  assert.equal(isPositivePaidInvoice(null),false)
 })
