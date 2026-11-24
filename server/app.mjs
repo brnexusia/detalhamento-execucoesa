@@ -162,6 +162,8 @@ ALTER TABLE stores ADD COLUMN IF NOT EXISTS onboarding_palette_selected boolean 
 ALTER TABLE stores ADD COLUMN IF NOT EXISTS seasonal_theme text NOT NULL DEFAULT 'padrao';
 ALTER TABLE products ADD COLUMN IF NOT EXISTS variant_prices jsonb;
 ALTER TABLE products ADD COLUMN IF NOT EXISTS retail_price numeric(12,2);
+ALTER TABLE products ADD COLUMN IF NOT EXISTS wholesale_price numeric(12,2);
+ALTER TABLE products ADD COLUMN IF NOT EXISTS high_wholesale_price numeric(12,2);
 ALTER TABLE products ADD COLUMN IF NOT EXISTS box_price numeric(12,2);
 ALTER TABLE products ADD COLUMN IF NOT EXISTS units_per_box integer;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
@@ -688,6 +690,8 @@ app.get(
           ? `SELECT p.*,COALESCE(cp.price_override,
               CASE WHEN c.kind='varejo' OR (c.kind='personalizado' AND c.price_mode='varejo') THEN p.retail_price
                    WHEN c.kind='caixa_fechada' OR (c.kind='personalizado' AND c.price_mode='caixa_fechada') THEN p.box_price
+                   WHEN c.kind='atacado' OR (c.kind='personalizado' AND c.price_mode='atacado') THEN p.wholesale_price
+                   WHEN c.kind='alto_atacado' THEN p.high_wholesale_price
                    ELSE p.price END,p.price) AS catalog_price
              FROM products p JOIN catalogs c ON c.id=$2
              LEFT JOIN catalog_products cp ON cp.catalog_id=c.id AND cp.product_id=p.id WHERE `
@@ -863,8 +867,10 @@ app.post(
     try { variantPrices = normalizeVariantPrices(req.body?.variantPrices, normalizeVariations(req.body?.variations)) } catch (error) { return res.status(400).json({ error: error.message }) }
     const retailPrice = req.body?.retailPrice == null || req.body.retailPrice === '' ? null : toMoney(req.body.retailPrice)
     const boxPrice = req.body?.boxPrice == null || req.body.boxPrice === '' ? null : toMoney(req.body.boxPrice)
+    const wholesalePrice = req.body?.wholesalePrice == null || req.body.wholesalePrice === '' ? null : toMoney(req.body.wholesalePrice)
+    const highWholesalePrice = req.body?.highWholesalePrice == null || req.body.highWholesalePrice === '' ? null : toMoney(req.body.highWholesalePrice)
     const unitsPerBox = req.body?.unitsPerBox == null || req.body.unitsPerBox === '' ? null : Number(req.body.unitsPerBox)
-    if ([retailPrice,boxPrice].some(v => v !== null && v <= 0) || (unitsPerBox !== null && (!Number.isSafeInteger(unitsPerBox) || unitsPerBox < 1 || unitsPerBox > 10000))) {
+    if ([retailPrice,boxPrice,wholesalePrice,highWholesalePrice].some(v => v !== null && v <= 0) || (unitsPerBox !== null && (!Number.isSafeInteger(unitsPerBox) || unitsPerBox < 1 || unitsPerBox > 10000))) {
       return res.status(400).json({ error: 'Preços adicionais devem ser positivos e unidades por caixa deve ser inteiro entre 1 e 10.000.' })
     }
     const name = String(req.body?.name || '').trim()
@@ -883,8 +889,8 @@ app.post(
       await client.query('BEGIN')
       const result = await client.query(
       `INSERT INTO products
-       (id,store_id,sku,name,description,price,category,media_url,media_type,pack,variations,featured,active,retail_price,box_price,units_per_box,variant_prices)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+       (id,store_id,sku,name,description,price,category,media_url,media_type,pack,variations,featured,active,retail_price,box_price,units_per_box,variant_prices,wholesale_price,high_wholesale_price)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
        RETURNING *`,
       [
         id(),
@@ -904,6 +910,7 @@ app.post(
         boxPrice,
         unitsPerBox,
         variantPrices == null ? null : JSON.stringify(variantPrices),
+        wholesalePrice,highWholesalePrice,
       ],
     )
     if(catalogId){
@@ -956,8 +963,10 @@ app.put(
     try { variantPrices = normalizeVariantPrices(req.body?.variantPrices, normalizeVariations(req.body?.variations)) } catch (error) { return res.status(400).json({ error: error.message }) }
     const retailPrice = req.body?.retailPrice == null || req.body.retailPrice === '' ? null : toMoney(req.body.retailPrice)
     const boxPrice = req.body?.boxPrice == null || req.body.boxPrice === '' ? null : toMoney(req.body.boxPrice)
+    const wholesalePrice = req.body?.wholesalePrice == null || req.body.wholesalePrice === '' ? null : toMoney(req.body.wholesalePrice)
+    const highWholesalePrice = req.body?.highWholesalePrice == null || req.body.highWholesalePrice === '' ? null : toMoney(req.body.highWholesalePrice)
     const unitsPerBox = req.body?.unitsPerBox == null || req.body.unitsPerBox === '' ? null : Number(req.body.unitsPerBox)
-    if ([retailPrice,boxPrice].some(v => v !== null && v <= 0) || (unitsPerBox !== null && (!Number.isSafeInteger(unitsPerBox) || unitsPerBox < 1 || unitsPerBox > 10000))) {
+    if ([retailPrice,boxPrice,wholesalePrice,highWholesalePrice].some(v => v !== null && v <= 0) || (unitsPerBox !== null && (!Number.isSafeInteger(unitsPerBox) || unitsPerBox < 1 || unitsPerBox > 10000))) {
       return res.status(400).json({ error: 'Preços adicionais devem ser positivos e unidades por caixa deve ser inteiro entre 1 e 10.000.' })
     }
     const name = String(req.body?.name || '').trim()
@@ -994,7 +1003,7 @@ app.put(
       // Compare against the locked previous state: editing metadata alone must not
       // remove catalog prices. Catalog price synchronization and product writes are atomic.
       const previous = await client.query(
-        'SELECT price,retail_price,box_price,variant_prices FROM products WHERE id=$1 AND store_id=$2 FOR UPDATE',
+        'SELECT price,retail_price,box_price,variant_prices,wholesale_price,high_wholesale_price FROM products WHERE id=$1 AND store_id=$2 FOR UPDATE',
         [req.params.id, store.rows[0].id],
       )
       if (!previous.rowCount) {
@@ -1008,7 +1017,9 @@ app.put(
          retail_price=CASE WHEN $14::boolean THEN $15 ELSE retail_price END,
          box_price=CASE WHEN $16::boolean THEN $17 ELSE box_price END,
          units_per_box=CASE WHEN $18::boolean THEN $19 ELSE units_per_box END,
-         variant_prices=CASE WHEN $20::boolean THEN $21::jsonb ELSE variant_prices END,updated_at=now()
+         variant_prices=CASE WHEN $20::boolean THEN $21::jsonb ELSE variant_prices END,
+         wholesale_price=CASE WHEN $22::boolean THEN $23 ELSE wholesale_price END,
+         high_wholesale_price=CASE WHEN $24::boolean THEN $25 ELSE high_wholesale_price END,updated_at=now()
          WHERE id=$12 AND store_id=$13
          RETURNING *`,
         [
@@ -1029,6 +1040,8 @@ app.put(
           Object.hasOwn(req.body || {}, 'boxPrice'), boxPrice,
           Object.hasOwn(req.body || {}, 'unitsPerBox'), unitsPerBox,
           Object.hasOwn(req.body || {}, 'variantPrices'), variantPrices == null ? null : JSON.stringify(variantPrices),
+          Object.hasOwn(req.body || {}, 'wholesalePrice'), wholesalePrice,
+          Object.hasOwn(req.body || {}, 'highWholesalePrice'), highWholesalePrice,
         ],
       )
       if (!result.rowCount) {
@@ -1046,7 +1059,9 @@ app.put(
       const retailChanged = !sameMoney(before.retail_price,after.retail_price)
       const boxChanged = !sameMoney(before.box_price,after.box_price)
       const variantsChanged = JSON.stringify(before.variant_prices) !== JSON.stringify(after.variant_prices)
-      if (baseChanged || retailChanged || boxChanged || variantsChanged) {
+      const wholesaleChanged=!sameMoney(before.wholesale_price,after.wholesale_price)
+      const highWholesaleChanged=!sameMoney(before.high_wholesale_price,after.high_wholesale_price)
+      if (baseChanged || retailChanged || boxChanged || variantsChanged || wholesaleChanged || highWholesaleChanged) {
         // The publication and its membership use now() in the same transaction.
         // The recovered-import path likewise updates the job and membership together.
         // Timestamp equality distinguishes historical imports from later manual edits.
@@ -1076,6 +1091,10 @@ app.put(
                   THEN $4::boolean OR (($3::boolean OR $6::boolean) AND $8::numeric IS NULL)
                 WHEN c.kind='caixa_fechada' OR (c.kind='personalizado' AND c.price_mode='caixa_fechada')
                   THEN $5::boolean OR (($3::boolean OR $6::boolean) AND $9::numeric IS NULL)
+                WHEN c.kind='atacado' OR (c.kind='personalizado' AND c.price_mode='atacado')
+                  THEN $10::boolean OR (($3::boolean OR $6::boolean) AND $12::numeric IS NULL)
+                WHEN c.kind='alto_atacado'
+                  THEN $11::boolean OR (($3::boolean OR $6::boolean) AND $13::numeric IS NULL)
                 ELSE $3::boolean OR $6::boolean
               END
             )
@@ -1083,12 +1102,14 @@ app.put(
               cp.price_override=CASE
                 WHEN c.kind='varejo' OR (c.kind='personalizado' AND c.price_mode='varejo') THEN COALESCE($8::numeric,$7::numeric)
                 WHEN c.kind='caixa_fechada' OR (c.kind='personalizado' AND c.price_mode='caixa_fechada') THEN COALESCE($9::numeric,$7::numeric)
+                WHEN c.kind='atacado' OR (c.kind='personalizado' AND c.price_mode='atacado') THEN COALESCE($12::numeric,$7::numeric)
+                WHEN c.kind='alto_atacado' THEN COALESCE($13::numeric,$7::numeric)
                 ELSE $7::numeric
               END
               ${imported}
             )`,
           [req.params.id,store.rows[0].id,baseChanged,retailChanged,boxChanged,variantsChanged,
-            before.price,before.retail_price,before.box_price],
+            before.price,before.retail_price,before.box_price,wholesaleChanged,highWholesaleChanged,before.wholesale_price,before.high_wholesale_price],
         )
       }
       if (hasCatalogPrice) {
