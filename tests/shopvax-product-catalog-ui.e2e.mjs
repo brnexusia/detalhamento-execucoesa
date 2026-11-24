@@ -92,7 +92,9 @@ try{
   const options=await typeSelect.locator('option').allTextContents()
   assert.deepEqual(options.map(x=>x.trim()),['Varejo','Atacado','Alto Atacado','Personalizado'])
   await typeSelect.selectOption('alto_atacado')
-  assert.match(await createDialog.innerText(),/preço principal por unidade/)
+  assert.match(await createDialog.innerText(),/preço de alto atacado por unidade/)
+  await createDialog.getByLabel('Copiar produtos de').selectOption(general.id)
+  assert.equal(await createDialog.getByLabel('Copiar produtos de').inputValue(),general.id)
   await typeSelect.selectOption('personalizado')
   const format=createDialog.getByLabel('Formato personalizado')
   assert.deepEqual((await format.locator('option').allTextContents()).map(x=>x.trim()),
