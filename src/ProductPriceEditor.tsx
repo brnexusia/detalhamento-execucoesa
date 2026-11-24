@@ -101,7 +101,7 @@ export default function ProductPriceEditor({value,onChange}:{value:PricingFields
       <button type="button" aria-pressed={multiple} onClick={()=>void changeMode('multiple')}><strong>Vários preços</strong><small>Um valor para cada tamanho, embalagem ou opção.</small></button>
     </div>
     {!multiple?<div className="form-grid svx-price-fields">
-      {moneyInput('Preço do produto (R$)',value.price,raw=>onChange({price:raw}),true)}
+      {moneyInput(value.catalogId?'Preço base (R$)':'Preço do produto (R$)',value.price,raw=>onChange({price:raw}),true)}
       <p className="svx-price-hint span-2">Preço base utilizado no Geral, Atacado e Alto Atacado. Varejo e caixa fechada podem ter valores próprios abaixo.</p>
       {value.catalogId&&catalogOverride&&<p className="svx-price-hint span-2">Este catálogo tem um preço próprio. Os demais preços do produto são mantidos.</p>}
     </div>:<div className="svx-price-multiple">
