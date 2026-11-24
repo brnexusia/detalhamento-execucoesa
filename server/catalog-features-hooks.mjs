@@ -124,6 +124,8 @@ async function ensureSchema() {
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS catalog_id text REFERENCES catalogs(id) ON DELETE SET NULL;
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS buyer jsonb NOT NULL DEFAULT '{}'::jsonb;
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS notes text NOT NULL DEFAULT '';
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS edit_revision integer NOT NULL DEFAULT 0;
+    CREATE TABLE IF NOT EXISTS order_edit_history (id bigserial PRIMARY KEY,order_id text NOT NULL REFERENCES orders(id) ON DELETE CASCADE,store_id text NOT NULL REFERENCES stores(id) ON DELETE CASCADE,user_id text NOT NULL,old_items jsonb NOT NULL,new_items jsonb NOT NULL,old_total numeric(12,2) NOT NULL,new_total numeric(12,2) NOT NULL,created_at timestamptz NOT NULL DEFAULT now());
   `)
 }
 
@@ -723,7 +725,7 @@ async function createCatalogOrder(req, res) {
       const unitPrice = variantUnitPrice(product, selections)
       const lineTotal = toMoney(unitPrice * quantity)
       total += lineTotal
-      items.push({ productId: product.id, sku: product.sku, name: product.name, quantity, unitPrice, lineTotal, selections, stockKey: variantKey(selections), catalogId: catalog.id, stockUnits, unitsPerBox })
+      items.push({ productId: product.id, sku: product.sku, name: product.name, quantity, unitPrice, lineTotal, selections, stockKey: variantKey(selections), catalogId: catalog.id, stockUnits, unitsPerBox, stockDebited:Boolean(product.stock_enabled) })
       if (product.stock_enabled) {
         const map = normalizeVariantStock(product.variant_stock)
         const key = variantKey(selections)
@@ -792,9 +794,120 @@ async function createCatalogOrder(req, res) {
   } finally { client.release() }
 }
 
+
+async function editCatalogOrder(req,res) {
+  const storeId=req.catalogStore.store_id
+  const requested=req.body?.items
+  if(!Array.isArray(requested)||!requested.length||requested.length>500)
+    return res.status(400).json({error:'Informe de 1 a 500 itens no pedido.'})
+  const client=await pool.connect()
+  const reject=(status,message)=>Object.assign(new Error(message),{editStatus:status})
+  try {
+    await client.query('BEGIN')
+    const found=await client.query('SELECT * FROM orders WHERE id=$1 AND store_id=$2 AND deleted_at IS NULL FOR UPDATE',[req.params.orderId,storeId])
+    if(!found.rowCount)throw reject(404,'Pedido não encontrado.')
+    const order=found.rows[0]
+    if(!['whatsapp','em_atendimento','confirmado'].includes(order.status)||order.stock_reverted)
+      throw reject(409,'Este pedido não pode mais ser editado.')
+    if(String(order.payment_status||'none')!=='none'||Number(order.shipping_amount||0)>0||order.shipping_method)
+      throw reject(409,'Pedido com cobrança ou frete online registrado não pode ser editado diretamente.')
+    const paymentTables=(await client.query("SELECT to_regclass('order_payments') AS payments,to_regclass('shopvax_payment_claims') AS claims")).rows[0]
+    if(paymentTables.payments&&(await client.query('SELECT 1 FROM order_payments WHERE store_id=$1 AND order_id=$2 LIMIT 1',[storeId,order.id])).rowCount)
+      throw reject(409,'Já existe uma cobrança para este pedido.')
+    if(paymentTables.claims&&(await client.query('SELECT 1 FROM shopvax_payment_claims WHERE store_id=$1 AND order_id=$2 LIMIT 1',[storeId,order.id])).rowCount)
+      throw reject(409,'Existe uma cobrança em processamento ou conciliação.')
+    const revision=Number(order.edit_revision||0)
+    if(!Number.isSafeInteger(req.body?.revision)||req.body.revision!==revision)
+      throw reject(409,'O pedido foi alterado em outra sessão. Atualize o painel e tente novamente.')
+    const previous=Array.isArray(order.items)?order.items:[]
+    const ids=[...new Set([...previous,...requested].map(i=>String(i?.productId||'')).filter(Boolean))].sort()
+    const products=await client.query('SELECT * FROM products WHERE store_id=$1 AND id=ANY($2::text[]) ORDER BY id FOR UPDATE',[storeId,ids])
+    const byId=new Map(products.rows.map(p=>[p.id,p]))
+    const catalog=order.catalog_id?(await client.query('SELECT * FROM catalogs WHERE id=$1 AND store_id=$2',[order.catalog_id,storeId])).rows[0]:null
+    const used=new Set(), nextItems=[], deltas=new Map()
+    function delta(product,key,amount){
+      if(!product?.stock_enabled||!amount)return
+      const map=normalizeVariantStock(product.variant_stock)
+      const bucket=key&&Object.hasOwn(map,key)?key:''
+      const k=JSON.stringify([product.id,bucket])
+      const entry=deltas.get(k)||{product,bucket,amount:0}
+      entry.amount+=amount;deltas.set(k,entry)
+    }
+    for(const old of previous){
+      const product=byId.get(String(old.productId||''))
+      if(old.stockDebited===false)continue
+      delta(product,String(old.stockKey||variantKey(old.selections)),Number(old.stockUnits??old.quantity))
+    }
+    let totalCents=0
+    for(const item of requested){
+      const quantity=Number(item?.quantity),unitPrice=Number(item?.unitPrice)
+      if(!Number.isSafeInteger(quantity)||quantity<1||quantity>999||!Number.isFinite(unitPrice)||unitPrice<0||unitPrice>9999999999.99)
+        throw reject(400,'Informe quantidade inteira de 1 a 999 e preço válido.')
+      const cents=Math.round(unitPrice*100)
+      const lineCents=cents*quantity
+      totalCents+=lineCents
+      if(!Number.isSafeInteger(totalCents)||totalCents>999999999999)throw reject(400,'Total do pedido excede o limite permitido.')
+      let row,product
+      if(item.originalIndex!==undefined){
+        const index=item.originalIndex
+        if(!Number.isSafeInteger(index)||index<0||index>=previous.length||used.has(index))
+          throw reject(400,'Item original inválido ou duplicado.')
+        used.add(index)
+        const old=previous[index]
+        if(String(item.productId||'')!==String(old.productId||''))throw reject(400,'Para trocar o produto, remova o item e adicione outro.')
+        product=byId.get(String(old.productId||''))
+        if(!product&&quantity>Number(old.quantity))throw reject(409,'Não é possível aumentar a quantidade de um produto excluído.')
+        const multiplier=Math.max(1,Number(old.unitsPerBox||1))
+        const stockUnits=quantity*multiplier
+        row={...old,quantity,unitPrice:cents/100,lineTotal:lineCents/100,stockUnits,unitsPerBox:multiplier}
+        if(old.stockDebited===false){
+          // An originally untracked line stays untracked; increasing it with tracking
+          // enabled requires a new line to avoid inventing historical stock.
+          if(product?.stock_enabled&&quantity>Number(old.quantity))throw reject(409,'Adicione a quantidade extra em um novo item com estoque ativo.')
+        }else delta(product,String(old.stockKey||variantKey(old.selections)),-stockUnits)
+      }else{
+        product=byId.get(String(item.productId||''))
+        if(!product?.active)throw reject(400,'Produto não disponível nesta loja.')
+        if(catalog){
+          const member=(await client.query('SELECT visible FROM catalog_products WHERE catalog_id=$1 AND product_id=$2',[catalog.id,product.id])).rows[0]
+          if(catalog.explicit_membership?member?.visible!==true:member?.visible===false)
+            throw reject(400,'Produto não disponível neste catálogo.')
+        }
+        let selections
+        try{selections=validateProductSelections(product,item.selections)}catch(error){throw reject(400,error.message)}
+        const unitsPerBox=catalog&&isBoxCatalog(catalog)?Math.max(1,Number(product.units_per_box||1)):1
+        const stockUnits=quantity*unitsPerBox,stockKey=variantKey(selections)
+        row={productId:product.id,sku:product.sku,name:product.name,quantity,unitPrice:cents/100,lineTotal:lineCents/100,selections,stockKey,stockUnits,unitsPerBox,stockDebited:Boolean(product.stock_enabled),catalogId:catalog?.id||null}
+        delta(product,stockKey,-stockUnits)
+      }
+      nextItems.push(row)
+    }
+    for(const {product,bucket,amount} of deltas.values()){
+      if(!amount)continue
+      const map=normalizeVariantStock(product.variant_stock)
+      const current=bucket?clampStock(map[bucket]):clampStock(product.stock_quantity)
+      const value=current+amount
+      if(value<0)throw reject(409,'Estoque insuficiente para '+product.name+'.')
+      if(value>999999999)throw reject(409,'Limite de estoque excedido.')
+      if(bucket){map[bucket]=value;product.variant_stock=map}
+      else product.stock_quantity=value
+      await client.query('UPDATE products SET stock_quantity=$1,variant_stock=$2,updated_at=now() WHERE id=$3 AND store_id=$4',[clampStock(product.stock_quantity),JSON.stringify(normalizeVariantStock(product.variant_stock)),product.id,storeId])
+    }
+    await client.query('INSERT INTO order_edit_history(order_id,store_id,user_id,old_items,new_items,old_total,new_total) VALUES($1,$2,$3,$4,$5,$6,$7)',[order.id,storeId,req.catalogStore.user_id,JSON.stringify(previous),JSON.stringify(nextItems),order.total,totalCents/100])
+    const result=await client.query('UPDATE orders SET items=$1,total=$2,edit_revision=edit_revision+1 WHERE id=$3 AND store_id=$4 RETURNING *',[JSON.stringify(nextItems),totalCents/100,order.id,storeId])
+    await client.query('COMMIT')
+    return res.json({order:{...result.rows[0],total:Number(result.rows[0].total)}})
+  }catch(error){
+    await client.query('ROLLBACK').catch(()=>{})
+    if(error.editStatus)return res.status(error.editStatus).json({error:error.message})
+    throw error
+  }finally{client.release()}
+}
+
 function install(app) {
   if (app.__atacadoCatalogFeaturesInstalled) return
   app.__atacadoCatalogFeaturesInstalled = true
+  app.patch('/api/admin/orders/:orderId/items', express.json({limit:'256kb'}), requireStore, (req,res,next)=>Promise.resolve(editCatalogOrder(req,res)).catch(next))
   app.get('/api/admin/products/pdf', requireStore, (req, res, next) => Promise.resolve(downloadProductsPdf(req, res)).catch(next))
   app.get('/api/admin/catalogs', requireStore, (req, res, next) => Promise.resolve(listCatalogs(req, res)).catch(next))
   app.post('/api/admin/catalogs', express.json({ limit: '64kb' }), requireStore, (req, res, next) => Promise.resolve(createCatalog(req, res)).catch(next))
