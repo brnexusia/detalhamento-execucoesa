@@ -71,6 +71,10 @@ export default function ScannerPublishModule() {
   const [modes, setModes] = useState<Record<string, PdfMode>>({})
   const [previews, setPreviews] = useState<Record<string, PublishPreview | undefined>>({})
   const [publishProgress, setPublishProgress] = useState<Record<string,PublishProgress>>({})
+  // A lost HTTP response does not mean the publish request was rejected.
+  // Until the server confirms the task state, block another click.
+  const [pendingConfirmation, setPendingConfirmation] = useState<Record<string,boolean>>({})
+  const pendingConfirmationPolls = useRef(new Map<string,number>())
   const handledCompletion = useRef(new Set<string>())
 
 
@@ -181,13 +185,37 @@ export default function ScannerPublishModule() {
     return () => window.clearTimeout(timer)
   }, [slot, scannerOpen, visible, jobs, pollCount])
 
-  const loadPublishProgress = async (jobId: string) => {
+  const loadPublishProgress = async (jobId: string): Promise<PublishProgress | null> => {
     try {
       const payload = await request<{ progress: PublishProgress | null }>(
         `/api/admin/imports/${encodeURIComponent(jobId)}/publish-progress`,
       )
-      if (!payload.progress) return
+      if (!payload.progress) {
+        // A successful read with no task is distinct from a failed read.
+        // Require three successful empty polls before permitting a new POST.
+        const checks = pendingConfirmationPolls.current.get(jobId)
+        if (checks !== undefined) {
+          if (checks >= 2) {
+            pendingConfirmationPolls.current.delete(jobId)
+            setPendingConfirmation(current => {
+              const next = { ...current }
+              delete next[jobId]
+              return next
+            })
+            setError('O servidor confirmou que não há publicação iniciada para este lote. Você pode tentar novamente.')
+          } else pendingConfirmationPolls.current.set(jobId, checks + 1)
+        }
+        return null
+      }
       const progress=payload.progress
+      if (pendingConfirmationPolls.current.delete(jobId)) {
+        setPendingConfirmation(current => {
+          const next = { ...current }
+          delete next[jobId]
+          return next
+        })
+        setError('')
+      }
       setPublishProgress(current=>{
         const previous=current[jobId]
         if(previous?.state==='finished' && progress.state!=='finished')return current
@@ -209,8 +237,10 @@ export default function ScannerPublishModule() {
         window.dispatchEvent(new Event('shopvax:catalog-changed'))
         await load()
       }
+      return progress
     } catch {
-      // The task continues on the server when a phone/network temporarily drops.
+      // Do not mistake a failed status read for confirmation that no task exists.
+      return null
     }
   }
 
@@ -269,7 +299,25 @@ export default function ScannerPublishModule() {
       // Progress and final result are retrieved independently of this request.
       void loadPublishProgress(job.id)
     } catch(err) {
-      setError(err instanceof Error?err.message:'Não foi possível iniciar a publicação.')
+      const message = err instanceof Error ? err.message : String(err)
+      const connectionLost = err instanceof TypeError ||
+        /networkerror|failed to fetch|load failed|network request failed/i.test(message)
+      if (connectionLost) {
+        pendingConfirmationPolls.current.set(job.id, 0)
+        setPendingConfirmation(current => ({ ...current, [job.id]: true }))
+        setError('A conexão caiu antes de confirmar a importação. Verificando o servidor; não envie novamente este lote.')
+      }
+      // Even after a non-network error the POST might have committed before
+      // its response was lost (or returned a stale "already completed" error).
+      const recovered = await loadPublishProgress(job.id)
+      if (recovered && recovered.catalogId === catalogId &&
+          ['queued','running','finished'].includes(recovered.state)) {
+        setError('')
+      } else if (recovered?.state === 'failed') {
+        setError(recovered.error || 'A publicação falhou no servidor.')
+      } else if (!connectionLost) {
+        setError(message || 'Não foi possível iniciar a publicação.')
+      }
     } finally {setBusyId('')}
   }
 
@@ -368,11 +416,13 @@ export default function ScannerPublishModule() {
                       </small>
                     )}
                     <button type="button"
-                      disabled={Boolean(busyId) || !destinations[job.id] || !catalogs.some(c=>c.id===destinations[job.id]) ||
+                      disabled={Boolean(busyId) || Boolean(pendingConfirmation[job.id]) ||
+                        !destinations[job.id] || !catalogs.some(c=>c.id===destinations[job.id]) ||
                         ['queued','running'].includes(publishProgress[job.id]?.state||'') ||
                         (job.platform === 'pdf' && previews[job.id]?.mode !== (modes[job.id] || 'separate'))}
                       onClick={() => void publish(job)}>
                       {busyId === job.id ? 'Iniciando…' :
+                        pendingConfirmation[job.id] ? 'Confirmando no servidor…' :
                         ['queued','running'].includes(publishProgress[job.id]?.state||'') ? 'Importação em andamento' :
                         `Importar ${job.platform === 'pdf' ? (previews[job.id]?.publication_count ?? '…') : job.selected_count}`}
                     </button>

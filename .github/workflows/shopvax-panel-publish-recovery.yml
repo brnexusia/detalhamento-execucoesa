@@ -5,10 +5,12 @@ on:
     paths:
       - 'server/scanner-publish-hooks.mjs'
       - 'src/AdminRoute.tsx'
+      - 'src/ScannerPublishModule.tsx'
       - 'src/App.tsx'
       - 'src/AppRuntimeBoundary.tsx'
       - 'src/saas.css'
       - 'tests/shopvax-panel-publish-regression.test.mjs'
+      - 'tests/shopvax-publish-network-reconciliation.test.mjs'
       - 'tests/shopvax-panel-white-screen.e2e.mjs'
       - '.github/workflows/shopvax-panel-publish-recovery.yml'
   push:
@@ -16,17 +18,20 @@ on:
     paths:
       - 'server/scanner-publish-hooks.mjs'
       - 'src/AdminRoute.tsx'
+      - 'src/ScannerPublishModule.tsx'
       - 'src/App.tsx'
       - 'src/AppRuntimeBoundary.tsx'
       - 'src/saas.css'
       - 'tests/shopvax-panel-publish-regression.test.mjs'
+      - 'tests/shopvax-publish-network-reconciliation.test.mjs'
       - 'tests/shopvax-panel-white-screen.e2e.mjs'
       - '.github/workflows/shopvax-panel-publish-recovery.yml'
 permissions:
   contents: read
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    # Playwright 1.58 does not install Chromium on ubuntu26.04 (current ubuntu-latest).
+    runs-on: ubuntu-24.04
     timeout-minutes: 16
     steps:
       - uses: actions/checkout@v4
@@ -38,7 +43,7 @@ jobs:
       - name: Verify query parameters and recovery UI
         run: |
           node --check server/scanner-publish-hooks.mjs
-          node --test tests/shopvax-panel-publish-regression.test.mjs
+          node --test tests/shopvax-panel-publish-regression.test.mjs tests/shopvax-publish-network-reconciliation.test.mjs
       - name: Build application
         run: npm run build
       - name: Install Playwright
