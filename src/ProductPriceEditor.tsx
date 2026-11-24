@@ -6,13 +6,13 @@ import './product-price-editor.css'
 
 type PriceRow = { name: string; price: string }
 export type PricingFields = {
-  price: string; retailPrice: string; boxPrice: string; unitsPerBox: string
+  price: string; retailPrice: string; wholesalePrice: string; highWholesalePrice: string; boxPrice: string; unitsPerBox: string
   catalogId?: string; catalogPrice?: string; originalCatalogPrice?: string
   pricingMode: 'single' | 'multiple'; priceGroup: string; priceRows: PriceRow[]
   otherVariations: VariationGroup[]
 }
 export const blankPricing: PricingFields = {
-  price:'',retailPrice:'',boxPrice:'',unitsPerBox:'',pricingMode:'single',priceGroup:'',priceRows:[],otherVariations:[]
+  price:'',retailPrice:'',wholesalePrice:'',highWholesalePrice:'',boxPrice:'',unitsPerBox:'',pricingMode:'single',priceGroup:'',priceRows:[],otherVariations:[]
 }
 const presets: Record<string,string[]> = {
   'Tamanho':['P','M','G'], 'Comprimento':['40 cm','45 cm','50 cm'],
@@ -27,6 +27,7 @@ export function pricingFromProduct(product: AdminProduct): PricingFields {
   const group = config && groups.find(item=>item.name===config.group)
   return {
     price:String(product.price), retailPrice:product.retail_price==null?'':String(product.retail_price),
+    wholesalePrice:product.wholesale_price==null?'':String(product.wholesale_price),highWholesalePrice:product.high_wholesale_price==null?'':String(product.high_wholesale_price),
     boxPrice:product.box_price==null?'':String(product.box_price), unitsPerBox:product.units_per_box==null?'':String(product.units_per_box),
     pricingMode:group?'multiple':'single',priceGroup:group?.name||'',
     priceRows:group&&config?group.options.map(name=>({name,price:String(Object.hasOwn(config.prices,name)?config.prices[name]:product.price)})):[],
@@ -102,7 +103,7 @@ export default function ProductPriceEditor({value,onChange}:{value:PricingFields
     </div>
     {!multiple?<div className="form-grid svx-price-fields">
       {moneyInput(value.catalogId?'Preço base (R$)':'Preço do produto (R$)',value.price,raw=>onChange({price:raw}),true)}
-      <p className="svx-price-hint span-2">Preço base utilizado no Geral, Atacado e Alto Atacado. Varejo e caixa fechada podem ter valores próprios abaixo.</p>
+      <p className="svx-price-hint span-2">Preço geral e padrão. Os tipos de catálogo podem ter valores próprios abaixo; se o campo estiver vazio, será usado o preço base.</p>
       {value.catalogId&&catalogOverride&&<p className="svx-price-hint span-2">Este catálogo tem um preço próprio. Os demais preços do produto são mantidos.</p>}
     </div>:<div className="svx-price-multiple">
       <label><span>O que muda o preço?</span><select aria-label="O que muda o preço?" value={custom?'custom':value.priceGroup} onChange={e=>void changeGroup(e.target.value)}><option value="" disabled>Escolha uma opção</option>{Object.keys(presets).map(name=><option key={name} value={name}>{name==='Embalagem'?'Embalagem (unidade, pacote, caixa)':name}</option>)}
@@ -126,6 +127,8 @@ export default function ProductPriceEditor({value,onChange}:{value:PricingFields
       {value.catalogId&&<div className="span-2">{moneyInput('Preço exibido neste catálogo (R$)',value.catalogPrice??value.price,raw=>onChange({catalogPrice:raw}))}<p className="svx-price-hint">Exceção opcional: altere este campo somente para definir um preço específico. Para voltar ao preço automático, use a opção na lista de catálogos.</p></div>}
       {multiple&&<p className="svx-price-hint span-2">Os valores das opções são preços padrão. Se um catálogo tiver outro preço base, suas opções mantêm a mesma proporção. Para produtos novos, o menor preço é usado como base.</p>}
       {moneyInput('Preço varejo (R$)',value.retailPrice,raw=>onChange({retailPrice:raw}))}
+      {moneyInput('Preço atacado (R$)',value.wholesalePrice,raw=>onChange({wholesalePrice:raw}))}
+      {moneyInput('Preço alto atacado (R$)',value.highWholesalePrice,raw=>onChange({highWholesalePrice:raw}))}
       {moneyInput('Preço caixa fechada (R$)',value.boxPrice,raw=>onChange({boxPrice:raw}))}
       <label><span>Unidades por caixa</span><input type="number" min="1" max="10000" step="1" value={value.unitsPerBox} onChange={e=>onChange({unitsPerBox:e.target.value})} placeholder="Ex.: 12"/></label>
       <p className="svx-price-hint span-2">Use estes campos somente para preços de catálogos separados. Para vender unidade, pacote e caixa no mesmo catálogo, use Vários preços → Embalagem.</p>
