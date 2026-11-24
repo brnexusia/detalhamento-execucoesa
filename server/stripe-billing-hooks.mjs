@@ -1,7 +1,7 @@
 import crypto from 'node:crypto'
 import express from 'express'
 import pg from 'pg'
-import { cycles, planPrice, subscriptionAccess, verifyStripeSignature } from './stripe-billing-policy.mjs'
+import { cycles, planPrice, subscriptionAccess, verifyStripeSignature, isPositivePaidInvoice } from './stripe-billing-policy.mjs'
 import { blackFridayPromotion } from './black-friday-pricing.mjs'
 import { requiresPaymentForSignup } from './signup-billing-mode.mjs'
 import { parseStripeServerKey, resolveStripeServerKey } from './stripe-key-config.mjs'
@@ -475,7 +475,7 @@ async function change(req, res) {
   res.json({ ok: true, status: updated.status, pending: Boolean(updated.pending_update), message: 'A alteração só será liberada após a confirmação da cobrança, quando necessária.' })
 }
 
-async function syncSubscription(client, id, eventType, paidInvoiceId = null) {
+async function syncSubscription(client, id, eventType, paidInvoiceId = null, positivePayment = false) {
   const subscription = await stripe('GET', 'subscriptions/' + encodeURIComponent(id))
   const storeId = String(subscription?.metadata?.shopvax_store_id || '')
   if (!storeId || !subscription.customer) return null
@@ -490,7 +490,7 @@ async function syncSubscription(client, id, eventType, paidInvoiceId = null) {
   const priceId = typeof line?.price === 'string' ? line.price : line?.price?.id
   const mapped = priceId ? (await client.query('SELECT plan_code,cycle FROM shopvax_stripe_prices WHERE price_id=$1 AND stripe_mode=$2', [priceId, stripeMode])).rows[0] : null
   const paid = eventType === 'invoice.paid' && Boolean(paidInvoiceId) && mapped && subscription.status === 'active'
-  const firstPaid = paid && !row.last_invoice_id
+  const firstPaid = Boolean(paid && positivePayment && !row.last_invoice_id)
   const periodEnd = Number(line?.current_period_end || subscription.current_period_end || 0)
   const until = paid && periodEnd > 0 ? new Date(periodEnd * 1000) : null
   await client.query([
@@ -498,9 +498,9 @@ async function syncSubscription(client, id, eventType, paidInvoiceId = null) {
     'cancel_at_period_end=$4,active_plan_code=CASE WHEN $5::boolean THEN $6 ELSE active_plan_code END,',
     'cycle=CASE WHEN $5::boolean THEN $7 ELSE cycle END,',
     'paid_until=CASE WHEN $5::boolean THEN $8 ELSE paid_until END,',
-    'last_invoice_id=CASE WHEN $5::boolean THEN $9 ELSE last_invoice_id END,updated_at=now()',
+    'last_invoice_id=CASE WHEN $10::boolean THEN $9 ELSE last_invoice_id END,updated_at=now()',
     'WHERE store_id=$1',
-  ].join(' '), [storeId, subscription.id, subscription.status, Boolean(subscription.cancel_at_period_end), Boolean(paid), mapped?.plan_code || null, mapped?.cycle || null, until, paidInvoiceId])
+  ].join(' '), [storeId, subscription.id, subscription.status, Boolean(subscription.cancel_at_period_end), Boolean(paid), mapped?.plan_code || null, mapped?.cycle || null, until, paidInvoiceId, Boolean(paid && positivePayment)])
   if (paid) {
     await client.query('UPDATE stores SET plan_tier=$2,billing_required=true,updated_at=now() WHERE id=$1', [storeId, mapped.plan_code])
   }
@@ -532,7 +532,7 @@ async function webhook(req, res) {
     } else if (event.type === 'invoice.paid' && obj.status === 'paid' && obj.paid_out_of_band !== true) {
       const sub = typeof obj.subscription === 'string' ? obj.subscription : obj.parent?.subscription_details?.subscription
       if (typeof sub === 'string') {
-        const confirmed = await syncSubscription(client, sub, event.type, obj.id)
+        const confirmed = await syncSubscription(client, sub, event.type, obj.id, isPositivePaidInvoice(obj))
         if (confirmed?.paid) {
           const referred = confirmed.firstPaid ? await qualifyReferralOnPaidInvoice(client,confirmed.storeId,obj.id) : null
           if (referred?.referrerStoreId) await applyMerchantStripeCredits(client,referred.referrerStoreId,stripe,stripeMode)
