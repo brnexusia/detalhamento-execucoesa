@@ -177,6 +177,46 @@ try {
   assert.equal(audit[0].old_items[0].quantity,originalItem.quantity)
   assert.equal(audit[0].new_items[0].quantity,5)
 
+  // A private invitation is one-time, only the owner may issue it, and the
+  // authenticated seller sees and edits only her attributed orders.
+  const accessPath='/api/admin/sellers/'+seller.id+'/order-access'
+  const deniedInvite=await request(accessPath,{method:'POST',cookie:customerCookie,body:{}})
+  assert.equal(deniedInvite.response.status,401)
+  const issued=await request(accessPath,{method:'POST',cookie:owner.cookie,body:{}})
+  assert.equal(issued.response.status,200,JSON.stringify(issued.payload))
+  const token=issued.payload.token
+  assert.ok(token)
+  const login=await request('/api/seller-orders/session',{method:'POST',body:{token}})
+  assert.equal(login.response.status,200,JSON.stringify(login.payload))
+  const sellerCookie=login.cookies.find(value=>value.startsWith('shopvax_seller_orders='))
+  assert.ok(sellerCookie)
+  const reused=await request('/api/seller-orders/session',{method:'POST',body:{token}})
+  assert.equal(reused.response.status,401)
+  const sellerList=await request('/api/seller-orders',{cookie:sellerCookie})
+  assert.equal(sellerList.response.status,200,JSON.stringify(sellerList.payload))
+  assert.ok(sellerList.payload.orders.some(o=>o.id===orderId))
+  assert.ok(sellerList.payload.orders.every(o=>o.seller_id===seller.id))
+  const otherSeller=await request('/api/admin/sellers',{method:'POST',cookie:owner.cookie,body:{name:'Outra Fase 4',phone:'5511988800045',isActive:true}})
+  assert.equal(otherSeller.response.status,201,JSON.stringify(otherSeller.payload))
+  const otherOrder=await request('/api/business/orders',{method:'POST',cookie:customerCookie,body:{storeSlug:owner.slug,sellerSlug:otherSeller.payload.seller.slug,catalogSlug:catalog.slug,items:[{productId:product.id,quantity:4,selections:{}}]}})
+  assert.equal(otherOrder.response.status,201,JSON.stringify(otherOrder.payload))
+  const otherId=otherOrder.payload.orderId
+  const restricted=await request('/api/seller-orders/'+otherId+'/items',{method:'PATCH',cookie:sellerCookie,body:editBody})
+  assert.equal(restricted.response.status,404)
+  const restrictedSearch=await request('/api/seller-orders/'+otherId+'/products?q=Produto',{cookie:sellerCookie})
+  assert.equal(restrictedSearch.response.status,404)
+  const search=await request('/api/seller-orders/'+orderId+'/products?q=Produto',{cookie:sellerCookie})
+  assert.equal(search.response.status,200,JSON.stringify(search.payload))
+  assert.ok(search.payload.products.some(p=>p.id===product.id))
+  const sellerEdit=await request('/api/seller-orders/'+orderId+'/items',{method:'PATCH',cookie:sellerCookie,body:{...editBody,revision:1}})
+  assert.equal(sellerEdit.response.status,200,JSON.stringify(sellerEdit.payload))
+  assert.equal(sellerEdit.payload.order.edit_revision,2)
+  assert.equal(sellerEdit.payload.order.total,400)
+  const revoke=await request(accessPath,{method:'DELETE',cookie:owner.cookie})
+  assert.equal(revoke.response.status,200)
+  assert.equal((await request('/api/seller-orders',{cookie:sellerCookie})).response.status,401)
+  await pool.query('DELETE FROM orders WHERE id=$1',[otherId])
+
   // Pentest regression: anonymous / unrelated buyers cannot mutate or pay for
   // an order, even when they know its UUID.
   result = await request(`/api/public/phase4/orders/${orderId}/shipping`, {
@@ -232,7 +272,7 @@ try {
   assert.equal(result.payload.payment.billingType, 'PIX')
   assert.match(result.payload.payment.invoiceUrl, /^https:\/\/sandbox\.asaas\.test\/invoice\//)
   const externalPaymentId = result.payload.payment.externalId
-  const paidEdit=await request(editPath,{method:'PATCH',cookie:owner.cookie,body:{...editBody,revision:1}})
+  const paidEdit=await request(editPath,{method:'PATCH',cookie:owner.cookie,body:{...editBody,revision:2}})
   assert.equal(paidEdit.response.status,409,'Não editar pedido com cobrança existente')
   result = await request('/api/public/phase4/payments', {
     method: 'POST', cookie: customerCookie,
