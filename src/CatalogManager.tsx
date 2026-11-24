@@ -6,7 +6,7 @@ import type { AdminProduct, AdminSeller } from './types'
 import { confirmAction } from './ui-dialogs'
 import './catalog-manager.css'
 
-type Kind = 'varejo'|'atacado'|'alto_atacado'|'personalizado'
+type Kind = 'geral'|'varejo'|'atacado'|'alto_atacado'|'personalizado'
 type Pane = 'create'|'settings'|'add'|null
 type Props = {
  storeSlug:string
@@ -95,7 +95,7 @@ export default function CatalogManager({storeSlug,categories,sellers=[],onSelect
  useEffect(()=>{
    if(!selected)return
    setName(selected.name)
-   setKind(selected.kind==='geral'||selected.kind==='caixa_fechada'?'personalizado':selected.kind)
+   setKind(selected.kind==='caixa_fechada'?'personalizado':selected.kind)
    const label=selected.kind==='geral'?selected.name:selected.kind==='caixa_fechada'?'Caixa fechada':selected.customLabel||''
    setCustomLabel(label)
    setCustomFormat(presetCustomLabels.some(preset=>preset===label)?label:label?'outro':'')
@@ -331,6 +331,7 @@ export default function CatalogManager({storeSlug,categories,sellers=[],onSelect
        </div>:<form onSubmit={pane==='create'?create:save}>
          <label>Nome<input maxLength={100} required autoFocus value={name} onChange={e=>setName(e.target.value)} disabled={busy||Boolean(selected?.lockedByPlan)&&pane==='settings'}/></label>
          <label>Tipo<select value={kind} onChange={e=>setKind(e.target.value as Kind)} disabled={busy||Boolean(selected?.lockedByPlan)&&pane==='settings'}>
+           {pane==='settings'&&selected?.kind==='geral'&&<option value="geral">Geral</option>}
            <option value="varejo">Varejo</option>
            <option value="atacado">Atacado</option>
            <option value="alto_atacado">Alto Atacado</option>
