@@ -105,7 +105,7 @@ async function updateGallery(req, res) {
     const raw=req.body.variantImages
     if(!Array.isArray(raw)||raw.length>80)return res.status(400).json({error:'Grade de fotos inválida (máximo 80 grupos).'})
     const groups=Array.isArray(current.variations)?current.variations:[]
-    const existingPhotos=new Set(normalizeImages([...(current.images||[]),current.media_type==='image'?current.media_url:'',...(Array.isArray(current.variant_images)?current.variant_images.flatMap(g=>g.images||[]):[])]))
+    const existingPhotos=new Set([...normalizeImages([...(current.images||[]),current.media_type==='image'?current.media_url:'']),...(Array.isArray(current.variant_images)?current.variant_images.flatMap(g=>normalizeImages(g.images)):[])])
     const allowed=new Set([...images,...existingPhotos])
     const seen=new Set();variantImages=[]
     for(const g of raw){
@@ -117,7 +117,7 @@ async function updateGallery(req, res) {
       if(photos.some(url=>!allowed.has(url)))return res.status(400).json({error:'Associe apenas fotos da galeria deste produto.'})
       for(const url of photos){
         if(existingPhotos.has(url))continue
-        const match=/^\\/media\\/([A-Za-z0-9-]+)$/.exec(url)
+        const match=/^\/media\/([A-Za-z0-9-]+)$/.exec(url)
         if(!match||!(await pool.query("SELECT id FROM media_assets WHERE id=$1 AND store_id=$2 AND mime_type LIKE 'image/%'",[match[1],store.store_id])).rowCount)return res.status(400).json({error:'Foto não encontrada nesta loja.'})
       }
       if(photos.length)variantImages.push({selections,images:photos})

@@ -782,8 +782,12 @@ function ProductEditor({ draft, setDraft, onClose, onSaved, targetCatalogId }: {
         const created = await api.createProduct(body)
         productId = created.product.id
       }
-      if (productId) await api.updateProductGallery(productId, galleryToSave, validVariantImages(pricing.variations,draft.variantImages))
-      if (productId && stockAllowed) await api.updateStock(productId, { enabled: draft.stockEnabled, quantity: Math.max(0, Number(draft.stockQuantity || 0)), variantStock: draft.variantStock || {} })
+      const original:ProductDraft=JSON.parse(initialSnapshot)
+      const variantImages=validVariantImages(pricing.variations,draft.variantImages)
+      const photosChanged=JSON.stringify(variantImages)!==JSON.stringify(original.variantImages)
+      if (productId) await api.updateProductGallery(productId, galleryToSave, photosChanged?variantImages:undefined)
+      const stockChanged=draft.stockEnabled!==original.stockEnabled||draft.stockQuantity!==original.stockQuantity||JSON.stringify(draft.variantStock)!==JSON.stringify(original.variantStock)
+      if (productId && stockAllowed && stockChanged) await api.updateStock(productId, { enabled: draft.stockEnabled, quantity: Math.max(0, Number(draft.stockQuantity || 0)), variantStock: draft.variantStock || {} })
       onSaved()
     } catch (err) { setError(err instanceof Error ? err.message : 'Não foi possível salvar.') }
     finally { setBusy(false) }

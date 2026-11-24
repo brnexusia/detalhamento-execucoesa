@@ -44,11 +44,11 @@ export default function ProductVariationsEditor({value,onChange,gallery,variantI
   }
   return <section className="product-inline-section svx-variations-editor" aria-label="Cores e tamanhos">
     <div className="product-inline-section__head"><div><strong>Cores e tamanhos</strong><span>Opções que o comprador seleciona e que aparecem no pedido e no WhatsApp.</span></div></div>
-    <div className="svx-variation-quick">
+    <div className="svx-variation-quick" role="group" aria-label="Outras opções do produto (sem alterar o preço)">
       <button type="button" className="secondary-action" disabled={disabled||!canAdd||allNames.includes('Cor')} onClick={()=>add('Cor',[''])}><Plus size={15}/> Adicionar cores</button>
       <button type="button" className="secondary-action" disabled={disabled||!canAdd||allNames.includes('Tamanho')} onClick={()=>add('Tamanho',['P','M','G'])}><Plus size={15}/> Adicionar tamanhos</button>
       <button type="button" className="secondary-action" disabled={disabled||!canAdd||allNames.includes('Tamanho')} onClick={()=>add('Tamanho',['Único'])}>Tamanho único</button>
-      <button type="button" className="secondary-action" disabled={disabled||!canAdd} onClick={()=>add('',[''])}><Plus size={15}/> Outra opção</button>
+      <button type="button" className="secondary-action" disabled={disabled||!canAdd} onClick={()=>add('',[''])}><Plus size={15}/> Adicionar tipo de opção</button>
     </div>
     {!groups.length&&!value.otherVariations.length&&<p className="product-inline-empty">Sem variações. Se cada cor é um produto separado, cadastre apenas a cor correspondente neste produto.</p>}
     {value.pricingMode==='multiple'&&value.priceGroup&&<p className="svx-price-hint">{value.priceGroup}: opções vinculadas a preços diferentes são editadas em Preços do produto.</p>}
