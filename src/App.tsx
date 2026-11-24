@@ -23,6 +23,7 @@ const SocialCarts = lazy(() => import('./SocialCarts'))
 const CustomerAccountRoute = lazy(() => import('./CustomerAccountRoute'))
 const GlobalBuyerAccount = lazy(() => import('./GlobalBuyerAccount'))
 const ShopvaxPartnerPortal = lazy(() => import('./ShopvaxPartnerPortal'))
+const SellerOrdersPortal = lazy(() => import('./SellerOrdersPortal'))
 
 function pageFor(pathname: string) {
   if (pathname === '/' || pathname === '' || pathname === '/feed' || pathname === '/descobrir') return 'social'
@@ -36,6 +37,7 @@ function pageFor(pathname: string) {
   if (pathname === '/parceiros' || pathname.startsWith('/parceiros/') || pathname === '/afiliados' || pathname.startsWith('/afiliados/')) return 'partners'
   if (pathname === '/cliente' || pathname.startsWith('/cliente/')) return 'customer'
   if (pathname === '/admin' || pathname.startsWith('/admin/')) return 'platform'
+  if (pathname === '/painel/vendedora' || pathname === '/painel/vendedora/') return 'seller-orders'
   if (pathname === '/painel' || pathname.startsWith('/painel/')) return 'admin'
   if (pathname === '/perfil' || pathname.startsWith('/perfil/')) return 'profile'
   return 'store'
@@ -94,6 +96,7 @@ export default function App() {
       : page === 'platform' ? 'Administração'
         : page === 'login' ? 'Entrar'
           : page === 'register' ? 'Criar loja'
+            : page === 'seller-orders' ? 'Pedidos da vendedora'
             : page === 'partners' ? 'Portal de parceiros'
             : page === 'customer' || page === 'buyer' ? 'Minha conta'
               : page === 'social' ? 'Descobrir'
@@ -123,6 +126,7 @@ export default function App() {
   else if (page === 'register') content = <AuthRoute mode="register" />
   else if (page === 'buyer') content = <GlobalBuyerAccount />
   else if (page === 'partners') content = <ShopvaxPartnerPortal />
+  else if (page === 'seller-orders') content = <SellerOrdersPortal />
   else if (page === 'customer') content = <Fragment key={pathname}><CustomerAccountRoute /><ShopvaxBuyerPreferences /></Fragment>
   else if (page === 'platform') content = <PlatformRoute />
   else content = <AdminRoute />
