@@ -116,6 +116,11 @@ async function ensureSchema() {
       updated_at timestamptz NOT NULL DEFAULT now(),
       PRIMARY KEY(catalog_id,product_id)
     );
+    ALTER TABLE catalog_products ADD COLUMN IF NOT EXISTS media_override jsonb;
+    ALTER TABLE catalogs ADD COLUMN IF NOT EXISTS feed_enabled boolean;
+    UPDATE catalogs SET feed_enabled=is_default WHERE feed_enabled IS NULL;
+    ALTER TABLE catalogs ALTER COLUMN feed_enabled SET DEFAULT false;
+    ALTER TABLE catalogs ALTER COLUMN feed_enabled SET NOT NULL;
     CREATE INDEX IF NOT EXISTS idx_catalog_products_visible ON catalog_products(catalog_id,visible,product_id);
     ALTER TABLE products ADD COLUMN IF NOT EXISTS images jsonb NOT NULL DEFAULT '[]'::jsonb;
     ALTER TABLE products ADD COLUMN IF NOT EXISTS variant_prices jsonb;
@@ -155,8 +160,8 @@ async function ensureDefaultCatalog(storeId, client = pool) {
   if (result.rowCount) return result.rows[0]
   try {
     result = await client.query(
-      `INSERT INTO catalogs (id,store_id,slug,name,kind,is_default,active)
-       VALUES ($1,$2,'geral','Catálogo geral','geral',true,true)
+      `INSERT INTO catalogs (id,store_id,slug,name,kind,is_default,active,feed_enabled)
+       VALUES ($1,$2,'geral','Catálogo geral','geral',true,true,true)
        RETURNING *`,
       [id(), storeId],
     )
@@ -192,6 +197,7 @@ function catalogShape(row) {
     isDefault: Boolean(row.is_default),
     active: Boolean(row.active),
     explicitMembership: Boolean(row.explicit_membership),
+    feedEnabled: Boolean(row.feed_enabled),
   }
 }
 
@@ -223,12 +229,12 @@ async function productCatalogMemberships(req,res){
   const productId=String(req.params.productId||'')
   if(productId!=='new'&&!(await pool.query('SELECT 1 FROM products WHERE id=$1 AND store_id=$2',[productId,storeId])).rowCount)
     return res.status(404).json({error:'Produto não encontrado.'})
-  const result=await pool.query(`SELECT c.*,cp.price_override,
+  const result=await pool.query(`SELECT c.*,cp.price_override,cp.media_override,
     CASE WHEN c.explicit_membership THEN COALESCE(cp.visible,false) ELSE COALESCE(cp.visible,true) END AS included
     FROM catalogs c LEFT JOIN catalog_products cp ON cp.catalog_id=c.id AND cp.product_id=$2
     WHERE c.store_id=$1 ORDER BY c.is_default DESC,c.name,c.id`,[storeId,productId==='new'?null:productId])
   return res.json({catalogs:result.rows.map(row=>({...catalogShape(row),lockedByPlan:req.catalogStore.plan_tier!=='ouro'&&!row.is_default,
-    included:Boolean(row.included),priceOverride:row.price_override==null?null:Number(row.price_override)}))})
+    included:Boolean(row.included),priceOverride:row.price_override==null?null:Number(row.price_override),mediaOverride:row.media_override||null}))})
 }
 
 async function createCatalog(req, res) {
@@ -259,9 +265,9 @@ async function createCatalog(req, res) {
       return res.status(404).json({error:'Catálogo de origem não encontrado nesta loja.'})
     }
     const result=await client.query(
-      `INSERT INTO catalogs (id,store_id,slug,name,kind,custom_label,price_mode,minimum_order,is_default,active,explicit_membership)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,false,true,true) RETURNING *`,
-      [id(),storeId,slug,name,kind,customLabel,priceMode,minimumOrder])
+      `INSERT INTO catalogs (id,store_id,slug,name,kind,custom_label,price_mode,minimum_order,is_default,active,explicit_membership,feed_enabled)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,false,true,true,$9) RETURNING *`,
+      [id(),storeId,slug,name,kind,customLabel,priceMode,minimumOrder,req.body?.feedEnabled===true])
     const catalog=result.rows[0]
     let copied=0
     if(sourceId){
