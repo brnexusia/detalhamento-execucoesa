@@ -1,4 +1,5 @@
 import { resolvedVariantPrices, variantUnitPrice } from './variant-pricing.mjs'
+import { withCatalogMedia, catalogMediaProjection } from './catalog-media.mjs'
 import { subscriptionAccess } from './stripe-billing-policy.mjs'
 import crypto from 'node:crypto'
 import express from 'express'
@@ -305,8 +306,8 @@ async function updateCatalog(req, res) {
   try {
     await client.query('BEGIN')
     const updated = await client.query(
-      'UPDATE catalogs SET name=$1,kind=$2,custom_label=$3,price_mode=$4,minimum_order=$5,active=$6,updated_at=now() WHERE id=$7 AND store_id=$8 RETURNING *',
-      [name, kind, customLabel, priceMode, minimumOrder, active, current.id, storeId],
+      'UPDATE catalogs SET name=$1,kind=$2,custom_label=$3,price_mode=$4,minimum_order=$5,active=$6,feed_enabled=COALESCE($9::boolean,feed_enabled),updated_at=now() WHERE id=$7 AND store_id=$8 RETURNING *',
+      [name, kind, customLabel, priceMode, minimumOrder, active, current.id, storeId,typeof req.body?.feedEnabled==='boolean'?req.body.feedEnabled:null],
     )
     if (Array.isArray(req.body?.items)) {
       for (const item of req.body.items.slice(0, 10000)) {
@@ -384,7 +385,7 @@ async function downloadCatalogPdf(req, res) {
     error: 'Exportação de catálogos adicionais disponível somente no plano Gold.', code: 'GOLD_REQUIRED',
   })
   const products = await pool.query(
-    `SELECT p.id,p.sku,p.name,p.description,p.price,p.category,p.media_url,p.media_type,p.images,p.variations,
+    `SELECT p.id,p.sku,p.name,p.description,p.price,p.category,p.media_url,p.media_type,p.images,p.variations,cp.media_override,
             ${effectiveCatalogPrice} AS public_price
      FROM products p
      JOIN catalogs c ON c.id=$2
@@ -399,7 +400,7 @@ async function downloadCatalogPdf(req, res) {
     store: storeResult.rows[0],
     catalog,
     category,
-    products: products.rows,
+    products: products.rows.map(withCatalogMedia),
     imageLoader: (url, variant = 'medium') => loadCatalogMedia(pool.query.bind(pool), url, variant),
   })
 }
@@ -508,6 +509,7 @@ function uniqueImages(row) {
 }
 
 function publicProduct(product, catalog) {
+  product=withCatalogMedia(product)
   const images = uniqueImages(product)
   const perBox = isBoxCatalog(catalog) ? Math.max(1, Number(product.units_per_box || 1)) : 1
   return {
@@ -619,7 +621,7 @@ async function protectedStore(req, res) {
   const orderBy = sort === 'price_asc' ? `${sortPrice} ASC,p.id DESC` : sort === 'price_desc' ? `${sortPrice} DESC,p.id DESC` : 'p.featured DESC,p.created_at DESC,p.id DESC'
   params.push(limit + 1)
   const productsResult = await pool.query(
-    `SELECT p.*,p.created_at::text AS created_at_cursor,${effectiveCatalogPrice} AS public_price
+    `SELECT p.*,p.created_at::text AS created_at_cursor,cp.media_override,${effectiveCatalogPrice} AS public_price
      FROM products p JOIN catalogs c ON c.id=$2
      LEFT JOIN catalog_products cp ON cp.product_id=p.id AND cp.catalog_id=$2
      WHERE ${conditions.join(' AND ')} ORDER BY ${orderBy} LIMIT ${sqlParam(params.length)}`,
@@ -673,7 +675,7 @@ async function socialProductOffers(req, res) {
   if (!buyer && !ownerPreview) return res.status(401).json({ code: 'BUYER_PROFILE_REQUIRED', error: 'Entre com WhatsApp para consultar preços de outras lojas.' })
   await ensureDefaultCatalog(p.store_id)
   const available = await pool.query(`SELECT c.id,c.slug,c.name,c.kind,c.custom_label,c.price_mode,c.is_default,c.minimum_order,
-    ${effectiveCatalogPrice} AS public_price
+    ${effectiveCatalogPrice} AS public_price,cp.media_override
     FROM catalogs c JOIN products p ON p.id=$2
     LEFT JOIN catalog_products cp ON cp.catalog_id=c.id AND cp.product_id=p.id
     WHERE c.store_id=$1 AND c.active=true AND ($3::boolean OR c.is_default)
@@ -687,6 +689,7 @@ async function socialProductOffers(req, res) {
     ownerPreview,
     offers: available.rows.map(c => ({
       id:c.id, slug:c.slug, name:c.name, kind:c.kind, customLabel:c.custom_label||'', priceMode:c.price_mode||'base',
+      ...catalogMediaProjection(withCatalogMedia({...p,media_override:c.media_override})),
       price:Number(c.public_price), variantPrices:resolvedVariantPrices(p,c.public_price), minimumOrder:c.minimum_order == null ? Number(p.store_minimum_order || 0) : Number(c.minimum_order),
       unitsPerBox:isBoxCatalog(c) ? Math.max(1,Number(p.units_per_box || 1)) : 1
     }))
