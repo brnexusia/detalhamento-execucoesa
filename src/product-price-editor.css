@@ -29,3 +29,19 @@
 .editor-modal .svx-other-head,.editor-modal .svx-other-option{display:grid;grid-template-columns:minmax(0,1fr) 36px;gap:8px;align-items:end}
 .editor-modal .svx-price-fields{margin:0}
 @media(max-width:460px){.editor-modal .svx-price-modes{grid-template-columns:1fr}.editor-modal .svx-price-row,.editor-modal .svx-price-row-head{grid-template-columns:minmax(0,1fr) minmax(0,.75fr) 32px;gap:5px}.editor-modal .svx-price-remove{width:32px}.editor-modal .svx-price-row input,.editor-modal .svx-price-input input{font-size:16px}.editor-modal .svx-price-input{padding-left:6px;gap:3px}}
+
+
+/* Product membership controls: one shared product, independent catalogue pricing. */
+.svx-product-memberships{display:grid;gap:9px;min-width:0}
+.svx-product-memberships>p{font-size:12px;color:#625d55;margin:0}
+.svx-product-membership{min-width:0;padding:10px 12px;border:1px solid #d9d3c6;border-radius:8px;background:#fcfbf8;display:grid;gap:6px}
+.svx-product-membership>label{display:flex;align-items:center;gap:10px;min-width:0;cursor:pointer;margin:0}
+.svx-product-membership>label>input[type=checkbox]{appearance:auto;accent-color:#c94c08;width:18px;height:18px;min-height:0;flex:0 0 18px;margin:0}
+.svx-product-membership>label>span{display:grid;gap:3px;flex:1;min-width:0;overflow-wrap:anywhere}
+.svx-product-membership>label>span strong{font-size:13px;line-height:1.35}
+.svx-product-membership small{font-size:11px;color:#655e55;line-height:1.4}
+.svx-product-membership>label>b{flex-shrink:0;font-size:13px;color:#161514}
+.svx-product-membership:has(input:checked){border-color:#edaa7b;background:#fff4e9}
+.svx-product-membership__override{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-left:28px}
+.svx-product-membership__override button{min-height:32px;border:1px solid #d9d3c6;border-radius:6px;background:#fff;padding:5px 9px;color:#9b390a;font-size:11px;cursor:pointer}
+@media(max-width:380px){.svx-product-membership{padding:9px}.svx-product-membership>label{gap:7px}.svx-product-membership>label>b{font-size:12px}}
