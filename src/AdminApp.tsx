@@ -1,7 +1,7 @@
 import { SHOPVAX_PUBLIC_ORIGIN, canonicalPublicShareLink, publicSellerLink, publicStoreLink } from './public-share-links'
 import { useEffect, useRef, useState } from 'react'
 import { ArrowRight, Boxes, Check, ChevronLeft, ChevronRight, Clipboard, CreditCard, Download, Eye, EyeOff, ExternalLink, ImagePlus, Link2, LogOut, Menu, MoreHorizontal, Package, Pencil, Plus, ReceiptText, Search, Settings, Store as StoreIcon, Trash2, TrendingUp, Upload, Users, X } from 'lucide-react'
-import { api, type AdminCatalog } from './api'
+import { api, apiRequest, type AdminCatalog } from './api'
 import { isCatalogPhoto } from './catalog-photo-upload'
 import { responsiveLocalMedia } from './responsive-media'
 import { listenAuthChanges } from './auth-session-sync'
@@ -539,7 +539,32 @@ function Orders({ data, onUpdated }: { data: AdminBootstrap; onUpdated: () => vo
 }
 
 function Sellers({ data, baseUrl, onCopy, onCreate, onEdit, onDelete }: { data: AdminBootstrap; baseUrl: string; onCopy: (value: string) => void; onCreate: () => void; onEdit: (seller: AdminSeller) => void; onDelete: (seller: AdminSeller) => void }) {
-  return <div className="panel-page"><div className="page-title"><div><span>Equipe</span><h1>Vendedoras</h1><p>Cada pessoa ganha um endereço próprio da mesma loja.</p></div><button className="primary-action" onClick={onCreate}><Plus size={18} /> Nova vendedora</button></div><div className="seller-list">{data.sellers.map((seller) => { const orders = data.orders.filter((order) => order.seller_id === seller.id); const value = orders.reduce((sum, order) => sum + order.total, 0); const link = publicSellerLink(data.store.slug, seller.slug); return <article key={seller.id}><div className="seller-avatar">{seller.name.slice(0, 2).toUpperCase()}</div><div className="seller-main"><small>{seller.is_active ? 'ATIVA' : 'PAUSADA'}</small><h3>{seller.name}</h3><span>{seller.phone}</span></div><div className="seller-stats"><span><b>{orders.length}</b> {orders.length === 1 ? 'pedido' : 'pedidos'}</span><span><b>{money.format(value)}</b> em pedidos enviados</span></div><div className="seller-link"><code>{link.replace(/^https?:\/\//, '')}</code><button onClick={() => onCopy(link)}><Clipboard size={15} /> Copiar link</button></div><div className="seller-actions"><button onClick={() => onEdit(seller)}><Pencil size={16} /></button><button className="danger" onClick={() => onDelete(seller)}><Trash2 size={16} /></button></div></article> })}</div>{!data.sellers.length && <div className="admin-empty"><Users size={30} /><h2>Cadastre quem vende.</h2><p>O link individual garante que o carrinho volte para a vendedora certa.</p><button className="primary-action" onClick={onCreate}><Plus size={18} /> Cadastrar vendedora</button></div>}</div>
+  const [accessBusy,setAccessBusy]=useState('')
+  const [accessNotice,setAccessNotice]=useState('')
+  const [accessLink,setAccessLink]=useState('')
+  const issueAccess=async(seller:AdminSeller)=>{
+    if(accessBusy||!(await confirmAction('Gerar um convite privado para '+seller.name+'? O convite anterior e a sessão anterior serão revogados. O novo convite vale por 24 horas e pode ser utilizado uma única vez.','Acesso aos pedidos','Gerar convite')))return
+    setAccessBusy(seller.id);setAccessNotice('');setAccessLink('')
+    try{
+      const result=await apiRequest<{token:string}>(`/api/admin/sellers/${encodeURIComponent(seller.id)}/order-access`,{method:'POST',body:'{}'})
+      if(!result?.token)throw Error('Não foi possível gerar o convite.')
+      const link=SHOPVAX_PUBLIC_ORIGIN+'/painel/vendedora#convite='+encodeURIComponent(result.token)
+      setAccessLink(link);setAccessNotice('Convite privado de '+seller.name+' gerado. Compartilhe somente com ela.')
+      try{await navigator.clipboard.writeText(link)}catch{}
+    }catch(e){setAccessNotice(e instanceof Error?e.message:'Não foi possível gerar o acesso.')}
+    finally{setAccessBusy('')}
+  }
+  const revokeAccess=async(seller:AdminSeller)=>{
+    if(accessBusy||!(await confirmAction('Revogar o acesso de '+seller.name+' aos pedidos?','Revogar acesso','Revogar')))return
+    setAccessBusy(seller.id);setAccessNotice('');setAccessLink('')
+    try{
+      const result=await apiRequest<{ok:boolean}>(`/api/admin/sellers/${encodeURIComponent(seller.id)}/order-access`,{method:'DELETE'})
+      if(result?.ok!==true)throw Error('Não foi possível revogar o acesso.')
+      setAccessNotice('Acesso de '+seller.name+' revogado.')
+    }catch(e){setAccessNotice(e instanceof Error?e.message:'Não foi possível revogar o acesso.')}
+    finally{setAccessBusy('')}
+  }
+  return <div className="panel-page"><div className="page-title"><div><span>Equipe</span><h1>Vendedoras</h1><p>Cada pessoa ganha um endereço próprio da mesma loja.</p></div><button className="primary-action" onClick={onCreate}><Plus size={18} /> Nova vendedora</button></div>{accessNotice&&<div className="svx-seller-invite" role="status"><p>{accessNotice}</p>{accessLink&&<div><input aria-label="Convite privado da vendedora" readOnly value={accessLink} onFocus={e=>e.currentTarget.select()}/><button type="button" className="secondary-action" onClick={()=>onCopy(accessLink)}><Clipboard size={15}/> Copiar convite</button></div>}</div>}<div className="seller-list">{data.sellers.map((seller) => { const orders = data.orders.filter((order) => order.seller_id === seller.id); const value = orders.reduce((sum, order) => sum + order.total, 0); const link = publicSellerLink(data.store.slug, seller.slug); return <article key={seller.id}><div className="seller-avatar">{seller.name.slice(0, 2).toUpperCase()}</div><div className="seller-main"><small>{seller.is_active ? 'ATIVA' : 'PAUSADA'}</small><h3>{seller.name}</h3><span>{seller.phone}</span></div><div className="seller-stats"><span><b>{orders.length}</b> {orders.length === 1 ? 'pedido' : 'pedidos'}</span><span><b>{money.format(value)}</b> em pedidos enviados</span></div><div className="seller-link"><code>{link.replace(/^https?:\/\//, '')}</code><button onClick={() => onCopy(link)}><Clipboard size={15} /> Copiar link</button></div><div className="seller-actions"><button type="button" disabled={!seller.is_active||Boolean(accessBusy)} title="Gerar convite privado para editar pedidos" aria-label={'Gerar acesso aos pedidos de '+seller.name} onClick={()=>void issueAccess(seller)}><Link2 size={16}/> Acesso aos pedidos</button><button type="button" disabled={Boolean(accessBusy)} title="Revogar acesso aos pedidos" aria-label={'Revogar acesso aos pedidos de '+seller.name} onClick={()=>void revokeAccess(seller)}><X size={16}/></button><button onClick={() => onEdit(seller)}><Pencil size={16} /></button><button className="danger" onClick={() => onDelete(seller)}><Trash2 size={16} /></button></div></article> })}</div>{!data.sellers.length && <div className="admin-empty"><Users size={30} /><h2>Cadastre quem vende.</h2><p>O link individual garante que o carrinho volte para a vendedora certa.</p><button className="primary-action" onClick={onCreate}><Plus size={18} /> Cadastrar vendedora</button></div>}</div>
 }
 
 function StoreSettings({ data, onSaved, onCopy, onDirtyChange }: { data: AdminBootstrap; onSaved: () => void; onCopy: (value: string) => void; onDirtyChange: (dirty: boolean) => void }) {
