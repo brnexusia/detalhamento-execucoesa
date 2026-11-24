@@ -824,6 +824,35 @@ app.post(
   }),
 )
 
+// Changes apply only to the selected product, never duplicate it or copy a source price.
+async function applyProductCatalogMemberships(client,store,productId,changes){
+  if(changes===undefined)return
+  const invalid=(status,message)=>Object.assign(new Error(message),{membershipStatus:status})
+  if(!Array.isArray(changes)||changes.length>500||changes.some(x=>!x||typeof x.catalogId!=='string'||!x.catalogId.trim()||typeof x.included!=='boolean'||(x.resetPrice!==undefined&&typeof x.resetPrice!=='boolean')))
+    throw invalid(400,'Seleção de catálogos inválida.')
+  const ids=changes.map(x=>x.catalogId)
+  if(new Set(ids).size!==ids.length)throw invalid(400,'Catálogo repetido na seleção.')
+  if(!ids.length)return
+  const catalogs=await client.query('SELECT id,is_default,explicit_membership FROM catalogs WHERE store_id=$1 AND id=ANY($2::text[]) ORDER BY id FOR SHARE',[store.id,ids])
+  if(catalogs.rowCount!==ids.length)throw invalid(404,'Um catálogo selecionado não pertence a esta loja.')
+  if(store.plan_tier!=='ouro'&&catalogs.rows.some(c=>!c.is_default))throw invalid(403,'Catálogos adicionais requerem plano Gold.')
+  for(const catalog of catalogs.rows){
+    const change=changes.find(x=>x.catalogId===catalog.id)
+    if(change.included){
+      await client.query(`INSERT INTO catalog_products(catalog_id,product_id,visible,price_override)
+        VALUES($1,$2,true,NULL) ON CONFLICT(catalog_id,product_id) DO UPDATE SET visible=true,
+        price_override=CASE WHEN $3::boolean OR NOT catalog_products.visible THEN NULL ELSE catalog_products.price_override END,
+        updated_at=CASE WHEN $3::boolean OR NOT catalog_products.visible THEN now() ELSE catalog_products.updated_at END`,
+        [catalog.id,productId,Boolean(change.resetPrice)])
+    }else if(catalog.explicit_membership){
+      await client.query('DELETE FROM catalog_products WHERE catalog_id=$1 AND product_id=$2',[catalog.id,productId])
+    }else{
+      await client.query(`INSERT INTO catalog_products(catalog_id,product_id,visible,price_override)
+        VALUES($1,$2,false,NULL) ON CONFLICT(catalog_id,product_id) DO UPDATE SET visible=false,price_override=NULL,updated_at=now()`,[catalog.id,productId])
+    }
+  }
+}
+
 app.post(
   '/api/admin/products',
   auth,
@@ -883,9 +912,10 @@ app.post(
         ON CONFLICT(catalog_id,product_id) DO UPDATE SET visible=true,updated_at=now()`,
         [catalogId,result.rows[0].id,store.rows[0].id])
     }
+    await applyProductCatalogMemberships(client,store.rows[0],result.rows[0].id,req.body?.catalogMemberships)
     await client.query('COMMIT')
     res.status(201).json({ product: { ...result.rows[0], price: Number(result.rows[0].price) } })
-    }catch(error){await client.query('ROLLBACK').catch(()=>{});throw error}
+    }catch(error){await client.query('ROLLBACK').catch(()=>{});if(error.membershipStatus)return res.status(error.membershipStatus).json({error:error.message});throw error}
     finally{client.release()}
   }),
 )
@@ -1072,6 +1102,7 @@ app.put(
           [catalogId, req.params.id, catalogPrice],
         )
       }
+      await applyProductCatalogMemberships(client,store.rows[0],req.params.id,req.body?.catalogMemberships)
       await client.query('COMMIT')
       res.json({
         product: {
@@ -1082,6 +1113,7 @@ app.put(
       })
     } catch (error) {
       await client.query('ROLLBACK').catch(() => {})
+      if(error.membershipStatus)return res.status(error.membershipStatus).json({error:error.message})
       throw error
     } finally {
       client.release()
