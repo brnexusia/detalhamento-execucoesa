@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { apiRequest } from './api'
-import { CheckCircle2, ChevronDown, ChevronUp, RefreshCcw, Search, ShieldAlert } from 'lucide-react'
+import { CheckCircle2, ChevronDown, ChevronUp, RefreshCcw, Search, ShieldAlert, Users, ShoppingCart, CircleDollarSign, RotateCcw, Wallet, Banknote, UserRound, Layers, Store, Check, PauseCircle } from 'lucide-react'
 import './partner-portal.css'
 
 type Partner={
@@ -95,49 +95,48 @@ export default function PlatformReferralPanel(){
   finally{setBusy('')}
  }
  const matching=report?.partners.filter(p=>[p.name,p.email,p.code].some(value=>value.toLowerCase().includes(search.trim().toLowerCase())))||[]
- return <div className="svx-referral-admin">
-  <div className="platform-title"><span>STRIPE · REFERRAL</span><h1>Parceiros e indicações</h1>
-   <p>Funil completo por parceiro: cadastro da loja, Checkout, primeiro pagamento confirmado, comissão e repasse.</p></div>
-  <button className="platform-secondary" onClick={()=>void load()} disabled={loading}><RefreshCcw size={16}/> Atualizar</button>
+ return <div className="platform-page svx-referral-admin">
+  <div className="svx-referral-admin__hero"><div className="platform-title"><span>PROGRAMA DE INDICAÇÕES</span><h1>Parceiros e indicações</h1>
+   <p>Acompanhe as lojas indicadas até o primeiro pagamento confirmado. Cadastros e checkouts pendentes não geram comissão.</p></div>
+  <button className="platform-secondary" onClick={()=>void load()} disabled={loading}><RefreshCcw size={16}/> Atualizar</button></div>
   {error&&<p role="alert" className="svx-partner__error">{error}</p>}
   {notice&&<p role="status" className="svx-partner__notice"><CheckCircle2 size={16}/>{notice}</p>}
   {loading&&!report?<p>Carregando parceiros…</p>:report&&<>
    <div className="svx-partner__grid">
     {[
-      ['Cadastros vinculados',report.partners.reduce((sum,p)=>sum+Number(p.referrals),0)],
-      ['Sem Checkout',report.partners.reduce((sum,p)=>sum+Number(p.registered_only),0)],
-      ['Checkout iniciado',report.partners.reduce((sum,p)=>sum+Number(p.checkout_started),0)],
-      ['Pagamentos confirmados',report.partners.reduce((sum,p)=>sum+Number(p.paid_referrals),0)],
-      ['Estornos',report.partners.reduce((sum,p)=>sum+Number(p.reversed_referrals),0)],
-      ['Comissões a aprovar',money.format(report.partners.reduce((sum,p)=>sum+Number(p.pending_commission_cents),0)/100)],
-    ].map(([name,value])=><article key={name}><small>{name}</small><strong>{value}</strong></article>)}
+      {label:'Conversões concluídas',value:report.partners.reduce((sum,p)=>sum+Number(p.paid_referrals),0),Icon:CircleDollarSign,paid:true,note:'Primeiro pagamento confirmado'},
+      {label:'Comissão a repassar',value:money.format(report.partners.reduce((sum,p)=>sum+Number(p.pending_commission_cents),0)/100),Icon:Wallet,note:'Somente conversões pagas'},
+      {label:'Repasses registrados',value:money.format(report.partners.reduce((sum,p)=>sum+Number(p.paid_commission_cents),0)/100),Icon:Banknote,note:'Pagamento externo registrado'},
+      {label:'Cadastros sem Checkout',value:report.partners.reduce((sum,p)=>sum+Number(p.registered_only),0),Icon:Users,note:'Ainda não convertidos'},
+      {label:'Checkout pendente',value:report.partners.reduce((sum,p)=>sum+Number(p.checkout_started),0),Icon:ShoppingCart,note:'Aguardando pagamento'},
+      {label:'Estornos',value:report.partners.reduce((sum,p)=>sum+Number(p.reversed_referrals),0),Icon:RotateCcw,note:'Conversões revertidas'},
+    ].map(({label,value,Icon,paid,note})=><article key={label} className={paid?'is-paid':''}><small><Icon size={18}/>{label}</small><strong>{value}</strong><span>{note}</span></article>)}
    </div>
    <section className="svx-partner__card">
-    <div className="svx-referral-admin__section-head"><div><h2>Parceiros independentes</h2>
-     <p>Selecione um parceiro para consultar cada loja cadastrada, mesmo sem Checkout. A comissão só nasce após a primeira fatura Stripe confirmada.</p></div>
+    <div className="svx-referral-admin__section-head"><div><h2><Users size={21}/> Parceiros independentes</h2>
+     <p>Consulte as indicações de cada parceiro, separando pagamentos confirmados de cadastros pendentes.</p></div>
      <label className="svx-referral-admin__search"><Search size={16}/><input aria-label="Buscar parceiro por nome, e-mail ou código" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar parceiro"/></label>
     </div>
     <div className="svx-referral-admin__partners">
      {matching.map(p=><article className="svx-referral-admin__partner" key={p.id}>
-      <div className="svx-referral-admin__partner-head"><div><strong>{p.name}</strong><small>{p.email} · {p.code}</small><small>Conta: {p.status==='active'?'Ativa':p.status==='pending'?'Aguardando ativação':'Suspensa'} · Pix {p.pix_key?'cadastrada':'pendente'}</small></div>
+      <div className="svx-referral-admin__partner-head"><div className="svx-referral-admin__identity"><span className="svx-referral-admin__avatar"><UserRound size={22}/></span><div><strong>{p.name}</strong><small>{p.email} · {p.code}</small><small>Conta: {p.status==='active'?'Ativa':p.status==='pending'?'Aguardando ativação':'Suspensa'} · Pix {p.pix_key?'cadastrada':'pendente'}</small></div></div>
        <button type="button" aria-expanded={expanded===p.id} onClick={()=>void toggle(p.id)}>
         {expanded===p.id?<ChevronUp size={15}/>:<ChevronDown size={15}/>} {expanded===p.id?'Fechar lojas':'Ver lojas'}
        </button>
       </div>
       <div className="svx-referral-admin__funnel">
        {[
-        ['Cadastros',p.referrals],['Sem Checkout',p.registered_only],['Checkout pendente',p.checkout_started],
-        ['Pagamentos',p.paid_referrals],['Estornos',p.reversed_referrals],
-        ['Comissão pendente',money.format(Number(p.pending_commission_cents)/100)],
-        ['Repasse registrado',money.format(Number(p.paid_commission_cents)/100)]
-       ].map(([label,value])=><div key={label}><small>{label}</small><strong>{value}</strong></div>)}
+        {label:'Conversões concluídas',value:p.paid_referrals,paid:true},{label:'Comissão a repassar',value:money.format(Number(p.pending_commission_cents)/100)},
+        {label:'Repasse registrado',value:money.format(Number(p.paid_commission_cents)/100)},
+        {label:'Sem Checkout',value:p.registered_only},{label:'Checkout pendente',value:p.checkout_started},{label:'Estornos',value:p.reversed_referrals}
+       ].map(({label,value,paid})=><div key={label} className={paid?'is-paid':''}><small>{label}</small><strong>{value}</strong></div>)}
       </div>
       <div className="svx-referral-admin__partner-controls">
-       <label>Comissão por primeira conversão (R$)
+       <label>Comissão por primeira conversão paga (R$)
         <input aria-label={'Comissão para '+p.name} type="number" min="0" max="100000" step=".01"
          value={cents[p.id]||'0'} onChange={e=>setCents(x=>({...x,[p.id]:e.target.value}))}/></label>
-       <button disabled={busy===p.id} onClick={()=>void edit(p,{commissionCents:Math.round(Number(cents[p.id]||0)*100),applyToPending:true})}>Salvar comissão</button>
-       <button disabled={busy===p.id} onClick={()=>void edit(p,{status:p.status==='active'?'suspended':'active'})}>{p.status==='active'?'Suspender':'Aprovar/ativar'}</button>
+       <button className="svx-referral-admin__save" disabled={busy===p.id} onClick={()=>void edit(p,{commissionCents:Math.round(Number(cents[p.id]||0)*100),applyToPending:true})}><Check size={16}/> Salvar comissão</button>
+       <button className="svx-referral-admin__secondary" disabled={busy===p.id} onClick={()=>void edit(p,{status:p.status==='active'?'suspended':'active'})}><PauseCircle size={16}/> {p.status==='active'?'Suspender':'Aprovar/ativar'}</button>
       </div>
       {expanded===p.id&&<div className="svx-referral-admin__detail">
        <h3>Lojas indicadas por {p.name}</h3>
@@ -151,8 +150,8 @@ export default function PlatformReferralPanel(){
          <td><strong>{row.store_name}</strong><small>{row.store_email}</small><small>Cadastro: {date.format(new Date(row.registered_at))}</small></td>
          <td><strong>{stage(row)}</strong><small>{row.checkout_started_at?'Checkout: '+date.format(new Date(row.checkout_started_at)):'Nenhum Checkout iniciado'}</small></td>
          <td>{row.status==='qualified'?'Primeira fatura confirmada':row.status==='reversed'?'Pagamento estornado':'Primeira fatura não confirmada'}<small>{row.first_invoice_id||'Sem fatura paga'}</small></td>
-         <td>{money.format(Number(row.commission_cents)/100)}<small>{commissionStage(row)}</small></td>
-         <td>{row.commission_status==='pending_approval'&&Number(row.commission_cents)>0?
+         <td>{row.status==='pending'?'—':money.format(Number(row.commission_cents)/100)}<small>{row.status==='pending'?'Aguardando primeiro pagamento':commissionStage(row)}</small></td>
+         <td>{row.status==='qualified'&&Boolean(row.first_invoice_id)&&row.commission_status==='pending_approval'&&Number(row.commission_cents)>0?
            <div className="svx-referral-admin__actions"><input aria-label={'Comprovante '+row.store_name} value={references[row.referred_store_id]||''} onChange={e=>setReferences(x=>({...x,[row.referred_store_id]:e.target.value}))} placeholder="ID comprovante Pix"/><button disabled={busy===row.referred_store_id} onClick={()=>void payout(row)}>Registrar pago</button></div>
            :row.commission_status==='paid'?<span>Registrado: {row.payout_reference}</span>:'—'}</td>
         </tr>)}</tbody></table></div>
@@ -166,19 +165,19 @@ export default function PlatformReferralPanel(){
     </div>
     {!matching.length&&<p>Nenhum parceiro encontrado.</p>}
    </section>
-   <section className="svx-partner__card"><h2>Conciliação geral de indicações</h2>
+   <section className="svx-partner__card"><h2><Layers size={21}/> Conciliação geral de indicações</h2>
     <p>Últimas 500 indicações de parceiros e lojas indicadoras. Para o histórico completo de um parceiro, use “Ver lojas” acima.</p>
     <div className="svx-referral-admin__scroll"><table><thead><tr><th>Loja</th><th>Indicador</th><th>Etapa</th><th>Benefício / comissão</th><th>Repasse</th></tr></thead><tbody>{report.claims.map(row=><tr key={row.referred_store_id}>
      <td><strong>{row.referred_store}</strong><small>{date.format(new Date(row.created_at))}</small></td>
      <td>{row.referring_store||row.partner_code||'—'}<small>{row.referral_code}</small></td>
      <td>{stage(row)}<small>{row.first_invoice_id||'Sem fatura paga'}</small></td>
-     <td>{row.partner_code?money.format(Number(row.commission_cents)/100):row.credit_status==='applied'?'Crédito lançado na Stripe':row.credit_status==='pending'?'Crédito aguardando aplicação':'Sem crédito'}<small>{row.partner_code?commissionStage(row):''}</small></td>
-     <td>{row.commission_status==='pending_approval'&&Number(row.commission_cents)>0?
+     <td>{row.status==='pending'?'—':row.partner_code?money.format(Number(row.commission_cents)/100):row.credit_status==='applied'?'Crédito lançado na Stripe':row.credit_status==='pending'?'Crédito aguardando aplicação':'Sem crédito'}<small>{row.status==='pending'?'Aguardando primeiro pagamento':row.partner_code?commissionStage(row):''}</small></td>
+     <td>{row.status==='qualified'&&Boolean(row.first_invoice_id)&&row.commission_status==='pending_approval'&&Number(row.commission_cents)>0?
       <div className="svx-referral-admin__actions"><input aria-label={'Comprovante '+row.referred_store} value={references[row.referred_store_id]||''} onChange={e=>setReferences(x=>({...x,[row.referred_store_id]:e.target.value}))} placeholder="ID do Pix"/><button disabled={busy===row.referred_store_id} onClick={()=>void payout(row)}>Registrar pago</button></div>
       :row.commission_status==='paid'?<span>Registrado: {row.payout_reference}</span>:'—'}</td>
-    </tr>)}</tbody></table></div>{!report.claims.length&&<p>Nenhuma indicação atribuída.</p>}
+    </tr>)}</tbody></table></div>{!report.claims.length&&<div className="svx-referral-admin__empty"><Store size={26}/><strong>Nenhuma indicação atribuída.</strong><span>As lojas indicadas aparecerão aqui com a situação do pagamento e do repasse.</span></div>}
    </section>
-   <p className="svx-partner__warning"><ShieldAlert size={17}/> Um cadastro não é uma venda. Apenas o webhook Stripe de primeira fatura paga qualifica a indicação; o registro de repasse exige comprovante de pagamento externo e nunca envia Pix.</p>
+   <p className="svx-partner__warning"><ShieldAlert size={17}/> A indicação só é concluída após o primeiro pagamento de valor positivo confirmado pela Stripe. Cadastro e Checkout pendente não geram comissão.</p>
   </>}
  </div>
 }
