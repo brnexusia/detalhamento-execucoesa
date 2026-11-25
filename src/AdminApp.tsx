@@ -800,7 +800,8 @@ function ProductEditor({ draft, setDraft, onClose, onSaved, targetCatalogId }: {
     <ProductVariationsEditor value={draft} onChange={patch=>setDraft({...draft,...patch})} gallery={gallery} variantImages={draft.variantImages} onImages={images=>update('variantImages',images)} disabled={busy||uploading}/>
     <ProductPriceEditor value={draft} onChange={patch => setDraft({...draft,...patch})} />
     <section className="product-inline-section svx-product-memberships" aria-label="Catálogos do produto">
-      <div className="product-inline-section__head"><div><strong>Catálogos do produto</strong><span>Marque onde este produto deve aparecer. Cada catálogo utiliza seu tipo de preço, sem duplicar o produto ou o estoque.</span></div></div>
+      <div className="product-inline-section__head"><div><strong>Onde publicar esta peça</strong><span>Selecione o catálogo geral, varejo ou outros catálogos disponíveis. A mesma peça e o mesmo estoque são compartilhados; cada catálogo usa seu próprio tipo de preço.</span></div></div>
+      {!membershipLoading&&!membershipError&&Number(draft.retailPrice)>0&&memberships.some(c=>c.active&&!c.lockedByPlan&&(c.kind==='varejo'||(c.kind==='personalizado'&&c.priceMode==='varejo'))&&!included(c))&&<p className="svx-catalog-publication-hint" role="status">O preço de varejo foi preenchido. Para publicar esta peça no varejo, marque o catálogo desejado abaixo e salve. Não é necessário cadastrar novamente.</p>}
       {membershipLoading&&<p role="status">Carregando catálogos…</p>}
       {membershipError&&<p role="alert">{membershipError} <button type="button" className="secondary-action" onClick={loadMemberships}>Tentar novamente</button></p>}
       {!membershipLoading&&!membershipError&&memberships.map(catalog=>{
@@ -812,7 +813,7 @@ function ProductEditor({ draft, setDraft, onClose, onSaved, targetCatalogId }: {
         const label=mode==='varejo'?'Varejo':mode==='caixa_fechada'?'Caixa fechada':mode==='alto_atacado'?'Alto atacado':mode==='atacado'?'Atacado':'Preço base'
         return <div className="svx-product-membership" key={catalog.id}>
           <label><input type="checkbox" aria-label={'Incluir em '+catalog.name} checked={isIncluded} disabled={busy||catalog.lockedByPlan} onChange={e=>{const value=e.target.checked;setMembershipChanges(prev=>{const next={...prev};if(value===catalog.included&&!prev[catalog.id]?.resetPrice&&prev[catalog.id]?.mediaImages===undefined)delete next[catalog.id];else next[catalog.id]={...prev[catalog.id],included:value};return next})}}/>
-            <span><strong>{catalog.name}</strong><small>{label}{catalog.lockedByPlan?' · Bloqueado pelo plano':!catalog.active?' · Não publicado':''}</small></span>
+            <span><strong>{catalog.name}</strong><small>{label}{catalog.lockedByPlan?' · Bloqueado pelo plano':!catalog.active?' · Catálogo não publicado':isIncluded?' · Incluído':' · Não incluído'}</small></span>
             <b>{Number.isFinite(price)&&price>0?money.format(price):'—'}</b>
           </label>
           {isIncluded&&override&&!catalog.lockedByPlan&&<div className="svx-product-membership__override"><small>Preço específico do catálogo</small><button type="button" disabled={busy} onClick={()=>setMembershipChanges(prev=>({...prev,[catalog.id]:{...prev[catalog.id],included:true,resetPrice:true}}))}>Usar preço automático</button></div>}
