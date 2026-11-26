@@ -1148,7 +1148,7 @@ async function recoverCatalogMedia(req,res){
     const groups=new Map()
     for(const row of candidates.rows){
       const data=row.data||{}
-      const urls=[data.media_url,...(Array.isArray(data.images)?data.images:[])].filter(x=>typeof x==='string'&&/^\\/media\\/[A-Za-z0-9_-]+$/.test(x))
+      const urls=[data.media_url,...(Array.isArray(data.images)?data.images:[])].filter(x=>typeof x==='string'&&/^\/media\/[A-Za-z0-9_-]+$/.test(x))
       if(!urls.length)continue
       const previous=groups.get(row.product_id)||[]
       groups.set(row.product_id,[...new Set([...previous,...urls])].slice(0,40))
