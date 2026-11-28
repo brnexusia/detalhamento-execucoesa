@@ -48,3 +48,10 @@ test('cupom mantém romaneio enxuto mesmo com descrição e foto persistidas', (
   assert.match(result, /Valor unitário:/)
   assert.match(result, /Cupom DEZ/)
 })
+
+test('valor extra aparece separado sem expor detalhes internos', () => {
+  const result=buildOrderWhatsappMessage({...base,order:{...order,extra_amount:15},total:295})
+  assert.match(result,/Valor extra: R\$\s15,00/)
+  assert.match(result,/Total do pedido: R\$\s295,00/)
+  assert.doesNotMatch(result,/ID:|Descrição:|Foto:/)
+})

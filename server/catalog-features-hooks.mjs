@@ -135,12 +135,20 @@ async function ensureSchema() {
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS buyer jsonb NOT NULL DEFAULT '{}'::jsonb;
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS notes text NOT NULL DEFAULT '';
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS edit_revision integer NOT NULL DEFAULT 0;
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS extra_amount numeric(12,2) NOT NULL DEFAULT 0;
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS subtotal numeric(12,2);
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount numeric(12,2) NOT NULL DEFAULT 0;
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS sale_confirmed_at timestamptz;
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS commission_rate numeric(5,2);
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS commission_amount numeric(12,2) NOT NULL DEFAULT 0;
     CREATE TABLE IF NOT EXISTS seller_order_access (
       seller_id text PRIMARY KEY REFERENCES sellers(id) ON DELETE CASCADE,
       invite_hash text UNIQUE, invite_expires_at timestamptz,
       session_hash text UNIQUE, session_expires_at timestamptz
     );
     CREATE TABLE IF NOT EXISTS order_edit_history (id bigserial PRIMARY KEY,order_id text NOT NULL REFERENCES orders(id) ON DELETE CASCADE,store_id text NOT NULL REFERENCES stores(id) ON DELETE CASCADE,user_id text NOT NULL,old_items jsonb NOT NULL,new_items jsonb NOT NULL,old_total numeric(12,2) NOT NULL,new_total numeric(12,2) NOT NULL,created_at timestamptz NOT NULL DEFAULT now());
+    ALTER TABLE order_edit_history ADD COLUMN IF NOT EXISTS old_extra_amount numeric(12,2) NOT NULL DEFAULT 0;
+    ALTER TABLE order_edit_history ADD COLUMN IF NOT EXISTS new_extra_amount numeric(12,2) NOT NULL DEFAULT 0;
   `)
 }
 
@@ -961,6 +969,10 @@ async function editCatalogOrder(req,res) {
     if(!Number.isSafeInteger(req.body?.revision)||req.body.revision!==revision)
       throw reject(409,'O pedido foi alterado em outra sessão. Atualize o painel e tente novamente.')
     const previous=Array.isArray(order.items)?order.items:[]
+    const oldExtra=Number(order.extra_amount||0)
+    const rawExtra=Object.hasOwn(req.body||{},'extraAmount')?req.body.extraAmount:oldExtra
+    if(typeof rawExtra!=='number'||!Number.isFinite(rawExtra)||rawExtra<0||rawExtra>9999999999.99||Math.abs(rawExtra*100-Math.round(rawExtra*100))>0.001)throw reject(400,'Informe um valor extra não negativo com até duas casas decimais.')
+    const extraCents=Math.round(rawExtra*100)
     const ids=[...new Set([...previous,...requested].map(i=>String(i?.productId||'')).filter(Boolean))].sort()
     const products=await client.query('SELECT * FROM products WHERE store_id=$1 AND id=ANY($2::text[]) ORDER BY id FOR UPDATE',[storeId,ids])
     const byId=new Map(products.rows.map(p=>[p.id,p]))
@@ -1025,6 +1037,11 @@ async function editCatalogOrder(req,res) {
       }
       nextItems.push(row)
     }
+    const subtotalCents=totalCents
+    const discountCents=Math.round(Number(order.discount||0)*100)
+    if(discountCents>subtotalCents)throw reject(400,'O subtotal não pode ser inferior ao desconto existente.')
+    totalCents=subtotalCents+extraCents-discountCents
+    if(!Number.isSafeInteger(totalCents)||totalCents>999999999999||totalCents<0)throw reject(400,'Total do pedido excede o limite permitido.')
     for(const {product,bucket,amount} of deltas.values()){
       if(!amount)continue
       const map=normalizeVariantStock(product.variant_stock)
@@ -1036,8 +1053,8 @@ async function editCatalogOrder(req,res) {
       else product.stock_quantity=value
       await client.query('UPDATE products SET stock_quantity=$1,variant_stock=$2,updated_at=now() WHERE id=$3 AND store_id=$4',[clampStock(product.stock_quantity),JSON.stringify(normalizeVariantStock(product.variant_stock)),product.id,storeId])
     }
-    await client.query('INSERT INTO order_edit_history(order_id,store_id,user_id,old_items,new_items,old_total,new_total) VALUES($1,$2,$3,$4,$5,$6,$7)',[order.id,storeId,req.catalogStore.user_id,JSON.stringify(previous),JSON.stringify(nextItems),order.total,totalCents/100])
-    const result=await client.query('UPDATE orders SET items=$1,total=$2,edit_revision=edit_revision+1 WHERE id=$3 AND store_id=$4 RETURNING *',[JSON.stringify(nextItems),totalCents/100,order.id,storeId])
+    await client.query('INSERT INTO order_edit_history(order_id,store_id,user_id,old_items,new_items,old_total,new_total,old_extra_amount,new_extra_amount) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[order.id,storeId,req.catalogStore.user_id,JSON.stringify(previous),JSON.stringify(nextItems),order.total,totalCents/100,oldExtra,extraCents/100])
+    const result=await client.query('UPDATE orders SET items=$1,total=$2,extra_amount=$5,subtotal=$6,commission_amount=CASE WHEN sale_confirmed_at IS NOT NULL AND commission_rate IS NOT NULL THEN round($2::numeric*commission_rate/100,2) ELSE commission_amount END,edit_revision=edit_revision+1 WHERE id=$3 AND store_id=$4 RETURNING *',[JSON.stringify(nextItems),totalCents/100,order.id,storeId,extraCents/100,subtotalCents/100])
     await client.query('COMMIT')
     return res.json({order:{...result.rows[0],total:Number(result.rows[0].total)}})
   }catch(error){

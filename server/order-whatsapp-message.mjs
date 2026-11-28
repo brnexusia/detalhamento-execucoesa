@@ -53,7 +53,9 @@ export function buildOrderWhatsappMessage({ order, store, seller, catalog, subto
   }
   lines.push('')
   if (discount > 0) lines.push(`Subtotal: ${money(subtotal)}`, `Cupom ${text(coupon?.code)}: -${money(discount)}`)
-  lines.push(`Total dos produtos: ${money(total)}`, `Pedido: ${text(order.code)}`)
+  const extra = Number(order.extra_amount || 0)
+  if (extra > 0) lines.push(`Valor extra: ${money(extra)}`)
+  lines.push(`${extra > 0 ? 'Total do pedido' : 'Total dos produtos'}: ${money(total)}`, `Pedido: ${text(order.code)}`)
   for (const [label, value] of [['Comprador', buyer.name], ['Cidade', buyer.city], ['CEP', buyer.cep], ['Contato', buyer.phone], ['Observações', order.notes]]) {
     if (text(value)) lines.push(`${label}: ${text(value)}`)
   }

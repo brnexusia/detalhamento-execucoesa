@@ -158,6 +158,8 @@ export type AdminOrder = {
   catalog_id?: string | null
   stock_reverted?: boolean
   edit_revision?: number
+  extra_amount?: number | string
+  discount?: number | string
   payment_status?: string
   shipping_method?: string
   shipping_amount?: number | string

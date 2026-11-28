@@ -57,7 +57,7 @@ export default function ProductVariationsEditor({value,onChange,gallery,variantI
       {group.options.map((option,j)=><div className="svx-other-option" key={j}><input aria-label={'Opção '+(i+1)+'.'+(j+1)} value={option} maxLength={60} disabled={disabled} placeholder={isColor(group.name)?'Ex.: Bege':isSize(group.name)?'Ex.: M':'Ex.: opção'} onChange={e=>updateOption(i,j,e.target.value)}/><button type="button" className="svx-price-remove" disabled={disabled} aria-label={'Remover opção adicional '+(i+1)+'.'+(j+1)} onClick={()=>update(i,{options:group.options.filter((_,k)=>k!==j)})}><Trash2 size={15}/></button></div>)}
       <button type="button" className="secondary-action" disabled={disabled||group.options.length>=30} onClick={()=>update(i,{options:[...group.options,'']})}><Plus size={15}/> Adicionar valor</button>
     </div>)}
-    {color&&<div className="svx-color-photos"><strong>Representação e fotos por cor</strong><p className="svx-price-hint">Escolha a tonalidade visual e associe fotos da galeria geral. Para adicionar novas fotos, use a seção Fotos do produto acima.</p>
+    {color&&<div className="svx-color-photos"><strong>Representação e fotos por cor</strong><p className="svx-price-hint">Escolha a tonalidade visual e associe fotos da galeria geral. Para adicionar novas fotos, use a seção Fotos do produto abaixo.</p>
       {color.options.map(name=>{
         const swatch=value.colorSwatches?.[name]
         const selected=variantImages.find(g=>Object.keys(g.selections).length===1&&g.selections[color.name]===name)?.images||[]
