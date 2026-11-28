@@ -24,14 +24,16 @@ test('produto sem variação não inventa cor ou tamanho; seleção perdida é r
   assert.throws(() => assertKnownOrderSelections(item, { Cor: 'Preto' }, {}), /Atualize o carrinho/)
 })
 
-test('produtos homônimos sem variações guardam identidade, descrição e foto individual', () => {
-  const first = { id: 'calca-1', description: 'Tecido: Crepe\nTamanho: Único (38/40)', images: ['/media/calca-1'], media_type: 'image' }
+test('produtos homônimos preservam dados internos sem poluir o romaneio', () => {
+  const first = { id: 'calca-1', description: 'Tecido: Crepe', images: ['/media/calca-1'], media_type: 'image' }
   const second = { ...first, id: 'calca-2', images: ['/media/calca-2'] }
-  const items = [first, second].map(p => ({ ...item, sku: '', productId: p.id, selections: {}, ...orderProductDetails(p) }))
+  const items = [first, second].map((p,i) => ({ ...item, sku: '', productId: p.id, selections: { Cor: i===0?'Bege':'Preto', Tamanho:'Único' }, ...orderProductDetails(p) }))
+  assert.equal(items[0].imageUrl, 'https://shopvax.com.br/media/calca-1')
+  assert.equal(items[1].description, 'Tecido: Crepe')
   const result = buildOrderWhatsappMessage({ ...base, order: { ...order, items } })
-  assert.match(result, /ID: calca-1\nDescrição: Tecido: Crepe Tamanho: Único \(38\/40\)\nFoto: https:\/\/shopvax\.com\.br\/media\/calca-1/)
-  assert.match(result, /ID: calca-2\nDescrição: Tecido: Crepe Tamanho: Único \(38\/40\)\nFoto: https:\/\/shopvax\.com\.br\/media\/calca-2/)
-  assert.doesNotMatch(result, /Cor:/)
+  assert.match(result, /Cor: Bege\nTamanho: Único/)
+  assert.match(result, /Cor: Preto\nTamanho: Único/)
+  assert.doesNotMatch(result, /ID:|Descrição:|Foto:|calca-1|calca-2|Tecido: Crepe/)
 })
 test('foto da combinação selecionada prevalece sobre a galeria base', () => {
   const product = { description: 'Crepe', images: ['/media/base'], variant_images: [{ selections: { Cor: 'Azul' }, images: ['/media/azul'] }, { selections: { Cor: 'Rosa' }, images: ['/media/rosa'] }] }
@@ -40,9 +42,9 @@ test('foto da combinação selecionada prevalece sobre a galeria base', () => {
   assert.equal(orderProductDetails({ media_type: 'video', media_url: '/media/video' }).imageUrl, '')
   assert.equal(orderProductDetails({ images: ['javascript:alert(1)', '//other.test/pic', '/media/safe'] }).imageUrl, 'https://shopvax.com.br/media/safe')
 })
-test('cupom mantém descrição e foto persistidas no pedido', () => {
+test('cupom mantém romaneio enxuto mesmo com descrição e foto persistidas', () => {
   const result = buildOrderWhatsappMessage({ ...base, order: { ...order, items: [{ ...item, productId: 'a', ...orderProductDetails({ description: 'Tamanho único', images: ['/media/a'] }) }] }, subtotal: 140, discount: 10, total: 130, coupon: { code: 'DEZ' } })
-  assert.ok(result.includes('Descrição: Tamanho único'))
-  assert.ok(result.includes('Foto: https://shopvax.com.br/media/a'))
+  assert.doesNotMatch(result, /ID:|Descrição:|Foto:/)
+  assert.match(result, /Valor unitário:/)
   assert.match(result, /Cupom DEZ/)
 })

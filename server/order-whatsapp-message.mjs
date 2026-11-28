@@ -48,10 +48,6 @@ export function buildOrderWhatsappMessage({ order, store, seller, catalog, subto
     for (const [name, value] of Object.entries(item.selections || {})) {
       if (text(value)) lines.push(`${text(name)}: ${text(value)}`)
     }
-    if (item.productId) lines.push(`ID: ${text(item.productId)}`)
-    if (text(item.description)) lines.push(`Descrição: ${text(item.description)}`)
-    const image = publicImageUrl(item.imageUrl)
-    if (image) lines.push(`Foto: ${image}`)
     if (Number(item.unitsPerBox) > 1) lines.push(`Unidades por caixa: ${Number(item.unitsPerBox)}`, `Total de unidades: ${Number(item.stockUnits || item.quantity * item.unitsPerBox)}`)
     lines.push(`Valor unitário: ${money(item.unitPrice)}`, `Total do item: ${money(item.lineTotal)}`)
   }

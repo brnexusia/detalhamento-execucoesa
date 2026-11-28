@@ -143,9 +143,9 @@ try {
   assert.equal(dbOrder.items[0].description, 'Teste')
   assert.equal(dbOrder.items[0].imageUrl, 'https://shopvax.com.br' + uploaded.url)
   const orderText = new URL(order.whatsappUrl).searchParams.get('text')
-  assert.ok(orderText.includes('Descrição: Teste'))
-  assert.ok(orderText.includes('Foto: https://shopvax.com.br' + uploaded.url))
-  assert.ok(orderText.includes('ID: ' + product.id))
+  assert.doesNotMatch(orderText, /ID:|Descrição:|Foto:/)
+  assert.match(orderText, /Valor unitário:/)
+  assert.match(orderText, /Total do item:/)
 
   response = await admin(`/api/admin/catalogs/${catalog.id}`, account.cookie, {
     method: 'PATCH', body: JSON.stringify({ items: [{ productId: product.id, priceOverride: 55, visible: false }] }),
