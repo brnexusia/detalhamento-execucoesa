@@ -405,6 +405,19 @@ export default function PublicStoreV2() {
     </header>
 
     {view === 'store' ? <main>
+      <section className="svx-store-quick-navigation" aria-label="Navegação do catálogo">
+      {!demo && (payload?.catalogs?.length||0)>1 && <nav className="svx-store-catalog-switch" aria-label="Escolher catálogo comercial">
+         <span>Escolha seu catálogo</span><div>{payload?.catalogs?.map(c=><a key={c.id}
+          aria-current={payload.activeCatalog?.id===c.id?'page':undefined}
+          href={publicCatalogLink(route.storeSlug,c.slug,route.sellerSlug)}>
+          {c.name} {c.kind==='caixa_fechada'?'· Caixa fechada':c.kind==='atacado'?'· Atacado':c.kind==='varejo'?'· Varejo':c.kind==='personalizado'?'· '+(c.customLabel||'Personalizado'):''}
+         </a>)}</div>
+        </nav>}
+        <div className="svx-store-category-nav">
+          <span>Comprar por categoria</span>
+          <section className="category-strip" aria-label="Filtrar produtos por categoria">{categories.map((item) => <button type="button" key={item} className={category === item ? 'is-active' : ''} aria-pressed={category === item} onClick={() => { setQuery(''); setCategory(item); document.getElementById('colecao-atual')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }}>{item}</button>)}</section>
+        </div>
+      </section>
       <section className="store-intro svx-vitrine">
         <div className="svx-vitrine__media" aria-hidden="true">{products[0] && <ProductMedia product={products[0]}/>}</div>
         <div className="svx-vitrine__shade" aria-hidden="true"/>
@@ -421,15 +434,9 @@ export default function PublicStoreV2() {
       </section>
       {visibleProducts.some((product) => product.featured) && <section className="svx-highlights" aria-label="Destaques da loja"><h2>Destaques da loja</h2><div>{visibleProducts.filter((product)=>product.featured).slice(0,3).map((product,index)=><button key={product.id} onClick={() => openPicker(product)}><span className="svx-highlights__rank">{String(index+1).padStart(2,'0')}</span><span className="svx-highlights__media"><ProductMedia product={product} sizes="72px" /></span><strong>{product.name}</strong><small>{priceLabel(product, product.variations, money)}</small><ArrowRight size={16}/></button>)}</div></section>}
       <div className="svx-catalog-split"><div className="svx-catalog-split__products">
-      {!demo && (payload?.catalogs?.length||0)>1 && <nav className="svx-store-catalog-switch" aria-label="Escolher catálogo comercial">
-         <span>Comprar por catálogo</span><div>{payload?.catalogs?.map(c=><a key={c.id}
-          aria-current={payload.activeCatalog?.id===c.id?'page':undefined}
-          href={publicCatalogLink(route.storeSlug,c.slug,route.sellerSlug)}>
-          {c.name} {c.kind==='caixa_fechada'?'· Caixa fechada':c.kind==='atacado'?'· Atacado':c.kind==='varejo'?'· Varejo':c.kind==='personalizado'?'· '+(c.customLabel||'Personalizado'):''}
-         </a>)}</div>
-        </nav>}
+
        <section id="colecao-atual" className="catalog-toolbar"><label className="search-box"><Search size={18}/><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar produto ou referência" /></label><label className="svx-catalog-sort"><span>Ordenar por</span><select aria-label="Ordenação dos produtos" value={sort} onChange={(e) => setSort(e.target.value as 'newest' | 'price_asc' | 'price_desc')}><option value="newest">Mais recentes</option><option value="price_asc">Menor preço</option><option value="price_desc">Maior preço</option></select></label><div className="minimum-inline"><span>Pedido mínimo</span><strong>{money.format(minimum)}</strong></div></section>
-      <section className="category-strip" aria-label="Filtrar produtos por categoria">{categories.map((item) => <button type="button" key={item} className={category === item ? 'is-active' : ''} aria-pressed={category === item} onClick={() => setCategory(item)}>{item}</button>)}</section>
+
       <section className="catalog-heading"><div><span>{payload.page?.hasMore ? 'Mais produtos disponíveis' : `${visibleProducts.length} produtos`}</span><h2>{category === 'Todos' ? 'Escolha suas peças' : category}</h2></div><button className="feed-callout" onClick={() => setView('feed')}>Ver como feed <ArrowRight size={17}/></button></section>
       {!visibleProducts.length && !filterLoading && <div className="svx-catalog-empty"><Search size={28}/><h3>Nenhuma peça encontrada.</h3><p>Experimente outra referência, categoria ou termo de busca.</p><button onClick={() => { setQuery(''); setCategory('Todos'); setSort('newest') }}>Limpar filtros</button></div>}
       <section className="product-grid">{visibleProducts.map((product) => <article className="product-card" key={product.id}><button className="product-card__media" onClick={() => openPicker(product)} aria-label={`Ver ${product.name}`}><ProductMedia product={product} sizes="(max-width: 640px) 44vw, (max-width: 1100px) 30vw, 240px"/>{product.featured && <SVTag className="product-card__flag">Destaque</SVTag>}</button><div className="product-card__content"><div className="product-card__meta"><span>{product.sku}</span><span>{product.category}</span></div><h3>{product.name}</h3><p>{product.description}</p>{product.variations.length > 0 && <div className="product-card__variations">{product.variations.map((group) => <span key={group.name}>{group.name}: {group.options.join(' / ')}</span>)}</div>}<div className="product-card__footer"><strong>{priceLabel(product, product.variations, money)}</strong><button onClick={() => openPicker(product)}><Plus size={18}/> Escolher</button></div></div></article>)}</section>
